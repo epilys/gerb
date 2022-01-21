@@ -1,0 +1,17 @@
+[package]
+name = "gerb"
+version = "0.0.0"
+edition = "2021"
+authors = ["Manos Pitsidianakis <epilys@nessuent.xyz>"]
+description = "font editor"
+license-file = "LICENSE"
+readme = "README.md"
+homepage = "https://github.com/epilys/gerb"
+repository = "https://github.com/epilys/gerb"
+
+[dependencies]
+gtk = "^0.15"
+chrono = "0.4"
+futures = "0.3"
+futures-util = "0.3"
+once_cell = "1.2.0"
