@@ -24,9 +24,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 pub type Point = (i64, i64);
 
-#[derive(Debug)]
-struct Bezier {
-    points: Vec<Point>,
+#[derive(Debug, Clone)]
+pub struct Bezier {
+    pub points: Vec<Point>,
 }
 
 impl Bezier {
@@ -59,11 +59,11 @@ fn draw_curve_point(points: &[Point], t: f64) -> Option<Point> {
     draw_curve_point(&new_points, t)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Glyph {
-    name: &'static str,
-    char: char,
-    curves: Vec<Bezier>,
+    pub name: &'static str,
+    pub char: char,
+    pub curves: Vec<Bezier>,
 }
 
 impl Default for Glyph {
