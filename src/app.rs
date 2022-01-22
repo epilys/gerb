@@ -1,7 +1,7 @@
 /*
  * gerb
  *
- * Copyright 2021 - Manos Pitsidianakis
+ * Copyright 2022 - Manos Pitsidianakis
  *
  * This file is part of gerb.
  *
@@ -96,6 +96,18 @@ impl ApplicationImpl for Application {
         let app = app.downcast_ref::<super::GerbApp>().unwrap();
         let imp = app.imp();
         let window = MainWindow::new(app);
+        let style_context = window
+            .upcast_ref::<gtk::ApplicationWindow>()
+            .style_context();
+        let css_provider = gtk::CssProvider::new();
+        css_provider
+            .load_from_data(include_bytes!("./custom.css"))
+            .unwrap();
+        gtk::StyleContext::add_provider_for_screen(
+            &gtk::gdk::Screen::default().unwrap(),
+            &css_provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
         imp.window
             .set(window)
             .expect("Failed to initialize application window");
