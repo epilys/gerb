@@ -134,9 +134,8 @@ impl ObjectImpl for Window {
         ));
         //stack.add_named(&drawing_area, "main");
         let grid = gtk::Grid::builder().expand(true).visible(true).build();
-        let drawing_area_frame = gtk::Frame::builder().expand(true).visible(true).build();
-        drawing_area_frame.add(&drawing_area);
-        grid.attach(&drawing_area_frame, 1, 0, 1, 1);
+        //grid.attach(&drawing_area, 1, 0, 1, 1);
+        grid.attach(&stack, 1, 0, 1, 1);
 
         obj.add(&grid);
         obj.set_titlebar(Some(&headerbar));
@@ -185,9 +184,6 @@ impl Window {
         widgets
             .headerbar
             .set_subtitle(Some(&format!("Loaded project: {}", project.name.as_str())));
-        self.project
-            .set(project)
-            .expect("Failed to initialize project");
         let item_groups = widgets.tool_palette.children();
         if item_groups
             .iter()
@@ -202,7 +198,14 @@ impl Window {
             widgets.tool_palette.add(&widgets.project_item_group);
             widgets.project_item_group.set_visible(true);
         }
+        let edit_view = crate::views::GlyphEditView::new(project.glyphs[&('R' as u32)].clone());
+        widgets.stack.add(&edit_view);
+        widgets.stack.set_visible_child(&edit_view);
         widgets.tool_palette.queue_draw();
+        widgets.stack.queue_draw();
+        self.project
+            .set(project)
+            .expect("Failed to initialize project");
     }
 
     pub fn unload_project(&self) {

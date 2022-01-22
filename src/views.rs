@@ -19,21 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use gtk::{AboutDialog, DrawingArea};
+mod glyph_edit;
 
-use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Button};
-
-mod app;
-pub mod project;
-pub mod views;
-mod window;
-use app::GerbApp;
-
-fn main() {
-    gtk::init().expect("Failed to initialize gtk");
-
-    let app = GerbApp::new();
-
-    app.run();
-}
+pub use glyph_edit::*;
