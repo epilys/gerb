@@ -1,0 +1,37 @@
+window, menubar, button{
+  background-color: white;
+  background-image: none;
+}
+
+decoration {
+  border-radius: 0;
+}
+
+button {
+  border-radius: 0;
+}
+
+menubar {
+  font-weight: bolder;
+}
+
+window headerbar {
+  border-radius: 0;
+  border: 1px solid grey;
+  min-height: 35px;
+  background-color: white;
+  background-image: none;
+}
+
+window headerbar * {
+  padding: 0;
+}
+
+.titlebutton {
+  border: 1px solid grey;
+  border-radius: 2px;
+  background-color: white;
+  color: black;
+  padding: 0px;
+  margin: 0px;
+}

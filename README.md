@@ -1,5 +1,5 @@
 # `gerb`
 
-WIP, ignore for now. Also, GTK is ugly.
+WIP, ignore for now.
 
 ![./screenshot.png](./screenshot.png)

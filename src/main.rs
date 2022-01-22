@@ -1,7 +1,7 @@
 /*
  * gerb
  *
- * Copyright 2021 - Manos Pitsidianakis
+ * Copyright 2022 - Manos Pitsidianakis
  *
  * This file is part of gerb.
  *
@@ -25,6 +25,7 @@ use gtk::prelude::*;
 use gtk::{Application, ApplicationWindow, Button};
 
 mod app;
+pub mod project;
 mod window;
 use app::GerbApp;
 
