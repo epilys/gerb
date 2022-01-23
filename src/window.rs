@@ -20,15 +20,15 @@
  */
 
 use glib::clone;
-use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::Cell;
-use std::f64::consts::PI;
+use std::sync::{Arc, Mutex};
 
 use crate::app::GerbApp;
+use crate::project::Project;
 
 #[derive(Debug)]
 struct WindowWidgets {
@@ -46,7 +46,7 @@ struct WindowWidgets {
 pub struct Window {
     widgets: OnceCell<WindowWidgets>,
     counter: Cell<u64>,
-    project: OnceCell<crate::project::Project>,
+    project: OnceCell<Arc<Mutex<Option<Project>>>>,
 }
 
 #[glib::object_subclass]
@@ -78,13 +78,17 @@ impl ObjectImpl for Window {
             imp.on_increment_clicked();
         }));
 
-        let stack = gtk::Stack::builder().expand(true).visible(true).build();
+        let stack = gtk::Stack::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .build();
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
             .visible(true)
+            .can_focus(true)
             .build();
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
-            let project = obj.imp().project.get().unwrap();
             println!("cairo drawing");
             cr.scale(500f64, 500f64);
             cr.set_source_rgb(1., 1., 1.);
@@ -126,8 +130,12 @@ impl ObjectImpl for Window {
             cr.fill().expect("Invalid cairo surface state");
             */
 
-            let glyph = &project.glyphs[&('R' as u32)];
-            glyph.draw(drar, cr);
+            if let Ok(lck) = obj.imp().project.get().unwrap().lock() {
+                if let Some(project) = &*lck {
+                    let glyph = &project.glyphs[&('R' as u32)];
+                    glyph.draw(drar, cr);
+                }
+            }
 
             Inhibit(false)
         }
@@ -137,9 +145,14 @@ impl ObjectImpl for Window {
         //grid.attach(&drawing_area, 1, 0, 1, 1);
         grid.attach(&stack, 1, 0, 1, 1);
 
-        obj.add(&grid);
+        obj.set_child(Some(&grid));
         obj.set_titlebar(Some(&headerbar));
         obj.set_default_size(640, 480);
+        obj.set_events(
+            gtk::gdk::EventMask::POINTER_MOTION_MASK
+                | gtk::gdk::EventMask::ENTER_NOTIFY_MASK
+                | gtk::gdk::EventMask::LEAVE_NOTIFY_MASK,
+        );
 
         let tool_palette = gtk::ToolPalette::new();
         let create_item_group = gtk::ToolItemGroup::new("Create/load project");
@@ -166,8 +179,9 @@ impl ObjectImpl for Window {
                 project_item_group,
             })
             .expect("Failed to initialize window state");
+        self.project.set(Arc::new(Mutex::new(None))).unwrap();
 
-        self.load_project(crate::project::Project::default());
+        self.load_project(Project::default());
     }
 }
 
@@ -179,7 +193,7 @@ impl Window {
             .set_text(&format!("Counter is {}", self.counter.get()));
     }
 
-    pub fn load_project(&self, project: crate::project::Project) {
+    pub fn load_project(&self, project: Project) {
         let widgets = self.widgets.get().unwrap();
         widgets
             .headerbar
@@ -198,14 +212,19 @@ impl Window {
             widgets.tool_palette.add(&widgets.project_item_group);
             widgets.project_item_group.set_visible(true);
         }
-        let edit_view = crate::views::GlyphEditView::new(project.glyphs[&('R' as u32)].clone());
+        let mutex = self.project.get().unwrap();
+        let mut lck = mutex.lock().unwrap();
+        *lck = Some(project);
+        drop(lck);
+        let edit_view = crate::views::GlyphEditView::new(
+            mutex.lock().unwrap().as_ref().unwrap().glyphs[&('R' as u32)].clone(),
+        );
+        let glyphs_view = crate::views::GlyphsOverview::new(mutex.clone());
+        widgets.stack.add(&glyphs_view);
         widgets.stack.add(&edit_view);
-        widgets.stack.set_visible_child(&edit_view);
+        widgets.stack.set_visible_child(&glyphs_view);
         widgets.tool_palette.queue_draw();
         widgets.stack.queue_draw();
-        self.project
-            .set(project)
-            .expect("Failed to initialize project");
     }
 
     pub fn unload_project(&self) {
@@ -224,6 +243,11 @@ impl Window {
         {
             widgets.tool_palette.add(&widgets.create_item_group);
         }
+        widgets.tool_palette.queue_draw();
+        widgets.stack.queue_draw();
+        let mutex = self.project.get().unwrap();
+        let mut lck = mutex.lock().unwrap();
+        *lck = None;
     }
 }
 

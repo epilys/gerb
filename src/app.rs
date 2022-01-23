@@ -96,9 +96,6 @@ impl ApplicationImpl for Application {
         let app = app.downcast_ref::<super::GerbApp>().unwrap();
         let imp = app.imp();
         let window = MainWindow::new(app);
-        let style_context = window
-            .upcast_ref::<gtk::ApplicationWindow>()
-            .style_context();
         let css_provider = gtk::CssProvider::new();
         css_provider
             .load_from_data(include_bytes!("./custom.css"))
@@ -151,10 +148,8 @@ impl GerbApp {
 
     fn build_system_menu(&self) {
         let application = self.upcast_ref::<gtk::Application>();
-        let menu = gio::Menu::new();
         let menu_bar = gio::Menu::new();
         let more_menu = gio::Menu::new();
-        let quit_menu = gio::Menu::new();
         let file_menu = gio::Menu::new();
         let settings_menu = gio::Menu::new();
         let submenu = gio::Menu::new();

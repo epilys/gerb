@@ -19,13 +19,11 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use gtk::{AboutDialog, DrawingArea};
-
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Button};
 
 mod app;
 pub mod project;
+pub mod utils;
 pub mod views;
 mod window;
 use app::GerbApp;
