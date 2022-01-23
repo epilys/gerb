@@ -20,5 +20,7 @@
  */
 
 mod glyph_edit;
+mod glyphs_overview;
 
 pub use glyph_edit::*;
+pub use glyphs_overview::*;

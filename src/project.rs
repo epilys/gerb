@@ -104,7 +104,15 @@ impl Default for Glyph {
 }
 
 impl Glyph {
-    pub fn draw(&self, drar: &gtk::DrawingArea, cr: &gtk::cairo::Context) {
+    pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
+        Glyph { name, char, curves }
+    }
+
+    pub fn new_empty(name: &'static str, char: char) -> Self {
+        Glyph::new(name, char, vec![])
+    }
+
+    pub fn draw(&self, _drar: &gtk::DrawingArea, cr: &Context) {
         if self.curves.is_empty() {
             cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
@@ -163,8 +171,15 @@ impl Default for Project {
             name: "test project".to_string(),
             modified: false,
             last_saved: None,
-            glyphs: [('R' as u32, Glyph::default())]
-                .into_iter()
+            glyphs: crate::utils::CODEPOINTS
+                .chars()
+                .map(|c| {
+                    if c == 'R' {
+                        ('R' as u32, Glyph::default())
+                    } else {
+                        (c as u32, Glyph::new_empty("", c))
+                    }
+                })
                 .collect::<HashMap<u32, Glyph>>(),
             path: None,
         }

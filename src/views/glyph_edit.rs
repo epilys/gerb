@@ -20,12 +20,10 @@
  */
 
 use glib::clone;
-use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
-use std::cell::Cell;
 
 use crate::project::Glyph;
 
