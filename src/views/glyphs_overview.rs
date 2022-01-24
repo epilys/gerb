@@ -34,6 +34,8 @@ use crate::project::{Glyph, Project};
 pub struct GlyphsArea {
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
     grid: OnceCell<gtk::Grid>,
+    hide_empty: Cell<bool>,
+    widgets: OnceCell<Vec<GlyphBoxItem>>,
 }
 
 #[glib::object_subclass]
@@ -62,9 +64,38 @@ impl ObjectImpl for GlyphsArea {
             .expand(true)
             .visible(true)
             .can_focus(true)
+            .margin_start(5)
             .build();
         scrolled_window.set_child(Some(&grid));
-        obj.set_child(Some(&scrolled_window));
+
+        let box_ = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        box_.set_spacing(5);
+        let tool_palette = gtk::ToolPalette::new();
+        tool_palette.set_hexpand(true);
+        tool_palette.set_vexpand(false);
+        tool_palette.set_height_request(40);
+        tool_palette.set_orientation(gtk::Orientation::Horizontal);
+        let glyph_overview_tools = gtk::ToolItemGroup::new("");
+        let hide_empty_button = gtk::ToggleToolButton::builder()
+            .label("Hide empty glyphs")
+            .valign(gtk::Align::Center)
+            .build();
+        hide_empty_button.connect_clicked(clone!(@weak obj => move |_| {
+            let imp = obj.imp();
+            let hide_empty = !imp.hide_empty.get();
+            imp.hide_empty.set(hide_empty);
+            obj.update_grid(hide_empty);
+            imp.grid.get().unwrap().queue_draw();
+        }));
+        glyph_overview_tools.add(&hide_empty_button);
+        tool_palette.add(&glyph_overview_tools);
+        tool_palette
+            .style_context()
+            .add_class("glyphs_area_toolbar");
+        box_.add(&tool_palette);
+        box_.add(&scrolled_window);
+        obj.set_child(Some(&box_));
+        self.hide_empty.set(false);
 
         self.grid
             .set(grid)
@@ -88,6 +119,7 @@ impl GlyphsOverview {
         let (mut col, mut row) = (0, 0);
         let grid = ret.imp().grid.get().unwrap();
         let project_copy = project.clone();
+        let mut widgets = vec![];
         for c in crate::utils::CODEPOINTS.chars() {
             if let Some(glyph) = project
                 .lock()
@@ -97,6 +129,7 @@ impl GlyphsOverview {
             {
                 let glyph_box = GlyphBoxItem::new(project_copy.clone(), glyph.clone());
                 grid.attach(&glyph_box, col, row, 1, 1);
+                widgets.push(glyph_box);
                 col += 1;
                 if col == 4 {
                     col = 0;
@@ -104,8 +137,29 @@ impl GlyphsOverview {
                 }
             }
         }
+        ret.imp().widgets.set(widgets).unwrap();
         ret.imp().project.set(project).unwrap();
         ret
+    }
+
+    fn update_grid(&self, hide_empty: bool) {
+        let (mut col, mut row) = (0, 0);
+        let grid = self.imp().grid.get().unwrap();
+        let children = grid.children();
+        for c in children {
+            grid.remove(&c);
+        }
+        for c in self.imp().widgets.get().unwrap() {
+            if hide_empty && c.imp().glyph.get().unwrap().is_empty() {
+                continue;
+            }
+            grid.attach(c, col, row, 1, 1);
+            col += 1;
+            if col == 4 {
+                col = 0;
+                row += 1;
+            }
+        }
     }
 }
 
@@ -139,7 +193,6 @@ impl ObjectImpl for GlyphBox {
             .build();
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
             let is_focused:bool = obj.imp().focused.get();
-            println!("is_focused {}", is_focused);
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
             //cr.set_source_rgb(r, g, b);
@@ -154,7 +207,7 @@ impl ObjectImpl for GlyphBox {
             cr.set_line_width(1.5);
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (GLYPH_BOX_WIDTH, GLYPH_BOX_HEIGHT), 1.0, 1.5);
             if is_focused {
-                cr.set_source_rgb(255./255., 250./255., 141./255.);
+                cr.set_source_rgb(1., 250./255., 141./255.);
             } else {
                 cr.set_source_rgb(1., 1., 1.);
             }
@@ -217,7 +270,7 @@ impl ObjectImpl for GlyphBox {
                 | gtk::gdk::EventMask::LEAVE_NOTIFY_MASK,
         );
         obj.connect_enter_notify_event(|_self, _event| -> Inhibit {
-            println!("obj has window {}", _self.has_window());
+            //println!("obj has window {}", _self.has_window());
             if let Some(screen) = _self.window() {
                 let display = screen.display();
                 screen.set_cursor(Some(
@@ -226,12 +279,12 @@ impl ObjectImpl for GlyphBox {
             }
             _self.imp().focused.set(true);
             _self.imp().drawing_area.get().unwrap().queue_draw();
-            println!("focus in {:?}", _self.imp().glyph.get().unwrap());
+            //println!("focus in {:?}", _self.imp().glyph.get().unwrap());
             Inhibit(false)
         });
 
         obj.connect_leave_notify_event(|_self, _event| -> Inhibit {
-            println!("focus out {:?}", _self.imp().glyph.get().unwrap());
+            //println!("focus out {:?}", _self.imp().glyph.get().unwrap());
             if let Some(screen) = _self.window() {
                 let display = screen.display();
                 screen.set_cursor(Some(
