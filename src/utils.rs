@@ -31,6 +31,7 @@ pub fn draw_round_rectangle(
     (x, y): (f64, f64),
     (width, height): (f64, f64),
     aspect_ratio: f64,
+    line_width: f64,
 ) -> (Point, Point) {
     /*
        double x         = 25.6,        /* parameters like cairo_rectangle */
@@ -39,8 +40,6 @@ pub fn draw_round_rectangle(
     height        = 204.8,
     aspect        = 1.0,     /* aspect ratio */
     */
-    const LINE_WIDTH: f64 = 0.005;
-    cr.set_line_width(LINE_WIDTH);
     let corner_radius: f64 = height / 10.0; /* and corner curvature radius */
 
     let radius: f64 = corner_radius / aspect_ratio;
@@ -79,8 +78,8 @@ pub fn draw_round_rectangle(
     cr.close_path();
 
     (
-        (x + LINE_WIDTH, y + LINE_WIDTH),
-        (width - 2. * LINE_WIDTH, height - 2. * LINE_WIDTH),
+        (x + line_width, y + line_width),
+        (width - 2. * line_width, height - 2. * line_width),
     )
 }
 

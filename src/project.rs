@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use gtk::cairo::{Context, FontSlant, FontWeight};
+use gtk::cairo::Context;
 use std::collections::HashMap;
 use std::path::PathBuf;
 pub type Point = (i64, i64);
@@ -112,29 +112,32 @@ impl Glyph {
         Glyph::new(name, char, vec![])
     }
 
-    pub fn draw(&self, _drar: &gtk::DrawingArea, cr: &Context) {
+    pub fn draw(
+        &self,
+        _drar: &gtk::DrawingArea,
+        cr: &Context,
+        (x, y): (f64, f64),
+        (og_width, og_height): (f64, f64),
+    ) {
         if self.curves.is_empty() {
-            cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
-            cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-            cr.set_font_size(0.35);
-
-            cr.move_to(0.04, 0.53);
-            cr.show_text(&format!("{}", self.char))
-                .expect("Invalid cairo surface state");
+            return;
         }
+        cr.save().expect("Invalid cairo surface state");
+        cr.move_to(x, y);
+        let mut width = og_width;
+        let mut height = og_height;
+        let mut strokes = vec![];
         for c in &self.curves {
-            cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
-            cr.set_line_width(0.003);
-            let mut prev_point = c.points[0];
+            let prev_point = c.points[0];
+            let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
             let mut sample = 0;
             for t in (0..100).step_by(1) {
                 let t = (t as f64) / 100.;
                 if let Some(new_point) = c.get_point(t) {
+                    let new_point = (new_point.0 as f64, new_point.1 as f64);
                     if sample == 0 {
                         //println!("{:?} {:?}", prev_point, new_point);
-                        cr.move_to(prev_point.0 as f64 / 500., prev_point.1 as f64 / 500.);
-                        cr.line_to(new_point.0 as f64 / 500., new_point.1 as f64 / 500.);
-                        cr.stroke().expect("Invalid cairo surface state");
+                        strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
 
                         sample = 5;
                         prev_point = new_point;
@@ -143,16 +146,34 @@ impl Glyph {
                 }
             }
             let new_point = *c.points.last().unwrap();
-            cr.move_to(prev_point.0 as f64 / 500., prev_point.1 as f64 / 500.);
-            cr.line_to(new_point.0 as f64 / 500., new_point.1 as f64 / 500.);
-            cr.stroke().expect("Invalid cairo surface state");
-            cr.set_source_rgb(0.0, 0.0, 0.0);
-            cr.set_line_width(0.005);
-            for &(x, y) in &c.points {
-                cr.rectangle(x as f64 / 500., y as f64 / 500., 0.001, 0.001);
-                cr.stroke_preserve().expect("Invalid cairo surface state");
-            }
+            let mut new_point = (new_point.0 as f64, new_point.1 as f64);
+            new_point.0 += x;
+            new_point.1 += y;
+            strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
         }
+        for &((ax, ay), (bx, by)) in &strokes {
+            width = width.max(ax).max(bx);
+            height = height.max(ay).max(by);
+        }
+        cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
+        cr.set_line_width(2.0);
+        cr.move_to(x, y);
+        cr.translate(0., -20.);
+        let f = (og_width / width).min(og_height / height);
+        for ((ax, ay), (bx, by)) in &strokes {
+            cr.move_to(ax * f + x, ay * f + y);
+            cr.line_to(bx * f + x, by * f + y);
+            cr.stroke().expect("Invalid cairo surface state");
+        }
+        cr.restore().expect("Invalid cairo surface state");
+        /*
+           cr.set_source_rgb(0.0, 0.0, 0.0);
+           cr.set_line_width(0.005);
+           for &(x, y) in &c.points {
+           cr.rectangle(x as f64 / width, y as f64 / height, 0.001, 0.001);
+           cr.stroke_preserve().expect("Invalid cairo surface state");
+           }
+           */
     }
 }
 
