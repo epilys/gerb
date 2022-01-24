@@ -89,7 +89,6 @@ impl ObjectImpl for Window {
             .can_focus(true)
             .build();
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
-            println!("cairo drawing");
             cr.scale(500f64, 500f64);
             cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
@@ -155,6 +154,7 @@ impl ObjectImpl for Window {
         );
 
         let tool_palette = gtk::ToolPalette::new();
+        tool_palette.set_border_width(2);
         let create_item_group = gtk::ToolItemGroup::new("Create/load project");
         let new_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Create"));
         let load_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Load..."));

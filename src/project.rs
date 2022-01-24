@@ -167,13 +167,17 @@ impl Glyph {
         }
         cr.restore().expect("Invalid cairo surface state");
         /*
-           cr.set_source_rgb(0.0, 0.0, 0.0);
-           cr.set_line_width(0.005);
-           for &(x, y) in &c.points {
-           cr.rectangle(x as f64 / width, y as f64 / height, 0.001, 0.001);
-           cr.stroke_preserve().expect("Invalid cairo surface state");
-           }
-           */
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.set_line_width(0.005);
+        for &(x, y) in &c.points {
+        cr.rectangle(x as f64 / width, y as f64 / height, 0.001, 0.001);
+        cr.stroke_preserve().expect("Invalid cairo surface state");
+        }
+        */
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.curves.is_empty()
     }
 }
 

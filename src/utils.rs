@@ -84,10 +84,10 @@ pub fn draw_round_rectangle(
 }
 
 pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
-    if s.starts_with("#")
+    if s.starts_with('#')
         && s.len() == 7
         && s[1..].as_bytes().iter().all(|&b| {
-            (b >= b'0' && b <= b'9') || (b >= b'a' && b <= b'f') || (b >= b'A' && b <= b'F')
+            (b'0'..=b'9').contains(&b) || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
         })
     {
         Some((
@@ -95,10 +95,10 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
             u8::from_str_radix(&s[3..5], 16).ok()? as f64 / 255.0,
             u8::from_str_radix(&s[5..7], 16).ok()? as f64 / 255.0,
         ))
-    } else if s.starts_with("#")
+    } else if s.starts_with('#')
         && s.len() == 4
         && s[1..].as_bytes().iter().all(|&b| {
-            (b >= b'0' && b <= b'9') || (b >= b'a' && b <= b'f') || (b >= b'A' && b <= b'F')
+            (b'0'..=b'9').contains(&b) || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
         })
     {
         Some((

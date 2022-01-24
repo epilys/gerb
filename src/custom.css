@@ -35,3 +35,19 @@ window headerbar * {
   padding: 0px;
   margin: 0px;
 }
+
+.text-button label {
+  border: 1px solid black;
+  padding: 4px;
+  border-radius: 4px;
+  box-shadow: -1px 1px black;
+  background: white;
+}
+
+toolpalette  {
+  background: #DDD;
+}
+
+.text-button {
+  background: none;
+}
