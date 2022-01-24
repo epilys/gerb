@@ -54,6 +54,8 @@ impl ObjectImpl for GlyphsArea {
             .expand(true)
             .visible(true)
             .can_focus(true)
+            .column_spacing(5)
+            .row_spacing(5)
             .build();
 
         let scrolled_window = gtk::ScrolledWindow::builder()
@@ -126,8 +128,9 @@ impl ObjectImpl for GlyphBox {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         obj.set_height_request(140);
-        obj.set_width_request(120);
+        obj.set_width_request(110);
         obj.set_can_focus(true);
+        obj.set_expand(false);
 
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
@@ -137,22 +140,23 @@ impl ObjectImpl for GlyphBox {
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
             let is_focused:bool = obj.imp().focused.get();
             println!("is_focused {}", is_focused);
-            cr.scale(500f64, 500f64);
-            let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
-            cr.set_source_rgb(r, g, b);
+            //cr.scale(500f64, 500f64);
+            //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
+            //cr.set_source_rgb(r, g, b);
+            cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
 
-            const GLYPH_BOX_WIDTH: f64 = 0.2;
-            const GLYPH_BOX_HEIGHT: f64 = 0.25;
+            const GLYPH_BOX_WIDTH: f64 = 110.;
+            const GLYPH_BOX_HEIGHT: f64 = 140.;
             let (x, y) = (0.01, 0.01);
             let c = obj.imp().glyph.get().unwrap().char;
             let label = c.to_string();
-            cr.set_line_width(0.005);
-            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (GLYPH_BOX_WIDTH, GLYPH_BOX_HEIGHT), 1.0);
+            cr.set_line_width(1.5);
+            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (GLYPH_BOX_WIDTH, GLYPH_BOX_HEIGHT), 1.0, 1.5);
             if is_focused {
-            cr.set_source_rgb(255./255., 250./255., 141./255.);
+                cr.set_source_rgb(255./255., 250./255., 141./255.);
             } else {
-            cr.set_source_rgb(1., 1., 1.);
+                cr.set_source_rgb(1., 1., 1.);
             }
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgba(0., 0., 0., 0.5);
@@ -161,40 +165,45 @@ impl ObjectImpl for GlyphBox {
             cr.new_path();
             cr.set_source_rgba(0., 0., 0., 0.4);
             cr.move_to(x+width/2., point.1+ 2.* (height / 3.));
-            cr.set_font_size(0.1);
+            cr.set_font_size(62.);
             let sextents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
-            cr.move_to(point.0 + width/2. - sextents.width/2., point.1+(height / 3.)+0.03);
-            cr.show_text(&c.to_string()).expect("Invalid cairo surface state");
+            cr.move_to(point.0 + width/2. - sextents.width/2., point.1+(height / 3.)+20.);
+            let glyph = obj.imp().glyph.get().unwrap();
+            if glyph.curves.is_empty() {
+                cr.show_text(&label).expect("Invalid cairo surface state");
+            } else {
+                glyph.draw(_drar, cr, (point.0, point.1+20.), (width*0.8, height*0.8));
+            }
 
 
-            cr.set_line_width(0.003);
+            cr.set_line_width(2.);
             cr.set_source_rgb(0., 0., 0.);
             cr.move_to(x, point.1+ 2.* (height / 3.));
-            cr.line_to(x+0.2, point.1+ 2.* (height / 3.));
+            cr.line_to(x+width*1.2, point.1+ 2.* (height / 3.));
             cr.stroke().expect("Invalid cairo surface state");
             cr.set_source_rgb(196./255., 196./255., 196./255.);
             cr.new_path();
-            cr.rectangle(x, point.1+2.*(height/3.), 0.2, height);
+            cr.rectangle(x, point.1+2.*(height/3.), width*1.2, 1.2*height/3.);
             cr.fill().expect("Invalid cairo surface state");
             cr.reset_clip();
 
-
             cr.set_source_rgb(0., 0., 0.);
             cr.select_font_face("Monospace", FontSlant::Normal, FontWeight::Normal);
-            cr.set_font_size(0.03);
+            cr.set_font_size(12.);
             let sextents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
-            cr.move_to(point.0 + width/2. - sextents.width/2., point.1+ 2.* (height / 3.)+0.03);
+            cr.move_to(point.0 + width/2. - sextents.width/2., point.1+ 2.* (height / 3.)+20.);
             cr.show_text(&label).expect("Invalid cairo surface state");
+
 
             let label = format!("U+{:04X}", c as u32);
             let extents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
-            cr.move_to(point.0 + width/2. - extents.width/2., point.1+ 2.* (height / 3.)+0.032 + sextents.height);
+            cr.move_to(point.0 + width/2. - extents.width/2., point.1+ 2.* (height / 3.)+22.0 + sextents.height);
             cr.show_text(&label).expect("Invalid cairo surface state");
 
             Inhibit(false)

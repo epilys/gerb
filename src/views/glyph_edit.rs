@@ -94,7 +94,7 @@ impl ObjectImpl for GlyphEditArea {
 
             if let Some(glyph) = obj.imp().glyph.get() {
                 println!("cairo drawing glyph {}", glyph.name);
-                glyph.draw(drar, cr);
+                glyph.draw(drar, cr, (0.2, 0.2), (0.8, 0.8));
             } else {
                 println!("cairo drawing without glyph");
             }

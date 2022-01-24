@@ -88,7 +88,7 @@ impl ObjectImpl for Window {
             .visible(true)
             .can_focus(true)
             .build();
-        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
+        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
             println!("cairo drawing");
             cr.scale(500f64, 500f64);
             cr.set_source_rgb(1., 1., 1.);
@@ -130,12 +130,12 @@ impl ObjectImpl for Window {
             cr.fill().expect("Invalid cairo surface state");
             */
 
-            if let Ok(lck) = obj.imp().project.get().unwrap().lock() {
-                if let Some(project) = &*lck {
-                    let glyph = &project.glyphs[&('R' as u32)];
-                    glyph.draw(drar, cr);
-                }
-            }
+            //if let Ok(lck) = obj.imp().project.get().unwrap().lock() {
+            //    if let Some(project) = &*lck {
+            //        let glyph = &project.glyphs[&('R' as u32)];
+            //        glyph.draw(drar, cr);
+            //    }
+            //}
 
             Inhibit(false)
         }
