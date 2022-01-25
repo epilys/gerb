@@ -147,8 +147,6 @@ impl Glyph {
             }
             let new_point = *c.points.last().unwrap();
             let mut new_point = (new_point.0 as f64, new_point.1 as f64);
-            new_point.0 += x;
-            new_point.1 += y;
             strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
         }
         for &((ax, ay), (bx, by)) in &strokes {

@@ -46,7 +46,7 @@ impl GerbApp {
 
 #[derive(Debug, Default)]
 pub struct Application {
-    window: OnceCell<MainWindow>,
+    pub window: OnceCell<MainWindow>,
 }
 
 #[glib::object_subclass]

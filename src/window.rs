@@ -21,9 +21,10 @@
 
 use glib::clone;
 use gtk::glib;
+use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use once_cell::unsync::OnceCell;
+use once_cell::{sync::Lazy, unsync::OnceCell};
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
@@ -33,8 +34,6 @@ use crate::project::Project;
 #[derive(Debug)]
 struct WindowWidgets {
     headerbar: gtk::HeaderBar,
-    label: gtk::Label,
-    drawing_area: gtk::DrawingArea,
     grid: gtk::Grid,
     tool_palette: gtk::ToolPalette,
     create_item_group: gtk::ToolItemGroup,
@@ -44,8 +43,9 @@ struct WindowWidgets {
 
 #[derive(Debug, Default)]
 pub struct Window {
+    app: OnceCell<gtk::Application>,
+    super_: OnceCell<MainWindow>,
     widgets: OnceCell<WindowWidgets>,
-    counter: Cell<u64>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
 }
 
@@ -57,91 +57,24 @@ impl ObjectSubclass for Window {
 }
 
 impl ObjectImpl for Window {
-    // Here we are overriding the glib::Objcet::contructed
+    // Here we are overriding the glib::Object::contructed
     // method. Its what gets called when we create our Object
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.super_.set(obj.clone()).unwrap();
 
         let headerbar = gtk::HeaderBar::new();
-        let increment = gtk::Button::with_label("Increment!");
-        let label = gtk::Label::new(Some("toolbar here"));
 
         headerbar.set_title(Some("gerb"));
         headerbar.set_show_close_button(true);
-        //headerbar.pack_start(&increment);
-
-        // Connect our method `on_increment_clicked` to be called
-        // when the increment button is clicked.
-        increment.connect_clicked(clone!(@weak obj => move |_| {
-            let imp = obj.imp();
-            imp.on_increment_clicked();
-        }));
 
         let stack = gtk::Stack::builder()
             .expand(true)
             .visible(true)
             .can_focus(true)
             .build();
-        let drawing_area = gtk::DrawingArea::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .build();
-        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
-            cr.scale(500f64, 500f64);
-            cr.set_source_rgb(1., 1., 1.);
-            cr.paint().expect("Invalid cairo surface state");
-            cr.set_source_rgba(0.0, 0.0, 0.0, 0.5);
-            cr.set_line_width(0.0005);
-            for x in (0..100).into_iter().step_by(5) {
-                let x = x as f64 / 100.;
-                cr.move_to(x, 0.);
-                cr.line_to(x, 1.);
-                cr.stroke().expect("Invalid cairo surface state");
-            }
-            for y in (0..100).into_iter().step_by(5) {
-                let y = y as f64 / 100.;
-                cr.move_to(0., y);
-                cr.line_to(1., y);
-                cr.stroke().expect("Invalid cairo surface state");
-            }
-            /*
-            cr.set_source_rgb(0., 0., 0.);
-
-            cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-            cr.set_font_size(0.35);
-
-            cr.move_to(0.04, 0.53);
-            cr.show_text("Hello").expect("Invalid cairo surface state");
-
-            cr.move_to(0.27, 0.65);
-            cr.text_path("void");
-            cr.set_source_rgb(0.5, 0.5, 1.0);
-            cr.fill_preserve().expect("Invalid cairo surface state");
-            cr.set_source_rgb(0.0, 0.0, 0.0);
-            cr.set_line_width(0.01);
-            cr.stroke().expect("Invalid cairo surface state");
-
-            cr.set_source_rgba(1.0, 0.2, 0.2, 0.6);
-            cr.arc(0.04, 0.53, 0.02, 0.0, PI * 2.);
-            cr.arc(0.27, 0.65, 0.02, 0.0, PI * 2.);
-            cr.fill().expect("Invalid cairo surface state");
-            */
-
-            //if let Ok(lck) = obj.imp().project.get().unwrap().lock() {
-            //    if let Some(project) = &*lck {
-            //        let glyph = &project.glyphs[&('R' as u32)];
-            //        glyph.draw(drar, cr);
-            //    }
-            //}
-
-            Inhibit(false)
-        }
-        ));
-        //stack.add_named(&drawing_area, "main");
         let grid = gtk::Grid::builder().expand(true).visible(true).build();
-        //grid.attach(&drawing_area, 1, 0, 1, 1);
         grid.attach(&stack, 1, 0, 1, 1);
 
         obj.set_child(Some(&grid));
@@ -152,6 +85,14 @@ impl ObjectImpl for Window {
                 | gtk::gdk::EventMask::ENTER_NOTIFY_MASK
                 | gtk::gdk::EventMask::LEAVE_NOTIFY_MASK,
         );
+
+        obj.connect_local("open-glyph-edit", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
+            println!("open-glyph-edit received!");
+            let glyph_box = v[1].get::<crate::views::GlyphBoxItem>().unwrap();
+            obj.imp().edit_glyph(glyph_box.imp().glyph.get().unwrap());
+
+            None
+        }));
 
         let tool_palette = gtk::ToolPalette::new();
         tool_palette.set_border_width(2);
@@ -170,8 +111,6 @@ impl ObjectImpl for Window {
         self.widgets
             .set(WindowWidgets {
                 headerbar,
-                label,
-                drawing_area,
                 grid,
                 stack,
                 tool_palette,
@@ -180,19 +119,25 @@ impl ObjectImpl for Window {
             })
             .expect("Failed to initialize window state");
         self.project.set(Arc::new(Mutex::new(None))).unwrap();
+    }
 
-        self.load_project(Project::default());
+    fn signals() -> &'static [Signal] {
+        static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+            vec![Signal::builder(
+                // Signal name
+                "open-glyph-edit",
+                // Types of the values which will be sent to the signal handler
+                &[crate::views::GlyphBoxItem::static_type().into()],
+                // Type of the value the signal handler sends back
+                <()>::static_type().into(),
+            )
+            .build()]
+        });
+        SIGNALS.as_ref()
     }
 }
 
 impl Window {
-    fn on_increment_clicked(&self) {
-        self.counter.set(self.counter.get() + 1);
-        let w = self.widgets.get().unwrap();
-        w.label
-            .set_text(&format!("Counter is {}", self.counter.get()));
-    }
-
     pub fn load_project(&self, project: Project) {
         let widgets = self.widgets.get().unwrap();
         widgets
@@ -216,15 +161,33 @@ impl Window {
         let mut lck = mutex.lock().unwrap();
         *lck = Some(project);
         drop(lck);
-        let edit_view = crate::views::GlyphEditView::new(
-            mutex.lock().unwrap().as_ref().unwrap().glyphs[&('R' as u32)].clone(),
-        );
-        let glyphs_view = crate::views::GlyphsOverview::new(mutex.clone());
+        let glyphs_view =
+            crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), mutex.clone());
         widgets.stack.add(&glyphs_view);
-        widgets.stack.add(&edit_view);
         widgets.stack.set_visible_child(&glyphs_view);
         widgets.tool_palette.queue_draw();
         widgets.stack.queue_draw();
+    }
+
+    pub fn edit_glyph(&self, glyph: &crate::project::Glyph) {
+        let widgets = self.widgets.get().unwrap();
+        let edit_view =
+            crate::views::GlyphEditView::new(self.app.get().unwrap().clone(), glyph.clone());
+        widgets.stack.add(&edit_view);
+        widgets.stack.set_visible_child(&edit_view);
+        widgets.stack.queue_draw();
+        edit_view.queue_draw();
+        let close_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Close glyph"));
+        close_button.set_visible(true);
+        widgets.project_item_group.add(&close_button);
+        let obj = self.super_.get().unwrap().clone();
+        close_button.connect_clicked(clone!(@strong obj => move |_self| {
+            let widgets = obj.imp().widgets.get().unwrap();
+            widgets.stack.remove(&edit_view);
+            widgets.stack.queue_draw();
+            widgets.project_item_group.remove(_self);
+        }));
+        widgets.tool_palette.queue_draw();
     }
 
     pub fn unload_project(&self) {
@@ -264,6 +227,14 @@ glib::wrapper! {
 
 impl MainWindow {
     pub fn new(app: &GerbApp) -> Self {
-        glib::Object::new(&[("application", app)]).expect("Failed to create Main Window")
+        let ret: Self =
+            glib::Object::new(&[("application", app)]).expect("Failed to create Main Window");
+        ret.imp()
+            .app
+            .set(app.upcast_ref::<gtk::Application>().clone())
+            .unwrap();
+
+        ret.imp().load_project(Project::default());
+        ret
     }
 }

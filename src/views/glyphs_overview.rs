@@ -22,9 +22,10 @@
 use glib::clone;
 use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
+use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use once_cell::unsync::OnceCell;
+use once_cell::{sync::Lazy, unsync::OnceCell};
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
@@ -32,6 +33,7 @@ use crate::project::{Glyph, Project};
 
 #[derive(Debug, Default)]
 pub struct GlyphsArea {
+    app: OnceCell<gtk::Application>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
     grid: OnceCell<gtk::Grid>,
     hide_empty: Cell<bool>,
@@ -114,7 +116,7 @@ glib::wrapper! {
 }
 
 impl GlyphsOverview {
-    pub fn new(project: Arc<Mutex<Option<Project>>>) -> Self {
+    pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         let (mut col, mut row) = (0, 0);
         let grid = ret.imp().grid.get().unwrap();
@@ -127,7 +129,7 @@ impl GlyphsOverview {
                 .as_ref()
                 .and_then(|p| p.glyphs.get(&(c as u32)))
             {
-                let glyph_box = GlyphBoxItem::new(project_copy.clone(), glyph.clone());
+                let glyph_box = GlyphBoxItem::new(app.clone(), project_copy.clone(), glyph.clone());
                 grid.attach(&glyph_box, col, row, 1, 1);
                 widgets.push(glyph_box);
                 col += 1;
@@ -137,6 +139,7 @@ impl GlyphsOverview {
                 }
             }
         }
+        ret.imp().app.set(app).unwrap();
         ret.imp().widgets.set(widgets).unwrap();
         ret.imp().project.set(project).unwrap();
         ret
@@ -165,12 +168,18 @@ impl GlyphsOverview {
 
 #[derive(Debug, Default)]
 pub struct GlyphBox {
-    project: OnceCell<Arc<Mutex<Option<Project>>>>,
-    glyph: OnceCell<Glyph>,
-    focused: Cell<bool>,
-    drawing_area: OnceCell<gtk::DrawingArea>,
+    pub app: OnceCell<gtk::Application>,
+    pub project: OnceCell<Arc<Mutex<Option<Project>>>>,
+    pub glyph: OnceCell<Glyph>,
+    pub focused: Cell<bool>,
+    pub drawing_area: OnceCell<gtk::DrawingArea>,
 }
 
+unsafe impl Send for GlyphBox {}
+unsafe impl Sync for GlyphBox {}
+
+unsafe impl Send for GlyphBoxItem {}
+unsafe impl Sync for GlyphBoxItem {}
 #[glib::object_subclass]
 impl ObjectSubclass for GlyphBox {
     const NAME: &'static str = "GlyphBox";
@@ -186,6 +195,17 @@ impl ObjectImpl for GlyphBox {
         obj.set_can_focus(true);
         obj.set_expand(false);
 
+        obj.connect(
+            "button-press-event",
+            false,
+            clone!(@weak obj => @default-return Some(false.to_value()), move |_| {
+                obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap().imp().window.get().unwrap().emit_by_name::<()>("open-glyph-edit", &[&obj]);
+                println!("open-glyph-edit emitted!");
+
+
+                Some(true.to_value())
+            }),
+        );
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
             .visible(true)
@@ -315,8 +335,9 @@ glib::wrapper! {
 }
 
 impl GlyphBoxItem {
-    pub fn new(project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
+    pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
+        ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();
         ret.imp().glyph.set(glyph).unwrap();
         ret
