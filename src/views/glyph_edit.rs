@@ -74,7 +74,7 @@ impl ObjectImpl for GlyphEditArea {
         );
         drawing_area.connect_button_release_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                obj.imp().mouse.set((0., 0.));
+                //obj.imp().mouse.set((0., 0.));
                 obj.imp().button.set(None);
                     if let Some(screen) = _self.window() {
                         let display = screen.display();
@@ -94,15 +94,15 @@ impl ObjectImpl for GlyphEditArea {
                     camera.0 += event.position().0 - mouse.0;
                     camera.1 += event.position().1 - mouse.1;
                     obj.imp().camera.set(camera);
-                    obj.imp().mouse.set(event.position());
                     if let Some(screen) = _self.window() {
                         let display = screen.display();
                         screen.set_cursor(Some(
                                 &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
                         ));
                     }
-                    _self.queue_draw()
                 }
+                obj.imp().mouse.set(event.position());
+                _self.queue_draw();
 
                 Inhibit(false)
             }),
@@ -114,9 +114,12 @@ impl ObjectImpl for GlyphEditArea {
             cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
 
-            let camera = obj.imp().camera.get();
             cr.set_line_width(1.0);
-            for &(color, step) in &[(0.8, 5.0), (0.2, 100.0)] {
+
+            let camera = obj.imp().camera.get();
+            let mouse = obj.imp().mouse.get();
+
+            for &(color, step) in &[(0.9, 5.0), (0.5, 100.0)] {
                 cr.set_source_rgb(color, color, color);
                 let mut y = (camera.1 % step).floor() + 0.5;
                 while y < height {
@@ -134,6 +137,27 @@ impl ObjectImpl for GlyphEditArea {
                 cr.stroke().unwrap();
             }
 
+            cr.rectangle(0., 0., width, 11.);
+            cr.set_source_rgb(1., 1., 1.);
+            cr.fill_preserve().expect("Invalid cairo surface state");
+            cr.set_source_rgb(0., 0., 0.);
+            cr.stroke_preserve().unwrap();
+            cr.set_source_rgb(0., 0., 0.);
+            cr.move_to(mouse.0, 0.);
+            cr.line_to(mouse.0, 11.);
+            cr.stroke().unwrap();
+
+
+            cr.rectangle(0., 0., 11., height);
+            cr.set_source_rgb(1., 1., 1.);
+            cr.fill_preserve().expect("Invalid cairo surface state");
+            cr.set_source_rgb(0., 0., 0.);
+            cr.stroke_preserve().unwrap();
+            cr.set_source_rgb(0., 0., 0.);
+            cr.move_to(0., mouse.1);
+            cr.line_to(11., mouse.1);
+            cr.stroke().unwrap();
+
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
                 cr.translate(camera.0, camera.1);
@@ -144,7 +168,39 @@ impl ObjectImpl for GlyphEditArea {
 
            Inhibit(false)
         }));
-        obj.add(&drawing_area);
+        let toolbar = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .expand(false)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Start)
+            .spacing(5)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        let edit_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Edit"));
+        edit_button.set_visible(true);
+        let pen_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Pen"));
+        pen_button.set_visible(true);
+        let zoom_in_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom in"));
+        zoom_in_button.set_visible(true);
+        let zoom_out_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom out"));
+        zoom_out_button.set_visible(true);
+        let zoom_percent_label = gtk::Label::new(Some("100%"));
+        zoom_percent_label.set_visible(true);
+        toolbar.pack_start(&edit_button, false, false, 0);
+        toolbar.pack_start(&pen_button, false, false, 0);
+        toolbar.pack_start(&zoom_in_button, false, false, 0);
+        toolbar.pack_start(&zoom_out_button, false, false, 0);
+        toolbar.pack_start(&zoom_percent_label, false, false, 0);
+        toolbar.style_context().add_class("glyph-edit-toolbox");
+        let overlay = gtk::Overlay::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        overlay.add_overlay(&drawing_area);
+        overlay.add_overlay(&toolbar);
+        obj.add(&overlay);
         obj.set_visible(true);
         obj.set_expand(true);
         obj.set_can_focus(true);
