@@ -73,7 +73,7 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
         drawing_area.connect_button_release_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
                 //obj.imp().mouse.set((0., 0.));
                 obj.imp().button.set(None);
                     if let Some(screen) = _self.window() {
@@ -119,7 +119,7 @@ impl ObjectImpl for GlyphEditArea {
             let camera = obj.imp().camera.get();
             let mouse = obj.imp().mouse.get();
 
-            for &(color, step) in &[(0.9, 5.0), (0.5, 100.0)] {
+            for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
                 cr.set_source_rgb(color, color, color);
                 let mut y = (camera.1 % step).floor() + 0.5;
                 while y < height {
@@ -137,6 +137,34 @@ impl ObjectImpl for GlyphEditArea {
                 cr.stroke().unwrap();
             }
 
+            /* Draw em square of 1000 units: */
+
+            cr.save().unwrap();
+            cr.translate(camera.0, camera.1);
+            cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
+            cr.rectangle(0., 0., 200., 200.);
+            cr.fill().unwrap();
+
+            /* Draw the glyph */
+
+            if let Some(glyph) = obj.imp().glyph.get() {
+                //println!("cairo drawing glyph {}", glyph.name);
+                glyph.draw(drar, cr, (0.0, 0.0), (200., 200.));
+                cr.set_source_rgb(1.0, 0.0, 0.0);
+                cr.set_line_width(1.5);
+                /*for c in &glyph.curves {
+                    for &(x, y) in &c.points {
+                        cr.rectangle(x as f64, y as f64, 5., 5.);
+                        cr.stroke_preserve().expect("Invalid cairo surface state");
+                    }
+                }
+                */
+            } else {
+                //println!("cairo drawing without glyph");
+            }
+            cr.restore().unwrap();
+
+            /* Draw rulers */
             cr.rectangle(0., 0., width, 11.);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
@@ -158,13 +186,6 @@ impl ObjectImpl for GlyphEditArea {
             cr.line_to(11., mouse.1);
             cr.stroke().unwrap();
 
-            if let Some(glyph) = obj.imp().glyph.get() {
-                //println!("cairo drawing glyph {}", glyph.name);
-                cr.translate(camera.0, camera.1);
-                glyph.draw(drar, cr, (10.0, 10.0), (500., 800.));
-            } else {
-                //println!("cairo drawing without glyph");
-            }
 
            Inhibit(false)
         }));
