@@ -33,8 +33,11 @@ pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Glyph>,
     drawing_area: OnceCell<gtk::DrawingArea>,
+    overlay: OnceCell<gtk::Overlay>,
+    zoom_percent_label: OnceCell<gtk::Label>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
+    zoom: Cell<f64>,
     button: Cell<Option<u32>>,
 }
 
@@ -53,6 +56,7 @@ impl ObjectImpl for GlyphEditArea {
         self.parent_constructed(obj);
         self.camera.set((0., 0.));
         self.mouse.set((0., 0.));
+        self.zoom.set(1.);
 
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
@@ -109,6 +113,8 @@ impl ObjectImpl for GlyphEditArea {
         );
 
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
+            let zoom_factor = obj.imp().zoom.get();
+            cr.scale(zoom_factor, zoom_factor);
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
             cr.set_source_rgb(1., 1., 1.);
@@ -204,8 +210,26 @@ impl ObjectImpl for GlyphEditArea {
         pen_button.set_visible(true);
         let zoom_in_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom in"));
         zoom_in_button.set_visible(true);
+        zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
+            let imp = obj.imp();
+            let zoom_factor = imp.zoom.get() + 0.25;
+            if zoom_factor < 4.25 {
+                imp.zoom.set(zoom_factor);
+                imp.zoom_percent_label.get().unwrap().set_text(&format!("{}%", zoom_factor * 100.));
+                imp.overlay.get().unwrap().queue_draw();
+            }
+        }));
         let zoom_out_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom out"));
         zoom_out_button.set_visible(true);
+        zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
+            let imp = obj.imp();
+            let zoom_factor = imp.zoom.get() - 0.25;
+            if zoom_factor > 0. {
+                imp.zoom.set(zoom_factor);
+                imp.zoom_percent_label.get().unwrap().set_text(&format!("{}%", zoom_factor * 100.));
+                imp.overlay.get().unwrap().queue_draw();
+            }
+        }));
         let zoom_percent_label = gtk::Label::new(Some("100%"));
         zoom_percent_label.set_visible(true);
         toolbar.pack_start(&edit_button, false, false, 0);
@@ -226,6 +250,12 @@ impl ObjectImpl for GlyphEditArea {
         obj.set_expand(true);
         obj.set_can_focus(true);
 
+        self.zoom_percent_label
+            .set(zoom_percent_label)
+            .expect("Failed to initialize window state");
+        self.overlay
+            .set(overlay)
+            .expect("Failed to initialize window state");
         self.drawing_area
             .set(drawing_area)
             .expect("Failed to initialize window state");
