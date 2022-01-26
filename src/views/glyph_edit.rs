@@ -25,8 +25,9 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::Cell;
+use std::sync::{Arc, Mutex};
 
-use crate::project::Glyph;
+use crate::project::{Glyph, Project};
 
 #[derive(Debug, Default)]
 pub struct GlyphEditArea {
@@ -39,6 +40,7 @@ pub struct GlyphEditArea {
     mouse: Cell<(f64, f64)>,
     zoom: Cell<f64>,
     button: Cell<Option<u32>>,
+    project: OnceCell<Arc<Mutex<Option<Project>>>>,
 }
 
 #[glib::object_subclass]
@@ -115,6 +117,15 @@ impl ObjectImpl for GlyphEditArea {
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
             let zoom_factor = obj.imp().zoom.get();
             cr.scale(zoom_factor, zoom_factor);
+            let (_units_per_em, x_height, _cap_height, _ascender) = {
+                let mutex = obj.imp().project.get().unwrap();
+                let lck = mutex.lock().unwrap();
+                if lck.is_none() {
+                    return Inhibit(false);
+                }
+                let p = lck.as_ref().unwrap();
+                (p.units_per_em, p.x_height, p.cap_height, p.ascender)
+            };
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
             cr.set_source_rgb(1., 1., 1.);
@@ -150,6 +161,13 @@ impl ObjectImpl for GlyphEditArea {
             cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
             cr.rectangle(0., 0., 200., 200.);
             cr.fill().unwrap();
+
+            /* Draw x-height */
+            cr.set_source_rgba(1.0, 0., 0., 0.6);
+            cr.set_line_width(2.0);
+            cr.move_to(0., x_height);
+            cr.line_to(200., x_height);
+            cr.stroke().unwrap();
 
             /* Draw the glyph */
 
@@ -272,10 +290,11 @@ glib::wrapper! {
 }
 
 impl GlyphEditView {
-    pub fn new(app: gtk::Application, glyph: Glyph) -> Self {
+    pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().glyph.set(glyph).unwrap();
         ret.imp().app.set(app).unwrap();
+        ret.imp().project.set(project).unwrap();
         ret
     }
 }

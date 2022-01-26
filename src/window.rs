@@ -20,12 +20,12 @@
  */
 
 use glib::clone;
+use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
 use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::{sync::Lazy, unsync::OnceCell};
-use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
 use crate::app::GerbApp;
@@ -34,11 +34,13 @@ use crate::project::Project;
 #[derive(Debug)]
 struct WindowWidgets {
     headerbar: gtk::HeaderBar,
-    grid: gtk::Grid,
+    paned: gtk::Paned,
     tool_palette: gtk::ToolPalette,
     create_item_group: gtk::ToolItemGroup,
     project_item_group: gtk::ToolItemGroup,
     stack: gtk::Stack,
+    project_label: gtk::Label,
+    minimap: gtk::DrawingArea,
 }
 
 #[derive(Debug, Default)]
@@ -74,10 +76,16 @@ impl ObjectImpl for Window {
             .visible(true)
             .can_focus(true)
             .build();
-        let grid = gtk::Grid::builder().expand(true).visible(true).build();
-        grid.attach(&stack, 1, 0, 1, 1);
+        let paned = gtk::Paned::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .expand(true)
+            .visible(true)
+            .wide_handle(true)
+            .position(130)
+            .build();
+        paned.pack2(&stack, true, false);
 
-        obj.set_child(Some(&grid));
+        obj.set_child(Some(&paned));
         obj.set_titlebar(Some(&headerbar));
         obj.set_default_size(640, 480);
         obj.set_events(
@@ -94,15 +102,79 @@ impl ObjectImpl for Window {
             None
         }));
 
-        let tool_palette = gtk::ToolPalette::new();
-        tool_palette.set_border_width(2);
+        let tool_palette = gtk::ToolPalette::builder()
+            .border_width(2)
+            .hexpand(false)
+            .vexpand(true)
+            .build();
         let create_item_group = gtk::ToolItemGroup::new("Create/load project");
         let new_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Create"));
         let load_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Load..."));
         create_item_group.add(&new_button);
         create_item_group.add(&load_button);
         tool_palette.add(&create_item_group);
-        grid.attach(&tool_palette, 0, 0, 1, 1);
+
+        let sidebar = gtk::Paned::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .expand(true)
+            .position(300)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        let project_label = gtk::Label::builder()
+            .label("No project loaded.")
+            .expand(true)
+            .visible(true)
+            .build();
+        project_label.set_valign(gtk::Align::Start);
+        project_label.style_context().add_class("project-label");
+        sidebar.pack1(&project_label, true, false);
+        let minimap = gtk::DrawingArea::builder()
+            .expand(true)
+            .visible(true)
+            .tooltip_text("pangram minimap")
+            .build();
+
+        minimap.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
+            const PANGRAM: &str = "A wizard's job is to vex chumps quickly in fog.";
+            let (red, green, blue) = crate::utils::hex_color_to_rgb("#959595").unwrap();
+            cr.set_source_rgb(red, green, blue);
+            cr.paint().expect("Invalid cairo surface state");
+            cr.select_font_face("Inter", FontSlant::Normal, FontWeight::Normal);
+            cr.set_source_rgb(1., 1., 1.);
+            cr.set_font_size(8.);
+            let (x, mut y) = (2., 15.);
+            cr.move_to(x, y);
+            let extends = cr.text_extents(PANGRAM).unwrap();
+            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
+            y += extends.height + 10.;
+            cr.move_to(x, y);
+            cr.set_font_size(14.);
+            let extends = cr.text_extents(PANGRAM).unwrap();
+            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
+            y += extends.height + 10.;
+            cr.move_to(x, y);
+            cr.set_font_size(20.);
+            let extends = cr.text_extents(PANGRAM).unwrap();
+            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
+            y += extends.height + 10.;
+            cr.move_to(x, y);
+            cr.set_font_size(32.);
+            let extends = cr.text_extents(PANGRAM).unwrap();
+            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
+            y += extends.height + 25.;
+            cr.move_to(x, y);
+            cr.set_font_size(64.);
+            let extends = cr.text_extents(PANGRAM).unwrap();
+            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
+            y += extends.height;
+            cr.move_to(x, y);
+            Inhibit(false)
+        }));
+        minimap.style_context().add_class("project-minimap");
+        sidebar.pack2(&minimap, true, false);
+        sidebar.style_context().add_class("sidebar");
+        paned.pack1(&sidebar, true, true);
 
         let project_item_group = gtk::ToolItemGroup::new("Edit");
         let new_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("New glyph"));
@@ -111,11 +183,13 @@ impl ObjectImpl for Window {
         self.widgets
             .set(WindowWidgets {
                 headerbar,
-                grid,
+                paned,
                 stack,
                 tool_palette,
                 create_item_group,
                 project_item_group,
+                project_label,
+                minimap,
             })
             .expect("Failed to initialize window state");
         self.project.set(Arc::new(Mutex::new(None))).unwrap();
@@ -157,6 +231,11 @@ impl Window {
             widgets.tool_palette.add(&widgets.project_item_group);
             widgets.project_item_group.set_visible(true);
         }
+        widgets.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.name, version_major=project.version_major,version_minor=project.version_minor, units_per_em=project.units_per_em, descender=project.descender, x_height=project.x_height, cap_height=project.cap_height, ascender=project.ascender, italic_angle=project.italic_angle));
+        widgets.project_label.set_single_line_mode(false);
+        widgets.project_label.set_use_markup(true);
+        widgets.project_label.queue_draw();
+        widgets.minimap.queue_draw();
         let mutex = self.project.get().unwrap();
         let mut lck = mutex.lock().unwrap();
         *lck = Some(project);
@@ -171,8 +250,12 @@ impl Window {
 
     pub fn edit_glyph(&self, glyph: &crate::project::Glyph) {
         let widgets = self.widgets.get().unwrap();
-        let edit_view =
-            crate::views::GlyphEditView::new(self.app.get().unwrap().clone(), glyph.clone());
+        let mutex = self.project.get().unwrap();
+        let edit_view = crate::views::GlyphEditView::new(
+            self.app.get().unwrap().clone(),
+            mutex.clone(),
+            glyph.clone(),
+        );
         widgets.stack.add(&edit_view);
         widgets.stack.set_visible_child(&edit_view);
         widgets.stack.queue_draw();
