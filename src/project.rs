@@ -180,12 +180,46 @@ impl Glyph {
 }
 
 #[derive(Debug)]
+pub struct Guideline {
+    name: Option<String>,
+    identifier: Option<String>,
+    color: Option<(f64, f64, f64, f64)>,
+    x: Option<f64>,
+    y: Option<f64>,
+    angle: Option<f64>,
+}
+
+#[derive(Debug)]
 pub struct Project {
     pub name: String,
     pub modified: bool,
     pub last_saved: Option<u64>,
     pub glyphs: HashMap<u32, Glyph>,
     pub path: Option<PathBuf>,
+    pub family_name: String,
+    pub style_name: String,
+    pub version_major: i64,
+    pub version_minor: u64,
+    /// Copyright statement.
+    pub copyright: String,
+    /// Trademark statement.
+    pub trademark: String,
+    /// Units per em.
+    pub units_per_em: f64,
+    /// Descender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
+    pub descender: f64,
+    /// x-height value.
+    pub x_height: f64,
+    /// Cap height value.
+    pub cap_height: f64,
+    /// Ascender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
+    pub ascender: f64,
+    /// Italic angle. This must be an angle in counter-clockwise degrees from the vertical.
+    pub italic_angle: f64,
+    /// Arbitrary note about the font.
+    pub note: String,
+    /// A list of guideline definitions that apply to all glyphs in all layers in the font. This attribute is optional.
+    pub guidelines: Vec<Guideline>,
 }
 
 impl Default for Project {
@@ -205,6 +239,20 @@ impl Default for Project {
                 })
                 .collect::<HashMap<u32, Glyph>>(),
             path: None,
+            family_name: "Test Sans".to_string(),
+            style_name: String::new(),
+            version_major: 3,
+            version_minor: 38,
+            copyright: String::new(),
+            trademark: String::new(),
+            units_per_em: 1000.0,
+            descender: -205.,
+            x_height: 486.,
+            cap_height: 656.,
+            ascender: 712.,
+            italic_angle: 0.,
+            note: String::new(),
+            guidelines: vec![],
         }
     }
 }
