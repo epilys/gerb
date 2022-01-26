@@ -44,12 +44,19 @@ window headerbar * {
   background: white;
 }
 
+
+.text-button:checked label {
+  color: white;
+  background: black;
+}
+
 toolpalette  {
   background: #DDD;
 }
 
 .text-button {
   background: none;
+  padding: 5px;
 }
 
 .glyph-edit-toolbox {
@@ -62,4 +69,23 @@ toolpalette  {
 
 .glyph-edit-toolbox * {
   padding: 2px;
+}
+
+.project-label {
+  padding: 5px;
+  /*
+  background: #a8a8a8;
+  color: #2d2d2d;
+   */
+}
+
+.sidebar {
+  background: #a8a8a8;
+  color: #fff;
+  text-shadow: 1px 1px grey, -1px -1px grey, 1px -1px grey, -1px 1px grey;
+}
+
+.project-minimap {
+  background: #959595;
+  color:black;
 }

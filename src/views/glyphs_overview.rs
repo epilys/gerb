@@ -22,10 +22,9 @@
 use glib::clone;
 use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
-use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use once_cell::{sync::Lazy, unsync::OnceCell};
+use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
@@ -81,8 +80,9 @@ impl ObjectImpl for GlyphsArea {
         let hide_empty_button = gtk::ToggleToolButton::builder()
             .label("Hide empty glyphs")
             .valign(gtk::Align::Center)
+            .halign(gtk::Align::Start)
             .build();
-        hide_empty_button.connect_clicked(clone!(@weak obj => move |_| {
+        hide_empty_button.connect_toggled(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let hide_empty = !imp.hide_empty.get();
             imp.hide_empty.set(hide_empty);
@@ -90,6 +90,14 @@ impl ObjectImpl for GlyphsArea {
             imp.grid.get().unwrap().queue_draw();
         }));
         glyph_overview_tools.add(&hide_empty_button);
+        let add_glyph_button = gtk::ToggleToolButton::builder()
+            .label("Add glyph")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Start)
+            .build();
+        add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
+        }));
+        glyph_overview_tools.add(&add_glyph_button);
         tool_palette.add(&glyph_overview_tools);
         tool_palette
             .style_context()
