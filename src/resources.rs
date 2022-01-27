@@ -19,21 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use gtk::prelude::*;
+pub const SELECT_ICON_SVG: &str = include_str!("./resources/select-icon-small.svg");
 
-mod app;
-pub mod glyphs;
-pub mod project;
-pub mod resources;
-pub mod utils;
-pub mod views;
-mod window;
-use app::GerbApp;
-
-fn main() {
-    gtk::init().expect("Failed to initialize gtk");
-
-    let app = GerbApp::new();
-
-    app.run();
-}
+pub const GRAB_ICON_SVG: &str = include_str!("./resources/grab-icon-small.svg");
