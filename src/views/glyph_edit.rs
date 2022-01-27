@@ -27,7 +27,8 @@ use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
-use crate::project::{Glyph, Project};
+use crate::glyphs::Glyph;
+use crate::project::Project;
 
 #[derive(Debug, Default)]
 pub struct GlyphEditArea {
@@ -35,6 +36,7 @@ pub struct GlyphEditArea {
     glyph: OnceCell<Glyph>,
     drawing_area: OnceCell<gtk::DrawingArea>,
     overlay: OnceCell<gtk::Overlay>,
+    pub toolbar: OnceCell<gtk::Box>,
     zoom_percent_label: OnceCell<gtk::Label>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
@@ -116,15 +118,16 @@ impl ObjectImpl for GlyphEditArea {
 
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
             let zoom_factor = obj.imp().zoom.get();
+            cr.save().unwrap();
             cr.scale(zoom_factor, zoom_factor);
-            let (_units_per_em, x_height, _cap_height, _ascender) = {
+            let (units_per_em, x_height, cap_height, _ascender, _descender) = {
                 let mutex = obj.imp().project.get().unwrap();
                 let lck = mutex.lock().unwrap();
                 if lck.is_none() {
                     return Inhibit(false);
                 }
                 let p = lck.as_ref().unwrap();
-                (p.units_per_em, p.x_height, p.cap_height, p.ascender)
+                (p.units_per_em, p.x_height, p.cap_height, p.ascender, p.descender)
             };
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
@@ -165,17 +168,41 @@ impl ObjectImpl for GlyphEditArea {
             /* Draw x-height */
             cr.set_source_rgba(1.0, 0., 0., 0.6);
             cr.set_line_width(2.0);
-            cr.move_to(0., x_height);
-            cr.line_to(200., x_height);
+            cr.move_to(0., x_height*0.2);
+            cr.line_to(200., x_height*0.2);
             cr.stroke().unwrap();
+            cr.move_to(200., x_height*0.2);
+            cr.show_text("x-height").unwrap();
+
+            /* Draw baseline */
+            cr.move_to(0., units_per_em*0.2);
+            cr.line_to(200., units_per_em*0.2);
+            cr.stroke().unwrap();
+            cr.move_to(200., units_per_em*0.2);
+            cr.show_text("baseline").unwrap();
+
+            /* Draw cap height */
+            cr.move_to(0., -cap_height*0.2);
+            cr.line_to(200., -cap_height*0.2);
+            cr.stroke().unwrap();
+            cr.move_to(200., -cap_height*0.2);
+            cr.show_text("cap height").unwrap();
 
             /* Draw the glyph */
 
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
                 glyph.draw(drar, cr, (0.0, 0.0), (200., 200.));
-                cr.set_source_rgb(1.0, 0.0, 0.0);
+                cr.set_source_rgb(1.0, 0.0, 0.5);
                 cr.set_line_width(1.5);
+                if let Some(width) = glyph.width {
+                    cr.move_to(0., 0.);
+                    cr.line_to(0., 200.);
+                    cr.stroke().unwrap();
+                    cr.move_to(width as f64 *0.2, 0.);
+                    cr.line_to(width as f64 *0.2, 200.);
+                    cr.stroke().unwrap();
+                }
                 /*for c in &glyph.curves {
                     for &(x, y) in &c.points {
                         cr.rectangle(x as f64, y as f64, 5., 5.);
@@ -187,28 +214,35 @@ impl ObjectImpl for GlyphEditArea {
                 //println!("cairo drawing without glyph");
             }
             cr.restore().unwrap();
+            cr.restore().unwrap();
 
             /* Draw rulers */
-            cr.rectangle(0., 0., width, 11.);
+            cr.rectangle(0., 0., width, 13.);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgb(0., 0., 0.);
             cr.stroke_preserve().unwrap();
             cr.set_source_rgb(0., 0., 0.);
             cr.move_to(mouse.0, 0.);
-            cr.line_to(mouse.0, 11.);
+            cr.line_to(mouse.0, 13.);
             cr.stroke().unwrap();
+            cr.move_to(mouse.0, 0.);
+            cr.set_font_size(6.);
+            cr.show_text(&format!("{:.0}", mouse.0-camera.0)).unwrap();
 
 
-            cr.rectangle(0., 0., 11., height);
+            cr.rectangle(0., 0., 15., height);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgb(0., 0., 0.);
             cr.stroke_preserve().unwrap();
             cr.set_source_rgb(0., 0., 0.);
             cr.move_to(0., mouse.1);
-            cr.line_to(11., mouse.1);
+            cr.line_to(13., mouse.1);
             cr.stroke().unwrap();
+            cr.move_to(0., mouse.1);
+            cr.set_font_size(6.);
+            cr.show_text(&format!("{:.0}", (mouse.1-camera.1)*5.)).unwrap();
 
 
            Inhibit(false)
@@ -222,6 +256,16 @@ impl ObjectImpl for GlyphEditArea {
             .visible(true)
             .can_focus(true)
             .build();
+
+        /*
+         * let edit_pixbuf = gtk::gdk_pixbuf::Pixbuf::from_read(
+                    crate::resources::GRAB_ICON_SVG.as_bytes()
+        ).unwrap();
+        let edit_pixbuf = edit_pixbuf.scale_simple(26, 26, gtk::gdk_pixbuf::InterpType::Bilinear).unwrap();
+        let edit_image = gtk::Image::from_pixbuf(Some(&edit_pixbuf));
+        edit_image.set_visible(true);
+        let edit_button = gtk::ToolButton::new(Some(&edit_image), Some("Edit"));
+        */
         let edit_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Edit"));
         edit_button.set_visible(true);
         let pen_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Pen"));
@@ -273,6 +317,9 @@ impl ObjectImpl for GlyphEditArea {
             .expect("Failed to initialize window state");
         self.overlay
             .set(overlay)
+            .expect("Failed to initialize window state");
+        self.toolbar
+            .set(toolbar)
             .expect("Failed to initialize window state");
         self.drawing_area
             .set(drawing_area)

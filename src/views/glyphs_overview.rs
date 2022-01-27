@@ -28,7 +28,8 @@ use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
-use crate::project::{Glyph, Project};
+use crate::glyphs::Glyph;
+use crate::project::Project;
 
 #[derive(Debug, Default)]
 pub struct GlyphsArea {

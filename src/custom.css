@@ -56,7 +56,10 @@ toolpalette  {
 
 .text-button {
   background: none;
-  padding: 5px;
+  padding:0;
+  padding-right: 5px;
+  margin:0;
+  border:none;
 }
 
 .glyph-edit-toolbox {
