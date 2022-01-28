@@ -22,3 +22,5 @@
 pub const SELECT_ICON_SVG: &str = include_str!("./resources/select-icon-small.svg");
 
 pub const GRAB_ICON_SVG: &str = include_str!("./resources/grab-icon-small.svg");
+
+pub const PEN_ICON_SVG: &str = include_str!("./resources/pen-icon.svg");

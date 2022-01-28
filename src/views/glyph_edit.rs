@@ -36,7 +36,7 @@ pub struct GlyphEditArea {
     glyph: OnceCell<Glyph>,
     drawing_area: OnceCell<gtk::DrawingArea>,
     overlay: OnceCell<gtk::Overlay>,
-    pub toolbar: OnceCell<gtk::Box>,
+    pub toolbar_box: OnceCell<gtk::Box>,
     zoom_percent_label: OnceCell<gtk::Label>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
@@ -247,7 +247,7 @@ impl ObjectImpl for GlyphEditArea {
 
            Inhibit(false)
         }));
-        let toolbar = gtk::Box::builder()
+        let toolbar_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .expand(false)
             .halign(gtk::Align::Center)
@@ -256,19 +256,37 @@ impl ObjectImpl for GlyphEditArea {
             .visible(true)
             .can_focus(true)
             .build();
+        let toolbar = gtk::Toolbar::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .expand(false)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Start)
+            //.toolbar_style(gtk::ToolbarStyle::Both)
+            .visible(true)
+            .can_focus(true)
+            .build();
 
-        /*
-         * let edit_pixbuf = gtk::gdk_pixbuf::Pixbuf::from_read(
-                    crate::resources::GRAB_ICON_SVG.as_bytes()
-        ).unwrap();
-        let edit_pixbuf = edit_pixbuf.scale_simple(26, 26, gtk::gdk_pixbuf::InterpType::Bilinear).unwrap();
+        let edit_pixbuf =
+            gtk::gdk_pixbuf::Pixbuf::from_read(crate::resources::GRAB_ICON_SVG.as_bytes()).unwrap();
+        let edit_pixbuf = edit_pixbuf
+            .scale_simple(26, 26, gtk::gdk_pixbuf::InterpType::Bilinear)
+            .unwrap();
         let edit_image = gtk::Image::from_pixbuf(Some(&edit_pixbuf));
         edit_image.set_visible(true);
         let edit_button = gtk::ToolButton::new(Some(&edit_image), Some("Edit"));
-        */
-        let edit_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Edit"));
+        //let edit_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Edit"));
         edit_button.set_visible(true);
-        let pen_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Pen"));
+
+        let pen_pixbuf =
+            gtk::gdk_pixbuf::Pixbuf::from_read(crate::resources::PEN_ICON_SVG.as_bytes()).unwrap();
+        let pen_pixbuf = pen_pixbuf
+            .scale_simple(26, 26, gtk::gdk_pixbuf::InterpType::Bilinear)
+            .unwrap();
+        let pen_image = gtk::Image::from_pixbuf(Some(&pen_pixbuf));
+        pen_image.set_visible(true);
+
+        let pen_button = gtk::ToolButton::new(Some(&pen_image), Some("Pen"));
+        //let pen_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Pen"));
         pen_button.set_visible(true);
         let zoom_in_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom in"));
         zoom_in_button.set_visible(true);
@@ -294,19 +312,24 @@ impl ObjectImpl for GlyphEditArea {
         }));
         let zoom_percent_label = gtk::Label::new(Some("100%"));
         zoom_percent_label.set_visible(true);
-        toolbar.pack_start(&edit_button, false, false, 0);
-        toolbar.pack_start(&pen_button, false, false, 0);
-        toolbar.pack_start(&zoom_in_button, false, false, 0);
-        toolbar.pack_start(&zoom_out_button, false, false, 0);
-        toolbar.pack_start(&zoom_percent_label, false, false, 0);
-        toolbar.style_context().add_class("glyph-edit-toolbox");
+        toolbar.add(&edit_button);
+        toolbar.set_item_homogeneous(&edit_button, false);
+        toolbar.add(&pen_button);
+        toolbar.set_item_homogeneous(&pen_button, false);
+        toolbar.add(&zoom_in_button);
+        toolbar.set_item_homogeneous(&zoom_in_button, false);
+        toolbar.add(&zoom_out_button);
+        toolbar.set_item_homogeneous(&zoom_out_button, false);
+        toolbar_box.pack_start(&toolbar, false, false, 0);
+        toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
+        toolbar_box.style_context().add_class("glyph-edit-toolbox");
         let overlay = gtk::Overlay::builder()
             .expand(true)
             .visible(true)
             .can_focus(true)
             .build();
         overlay.add_overlay(&drawing_area);
-        overlay.add_overlay(&toolbar);
+        overlay.add_overlay(&toolbar_box);
         obj.add(&overlay);
         obj.set_visible(true);
         obj.set_expand(true);
@@ -318,8 +341,8 @@ impl ObjectImpl for GlyphEditArea {
         self.overlay
             .set(overlay)
             .expect("Failed to initialize window state");
-        self.toolbar
-            .set(toolbar)
+        self.toolbar_box
+            .set(toolbar_box)
             .expect("Failed to initialize window state");
         self.drawing_area
             .set(drawing_area)
