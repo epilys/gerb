@@ -305,7 +305,7 @@ impl Window {
         edit_view.queue_draw();
         let close_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Close glyph"));
         close_button.set_visible(true);
-        let toolbar = edit_view.imp().toolbar.get().unwrap();
+        let toolbar = edit_view.imp().toolbar_box.get().unwrap();
         toolbar.add(&close_button);
         toolbar.queue_draw();
         let obj = self.super_.get().unwrap().clone();
