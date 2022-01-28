@@ -270,29 +270,28 @@ impl ObjectImpl for GlyphEditArea {
             .can_focus(true)
             .build();
 
-        let edit_pixbuf =
-            gtk::gdk_pixbuf::Pixbuf::from_read(crate::resources::GRAB_ICON_SVG.as_bytes()).unwrap();
-        let edit_pixbuf = edit_pixbuf
-            .scale_simple(26, 26, gtk::gdk_pixbuf::InterpType::Bilinear)
-            .unwrap();
-        let edit_image = gtk::Image::from_pixbuf(Some(&edit_pixbuf));
-        edit_image.set_visible(true);
-        let edit_button = gtk::ToolButton::new(Some(&edit_image), Some("Edit"));
-        //let edit_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Edit"));
+        let edit_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::GRAB_ICON_SVG,
+            )),
+            Some("Edit"),
+        );
         edit_button.set_visible(true);
 
-        let pen_pixbuf =
-            gtk::gdk_pixbuf::Pixbuf::from_read(crate::resources::PEN_ICON_SVG.as_bytes()).unwrap();
-        let pen_pixbuf = pen_pixbuf
-            .scale_simple(26, 26, gtk::gdk_pixbuf::InterpType::Bilinear)
-            .unwrap();
-        let pen_image = gtk::Image::from_pixbuf(Some(&pen_pixbuf));
-        pen_image.set_visible(true);
-
-        let pen_button = gtk::ToolButton::new(Some(&pen_image), Some("Pen"));
-        //let pen_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Pen"));
+        let pen_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::PEN_ICON_SVG,
+            )),
+            Some("Pen"),
+        );
         pen_button.set_visible(true);
-        let zoom_in_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom in"));
+
+        let zoom_in_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::ZOOM_IN_ICON_SVG,
+            )),
+            Some("Zoom in"),
+        );
         zoom_in_button.set_visible(true);
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
@@ -303,7 +302,12 @@ impl ObjectImpl for GlyphEditArea {
                 imp.overlay.get().unwrap().queue_draw();
             }
         }));
-        let zoom_out_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Zoom out"));
+        let zoom_out_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::ZOOM_OUT_ICON_SVG,
+            )),
+            Some("Zoom out"),
+        );
         zoom_out_button.set_visible(true);
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
@@ -344,7 +348,8 @@ impl ObjectImpl for GlyphEditArea {
 
         let zoom_percent_label = gtk::Label::new(Some("100%"));
         zoom_percent_label.set_visible(true);
-        zoom_percent_label.set_selectable(true);
+        zoom_percent_label.set_selectable(true); // So that the widget can receive the button-press event
+        zoom_percent_label.set_width_chars(5); // So that if 2 digit zoom (<100%) has the same length as a widget with a three digit zoom value. For example 75% and 125% should result in the same width
         zoom_percent_label.set_events(gtk::gdk::EventMask::BUTTON_PRESS_MASK);
 
         zoom_percent_label.connect_button_press_event(

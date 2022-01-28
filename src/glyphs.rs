@@ -500,60 +500,20 @@ mod glif {
 
     impl Default for Glif {
         fn default() -> Self {
-            let input = r##"<?xml version="1.0" encoding="UTF-8"?>
-<glyph name="b" format="2">
-	<unicode hex="0062"/>
-	<advance width="553"/>
-	<outline>
-		<contour>
-			<point x="297" y="-12" type="curve" smooth="yes"/>
-			<point x="408" y="-12"/>
-			<point x="507" y="85"/>
-			<point x="507" y="251" type="curve" smooth="yes"/>
-			<point x="507" y="401"/>
-			<point x="440" y="498"/>
-			<point x="314" y="498" type="curve" smooth="yes"/>
-			<point x="260" y="498"/>
-			<point x="206" y="469"/>
-			<point x="162" y="430" type="curve"/>
-			<point x="164" y="518" type="line"/>
-			<point x="164" y="712" type="line"/>
-			<point x="82" y="712" type="line"/>
-			<point x="82" y="0" type="line"/>
-			<point x="148" y="0" type="line"/>
-			<point x="155" y="50" type="line"/>
-			<point x="158" y="50" type="line"/>
-			<point x="201" y="11"/>
-			<point x="252" y="-12"/>
-		</contour>
-		<contour>
-			<point x="283" y="57" type="curve" smooth="yes"/>
-			<point x="251" y="57"/>
-			<point x="207" y="71"/>
-			<point x="164" y="108" type="curve"/>
-			<point x="164" y="363" type="line"/>
-			<point x="210" y="406"/>
-			<point x="253" y="429"/>
-			<point x="294" y="429" type="curve" smooth="yes"/>
-			<point x="386" y="429"/>
-			<point x="422" y="357"/>
-			<point x="422" y="250" type="curve" smooth="yes"/>
-			<point x="422" y="130"/>
-			<point x="363" y="57"/>
-		</contour>
-	</outline>
-	<anchor name="aboveUC" x="295" y="728"/>
-	<anchor name="belowLC" x="296" y="-22"/>
-	<anchor name="center" x="125" y="593"/>
-</glyph>"##;
-            let g: Glif = quick_xml::de::from_str(input).unwrap();
+            let g: Glif = quick_xml::de::from_str(_LOWERCASE_B_GLIF).unwrap();
             g
         }
     }
 
     #[test]
     fn test_glif_parse() {
-        let input = r##"<?xml version="1.0" encoding="UTF-8"?>
+        let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
+        println!("{:#?}", g);
+        let g: super::Glyph = g.into();
+        println!("\n\n{:#?}", g);
+    }
+
+    const _LOWERCASE_B_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <glyph name="b" format="2">
 	<unicode hex="0062"/>
 	<advance width="553"/>
@@ -599,9 +559,37 @@ mod glif {
 	<anchor name="belowLC" x="296" y="-22"/>
 	<anchor name="center" x="125" y="593"/>
 </glyph>"##;
-        let g: Glif = quick_xml::de::from_str(input).unwrap();
-        println!("{:#?}", g);
-        let g: super::Glyph = g.into();
-        println!("\n\n{:#?}", g);
-    }
+
+    const _UPPERCASE_A_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="A" format="2">
+	<unicode hex="0041"/>
+	<advance width="544"/>
+	<outline>
+		<contour>
+			<point x="3" y="0" type="line"/>
+			<point x="88" y="0" type="line"/>
+			<point x="203" y="367" type="line" smooth="yes"/>
+			<point x="227" y="440"/>
+			<point x="248" y="512"/>
+			<point x="268" y="588" type="curve"/>
+			<point x="272" y="588" type="line"/>
+			<point x="293" y="512"/>
+			<point x="314" y="440"/>
+			<point x="338" y="367" type="curve" smooth="yes"/>
+			<point x="452" y="0" type="line"/>
+			<point x="541" y="0" type="line"/>
+			<point x="319" y="656" type="line"/>
+			<point x="225" y="656" type="line"/>
+		</contour>
+		<contour>
+			<point x="119" y="200" type="line"/>
+			<point x="422" y="200" type="line"/>
+			<point x="422" y="267" type="line"/>
+			<point x="119" y="267" type="line"/>
+		</contour>
+	</outline>
+	<anchor name="aboveUC" x="271" y="678"/>
+	<anchor name="belowLC" x="271" y="-22"/>
+	<anchor name="ogonekUC" x="483" y="0"/>
+</glyph>"##;
 }

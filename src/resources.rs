@@ -19,8 +19,24 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use gtk::prelude::WidgetExt;
+
 pub const SELECT_ICON_SVG: &str = include_str!("./resources/select-icon-small.svg");
 
 pub const GRAB_ICON_SVG: &str = include_str!("./resources/grab-icon-small.svg");
 
 pub const PEN_ICON_SVG: &str = include_str!("./resources/pen-icon.svg");
+
+pub const ZOOM_IN_ICON_SVG: &str = include_str!("./resources/zoom-in-icon.svg");
+
+pub const ZOOM_OUT_ICON_SVG: &str = include_str!("./resources/zoom-out-icon.svg");
+
+pub fn svg_to_image_widget(svg: &'static str) -> gtk::Image {
+    let pixbuf = gtk::gdk_pixbuf::Pixbuf::from_read(svg.as_bytes()).unwrap();
+    let pixbuf = pixbuf
+        .scale_simple(24, 24, gtk::gdk_pixbuf::InterpType::Tiles)
+        .unwrap();
+    let image = gtk::Image::from_pixbuf(Some(&pixbuf));
+    image.set_visible(true);
+    image
+}
