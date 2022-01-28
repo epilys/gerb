@@ -128,3 +128,7 @@ button.image-button > box {
 .glyph-edit-toolbox toolbar toolbutton button {
   margin: 2px;
 }
+
+notebook header {
+  box-shadow: 0px 1px #a9a9a9;
+}

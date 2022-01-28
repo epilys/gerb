@@ -31,11 +31,15 @@ use std::sync::{Arc, Mutex};
 use crate::glyphs::Glyph;
 use crate::project::Project;
 
+const GLYPH_BOX_WIDTH: f64 = 110.;
+const GLYPH_BOX_HEIGHT: f64 = 140.;
+
 #[derive(Debug, Default)]
 pub struct GlyphsArea {
     app: OnceCell<gtk::Application>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
     grid: OnceCell<gtk::Grid>,
+    cols: Cell<u32>,
     hide_empty: Cell<bool>,
     widgets: OnceCell<Vec<GlyphBoxItem>>,
 }
@@ -53,6 +57,7 @@ impl ObjectImpl for GlyphsArea {
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.cols.set(4);
 
         let grid = gtk::Grid::builder()
             .expand(true)
@@ -69,6 +74,18 @@ impl ObjectImpl for GlyphsArea {
             .margin_start(5)
             .build();
         scrolled_window.set_child(Some(&grid));
+        scrolled_window.connect_size_allocate(clone!(@weak obj => move |_scrolled_window, rect| {
+            let mut new_cols = rect.width() as u32 / GLYPH_BOX_WIDTH as u32;
+            if new_cols < 4 {
+                new_cols = 4;
+            }
+            let prev_cols = obj.imp().cols.get();
+            if new_cols != prev_cols {
+                //println!("grid resized: {} -> {}", prev_cols, new_cols);
+                obj.imp().cols.set(new_cols);
+                obj.update_grid();
+            }
+        }));
 
         let box_ = gtk::Box::new(gtk::Orientation::Vertical, 0);
         box_.set_spacing(5);
@@ -87,7 +104,7 @@ impl ObjectImpl for GlyphsArea {
             let imp = obj.imp();
             let hide_empty = !imp.hide_empty.get();
             imp.hide_empty.set(hide_empty);
-            obj.update_grid(hide_empty);
+            obj.update_grid();
             imp.grid.get().unwrap().queue_draw();
         }));
         glyph_overview_tools.add(&hide_empty_button);
@@ -154,9 +171,11 @@ impl GlyphsOverview {
         ret
     }
 
-    fn update_grid(&self, hide_empty: bool) {
+    fn update_grid(&self) {
+        let hide_empty: bool = self.imp().hide_empty.get();
         let (mut col, mut row) = (0, 0);
         let grid = self.imp().grid.get().unwrap();
+        let max_cols = self.imp().cols.get() as i32;
         let children = grid.children();
         for c in children {
             grid.remove(&c);
@@ -167,7 +186,7 @@ impl GlyphsOverview {
             }
             grid.attach(c, col, row, 1, 1);
             col += 1;
-            if col == 4 {
+            if col == max_cols {
                 col = 0;
                 row += 1;
             }
@@ -228,8 +247,6 @@ impl ObjectImpl for GlyphBox {
             cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
 
-            const GLYPH_BOX_WIDTH: f64 = 110.;
-            const GLYPH_BOX_HEIGHT: f64 = 140.;
             let (x, y) = (0.01, 0.01);
             let c = obj.imp().glyph.get().unwrap().char;
             let label = c.to_string();
