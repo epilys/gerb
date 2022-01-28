@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::clone;
+use glib::{clone, ParamFlags, ParamSpec, ParamSpecString, Value};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -408,6 +408,38 @@ impl ObjectImpl for GlyphEditArea {
         self.drawing_area
             .set(drawing_area)
             .expect("Failed to initialize window state");
+    }
+
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![ParamSpecString::new(
+                    // Name
+                    "tab-title",
+                    // Nickname
+                    "tab-title",
+                    // Short description
+                    "tab-title",
+                    // Default value
+                    Some("edit glyph"),
+                    // The property can be read and written to
+                    ParamFlags::READABLE,
+                )]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+        match pspec.name() {
+            "tab-title" => {
+                if let Some(glyph_char) = obj.imp().glyph.get().map(|g| g.char) {
+                    format!("edit <i>{}</i>", glyph_char).to_value()
+                } else {
+                    "edit glyph".to_value()
+                }
+            }
+            _ => unreachable!(),
+        }
     }
 }
 

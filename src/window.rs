@@ -294,9 +294,14 @@ impl Window {
         let glyphs_view =
             crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), mutex.clone());
         widgets.notebook.add(&glyphs_view);
+        let tab_label = gtk::Label::builder()
+            .label(&glyphs_view.property::<String>("tab-title"))
+            .use_markup(true)
+            .build();
         widgets
             .notebook
-            .set_tab_label_text(&glyphs_view, "overview");
+            .set_tab_label(&glyphs_view, Some(&tab_label));
+        widgets.notebook.set_tab_reorderable(&glyphs_view, false);
         //widgets.notebook.set_visible_child(&glyphs_view);
         //widgets.tool_palette.queue_draw();
         widgets.notebook.queue_draw();
@@ -311,10 +316,17 @@ impl Window {
             glyph.clone(),
         );
         widgets.notebook.add(&edit_view);
-        widgets
-            .notebook
-            .set_tab_label_text(&edit_view, "edit glyph");
-        widgets.notebook.next_page();
+        let tab_label = gtk::Label::builder()
+            .label(&edit_view.property::<String>("tab-title"))
+            .use_markup(true)
+            .build();
+        widgets.notebook.set_tab_label(&edit_view, Some(&tab_label));
+        widgets.notebook.set_tab_reorderable(&edit_view, true);
+        let mut children_no = 0;
+        widgets.notebook.foreach(|_| {
+            children_no += 1;
+        });
+        widgets.notebook.set_page(children_no - 1);
         //widgets.notebook.set_visible_child(&edit_view);
         widgets.notebook.queue_draw();
         edit_view.queue_draw();

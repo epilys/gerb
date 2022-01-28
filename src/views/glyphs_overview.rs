@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::clone;
+use glib::{clone, ParamFlags, ParamSpec, ParamSpecString, Value};
 use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
 use gtk::prelude::*;
@@ -128,6 +128,32 @@ impl ObjectImpl for GlyphsArea {
         self.grid
             .set(grid)
             .expect("Failed to initialize window state");
+    }
+
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![ParamSpecString::new(
+                    // Name
+                    "tab-title",
+                    // Nickname
+                    "tab-title",
+                    // Short description
+                    "tab-title",
+                    // Default value
+                    Some("overview"),
+                    // The property can be read and written to
+                    ParamFlags::READABLE,
+                )]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+        match pspec.name() {
+            "tab-title" => "overview".to_value(),
+            _ => unreachable!(),
+        }
     }
 }
 
