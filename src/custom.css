@@ -113,3 +113,18 @@ tabs {
   margin-left: -4px;
   background-color: #ddd;
 }
+
+button.image-button > box {
+  padding:0;
+}
+
+.image-button {
+  background: white;
+  border: 1px solid black;
+  box-shadow: -1px 1px black;
+  border-radius: 3px;
+}
+
+.glyph-edit-toolbox toolbar toolbutton button {
+  margin: 2px;
+}
