@@ -58,7 +58,7 @@ impl ObjectImpl for GlyphEditArea {
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.camera.set((0., 0.));
+        self.camera.set((200., 100.));
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
 
@@ -235,7 +235,7 @@ impl ObjectImpl for GlyphEditArea {
             cr.show_text(&format!("{:.0}", mouse.0-camera.0)).unwrap();
 
 
-            cr.rectangle(0., 0., 15., height);
+            cr.rectangle(0., 13., 13., height);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgb(0., 0., 0.);
@@ -277,6 +277,8 @@ impl ObjectImpl for GlyphEditArea {
             Some("Edit"),
         );
         edit_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        edit_button.set_tooltip_text(Some("Pan"));
 
         let pen_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -285,6 +287,7 @@ impl ObjectImpl for GlyphEditArea {
             Some("Pen"),
         );
         pen_button.set_visible(true);
+        pen_button.set_tooltip_text(Some("Pen"));
 
         let zoom_in_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -293,6 +296,7 @@ impl ObjectImpl for GlyphEditArea {
             Some("Zoom in"),
         );
         zoom_in_button.set_visible(true);
+        zoom_in_button.set_tooltip_text(Some("Zoom in"));
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let zoom_factor = imp.zoom.get() + 0.25;
@@ -309,6 +313,7 @@ impl ObjectImpl for GlyphEditArea {
             Some("Zoom out"),
         );
         zoom_out_button.set_visible(true);
+        zoom_out_button.set_tooltip_text(Some("Zoom out"));
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let zoom_factor = imp.zoom.get() - 0.25;
@@ -351,6 +356,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_percent_label.set_selectable(true); // So that the widget can receive the button-press event
         zoom_percent_label.set_width_chars(5); // So that if 2 digit zoom (<100%) has the same length as a widget with a three digit zoom value. For example 75% and 125% should result in the same width
         zoom_percent_label.set_events(gtk::gdk::EventMask::BUTTON_PRESS_MASK);
+        zoom_percent_label.set_tooltip_text(Some("Interface zoom percentage"));
 
         zoom_percent_label.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {

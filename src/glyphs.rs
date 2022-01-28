@@ -60,10 +60,9 @@ fn draw_curve_point(points: &[Point], t: f64) -> Option<Point> {
 }
 
 #[derive(Debug, Clone)]
-pub enum ContourPoint {
-    Move(Point),
-    Line(Point),
-    Curve(Bezier),
+pub struct Contour {
+    pub open: bool,
+    pub curves: Vec<Bezier>,
 }
 
 #[derive(Debug, Clone)]
@@ -71,8 +70,7 @@ pub struct Glyph {
     pub name: Cow<'static, str>,
     pub char: char,
     pub width: Option<i64>,
-    //pub outline: Vec<Vec<ContourPoint>>,
-    pub curves: Vec<Bezier>,
+    pub contours: Vec<Contour>,
 }
 
 impl Default for Glyph {
@@ -197,7 +195,10 @@ impl Glyph {
         Glyph {
             name: name.into(),
             char,
-            curves,
+            contours: vec![Contour {
+                open: false,
+                curves,
+            }],
             width: None,
         }
     }
@@ -213,7 +214,7 @@ impl Glyph {
         (x, y): (f64, f64),
         (og_width, og_height): (f64, f64),
     ) {
-        if self.curves.is_empty() {
+        if self.is_empty() {
             return;
         }
         cr.save().expect("Invalid cairo surface state");
@@ -221,27 +222,41 @@ impl Glyph {
         let mut width = og_width;
         let mut height = og_height;
         let mut strokes = vec![];
-        for c in &self.curves {
-            let prev_point = c.points[0];
-            let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
-            let mut sample = 0;
-            for t in (0..100).step_by(1) {
-                let t = (t as f64) / 100.;
-                if let Some(new_point) = c.get_point(t) {
-                    let new_point = (new_point.0 as f64, new_point.1 as f64);
-                    if sample == 0 {
-                        //println!("{:?} {:?}", prev_point, new_point);
-                        strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
-
-                        sample = 5;
-                        prev_point = new_point;
-                    }
-                    sample -= 1;
+        for contour in self.contours.iter() {
+            let mut pen_position: Option<(f64, f64)> = None;
+            if !contour.open {
+                if let Some(point) = contour.curves.last().and_then(|b| b.points.last()) {
+                    let point = (point.0 as f64, point.1 as f64);
+                    pen_position = Some(point);
                 }
             }
-            let new_point = *c.points.last().unwrap();
-            let new_point = (new_point.0 as f64, new_point.1 as f64);
-            strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
+            for c in contour.curves.iter() {
+                let prev_point = c.points[0];
+                let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
+                let mut sample = 0;
+                for t in (0..100).step_by(1) {
+                    let t = (t as f64) / 100.;
+                    if let Some(new_point) = c.get_point(t) {
+                        let new_point = (new_point.0 as f64, new_point.1 as f64);
+                        if sample == 0 {
+                            if let Some(prev_position) = pen_position.take() {
+                                strokes.push((prev_position, new_point));
+                            }
+                            //println!("{:?} {:?}", prev_point, new_point);
+                            strokes
+                                .push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
+
+                            sample = 5;
+                            prev_point = new_point;
+                        }
+                        sample -= 1;
+                    }
+                }
+                let new_point = *c.points.last().unwrap();
+                let new_point = (new_point.0 as f64, new_point.1 as f64);
+                strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
+                pen_position = Some(prev_point);
+            }
         }
         for &((ax, ay), (bx, by)) in &strokes {
             width = width.max(ax).max(bx);
@@ -269,7 +284,7 @@ impl Glyph {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.curves.is_empty()
+        self.contours.is_empty() || self.contours.iter().all(|c| c.curves.is_empty())
     }
 }
 
@@ -395,10 +410,12 @@ mod glif {
                     .try_into()
                     .unwrap(),
                 width: advance.map(|a| a.width),
-                curves: vec![],
+                contours: vec![],
             };
 
             for contour in outline.countours {
+                let mut contour_acc = vec![];
+                let mut open = false;
                 let mut points = contour
                     .point
                     .iter()
@@ -409,17 +426,19 @@ mod glif {
                 let mut c;
                 let mut prev_point;
                 if points.front().unwrap().is_move() {
+                    open = true;
                     // Open contour
                     let p = points.pop_front().unwrap();
                     prev_point = (p.x, 1000 - p.y);
                     c = vec![prev_point];
                 } else {
                     c = vec![];
-                    prev_point = (0, 1000);
                     // Closed contour
                     while points.front().unwrap().is_curve() {
                         points.rotate_left(1);
                     }
+                    let last_point = points.back().unwrap();
+                    prev_point = (last_point.x, 1000 - last_point.y);
                 }
                 if points.front().unwrap().is_line() {
                     let p = points.back().unwrap();
@@ -450,7 +469,7 @@ mod glif {
                         }) => {
                             prev_point = (*x, 1000 - *y);
                             c.push(prev_point);
-                            ret.curves.push(Bezier::new(c));
+                            contour_acc.push(Bezier::new(c));
                             c = vec![];
                         }
                         Some(Point {
@@ -460,11 +479,11 @@ mod glif {
                             ..
                         }) => {
                             assert!(c.is_empty() || c.len() == 1);
-                            c.push((*x, 1000 - *y));
-                            if c.len() == 1 {
+                            if c.is_empty() {
                                 c.push(prev_point);
                             }
-                            ret.curves.push(Bezier::new(c));
+                            c.push((*x, 1000 - *y));
+                            contour_acc.push(Bezier::new(c));
                             c = vec![];
                             prev_point = (*x, 1000 - *y);
                         }
@@ -479,12 +498,16 @@ mod glif {
                                 if !c.contains(&prev_point) {
                                     c.push(prev_point);
                                 }
-                                ret.curves.push(Bezier::new(c));
+                                contour_acc.push(Bezier::new(c));
                             }
                             break;
                         }
                     }
                 }
+                ret.contours.push(super::Contour {
+                    open,
+                    curves: contour_acc,
+                });
             }
 
             ret

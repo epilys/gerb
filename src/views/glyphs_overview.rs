@@ -253,10 +253,10 @@ impl ObjectImpl for GlyphBox {
                 .expect("Invalid cairo surface state");
             cr.move_to(point.0 + width/2. - sextents.width/2., point.1+(height / 3.)+20.);
             let glyph = obj.imp().glyph.get().unwrap();
-            if glyph.curves.is_empty() {
+            if glyph.is_empty() {
                 cr.show_text(&label).expect("Invalid cairo surface state");
             } else {
-                glyph.draw(_drar, cr, (point.0, point.1+20.), (width*0.8, height*0.8));
+                glyph.draw(_drar, cr, (point.0+width/6., point.1), (width*0.8, height*0.8));
             }
 
 
