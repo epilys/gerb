@@ -26,23 +26,23 @@ use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 
 #[derive(Debug)]
-struct BreadcrumbWidgets {
+struct TabInfoWidgets {
     flow_box: gtk::FlowBox,
 }
 
 #[derive(Debug, Default)]
-pub struct BreadcrumbsInner {
-    widgets: OnceCell<BreadcrumbWidgets>,
+pub struct TabInfoInner {
+    widgets: OnceCell<TabInfoWidgets>,
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for BreadcrumbsInner {
-    const NAME: &'static str = "BreadcrumbsInner";
-    type Type = Breadcrumbs;
+impl ObjectSubclass for TabInfoInner {
+    const NAME: &'static str = "TabInfoInner";
+    type Type = TabInfo;
     type ParentType = gtk::Box;
 }
 
-impl ObjectImpl for BreadcrumbsInner {
+impl ObjectImpl for TabInfoInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
 
@@ -59,37 +59,28 @@ impl ObjectImpl for BreadcrumbsInner {
         obj.set_visible(true);
         obj.set_expand(true);
         self.widgets
-            .set(BreadcrumbWidgets { flow_box })
-            .expect("Failed to initialize BreadcrumbsInner state");
+            .set(TabInfoWidgets { flow_box })
+            .expect("Failed to initialize TabInfoInner state");
     }
 }
 
-impl BreadcrumbsInner {}
+impl TabInfoInner {}
 
-impl WidgetImpl for BreadcrumbsInner {}
-impl ContainerImpl for BreadcrumbsInner {}
-impl BoxImpl for BreadcrumbsInner {}
+impl WidgetImpl for TabInfoInner {}
+impl ContainerImpl for TabInfoInner {}
+impl BoxImpl for TabInfoInner {}
 
 glib::wrapper! {
-    pub struct Breadcrumbs(ObjectSubclass<BreadcrumbsInner>)
+    pub struct TabInfo(ObjectSubclass<TabInfoInner>)
         @extends gtk::Widget, gtk::Container, gtk::Box;
 }
 
-impl Breadcrumbs {
-    pub fn new(stack: &gtk::Stack) -> Self {
-        let ret: Self = glib::Object::new(&[]).expect("Failed to create Breadcrumbs");
-        stack.connect_add(clone!(@strong ret => move |_self_, new_widget| {
-            println!("added {:?}", new_widget);
-            let widg = gtk::Button::builder()
-                .label("overview")
-                .expand(true)
-                .visible(true)
-                .build();
-            ret.imp().widgets.get().unwrap().flow_box.add(&widg);
-
-        }));
-        stack.connect_remove(clone!(@strong ret => move |_self_, removed_widget| {
-            println!("removed {:?}", removed_widget);
+impl TabInfo {
+    pub fn new(notebook: &gtk::Notebook) -> Self {
+        let ret: Self = glib::Object::new(&[]).expect("Failed to create TabInfo");
+        notebook.connect_switch_page(clone!(@strong ret => move |_self_, _page_widget, _page| {
+            //println!("switched {:?} {}", page_widget, page);
+            //ret.imp().widgets.get().unwrap().flow_box.add(&widg);
 
         }));
         /*ret.imp()

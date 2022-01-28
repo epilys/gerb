@@ -92,3 +92,24 @@ toolpalette  {
   background: #959595;
   color:black;
 }
+
+tab {
+  border: 1px outset gray;
+  border-bottom: 0px;
+  padding: 5px;
+  min-height: 0;
+  box-shadow: -1px -1px darkgray, 1px 0px darkgray;
+  background-color: #eee;
+}
+
+tab:checked {
+  border: 1px inset gray;
+  border-bottom: 0px;
+}
+
+tabs {
+  padding-left: 0;
+  padding-top: 3px;
+  margin-left: -4px;
+  background-color: #ddd;
+}

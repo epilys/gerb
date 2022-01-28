@@ -69,14 +69,18 @@ impl ObjectImpl for GlyphEditArea {
         drawing_area.set_events(
             gtk::gdk::EventMask::BUTTON_PRESS_MASK
                 | gtk::gdk::EventMask::BUTTON_RELEASE_MASK
+                | gtk::gdk::EventMask::BUTTON_MOTION_MASK
+                | gtk::gdk::EventMask::SCROLL_MASK
+                | gtk::gdk::EventMask::SMOOTH_SCROLL_MASK
                 | gtk::gdk::EventMask::POINTER_MOTION_MASK,
         );
         drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-
                 obj.imp().mouse.set(event.position());
                 obj.imp().button.set(Some(event.button()));
-
+                if event.button() == 3 {
+                    return Inhibit(true);
+                }
                 Inhibit(false)
             }),
         );
@@ -96,7 +100,7 @@ impl ObjectImpl for GlyphEditArea {
         );
         drawing_area.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                if let Some(gtk::gdk::BUTTON_SECONDARY) = obj.imp().button.get(){
+                if let Some(gtk::gdk::BUTTON_MIDDLE) = obj.imp().button.get(){
                     let mut camera = obj.imp().camera.get();
                     let mouse = obj.imp().mouse.get();
                     camera.0 += event.position().0 - mouse.0;
@@ -142,16 +146,16 @@ impl ObjectImpl for GlyphEditArea {
             for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
                 cr.set_source_rgb(color, color, color);
                 let mut y = (camera.1 % step).floor() + 0.5;
-                while y < height {
+                while y < (height/zoom_factor) {
                     cr.move_to(0., y);
-                    cr.line_to(width, y);
+                    cr.line_to(width/zoom_factor, y);
                     y += step;
                 }
                 cr.stroke().unwrap();
                 let mut x = (camera.0 % step).floor() + 0.5;
-                while x < width {
+                while x < (width/zoom_factor) {
                     cr.move_to(x, 0.);
-                    cr.line_to(x, height);
+                    cr.line_to(x, height/zoom_factor);
                     x += step;
                 }
                 cr.stroke().unwrap();
@@ -293,9 +297,9 @@ impl ObjectImpl for GlyphEditArea {
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let zoom_factor = imp.zoom.get() + 0.25;
-            if zoom_factor < 4.25 {
+            if zoom_factor < 7.25 {
                 imp.zoom.set(zoom_factor);
-                imp.zoom_percent_label.get().unwrap().set_text(&format!("{}%", zoom_factor * 100.));
+                imp.zoom_percent_label.get().unwrap().set_text(&format!("{:.0}%", zoom_factor * 100.));
                 imp.overlay.get().unwrap().queue_draw();
             }
         }));
@@ -304,14 +308,60 @@ impl ObjectImpl for GlyphEditArea {
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let zoom_factor = imp.zoom.get() - 0.25;
-            if zoom_factor > 0. {
+            if zoom_factor > 0.05 {
                 imp.zoom.set(zoom_factor);
-                imp.zoom_percent_label.get().unwrap().set_text(&format!("{}%", zoom_factor * 100.));
+                imp.zoom_percent_label.get().unwrap().set_text(&format!("{:.0}%", zoom_factor * 100.));
                 imp.overlay.get().unwrap().queue_draw();
             }
         }));
+
+        drawing_area.connect_scroll_event(clone!(@weak obj => @default-return Inhibit(false), move |_drar, event| {
+            match event.direction() {
+                gtk::gdk::ScrollDirection::Up | gtk::gdk::ScrollDirection::Down | gtk::gdk::ScrollDirection::Smooth => {
+                    /* zoom */
+                    let (_, dy) = event.delta();
+                    let imp = obj.imp();
+                    let mut camera =imp.camera.get();
+                    let mouse = imp.mouse.get();
+                    camera.0 += event.position().0 - mouse.0;
+                    camera.1 += event.position().1 - mouse.1;
+                    imp.mouse.set(event.position());
+                    imp.camera.set(camera);
+                    let zoom_factor = imp.zoom.get() - 0.25* dy;
+                    if zoom_factor > 0.05 && zoom_factor < 7.25 {
+                        imp.zoom.set(zoom_factor);
+                        imp.zoom_percent_label.get().unwrap().set_text(&format!("{:.0}%", zoom_factor * 100.));
+                        imp.overlay.get().unwrap().queue_draw();
+                    }
+                        _drar.queue_draw();
+                },
+                _ => {
+                    /* ignore */
+                }
+            }
+            Inhibit(false)
+        }));
+
         let zoom_percent_label = gtk::Label::new(Some("100%"));
         zoom_percent_label.set_visible(true);
+        zoom_percent_label.set_selectable(true);
+        zoom_percent_label.set_events(gtk::gdk::EventMask::BUTTON_PRESS_MASK);
+
+        zoom_percent_label.connect_button_press_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+                if event.button() == gtk::gdk::BUTTON_PRIMARY &&
+                 event.event_type() == gtk::gdk::EventType::DoubleButtonPress {
+                    let imp = obj.imp();
+                    let zoom_factor = imp.zoom.get();
+                    if (zoom_factor - 1.0).abs() > f64::EPSILON {
+                        imp.zoom.set(1.0);
+                        imp.zoom_percent_label.get().unwrap().set_text("100%");
+                        imp.overlay.get().unwrap().queue_draw();
+                    }
+                }
+                Inhibit(false)
+            }),
+        );
         toolbar.add(&edit_button);
         toolbar.set_item_homogeneous(&edit_button, false);
         toolbar.add(&pen_button);

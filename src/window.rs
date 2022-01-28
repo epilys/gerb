@@ -19,8 +19,8 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-mod breadcrumbs;
-use breadcrumbs::*;
+mod tabinfo;
+use tabinfo::*;
 
 use glib::clone;
 use gtk::cairo::{Context, FontSlant, FontWeight};
@@ -44,7 +44,11 @@ struct WindowSidebar {
 
 impl WindowSidebar {
     #[inline(always)]
-    fn new(main: gtk::Paned, stack: &gtk::Stack, obj: &<Window as ObjectSubclass>::Type) -> Self {
+    fn new(
+        main: gtk::Paned,
+        notebook: &gtk::Notebook,
+        obj: &<Window as ObjectSubclass>::Type,
+    ) -> Self {
         let ret = Self {
             main,
             project_info_sidebar: gtk::Paned::builder()
@@ -119,8 +123,8 @@ impl WindowSidebar {
         sidebar.pack2(&ret.minimap, true, false);
         sidebar.style_context().add_class("sidebar");
 
-        let breadcrumbs = Breadcrumbs::new(stack);
-        ret.project_info_sidebar.pack1(&breadcrumbs, true, true);
+        let tabinfo = TabInfo::new(notebook);
+        ret.project_info_sidebar.pack1(&tabinfo, true, true);
         ret.project_info_sidebar
             .pack2(&ret.project_label, true, true);
 
@@ -145,7 +149,7 @@ struct WindowWidgets {
     //tool_palette: gtk::ToolPalette,
     //create_item_group: gtk::ToolItemGroup,
     //project_item_group: gtk::ToolItemGroup,
-    stack: gtk::Stack,
+    notebook: gtk::Notebook,
 }
 
 #[derive(Debug, Default)]
@@ -176,11 +180,15 @@ impl ObjectImpl for Window {
         headerbar.set_title(Some("gerb"));
         headerbar.set_show_close_button(true);
 
-        let stack = gtk::Stack::builder()
+        let notebook = gtk::Notebook::builder()
             .expand(true)
             .visible(true)
             .can_focus(true)
-            .name("main-window-stack")
+            .name("main-window-notebook")
+            .show_tabs(true)
+            .scrollable(true)
+            .enable_popup(true)
+            .show_border(true)
             .build();
         let paned = gtk::Paned::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -190,7 +198,7 @@ impl ObjectImpl for Window {
             .position(130)
             .name("main-window-paned")
             .build();
-        paned.pack2(&stack, true, false);
+        paned.pack2(&notebook, true, false);
 
         obj.set_child(Some(&paned));
         obj.set_titlebar(Some(&headerbar));
@@ -229,8 +237,8 @@ impl ObjectImpl for Window {
         self.widgets
             .set(WindowWidgets {
                 headerbar,
-                sidebar: WindowSidebar::new(paned, &stack, obj),
-                stack,
+                sidebar: WindowSidebar::new(paned, &notebook, obj),
+                notebook,
                 //tool_palette,
                 //create_item_group,
                 //project_item_group,
@@ -285,10 +293,13 @@ impl Window {
         drop(lck);
         let glyphs_view =
             crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), mutex.clone());
-        widgets.stack.add(&glyphs_view);
-        widgets.stack.set_visible_child(&glyphs_view);
+        widgets.notebook.add(&glyphs_view);
+        widgets
+            .notebook
+            .set_tab_label_text(&glyphs_view, "overview");
+        //widgets.notebook.set_visible_child(&glyphs_view);
         //widgets.tool_palette.queue_draw();
-        widgets.stack.queue_draw();
+        widgets.notebook.queue_draw();
     }
 
     pub fn edit_glyph(&self, glyph: &crate::glyphs::Glyph) {
@@ -299,9 +310,13 @@ impl Window {
             mutex.clone(),
             glyph.clone(),
         );
-        widgets.stack.add(&edit_view);
-        widgets.stack.set_visible_child(&edit_view);
-        widgets.stack.queue_draw();
+        widgets.notebook.add(&edit_view);
+        widgets
+            .notebook
+            .set_tab_label_text(&edit_view, "edit glyph");
+        widgets.notebook.next_page();
+        //widgets.notebook.set_visible_child(&edit_view);
+        widgets.notebook.queue_draw();
         edit_view.queue_draw();
         let close_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Close glyph"));
         close_button.set_visible(true);
@@ -311,8 +326,8 @@ impl Window {
         let obj = self.super_.get().unwrap().clone();
         close_button.connect_clicked(clone!(@strong obj, @strong toolbar => move |_self| {
             let widgets = obj.imp().widgets.get().unwrap();
-            widgets.stack.remove(&edit_view);
-            widgets.stack.queue_draw();
+            widgets.notebook.remove(&edit_view);
+            widgets.notebook.queue_draw();
             toolbar.remove(_self);
         }));
         /*
@@ -320,8 +335,8 @@ impl Window {
         let obj = self.super_.get().unwrap().clone();
         close_button.connect_clicked(clone!(@strong obj => move |_self| {
             let widgets = obj.imp().widgets.get().unwrap();
-            widgets.stack.remove(&edit_view);
-            widgets.stack.queue_draw();
+            widgets.notebook.remove(&edit_view);
+            widgets.notebook.queue_draw();
             widgets.project_item_group.remove(_self);
         }));
         widgets.tool_palette.queue_draw();
@@ -347,7 +362,7 @@ impl Window {
         }
         widgets.tool_palette.queue_draw();
         */
-        widgets.stack.queue_draw();
+        widgets.notebook.queue_draw();
         let mutex = self.project.get().unwrap();
         let mut lck = mutex.lock().unwrap();
         *lck = None;
