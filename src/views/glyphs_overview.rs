@@ -28,7 +28,7 @@ use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
-use crate::glyphs::Glyph;
+use crate::glyphs::{Glyph, GlyphKind};
 use crate::project::Project;
 
 const GLYPH_BOX_WIDTH: f64 = 110.;
@@ -184,13 +184,10 @@ impl GlyphsOverview {
         let grid = ret.imp().grid.get().unwrap();
         let project_copy = project.clone();
         let mut widgets = vec![];
-        for c in crate::utils::CODEPOINTS.chars() {
-            if let Some(glyph) = project
-                .lock()
-                .unwrap()
-                .as_ref()
-                .and_then(|p| p.glyphs.get(&(c as u32)))
-            {
+        if let Some(p) = project.lock().unwrap().as_ref() {
+            let mut glyphs = p.glyphs.values().collect::<Vec<&Glyph>>();
+            glyphs.sort();
+            for glyph in glyphs {
                 let glyph_box = GlyphBoxItem::new(app.clone(), project_copy.clone(), glyph.clone());
                 grid.attach(&glyph_box, col, row, 1, 1);
                 widgets.push(glyph_box);
@@ -284,8 +281,12 @@ impl ObjectImpl for GlyphBox {
             cr.paint().expect("Invalid cairo surface state");
 
             let (x, y) = (0.01, 0.01);
-            let c = obj.imp().glyph.get().unwrap().char;
-            let label = c.to_string();
+            let glyph = obj.imp().glyph.get().unwrap();
+            let c = &glyph.name;
+            let label = match glyph.kind {
+                GlyphKind::Char(c) => c.to_string(),
+                GlyphKind::Component => c.to_string(),
+            };
             cr.set_line_width(1.5);
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (GLYPH_BOX_WIDTH, GLYPH_BOX_HEIGHT), 1.0, 1.5);
             if is_focused {
@@ -305,7 +306,6 @@ impl ObjectImpl for GlyphBox {
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
             cr.move_to(point.0 + width/2. - sextents.width/2., point.1+(height / 3.)+20.);
-            let glyph = obj.imp().glyph.get().unwrap();
             if glyph.is_empty() {
                 cr.show_text(&label).expect("Invalid cairo surface state");
             } else {
@@ -334,7 +334,10 @@ impl ObjectImpl for GlyphBox {
             cr.show_text(&label).expect("Invalid cairo surface state");
 
 
-            let label = format!("U+{:04X}", c as u32);
+            let label = match glyph.kind {
+                GlyphKind::Char(c) => format!("U+{:04X}", c as u32),
+                GlyphKind::Component => c.to_string(),
+            };
             let extents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
