@@ -263,6 +263,56 @@ impl ObjectImpl for Window {
     }
 }
 
+fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, closeable: bool) {
+    notebook.add(widget);
+    let tab_label = gtk::Label::builder()
+        .label(&widget.property::<String>("tab-title"))
+        .visible(true)
+        .use_markup(true)
+        .build();
+    if closeable {
+        let hbox = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .expand(false)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
+            .spacing(5)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        hbox.pack_start(&tab_label, false, false, 0);
+        let image = gtk::Image::builder()
+            .icon_name("window-close")
+            .visible(true)
+            .build();
+        let close_button = gtk::Button::builder()
+            .image(&image)
+            .always_show_image(true)
+            .relief(gtk::ReliefStyle::None)
+            .visible(true)
+            .build();
+        close_button.connect_clicked(clone!(@strong notebook, @strong widget => move |_self| {
+            if std::dbg!(widget.property::<bool>("tab-can-close")) {
+                notebook.remove(&widget);
+                notebook.queue_draw();
+            }
+        }));
+        close_button.style_context().add_class("tab-button");
+        hbox.pack_start(&close_button, false, false, 0);
+        notebook.set_tab_label(widget, Some(&hbox));
+    } else {
+        notebook.set_tab_label(widget, Some(&tab_label));
+    }
+    notebook.set_tab_reorderable(widget, reorderable);
+    let mut children_no = 0;
+    notebook.foreach(|_| {
+        children_no += 1;
+    });
+    notebook.set_page(children_no - 1);
+    notebook.queue_draw();
+    widget.queue_draw();
+}
+
 impl Window {
     pub fn load_project(&self, project: Project) {
         let widgets = self.widgets.get().unwrap();
@@ -293,18 +343,12 @@ impl Window {
         drop(lck);
         let glyphs_view =
             crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), mutex.clone());
-        widgets.notebook.add(&glyphs_view);
-        let tab_label = gtk::Label::builder()
-            .label(&glyphs_view.property::<String>("tab-title"))
-            .use_markup(true)
-            .build();
-        widgets
-            .notebook
-            .set_tab_label(&glyphs_view, Some(&tab_label));
-        widgets.notebook.set_tab_reorderable(&glyphs_view, false);
-        //widgets.notebook.set_visible_child(&glyphs_view);
-        //widgets.tool_palette.queue_draw();
-        widgets.notebook.queue_draw();
+        add_tab(
+            &widgets.notebook,
+            glyphs_view.upcast_ref::<gtk::Widget>(),
+            false,
+            false,
+        );
     }
 
     pub fn edit_glyph(&self, glyph: &crate::glyphs::Glyph) {
@@ -315,21 +359,13 @@ impl Window {
             mutex.clone(),
             glyph.clone(),
         );
-        widgets.notebook.add(&edit_view);
-        let tab_label = gtk::Label::builder()
-            .label(&edit_view.property::<String>("tab-title"))
-            .use_markup(true)
-            .build();
-        widgets.notebook.set_tab_label(&edit_view, Some(&tab_label));
-        widgets.notebook.set_tab_reorderable(&edit_view, true);
-        let mut children_no = 0;
-        widgets.notebook.foreach(|_| {
-            children_no += 1;
-        });
-        widgets.notebook.set_page(children_no - 1);
-        //widgets.notebook.set_visible_child(&edit_view);
-        widgets.notebook.queue_draw();
-        edit_view.queue_draw();
+        add_tab(
+            &widgets.notebook,
+            edit_view.upcast_ref::<gtk::Widget>(),
+            true,
+            true,
+        );
+
         let close_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Close glyph"));
         close_button.set_visible(true);
         let toolbar = edit_view.imp().toolbar_box.get().unwrap();
@@ -342,17 +378,6 @@ impl Window {
             widgets.notebook.queue_draw();
             toolbar.remove(_self);
         }));
-        /*
-        widgets.project_item_group.add(&close_button);
-        let obj = self.super_.get().unwrap().clone();
-        close_button.connect_clicked(clone!(@strong obj => move |_self| {
-            let widgets = obj.imp().widgets.get().unwrap();
-            widgets.notebook.remove(&edit_view);
-            widgets.notebook.queue_draw();
-            widgets.project_item_group.remove(_self);
-        }));
-        widgets.tool_palette.queue_draw();
-        */
     }
 
     pub fn unload_project(&self) {

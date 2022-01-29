@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{clone, ParamFlags, ParamSpec, ParamSpecString, Value};
+use glib::{clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -413,18 +413,27 @@ impl ObjectImpl for GlyphEditArea {
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
-                vec![ParamSpecString::new(
-                    // Name
-                    "tab-title",
-                    // Nickname
-                    "tab-title",
-                    // Short description
-                    "tab-title",
-                    // Default value
-                    Some("edit glyph"),
-                    // The property can be read and written to
-                    ParamFlags::READABLE,
-                )]
+                vec![
+                    ParamSpecString::new(
+                        // Name
+                        "tab-title",
+                        // Nickname
+                        "tab-title",
+                        // Short description
+                        "tab-title",
+                        // Default value
+                        Some("edit glyph"),
+                        // The property can be read and written to
+                        ParamFlags::READABLE,
+                    ),
+                    ParamSpecBoolean::new(
+                        "tab-can-close",
+                        "tab-can-close",
+                        "tab-can-close",
+                        true,
+                        ParamFlags::READABLE,
+                    ),
+                ]
             });
         PROPERTIES.as_ref()
     }
@@ -438,6 +447,7 @@ impl ObjectImpl for GlyphEditArea {
                     "edit glyph".to_value()
                 }
             }
+            "tab-can-close" => true.to_value(),
             _ => unreachable!(),
         }
     }
