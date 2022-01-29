@@ -212,17 +212,23 @@ impl Glyph {
         _drar: &gtk::DrawingArea,
         cr: &Context,
         (x, y): (f64, f64),
-        (og_width, og_height): (f64, f64),
+        (og_width, _og_height): (f64, f64),
     ) {
         if self.is_empty() {
             return;
         }
+        let f = og_width
+            / self
+                .width
+                .map(|w| if w == 0 { 1000 } else { w })
+                .unwrap_or(1000) as f64;
         cr.save().expect("Invalid cairo surface state");
         cr.move_to(x, y);
-        let mut width = og_width;
-        let mut height = og_height;
-        let mut strokes = vec![];
+        cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
+        cr.set_line_width(2.0);
+        cr.translate(0., -20.);
         for contour in self.contours.iter() {
+            let mut strokes = vec![];
             let mut pen_position: Option<(f64, f64)> = None;
             if !contour.open {
                 if let Some(point) = contour.curves.last().and_then(|b| b.points.last()) {
@@ -257,19 +263,17 @@ impl Glyph {
                 strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
                 pen_position = Some(prev_point);
             }
-        }
-        for &((ax, ay), (bx, by)) in &strokes {
-            width = width.max(ax).max(bx);
-            height = height.max(ay).max(by);
-        }
-        cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
-        cr.set_line_width(2.0);
-        cr.move_to(x, y);
-        cr.translate(0., -20.);
-        let f = (og_width / width).min(og_height / height);
-        for ((ax, ay), (bx, by)) in &strokes {
-            cr.move_to(ax * f + x, ay * f + y);
-            cr.line_to(bx * f + x, by * f + y);
+            cr.new_path();
+            let mut prev_point = (x, y);
+            for ((ax, ay), (bx, by)) in &strokes {
+                if ((prev_point.0 - *ax).powi(2) + (prev_point.1 - *ay).powi(2)).sqrt()
+                    > f64::EPSILON
+                {
+                    cr.move_to(ax * f + x, ay * f + y);
+                }
+                prev_point = (*bx, *by);
+                cr.line_to(bx * f + x, by * f + y);
+            }
             cr.stroke().expect("Invalid cairo surface state");
         }
         cr.restore().expect("Invalid cairo surface state");
