@@ -30,6 +30,15 @@ use std::sync::{Arc, Mutex};
 use crate::glyphs::Glyph;
 use crate::project::Project;
 
+const EM_SQUARE_PIXELS: f64 = 200.0;
+
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
+enum MotionMode {
+    _Zoom = 0,
+    Pan,
+}
+
 #[derive(Debug, Default)]
 pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
@@ -41,7 +50,7 @@ pub struct GlyphEditArea {
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
     zoom: Cell<f64>,
-    button: Cell<Option<u32>>,
+    button: Cell<Option<MotionMode>>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
 }
 
@@ -58,7 +67,7 @@ impl ObjectImpl for GlyphEditArea {
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.camera.set((200., 100.));
+        self.camera.set((EM_SQUARE_PIXELS, 100.));
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
 
@@ -77,7 +86,9 @@ impl ObjectImpl for GlyphEditArea {
         drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 obj.imp().mouse.set(event.position());
-                obj.imp().button.set(Some(event.button()));
+                if event.button() == gtk::gdk::BUTTON_MIDDLE {
+                    obj.imp().button.set(Some(MotionMode::Pan));
+                }
                 if event.button() == 3 {
                     return Inhibit(true);
                 }
@@ -88,19 +99,19 @@ impl ObjectImpl for GlyphEditArea {
             clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
                 //obj.imp().mouse.set((0., 0.));
                 obj.imp().button.set(None);
-                    if let Some(screen) = _self.window() {
-                        let display = screen.display();
-                        screen.set_cursor(Some(
-                                &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
-                        ));
-                    }
+                if let Some(screen) = _self.window() {
+                    let display = screen.display();
+                    screen.set_cursor(Some(
+                            &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
+                    ));
+                }
 
                 Inhibit(false)
             }),
         );
         drawing_area.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                if let Some(gtk::gdk::BUTTON_MIDDLE) = obj.imp().button.get(){
+                if let Some(MotionMode::Pan) = obj.imp().button.get(){
                     let mut camera = obj.imp().camera.get();
                     let mouse = obj.imp().mouse.get();
                     camera.0 += event.position().0 - mouse.0;
@@ -166,45 +177,45 @@ impl ObjectImpl for GlyphEditArea {
             cr.save().unwrap();
             cr.translate(camera.0, camera.1);
             cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-            cr.rectangle(0., 0., 200., 200.);
+            cr.rectangle(0., 0., EM_SQUARE_PIXELS, EM_SQUARE_PIXELS);
             cr.fill().unwrap();
 
             /* Draw x-height */
             cr.set_source_rgba(1.0, 0., 0., 0.6);
             cr.set_line_width(2.0);
             cr.move_to(0., x_height*0.2);
-            cr.line_to(200., x_height*0.2);
+            cr.line_to(EM_SQUARE_PIXELS, x_height*0.2);
             cr.stroke().unwrap();
-            cr.move_to(200., x_height*0.2);
+            cr.move_to(EM_SQUARE_PIXELS, x_height*0.2);
             cr.show_text("x-height").unwrap();
 
             /* Draw baseline */
             cr.move_to(0., units_per_em*0.2);
-            cr.line_to(200., units_per_em*0.2);
+            cr.line_to(EM_SQUARE_PIXELS, units_per_em*0.2);
             cr.stroke().unwrap();
-            cr.move_to(200., units_per_em*0.2);
+            cr.move_to(EM_SQUARE_PIXELS, units_per_em*0.2);
             cr.show_text("baseline").unwrap();
 
             /* Draw cap height */
             cr.move_to(0., -cap_height*0.2);
-            cr.line_to(200., -cap_height*0.2);
+            cr.line_to(EM_SQUARE_PIXELS, -cap_height*0.2);
             cr.stroke().unwrap();
-            cr.move_to(200., -cap_height*0.2);
+            cr.move_to(EM_SQUARE_PIXELS, -cap_height*0.2);
             cr.show_text("cap height").unwrap();
 
             /* Draw the glyph */
 
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
-                glyph.draw(drar, cr, (0.0, 0.0), (200., 200.));
+                glyph.draw(drar, cr, (0.0, 0.0), (EM_SQUARE_PIXELS, EM_SQUARE_PIXELS));
                 cr.set_source_rgb(1.0, 0.0, 0.5);
                 cr.set_line_width(1.5);
                 if let Some(width) = glyph.width {
                     cr.move_to(0., 0.);
-                    cr.line_to(0., 200.);
+                    cr.line_to(0., EM_SQUARE_PIXELS);
                     cr.stroke().unwrap();
                     cr.move_to(width as f64 *0.2, 0.);
-                    cr.line_to(width as f64 *0.2, 200.);
+                    cr.line_to(width as f64 *0.2, EM_SQUARE_PIXELS);
                     cr.stroke().unwrap();
                 }
                 /*for c in &glyph.curves {
@@ -325,6 +336,26 @@ impl ObjectImpl for GlyphEditArea {
         }));
 
         drawing_area.connect_scroll_event(clone!(@weak obj => @default-return Inhibit(false), move |_drar, event| {
+            if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+                obj.imp().mouse.set(event.position());
+                let (mut dx, mut dy) = event.delta();
+                if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                    if dy.abs() > dx.abs() {
+                        dx = dy;
+                    }
+                    dy = 0.0;
+                }
+
+                let dx = dx * EM_SQUARE_PIXELS/2. * obj.imp().zoom.get();
+                let dy = dy * EM_SQUARE_PIXELS/2. * obj.imp().zoom.get();
+                let mut camera = obj.imp().camera.get();
+                let mouse = obj.imp().mouse.get();
+                camera.0 += event.position().0 - mouse.0 - dx;
+                camera.1 += event.position().1 - mouse.1 - dy;
+                obj.imp().camera.set(camera);
+                _drar.queue_draw();
+                return Inhibit(false);
+            }
             match event.direction() {
                 gtk::gdk::ScrollDirection::Up | gtk::gdk::ScrollDirection::Down | gtk::gdk::ScrollDirection::Smooth => {
                     /* zoom */
