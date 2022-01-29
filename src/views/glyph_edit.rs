@@ -472,8 +472,8 @@ impl ObjectImpl for GlyphEditArea {
     fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "tab-title" => {
-                if let Some(glyph_char) = obj.imp().glyph.get().map(|g| g.char) {
-                    format!("edit <i>{}</i>", glyph_char).to_value()
+                if let Some(name) = obj.imp().glyph.get().map(|g| g.name_markup()) {
+                    format!("edit <i>{}</i>", name).to_value()
                 } else {
                     "edit glyph".to_value()
                 }

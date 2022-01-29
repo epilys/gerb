@@ -39,7 +39,7 @@ pub struct Project {
     pub name: String,
     pub modified: bool,
     pub last_saved: Option<u64>,
-    pub glyphs: HashMap<u32, Glyph>,
+    pub glyphs: HashMap<String, Glyph>,
     pub path: Option<PathBuf>,
     pub family_name: String,
     pub style_name: String,
@@ -74,21 +74,10 @@ impl Default for Project {
             name: "test project".to_string(),
             modified: false,
             last_saved: None,
-            /*glyphs: crate::utils::CODEPOINTS
-                .chars()
-                .map(|c| {
-                    if c == 'b' {
-                        ('b' as u32, Glyph::default())
-                    } else {
-                        (c as u32, Glyph::new_empty("", c))
-                    }
-                })
-                .collect::<HashMap<u32, Glyph>>(),
-            ,*/
             glyphs: glyphs
                 .into_iter()
-                .map(|g| (g.char as u32, g))
-                .collect::<HashMap<u32, Glyph>>(),
+                .map(|g| (g.name.to_string(), g))
+                .collect::<HashMap<String, Glyph>>(),
             path: None,
             family_name: "Test Sans".to_string(),
             style_name: String::new(),

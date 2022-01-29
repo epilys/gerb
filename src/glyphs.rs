@@ -20,6 +20,7 @@
  */
 
 use std::borrow::Cow;
+use std::cmp::Ordering;
 
 use gtk::cairo::Context;
 pub type Point = (i64, i64);
@@ -66,12 +67,49 @@ pub struct Contour {
 }
 
 #[derive(Debug, Clone)]
+pub enum GlyphKind {
+    Char(char),
+    Component,
+}
+
+#[derive(Debug, Clone)]
 pub struct Glyph {
     pub name: Cow<'static, str>,
-    pub char: char,
+    pub kind: GlyphKind,
     pub width: Option<i64>,
     pub contours: Vec<Contour>,
 }
+
+impl Ord for Glyph {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use GlyphKind::*;
+        match (&self.kind, &other.kind) {
+            (Char(s), Char(o)) => s.cmp(o),
+            (Char(_), _) => Ordering::Less,
+            (Component, Component) => self.name.cmp(&other.name),
+            (Component, Char(_)) => Ordering::Greater,
+        }
+    }
+}
+
+impl PartialOrd for Glyph {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Glyph {
+    fn eq(&self, other: &Self) -> bool {
+        use GlyphKind::*;
+        match (&self.kind, &other.kind) {
+            (Char(s), Char(o)) => s == o,
+            (Char(_), Component) | (Component, Char(_)) => false,
+            (Component, Component) => self.name == other.name,
+        }
+    }
+}
+
+impl Eq for Glyph {}
 
 impl Default for Glyph {
     fn default() -> Self {
@@ -194,7 +232,7 @@ impl Glyph {
     pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
         Glyph {
             name: name.into(),
-            char,
+            kind: GlyphKind::Char(char),
             contours: vec![Contour {
                 open: false,
                 curves,
@@ -289,6 +327,17 @@ impl Glyph {
 
     pub fn is_empty(&self) -> bool {
         self.contours.is_empty() || self.contours.iter().all(|c| c.curves.is_empty())
+    }
+
+    pub fn name_markup(&self) -> gtk::glib::GString {
+        match self.kind {
+            GlyphKind::Char(c) => {
+                let mut b = [0; 4];
+
+                gtk::glib::markup_escape_text(c.encode_utf8(&mut b))
+            }
+            GlyphKind::Component => gtk::glib::markup_escape_text(self.name.as_ref()),
+        }
     }
 }
 
@@ -388,10 +437,12 @@ mod glif {
     pub struct Glif {
         name: String,
         format: Option<String>,
-        unicode: Unicode,
+        #[serde(default)]
+        unicode: Option<Unicode>,
         #[serde(default)]
         advance: Option<Advance>,
-        outline: Outline,
+        #[serde(default)]
+        outline: Option<Outline>,
         #[serde(rename = "anchor", default)]
         anchors: Vec<Anchor>,
     }
@@ -407,111 +458,118 @@ mod glif {
                 ..
             } = self;
 
+            let kind = if let Some(val) = unicode
+                .and_then(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
+                .and_then(|n| n.try_into().ok())
+            {
+                super::GlyphKind::Char(val)
+            } else {
+                super::GlyphKind::Component
+            };
             let mut ret = Glyph {
                 name: name.into(),
-                char: u32::from_str_radix(unicode.hex.as_str(), 16)
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+                kind,
                 width: advance.map(|a| a.width),
                 contours: vec![],
             };
 
-            for contour in outline.countours {
-                let mut contour_acc = vec![];
-                let mut open = false;
-                let mut points = contour
-                    .point
-                    .iter()
-                    .collect::<std::collections::VecDeque<&_>>();
-                if points.is_empty() {
-                    continue;
-                }
-                let mut c;
-                let mut prev_point;
-                if points.front().unwrap().is_move() {
-                    open = true;
-                    // Open contour
-                    let p = points.pop_front().unwrap();
-                    prev_point = (p.x, 1000 - p.y);
-                    c = vec![prev_point];
-                } else {
-                    c = vec![];
-                    // Closed contour
-                    while points.front().unwrap().is_curve() {
-                        points.rotate_left(1);
+            if let Some(outline) = outline {
+                for contour in outline.countours {
+                    let mut contour_acc = vec![];
+                    let mut open = false;
+                    let mut points = contour
+                        .point
+                        .iter()
+                        .collect::<std::collections::VecDeque<&_>>();
+                    if points.is_empty() {
+                        continue;
                     }
-                    let last_point = points.back().unwrap();
-                    prev_point = (last_point.x, 1000 - last_point.y);
-                }
-                if points.front().unwrap().is_line() {
-                    let p = points.back().unwrap();
-                    prev_point = (p.x, 1000 - p.y);
-                }
-                loop {
-                    match points.pop_front() {
-                        Some(Point {
-                            type_: PointKind::Move,
-                            ..
-                        }) => {
-                            panic!()
+                    let mut c;
+                    let mut prev_point;
+                    if points.front().unwrap().is_move() {
+                        open = true;
+                        // Open contour
+                        let p = points.pop_front().unwrap();
+                        prev_point = (p.x, 1000 - p.y);
+                        c = vec![prev_point];
+                    } else {
+                        c = vec![];
+                        // Closed contour
+                        while points.front().unwrap().is_curve() {
+                            points.rotate_left(1);
                         }
-                        Some(Point {
-                            type_: PointKind::Offcurve,
-                            x,
-                            y,
-                            ..
-                        }) => {
-                            prev_point = (*x, 1000 - *y);
-                            c.push(prev_point);
-                        }
-                        Some(Point {
-                            type_: PointKind::Curve,
-                            x,
-                            y,
-                            ..
-                        }) => {
-                            prev_point = (*x, 1000 - *y);
-                            c.push(prev_point);
-                            contour_acc.push(Bezier::new(c));
-                            c = vec![];
-                        }
-                        Some(Point {
-                            type_: PointKind::Line,
-                            x,
-                            y,
-                            ..
-                        }) => {
-                            assert!(c.is_empty() || c.len() == 1);
-                            if c.is_empty() {
+                        let last_point = points.back().unwrap();
+                        prev_point = (last_point.x, 1000 - last_point.y);
+                    }
+                    if points.front().unwrap().is_line() {
+                        let p = points.back().unwrap();
+                        prev_point = (p.x, 1000 - p.y);
+                    }
+                    loop {
+                        match points.pop_front() {
+                            Some(Point {
+                                type_: PointKind::Move,
+                                ..
+                            }) => {
+                                panic!()
+                            }
+                            Some(Point {
+                                type_: PointKind::Offcurve,
+                                x,
+                                y,
+                                ..
+                            }) => {
+                                prev_point = (*x, 1000 - *y);
                                 c.push(prev_point);
                             }
-                            c.push((*x, 1000 - *y));
-                            contour_acc.push(Bezier::new(c));
-                            c = vec![];
-                            prev_point = (*x, 1000 - *y);
-                        }
-                        Some(Point {
-                            type_: PointKind::Qcurve,
-                            ..
-                        }) => {
-                            todo!()
-                        }
-                        None => {
-                            if !c.is_empty() {
-                                if !c.contains(&prev_point) {
+                            Some(Point {
+                                type_: PointKind::Curve,
+                                x,
+                                y,
+                                ..
+                            }) => {
+                                prev_point = (*x, 1000 - *y);
+                                c.push(prev_point);
+                                contour_acc.push(Bezier::new(c));
+                                c = vec![];
+                            }
+                            Some(Point {
+                                type_: PointKind::Line,
+                                x,
+                                y,
+                                ..
+                            }) => {
+                                assert!(c.is_empty() || c.len() == 1);
+                                if c.is_empty() {
                                     c.push(prev_point);
                                 }
+                                c.push((*x, 1000 - *y));
                                 contour_acc.push(Bezier::new(c));
+                                c = vec![];
+                                prev_point = (*x, 1000 - *y);
                             }
-                            break;
+                            Some(Point {
+                                type_: PointKind::Qcurve,
+                                ..
+                            }) => {
+                                todo!()
+                            }
+                            None => {
+                                if !c.is_empty() {
+                                    if !c.contains(&prev_point) {
+                                        c.push(prev_point);
+                                    }
+                                    contour_acc.push(Bezier::new(c));
+                                }
+                                break;
+                            }
                         }
                     }
+                    ret.contours.push(super::Contour {
+                        open,
+                        curves: contour_acc,
+                    });
                 }
-                ret.contours.push(super::Contour {
-                    open,
-                    curves: contour_acc,
-                });
             }
 
             ret
