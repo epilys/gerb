@@ -46,6 +46,7 @@ pub struct GlyphEditArea {
     drawing_area: OnceCell<gtk::DrawingArea>,
     overlay: OnceCell<gtk::Overlay>,
     pub toolbar_box: OnceCell<gtk::Box>,
+    points: OnceCell<Arc<Mutex<Vec<(i64, i64)>>>>,
     zoom_percent_label: OnceCell<gtk::Label>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
@@ -70,6 +71,7 @@ impl ObjectImpl for GlyphEditArea {
         self.camera.set((EM_SQUARE_PIXELS, 100.));
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
+        self.points.set(Arc::new(Mutex::new(vec![]))).unwrap();
 
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
@@ -144,6 +146,7 @@ impl ObjectImpl for GlyphEditArea {
                 let p = lck.as_ref().unwrap();
                 (p.units_per_em, p.x_height, p.cap_height, p.ascender, p.descender)
             };
+            let f = EM_SQUARE_PIXELS/units_per_em ;
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
             cr.set_source_rgb(1., 1., 1.);
@@ -171,36 +174,37 @@ impl ObjectImpl for GlyphEditArea {
                 }
                 cr.stroke().unwrap();
             }
-
             /* Draw em square of 1000 units: */
 
             cr.save().unwrap();
             cr.translate(camera.0, camera.1);
+
             cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-            cr.rectangle(0., 0., EM_SQUARE_PIXELS, EM_SQUARE_PIXELS);
+            let glyph_width = f*obj.imp().glyph.get().unwrap().width.unwrap_or(1000) as f64;
+            cr.rectangle(0., 0., glyph_width, EM_SQUARE_PIXELS);
             cr.fill().unwrap();
 
             /* Draw x-height */
-            cr.set_source_rgba(1.0, 0., 0., 0.6);
+            cr.set_source_rgba(0., 0., 1., 0.6);
             cr.set_line_width(2.0);
             cr.move_to(0., x_height*0.2);
-            cr.line_to(EM_SQUARE_PIXELS, x_height*0.2);
+            cr.line_to(glyph_width*1.2, x_height*0.2);
             cr.stroke().unwrap();
-            cr.move_to(EM_SQUARE_PIXELS, x_height*0.2);
+            cr.move_to(glyph_width*1.2, x_height*0.2);
             cr.show_text("x-height").unwrap();
 
             /* Draw baseline */
             cr.move_to(0., units_per_em*0.2);
-            cr.line_to(EM_SQUARE_PIXELS, units_per_em*0.2);
+            cr.line_to(glyph_width*1.2, units_per_em*0.2);
             cr.stroke().unwrap();
-            cr.move_to(EM_SQUARE_PIXELS, units_per_em*0.2);
+            cr.move_to(glyph_width*1.2, units_per_em*0.2);
             cr.show_text("baseline").unwrap();
 
             /* Draw cap height */
-            cr.move_to(0., -cap_height*0.2);
-            cr.line_to(EM_SQUARE_PIXELS, -cap_height*0.2);
+            cr.move_to(0., EM_SQUARE_PIXELS-cap_height*0.2);
+            cr.line_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
             cr.stroke().unwrap();
-            cr.move_to(EM_SQUARE_PIXELS, -cap_height*0.2);
+            cr.move_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
             cr.show_text("cap height").unwrap();
 
             /* Draw the glyph */
@@ -208,16 +212,16 @@ impl ObjectImpl for GlyphEditArea {
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
                 glyph.draw(drar, cr, (0.0, 0.0), (EM_SQUARE_PIXELS, EM_SQUARE_PIXELS));
-                cr.set_source_rgb(1.0, 0.0, 0.5);
-                cr.set_line_width(1.5);
-                if let Some(width) = glyph.width {
-                    cr.move_to(0., 0.);
-                    cr.line_to(0., EM_SQUARE_PIXELS);
-                    cr.stroke().unwrap();
-                    cr.move_to(width as f64 *0.2, 0.);
-                    cr.line_to(width as f64 *0.2, EM_SQUARE_PIXELS);
+                cr.save().unwrap();
+                cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                for p in obj.imp().points.get().unwrap().lock().unwrap().iter() {
+                    cr.set_line_width(0.5);
+                    //println!("darwing point ({}, {}) at ({}, {})", p.0, p.1, p.0 as f64*f*zoom_factor-50., p.1 as f64 * f*zoom_factor-50.);
+                    cr.rectangle(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 5., 5.);
                     cr.stroke().unwrap();
                 }
+                cr.restore().unwrap();
+
                 /*for c in &glyph.curves {
                     for &(x, y) in &c.points {
                         cr.rectangle(x as f64, y as f64, 5., 5.);
@@ -536,6 +540,7 @@ glib::wrapper! {
 impl GlyphEditView {
     pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
+        *ret.imp().points.get().unwrap().lock().unwrap() = glyph.points();
         ret.imp().glyph.set(glyph).unwrap();
         ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();
