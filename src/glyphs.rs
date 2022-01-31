@@ -258,16 +258,11 @@ impl Glyph {
         if self.is_empty() {
             return;
         }
-        let f = og_width
-            / self
-                .width
-                .map(|w| if w == 0 { 1000 } else { w })
-                .unwrap_or(1000) as f64;
+        let f = og_width / 1000.;
         cr.save().expect("Invalid cairo surface state");
         cr.move_to(x, y);
         cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
         cr.set_line_width(2.0);
-        cr.translate(0., -20.);
         for contour in self.contours.iter() {
             let mut strokes = vec![];
             let mut pen_position: Option<(f64, f64)> = None;
@@ -341,6 +336,15 @@ impl Glyph {
             }
             GlyphKind::Component => gtk::glib::markup_escape_text(self.name.as_ref()),
         }
+    }
+
+    pub fn points(&self) -> Vec<Point> {
+        self.contours
+            .clone()
+            .into_iter()
+            .map(|v| v.curves.into_iter().map(|b| b.points.into_iter()).flatten())
+            .flatten()
+            .collect::<Vec<Point>>()
     }
 }
 
