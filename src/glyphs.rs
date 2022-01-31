@@ -78,6 +78,7 @@ pub struct Glyph {
     pub kind: GlyphKind,
     pub width: Option<i64>,
     pub contours: Vec<Contour>,
+    pub glif_source: String,
 }
 
 impl Ord for Glyph {
@@ -221,7 +222,8 @@ impl Glyph {
                     eprintln!("couldn't parse {}: {}", entry.path().display(), err);
                 }
                 Ok(g) => {
-                    let g: Glyph = g.into();
+                    let mut g: Glyph = g.into();
+                    g.glif_source = s;
                     ret.push(g);
                 }
             }
@@ -238,6 +240,7 @@ impl Glyph {
                 curves,
             }],
             width: None,
+            glif_source: String::new(),
         }
     }
 
@@ -471,6 +474,7 @@ mod glif {
                 kind,
                 width: advance.map(|a| a.width),
                 contours: vec![],
+                glif_source: String::new(),
             };
 
             if let Some(outline) = outline {

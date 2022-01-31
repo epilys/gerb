@@ -404,6 +404,45 @@ impl ObjectImpl for GlyphEditArea {
                 Inhibit(false)
             }),
         );
+        let debug_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Debug info"));
+        debug_button.set_visible(true);
+        debug_button.set_tooltip_text(Some("Debug info"));
+        debug_button.connect_clicked(clone!(@weak obj => move |_| {
+            let glyph = obj.imp().glyph.get().unwrap();
+            let window = gtk::Window::new(gtk::WindowType::Toplevel);
+            window.set_default_size(640, 480);
+            let hbox = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .valign(gtk::Align::Fill)
+                .expand(false)
+                .spacing(5)
+                .visible(true)
+                .can_focus(true)
+                .build();
+            let glyph_info = gtk::Label::new(Some(&format!("{:#?}", glyph.contours)));
+            glyph_info.set_halign(gtk::Align::Start);
+            let scrolled_window = gtk::ScrolledWindow::builder()
+                .expand(true)
+                .visible(true)
+                .can_focus(true)
+                .margin_start(5)
+                .build();
+            scrolled_window.set_child(Some(&glyph_info));
+            hbox.pack_start(&scrolled_window, true, true, 0);
+            hbox.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, true, 0);
+            let scrolled_window = gtk::ScrolledWindow::builder()
+                .expand(true)
+                .visible(true)
+                .can_focus(true)
+                .margin_start(5)
+                .build();
+            let glif_info = gtk::Label::new(Some(&glyph.glif_source));
+            glif_info.set_halign(gtk::Align::Start);
+            scrolled_window.set_child(Some(&glif_info));
+            hbox.pack_start(&scrolled_window, true, true, 0);
+            window.add(&hbox);
+            window.show_all();
+        }));
         toolbar.add(&edit_button);
         toolbar.set_item_homogeneous(&edit_button, false);
         toolbar.add(&pen_button);
@@ -414,6 +453,7 @@ impl ObjectImpl for GlyphEditArea {
         toolbar.set_item_homogeneous(&zoom_out_button, false);
         toolbar_box.pack_start(&toolbar, false, false, 0);
         toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
+        toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
         let overlay = gtk::Overlay::builder()
             .expand(true)
