@@ -22,6 +22,8 @@
 use gtk::cairo::Context;
 use std::f64::consts::PI;
 
+pub mod range_query;
+
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
 
 pub type Point = (f64, f64);
