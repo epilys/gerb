@@ -47,6 +47,7 @@ pub struct GlyphEditArea {
     overlay: OnceCell<gtk::Overlay>,
     pub toolbar_box: OnceCell<gtk::Box>,
     points: OnceCell<Arc<Mutex<Vec<(i64, i64)>>>>,
+    kd_tree: OnceCell<Arc<Mutex<crate::utils::range_query::KdTree>>>,
     zoom_percent_label: OnceCell<gtk::Label>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
@@ -72,6 +73,11 @@ impl ObjectImpl for GlyphEditArea {
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
         self.points.set(Arc::new(Mutex::new(vec![]))).unwrap();
+        self.kd_tree
+            .set(Arc::new(Mutex::new(
+                crate::utils::range_query::KdTree::new(&[]),
+            )))
+            .unwrap();
 
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
@@ -125,6 +131,29 @@ impl ObjectImpl for GlyphEditArea {
                                 &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
                         ));
                     }
+                } else {
+                    let zoom_factor = obj.imp().zoom.get();
+                    let camera = obj.imp().camera.get();
+                    let position = event.position();
+                    let f =  1000. / EM_SQUARE_PIXELS ;
+                    let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                    let pts = obj.imp().kd_tree.get().unwrap().lock().unwrap().query(position, 10);
+                    if pts.is_empty() {
+                        if let Some(screen) = _self.window() {
+                            let display = screen.display();
+                            screen.set_cursor(Some(
+                                    &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
+                            ));
+                        }
+
+                    } else if let Some(screen) = _self.window() {
+                            let display = screen.display();
+                            screen.set_cursor(Some(
+                                    &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
+                            ));
+                        }
+
+
                 }
                 obj.imp().mouse.set(event.position());
                 _self.queue_draw();
@@ -265,6 +294,17 @@ impl ObjectImpl for GlyphEditArea {
 
 
            Inhibit(false)
+        }));
+        drawing_area.connect_button_press_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+            let zoom_factor = obj.imp().zoom.get();
+            let camera = obj.imp().camera.get();
+            let position = event.position();
+            let f =  1000. / EM_SQUARE_PIXELS ;
+            let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+            //std::dbg!(obj.imp().kd_tree.get().unwrap().lock().unwrap());
+            std::dbg!(obj.imp().kd_tree.get().unwrap().lock().unwrap().query(position, 10));
+            Inhibit(true)
         }));
         let toolbar_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -540,6 +580,8 @@ glib::wrapper! {
 impl GlyphEditView {
     pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
+        *ret.imp().kd_tree.get().unwrap().lock().unwrap() =
+            crate::utils::range_query::KdTree::new(&glyph.points());
         *ret.imp().points.get().unwrap().lock().unwrap() = glyph.points();
         ret.imp().glyph.set(glyph).unwrap();
         ret.imp().app.set(app).unwrap();
