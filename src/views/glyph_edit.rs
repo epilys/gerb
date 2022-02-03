@@ -265,32 +265,36 @@ impl ObjectImpl for GlyphEditArea {
             cr.restore().unwrap();
 
             /* Draw rulers */
-            cr.rectangle(0., 0., width, 13.);
+            const RULER_BREADTH: f64 = 13.;
+            cr.rectangle(0., 0., width, RULER_BREADTH);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgb(0., 0., 0.);
             cr.stroke_preserve().unwrap();
             cr.set_source_rgb(0., 0., 0.);
             cr.move_to(mouse.0, 0.);
-            cr.line_to(mouse.0, 13.);
+            cr.line_to(mouse.0, RULER_BREADTH);
             cr.stroke().unwrap();
-            cr.move_to(mouse.0, 0.);
+            cr.move_to(mouse.0+1., 2.*RULER_BREADTH/3.);
             cr.set_font_size(6.);
-            cr.show_text(&format!("{:.0}", mouse.0-camera.0)).unwrap();
+            cr.show_text(&format!("{:.0}", (mouse.0-camera.0*zoom_factor)/zoom_factor)).unwrap();
 
 
-            cr.rectangle(0., 13., 13., height);
+            cr.rectangle(0., RULER_BREADTH, RULER_BREADTH, height);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgb(0., 0., 0.);
             cr.stroke_preserve().unwrap();
             cr.set_source_rgb(0., 0., 0.);
             cr.move_to(0., mouse.1);
-            cr.line_to(13., mouse.1);
+            cr.line_to(RULER_BREADTH, mouse.1);
             cr.stroke().unwrap();
-            cr.move_to(0., mouse.1);
+            cr.move_to(2.*RULER_BREADTH/3., mouse.1-1.);
             cr.set_font_size(6.);
-            cr.show_text(&format!("{:.0}", (mouse.1-camera.1)*5.)).unwrap();
+            cr.save().expect("Invalid cairo surface state");
+            cr.rotate(-std::f64::consts::FRAC_PI_2);
+            cr.show_text(&format!("{:.0}", (mouse.1-camera.1*zoom_factor)/zoom_factor)).unwrap();
+            cr.restore().expect("Invalid cairo surface state");
 
 
            Inhibit(false)
