@@ -44,6 +44,8 @@ pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Glyph>,
     drawing_area: OnceCell<gtk::DrawingArea>,
+    hovering: Cell<Option<(usize, usize)>>,
+    statusbar_context_id: Cell<Option<u32>>,
     overlay: OnceCell<gtk::Overlay>,
     pub toolbar_box: OnceCell<gtk::Box>,
     points: OnceCell<Arc<Mutex<Vec<(i64, i64)>>>>,
@@ -69,6 +71,8 @@ impl ObjectImpl for GlyphEditArea {
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.hovering.set(None);
+        self.statusbar_context_id.set(None);
         self.camera.set((EM_SQUARE_PIXELS, 100.));
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
@@ -139,21 +143,31 @@ impl ObjectImpl for GlyphEditArea {
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
                     let pts = obj.imp().kd_tree.get().unwrap().lock().unwrap().query(position, 10);
                     if pts.is_empty() {
+                        obj.imp().hovering.set(None);
                         if let Some(screen) = _self.window() {
                             let display = screen.display();
                             screen.set_cursor(Some(
                                     &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
                             ));
                         }
-
                     } else if let Some(screen) = _self.window() {
-                            let display = screen.display();
-                            screen.set_cursor(Some(
-                                    &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
-                            ));
+                        let glyph = obj.imp().glyph.get().unwrap();
+                        for (ic, contour) in glyph.contours.iter().enumerate() {
+                            for (jc, curve) in contour.curves.iter().enumerate() {
+                                for p in &pts {
+                                    if curve.points.contains(&p.1) {
+                                        obj.imp().new_statusbar_message(&format!("{:?}", curve));
+                                        obj.imp().hovering.set(Some((ic, jc)));
+                                        break;
+                                    }
+                                }
+                            }
                         }
-
-
+                        let display = screen.display();
+                        screen.set_cursor(Some(
+                                &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
+                        ));
+                    }
                 }
                 obj.imp().mouse.set(event.position());
                 _self.queue_draw();
@@ -240,7 +254,7 @@ impl ObjectImpl for GlyphEditArea {
 
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
-                glyph.draw(drar, cr, (0.0, 0.0), (EM_SQUARE_PIXELS, EM_SQUARE_PIXELS));
+                glyph.draw(drar, cr, (0.0, 0.0), (EM_SQUARE_PIXELS, EM_SQUARE_PIXELS), obj.imp().hovering.get());
                 cr.save().unwrap();
                 cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
                 for p in obj.imp().points.get().unwrap().lock().unwrap().iter() {
@@ -575,6 +589,27 @@ impl ObjectImpl for GlyphEditArea {
 impl WidgetImpl for GlyphEditArea {}
 impl ContainerImpl for GlyphEditArea {}
 impl BinImpl for GlyphEditArea {}
+
+impl GlyphEditArea {
+    fn new_statusbar_message(&self, msg: &str) {
+        if let Some(app) = self
+            .app
+            .get()
+            .and_then(|app| app.downcast_ref::<crate::GerbApp>())
+        {
+            let statusbar = app.statusbar();
+            if self.statusbar_context_id.get().is_none() {
+                self.statusbar_context_id.set(Some(
+                    statusbar
+                        .context_id(&format!("GlyphEditArea-{:?}", &self.glyph.get().unwrap())),
+                ));
+            }
+            if let Some(cid) = self.statusbar_context_id.get().as_ref() {
+                statusbar.push(*cid, msg);
+            }
+        }
+    }
+}
 
 glib::wrapper! {
     pub struct GlyphEditView(ObjectSubclass<GlyphEditArea>)

@@ -173,4 +173,9 @@ impl GerbApp {
         //application.set_app_menu(Some(&menu));
         application.set_menubar(Some(&menu_bar));
     }
+
+    pub fn statusbar(&self) -> gtk::Statusbar {
+        let window = self.imp().window.get().unwrap();
+        window.imp().widgets.get().unwrap().statusbar.clone()
+    }
 }
