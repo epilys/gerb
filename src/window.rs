@@ -143,9 +143,10 @@ impl WindowSidebar {
 }
 
 #[derive(Debug)]
-struct WindowWidgets {
+pub struct WindowWidgets {
     headerbar: gtk::HeaderBar,
     sidebar: WindowSidebar,
+    pub statusbar: gtk::Statusbar,
     //tool_palette: gtk::ToolPalette,
     //create_item_group: gtk::ToolItemGroup,
     //project_item_group: gtk::ToolItemGroup,
@@ -156,7 +157,7 @@ struct WindowWidgets {
 pub struct Window {
     app: OnceCell<gtk::Application>,
     super_: OnceCell<MainWindow>,
-    widgets: OnceCell<WindowWidgets>,
+    pub widgets: OnceCell<WindowWidgets>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
 }
 
@@ -200,7 +201,25 @@ impl ObjectImpl for Window {
             .build();
         paned.pack2(&notebook, true, false);
 
-        obj.set_child(Some(&paned));
+        let vbox = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .expand(true)
+            .spacing(5)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        vbox.pack_start(&paned, true, true, 0);
+
+        let statusbar = gtk::Statusbar::builder()
+            .vexpand(false)
+            .hexpand(true)
+            .visible(true)
+            .can_focus(true)
+            .margin(0)
+            .build();
+        vbox.pack_start(&statusbar, false, false, 0);
+
+        obj.set_child(Some(&vbox));
         obj.set_titlebar(Some(&headerbar));
         obj.set_default_size(640, 480);
         obj.set_events(
@@ -238,6 +257,7 @@ impl ObjectImpl for Window {
             .set(WindowWidgets {
                 headerbar,
                 sidebar: WindowSidebar::new(paned, &notebook, obj),
+                statusbar,
                 notebook,
                 //tool_palette,
                 //create_item_group,

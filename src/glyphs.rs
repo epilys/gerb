@@ -27,12 +27,13 @@ pub type Point = (i64, i64);
 
 #[derive(Debug, Clone)]
 pub struct Bezier {
+    pub smooth: bool,
     pub points: Vec<Point>,
 }
 
 impl Bezier {
-    pub fn new(points: Vec<Point>) -> Self {
-        Bezier { points }
+    pub fn new(smooth: bool, points: Vec<Point>) -> Self {
+        Bezier { smooth, points }
     }
 
     pub fn get_point(&self, t: f64) -> Option<Point> {
@@ -254,6 +255,7 @@ impl Glyph {
         cr: &Context,
         (x, y): (f64, f64),
         (og_width, _og_height): (f64, f64),
+        highlight: Option<(usize, usize)>,
     ) {
         if self.is_empty() {
             return;
@@ -263,41 +265,94 @@ impl Glyph {
         cr.move_to(x, y);
         cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
         cr.set_line_width(2.0);
-        for contour in self.contours.iter() {
+        for (ic, contour) in self.contours.iter().enumerate() {
             let mut strokes = vec![];
-            let mut pen_position: Option<(f64, f64)> = None;
+            let mut highlight_strokes = vec![];
+            let mut temp_strokes = vec![];
+            let mut pen_position: Option<(bool, (f64, f64))> = None;
             if !contour.open {
-                if let Some(point) = contour.curves.last().and_then(|b| b.points.last()) {
+                if let Some((smooth, point)) = contour
+                    .curves
+                    .last()
+                    .and_then(|b| b.points.last().map(|p| (b.smooth, p)))
+                {
                     let point = (point.0 as f64, point.1 as f64);
-                    pen_position = Some(point);
+                    pen_position = Some((smooth, point));
                 }
             }
-            for c in contour.curves.iter() {
-                let prev_point = c.points[0];
-                let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
-                let mut sample = 0;
-                for t in (0..100).step_by(1) {
-                    let t = (t as f64) / 100.;
-                    if let Some(new_point) = c.get_point(t) {
-                        let new_point = (new_point.0 as f64, new_point.1 as f64);
-                        if sample == 0 {
-                            if let Some(prev_position) = pen_position.take() {
-                                strokes.push((prev_position, new_point));
-                            }
-                            //println!("{:?} {:?}", prev_point, new_point);
-                            strokes
-                                .push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
 
-                            sample = 5;
-                            prev_point = new_point;
+            for (jc, c) in contour.curves.iter().enumerate() {
+                let temp_bezier: Option<(bool, Bezier)> =
+                    if let Some((true, prev_point)) = pen_position.as_ref() {
+                        let prev_point = *prev_point;
+                        pen_position.take();
+                        let mut points = c.points.clone();
+                        points.insert(0, (prev_point.0 as i64, prev_point.1 as i64));
+                        Some((false, Bezier::new(true, points)))
+                    } else {
+                        None
+                    };
+
+                if let Some((temp, c)) = temp_bezier
+                    .as_ref()
+                    .map(|(t, b)| (*t, b))
+                    .into_iter()
+                    .chain(Some((false, c)).into_iter())
+                    .next()
+                {
+                    let prev_point = c.points[0];
+                    let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
+                    let mut sample = 0;
+                    for t in (0..100).step_by(1) {
+                        let t = (t as f64) / 100.;
+                        if let Some(new_point) = c.get_point(t) {
+                            let new_point = (new_point.0 as f64, new_point.1 as f64);
+                            if sample == 0 {
+                                if let Some((_smooth, prev_position)) = pen_position.take() {
+                                    if highlight == Some((ic, jc)) {
+                                        highlight_strokes.push((prev_position, new_point));
+                                    }
+                                    strokes.push((prev_position, new_point));
+                                    if temp {
+                                        temp_strokes.push((prev_position, new_point));
+                                    }
+                                }
+                                //println!("{:?} {:?}", prev_point, new_point);
+                                strokes.push((
+                                    (prev_point.0, prev_point.1),
+                                    (new_point.0, new_point.1),
+                                ));
+                                if highlight == Some((ic, jc)) {
+                                    highlight_strokes.push((
+                                        (prev_point.0, prev_point.1),
+                                        (new_point.0, new_point.1),
+                                    ));
+                                }
+                                if temp {
+                                    temp_strokes.push((
+                                        (prev_point.0, prev_point.1),
+                                        (new_point.0, new_point.1),
+                                    ));
+                                }
+
+                                sample = 5;
+                                prev_point = new_point;
+                            }
+                            sample -= 1;
                         }
-                        sample -= 1;
                     }
+                    let new_point = *c.points.last().unwrap();
+                    let new_point = (new_point.0 as f64, new_point.1 as f64);
+                    strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
+                    if highlight == Some((ic, jc)) {
+                        strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
+                    }
+                    if temp {
+                        temp_strokes
+                            .push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
+                    }
+                    pen_position = Some((c.smooth, prev_point));
                 }
-                let new_point = *c.points.last().unwrap();
-                let new_point = (new_point.0 as f64, new_point.1 as f64);
-                strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
-                pen_position = Some(prev_point);
             }
             cr.new_path();
             let mut prev_point = (x, y);
@@ -311,6 +366,40 @@ impl Glyph {
                 cr.line_to(bx * f + x, by * f + y);
             }
             cr.stroke().expect("Invalid cairo surface state");
+            if !highlight_strokes.is_empty() {
+                cr.save().unwrap();
+                cr.set_source_rgba(1., 0., 0., 0.8);
+                cr.new_path();
+                let mut prev_point = (x, y);
+                for ((ax, ay), (bx, by)) in &highlight_strokes {
+                    if ((prev_point.0 - *ax).powi(2) + (prev_point.1 - *ay).powi(2)).sqrt()
+                        > f64::EPSILON
+                    {
+                        cr.move_to(ax * f + x, ay * f + y);
+                    }
+                    prev_point = (*bx, *by);
+                    cr.line_to(bx * f + x, by * f + y);
+                }
+                cr.stroke().expect("Invalid cairo surface state");
+                cr.restore().expect("Invalid cairo surface state");
+            }
+            if !temp_strokes.is_empty() {
+                cr.save().unwrap();
+                cr.set_source_rgba(0., 1., 0., 0.8);
+                cr.new_path();
+                let mut prev_point = (x, y);
+                for ((ax, ay), (bx, by)) in &temp_strokes {
+                    if ((prev_point.0 - *ax).powi(2) + (prev_point.1 - *ay).powi(2)).sqrt()
+                        > f64::EPSILON
+                    {
+                        cr.move_to(ax * f + x, ay * f + y);
+                    }
+                    prev_point = (*bx, *by);
+                    cr.line_to(bx * f + x, by * f + y);
+                }
+                cr.stroke().expect("Invalid cairo surface state");
+                cr.restore().expect("Invalid cairo surface state");
+            }
         }
         cr.restore().expect("Invalid cairo surface state");
         /*
@@ -534,11 +623,13 @@ mod glif {
                                 type_: PointKind::Curve,
                                 x,
                                 y,
+                                smooth,
                                 ..
                             }) => {
                                 prev_point = (*x, 1000 - *y);
                                 c.push(prev_point);
-                                contour_acc.push(Bezier::new(c));
+                                let smooth = smooth.as_ref().map(|s| s == "yes").unwrap_or(false);
+                                contour_acc.push(Bezier::new(smooth, c));
                                 c = vec![];
                             }
                             Some(Point {
@@ -552,7 +643,7 @@ mod glif {
                                     c.push(prev_point);
                                 }
                                 c.push((*x, 1000 - *y));
-                                contour_acc.push(Bezier::new(c));
+                                contour_acc.push(Bezier::new(false, c));
                                 c = vec![];
                                 prev_point = (*x, 1000 - *y);
                             }
@@ -567,7 +658,7 @@ mod glif {
                                     if !c.contains(&prev_point) {
                                         c.push(prev_point);
                                     }
-                                    contour_acc.push(Bezier::new(c));
+                                    contour_acc.push(Bezier::new(false, c));
                                 }
                                 break;
                             }
