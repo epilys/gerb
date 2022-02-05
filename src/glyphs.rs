@@ -196,6 +196,27 @@ impl Default for Glyph {
     }
 }
 
+#[derive(Clone, Copy)]
+pub struct GlyphDrawingOptions {
+    pub scale: f64,
+    pub origin: (f64, f64),
+    pub outline: (f64, f64, f64, f64),
+    pub inner_fill: Option<(f64, f64, f64, f64)>,
+    pub highlight: Option<(usize, usize)>,
+}
+
+impl Default for GlyphDrawingOptions {
+    fn default() -> Self {
+        Self {
+            scale: 1.,
+            origin: (0., 0.),
+            outline: (1., 1., 1., 1.),
+            inner_fill: None,
+            highlight: None,
+        }
+    }
+}
+
 impl Glyph {
     pub fn from_ufo(path: &str) -> Vec<Self> {
         use std::path::Path;
@@ -249,21 +270,21 @@ impl Glyph {
         Glyph::new(name, char, vec![])
     }
 
-    pub fn draw(
-        &self,
-        _drar: &gtk::DrawingArea,
-        cr: &Context,
-        (x, y): (f64, f64),
-        (og_width, _og_height): (f64, f64),
-        highlight: Option<(usize, usize)>,
-    ) {
+    pub fn draw(&self, _drar: &gtk::DrawingArea, cr: &Context, options: GlyphDrawingOptions) {
         if self.is_empty() {
             return;
         }
-        let f = og_width / 1000.;
+        let GlyphDrawingOptions {
+            scale: f,
+            origin: (x, y),
+            outline,
+            inner_fill: _,
+            highlight,
+        } = options;
+
         cr.save().expect("Invalid cairo surface state");
         cr.move_to(x, y);
-        cr.set_source_rgba(0.2, 0.2, 0.2, 0.6);
+        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
         cr.set_line_width(2.0);
         for (ic, contour) in self.contours.iter().enumerate() {
             let mut strokes = vec![];
@@ -365,7 +386,17 @@ impl Glyph {
                 prev_point = (*bx, *by);
                 cr.line_to(bx * f + x, by * f + y);
             }
+            /*
+            if let Some(inner_fill) = inner_fill {
+                cr.save().unwrap();
+                cr.close_path();
+                cr.set_source_rgba(inner_fill.0, inner_fill.1, inner_fill.2, inner_fill.3);
+                cr.fill_preserve().expect("Invalid cairo surface state");
+                cr.restore().expect("Invalid cairo surface state");
+            }
+            */
             cr.stroke().expect("Invalid cairo surface state");
+
             if !highlight_strokes.is_empty() {
                 cr.save().unwrap();
                 cr.set_source_rgba(1., 0., 0., 0.8);

@@ -27,7 +27,7 @@ use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
-use crate::glyphs::Glyph;
+use crate::glyphs::{Glyph, GlyphDrawingOptions};
 use crate::project::Project;
 
 const EM_SQUARE_PIXELS: f64 = 200.0;
@@ -254,7 +254,14 @@ impl ObjectImpl for GlyphEditArea {
 
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
-                glyph.draw(drar, cr, (0.0, 0.0), (EM_SQUARE_PIXELS, EM_SQUARE_PIXELS), obj.imp().hovering.get());
+                let options = GlyphDrawingOptions {
+                    scale: EM_SQUARE_PIXELS / 1000.,
+                    origin: (0.0, 0.0),
+                    outline: (0.2, 0.2, 0.2, 0.6),
+                    inner_fill: None,
+                    highlight: obj.imp().hovering.get(),
+                };
+                glyph.draw(drar, cr, options);
                 cr.save().unwrap();
                 cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
                 for p in obj.imp().points.get().unwrap().lock().unwrap().iter() {
