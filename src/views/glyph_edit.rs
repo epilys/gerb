@@ -277,7 +277,7 @@ impl ObjectImpl for GlyphEditArea {
             cr.stroke().unwrap();
             cr.move_to(mouse.0+1., 2.*RULER_BREADTH/3.);
             cr.set_font_size(6.);
-            cr.show_text(&format!("{:.0}", (mouse.0-camera.0*zoom_factor)/zoom_factor)).unwrap();
+            cr.show_text(&format!("{:.0}", (mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor))).unwrap();
 
 
             cr.rectangle(0., RULER_BREADTH, RULER_BREADTH, height);
@@ -293,7 +293,7 @@ impl ObjectImpl for GlyphEditArea {
             cr.set_font_size(6.);
             cr.save().expect("Invalid cairo surface state");
             cr.rotate(-std::f64::consts::FRAC_PI_2);
-            cr.show_text(&format!("{:.0}", (mouse.1-camera.1*zoom_factor)/zoom_factor)).unwrap();
+            cr.show_text(&format!("{:.0}", (mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor))).unwrap();
             cr.restore().expect("Invalid cairo surface state");
 
 
