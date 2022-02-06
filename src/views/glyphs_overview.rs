@@ -224,6 +224,7 @@ impl GlyphsOverview {
                 row += 1;
             }
         }
+        grid.queue_draw();
     }
 }
 
