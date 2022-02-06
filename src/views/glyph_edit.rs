@@ -51,6 +51,7 @@ pub struct GlyphEditArea {
     points: OnceCell<Arc<Mutex<Vec<(i64, i64)>>>>,
     kd_tree: OnceCell<Arc<Mutex<crate::utils::range_query::KdTree>>>,
     zoom_percent_label: OnceCell<gtk::Label>,
+    resized: Cell<bool>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
     zoom: Cell<f64>,
@@ -72,8 +73,9 @@ impl ObjectImpl for GlyphEditArea {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         self.hovering.set(None);
+        self.resized.set(true);
         self.statusbar_context_id.set(None);
-        self.camera.set((EM_SQUARE_PIXELS, 100.));
+        self.camera.set((0., 0.));
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
         self.points.set(Arc::new(Mutex::new(vec![]))).unwrap();
@@ -177,9 +179,8 @@ impl ObjectImpl for GlyphEditArea {
         );
 
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
-            let zoom_factor = obj.imp().zoom.get();
-            cr.save().unwrap();
-            cr.scale(zoom_factor, zoom_factor);
+            let width = drar.allocated_width() as f64;
+            let height = drar.allocated_height() as f64;
             let (units_per_em, x_height, cap_height, _ascender, _descender) = {
                 let mutex = obj.imp().project.get().unwrap();
                 let lck = mutex.lock().unwrap();
@@ -189,9 +190,20 @@ impl ObjectImpl for GlyphEditArea {
                 let p = lck.as_ref().unwrap();
                 (p.units_per_em, p.x_height, p.cap_height, p.ascender, p.descender)
             };
-            let f = EM_SQUARE_PIXELS/units_per_em ;
-            let width = drar.allocated_width() as f64;
-            let height = drar.allocated_height() as f64;
+            let f = EM_SQUARE_PIXELS / units_per_em;
+            let glyph_width = f * obj.imp().glyph.get().unwrap().width.unwrap_or(units_per_em as i64) as f64;
+
+            if obj.imp().resized.get() {
+                obj.imp().resized.set(false);
+                /* resize and center glyph to view */
+                let target_width = width / 3. * 0.8;
+                let target_zoom_factor = target_width / glyph_width;
+                obj.imp().set_zoom(target_zoom_factor);
+                obj.imp().camera.set((EM_SQUARE_PIXELS / 2.0, 0.0));
+            }
+            let zoom_factor = obj.imp().zoom.get();
+            cr.save().unwrap();
+            cr.scale(zoom_factor, zoom_factor);
             cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
 
@@ -223,7 +235,6 @@ impl ObjectImpl for GlyphEditArea {
             cr.translate(camera.0, camera.1);
 
             cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-            let glyph_width = f*obj.imp().glyph.get().unwrap().width.unwrap_or(1000) as f64;
             cr.rectangle(0., 0., glyph_width, EM_SQUARE_PIXELS);
             cr.fill().unwrap();
 
@@ -255,7 +266,7 @@ impl ObjectImpl for GlyphEditArea {
             if let Some(glyph) = obj.imp().glyph.get() {
                 //println!("cairo drawing glyph {}", glyph.name);
                 let options = GlyphDrawingOptions {
-                    scale: EM_SQUARE_PIXELS / 1000.,
+                    scale: EM_SQUARE_PIXELS / units_per_em,
                     origin: (0.0, 0.0),
                     outline: (0.2, 0.2, 0.2, 0.6),
                     inner_fill: None,
@@ -380,11 +391,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let zoom_factor = imp.zoom.get() + 0.25;
-            if zoom_factor < 7.25 {
-                imp.zoom.set(zoom_factor);
-                imp.zoom_percent_label.get().unwrap().set_text(&format!("{:.0}%", zoom_factor * 100.));
-                imp.overlay.get().unwrap().queue_draw();
-            }
+            imp.set_zoom(zoom_factor);
         }));
         let zoom_out_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -397,11 +404,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
             let zoom_factor = imp.zoom.get() - 0.25;
-            if zoom_factor > 0.05 {
-                imp.zoom.set(zoom_factor);
-                imp.zoom_percent_label.get().unwrap().set_text(&format!("{:.0}%", zoom_factor * 100.));
-                imp.overlay.get().unwrap().queue_draw();
-            }
+            imp.set_zoom(zoom_factor);
         }));
 
         drawing_area.connect_scroll_event(clone!(@weak obj => @default-return Inhibit(false), move |_drar, event| {
@@ -437,12 +440,8 @@ impl ObjectImpl for GlyphEditArea {
                     imp.mouse.set(event.position());
                     imp.camera.set(camera);
                     let zoom_factor = imp.zoom.get() - 0.25* dy;
-                    if zoom_factor > 0.05 && zoom_factor < 7.25 {
-                        imp.zoom.set(zoom_factor);
-                        imp.zoom_percent_label.get().unwrap().set_text(&format!("{:.0}%", zoom_factor * 100.));
-                        imp.overlay.get().unwrap().queue_draw();
-                    }
-                        _drar.queue_draw();
+                    imp.set_zoom(zoom_factor);
+                    _drar.queue_draw();
                 },
                 _ => {
                     /* ignore */
@@ -462,13 +461,11 @@ impl ObjectImpl for GlyphEditArea {
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 if event.button() == gtk::gdk::BUTTON_PRIMARY &&
                  event.event_type() == gtk::gdk::EventType::DoubleButtonPress {
-                    let imp = obj.imp();
-                    let zoom_factor = imp.zoom.get();
-                    if (zoom_factor - 1.0).abs() > f64::EPSILON {
-                        imp.zoom.set(1.0);
-                        imp.zoom_percent_label.get().unwrap().set_text("100%");
-                        imp.overlay.get().unwrap().queue_draw();
-                    }
+                     let imp = obj.imp();
+                     let zoom_factor = imp.zoom.get();
+                     if (zoom_factor - 1.0).abs() > f64::EPSILON {
+                         imp.set_zoom(1.0);
+                     }
                 }
                 Inhibit(false)
             }),
@@ -598,6 +595,17 @@ impl ContainerImpl for GlyphEditArea {}
 impl BinImpl for GlyphEditArea {}
 
 impl GlyphEditArea {
+    fn set_zoom(&self, new_val: f64) {
+        if new_val > 0.09 && new_val < 7.26 {
+            self.zoom.set(new_val);
+            self.zoom_percent_label
+                .get()
+                .unwrap()
+                .set_text(&format!("{:.0}%", new_val * 100.));
+            self.overlay.get().unwrap().queue_draw();
+        }
+    }
+
     fn new_statusbar_message(&self, msg: &str) {
         if let Some(app) = self
             .app
