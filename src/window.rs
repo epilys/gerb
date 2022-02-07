@@ -236,6 +236,29 @@ impl ObjectImpl for Window {
             None
         }));
 
+        obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
+            //println!("open-project received!");
+            match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::new(&path)) {
+                Ok(project) => {
+                    obj.imp().load_project(project);
+                }
+                Err(err) => {
+                    let dialog = gtk::MessageDialog::new(
+                        Some(&obj),
+                        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                        gtk::MessageType::Error,
+                        gtk::ButtonsType::Close,
+                        &err.to_string());
+                    dialog.set_title("Error: Could not open project");
+                    dialog.set_use_markup(true);
+                    dialog.run();
+                    dialog.hide();
+                },
+            }
+
+            None
+        }));
+
         /*
         let tool_palette = gtk::ToolPalette::builder()
             .border_width(2)
@@ -269,15 +292,26 @@ impl ObjectImpl for Window {
 
     fn signals() -> &'static [Signal] {
         static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
-            vec![Signal::builder(
-                // Signal name
-                "open-glyph-edit",
-                // Types of the values which will be sent to the signal handler
-                &[crate::views::GlyphBoxItem::static_type().into()],
-                // Type of the value the signal handler sends back
-                <()>::static_type().into(),
-            )
-            .build()]
+            vec![
+                Signal::builder(
+                    // Signal name
+                    "open-glyph-edit",
+                    // Types of the values which will be sent to the signal handler
+                    &[crate::views::GlyphBoxItem::static_type().into()],
+                    // Type of the value the signal handler sends back
+                    <()>::static_type().into(),
+                )
+                .build(),
+                Signal::builder(
+                    // Signal name
+                    "open-project",
+                    // Types of the values which will be sent to the signal handler
+                    &[String::static_type().into()],
+                    // Type of the value the signal handler sends back
+                    <()>::static_type().into(),
+                )
+                .build(),
+            ]
         });
         SIGNALS.as_ref()
     }
@@ -445,8 +479,6 @@ impl MainWindow {
             .app
             .set(app.upcast_ref::<gtk::Application>().clone())
             .unwrap();
-
-        ret.imp().load_project(Project::default());
         ret
     }
 }

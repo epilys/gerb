@@ -218,25 +218,31 @@ impl Default for GlyphDrawingOptions {
 }
 
 impl Glyph {
-    pub fn from_ufo(path: &str) -> Vec<Self> {
+    pub fn from_ufo(path: &str) -> Result<Vec<Self>, Box<dyn std::error::Error>> {
         use std::path::Path;
 
-        assert!(path.ends_with(".ufo"));
+        //assert!(path.ends_with(".ufo"));
         let mut ret = vec![];
         let path = Path::new(path);
         let path = path.join("glyphs");
 
-        for entry in path.read_dir().expect("read_dir call failed").flatten() {
+        for entry in path
+            .read_dir()
+            .map_err(|err| format!("Reading directory {} failed: {}", path.display(), err))?
+            .flatten()
+        {
             use std::fs::File;
             use std::io::prelude::*;
             let mut file = match File::open(&entry.path()) {
-                Err(why) => panic!("couldn't open {}: {}", entry.path().display(), why),
+                Err(err) => {
+                    return Err(format!("Couldn't open {}: {}", entry.path().display(), err).into())
+                }
                 Ok(file) => file,
             };
 
             let mut s = String::new();
             if let Err(err) = file.read_to_string(&mut s) {
-                panic!("couldn't read {}: {}", entry.path().display(), err);
+                return Err(format!("Couldn't read {}: {}", entry.path().display(), err).into());
             }
             let g: Result<glif::Glif, _> = glif::Glif::from_str(&s);
             match g {
@@ -250,7 +256,7 @@ impl Glyph {
                 }
             }
         }
-        ret
+        Ok(ret)
     }
 
     pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {

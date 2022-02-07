@@ -71,7 +71,7 @@ pub struct Project {
 
 impl Default for Project {
     fn default() -> Self {
-        Self::new("./font.ufo").unwrap()
+        //Self::new("./font.ufo").unwrap()
         /*
         let glyphs = Glyph::from_ufo("./font.ufo");
         Project {
@@ -99,6 +99,27 @@ impl Default for Project {
             guidelines: vec![],
         }
             */
+        Project {
+            name: "New project".to_string(),
+            modified: false,
+            last_saved: None,
+            glyphs: HashMap::default(),
+            path: None,
+            family_name: "New project".to_string(),
+            style_name: String::new(),
+            version_major: 0,
+            version_minor: 0,
+            copyright: String::new(),
+            trademark: String::new(),
+            units_per_em: 1000.0,
+            descender: -200.,
+            x_height: 450.,
+            cap_height: 650.,
+            ascender: 700.,
+            italic_angle: 0.,
+            note: String::new(),
+            guidelines: vec![],
+        }
     }
 }
 
@@ -106,6 +127,12 @@ impl Project {
     pub fn new(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let glyphs = Glyph::from_ufo(path);
         let mut path: PathBuf = Path::new(path).into();
+        if !path.exists() {
+            return Err(format!("Directory <i>{}</i> does not exist.", path.display()).into());
+        }
+        if !path.is_dir() {
+            return Err(format!("Path {} is not a directory.", path.display()).into());
+        }
         path.push("fontinfo.plist");
         let mut file = match File::open(&path) {
             Err(err) => return Err(format!("couldn't open {}: {}", path.display(), err).into()),
@@ -193,7 +220,7 @@ impl Project {
             name: family_name.clone(),
             modified: false,
             last_saved: None,
-            glyphs: glyphs
+            glyphs: glyphs?
                 .into_iter()
                 .map(|g| (g.name.to_string(), g))
                 .collect::<HashMap<String, Glyph>>(),
