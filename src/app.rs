@@ -38,7 +38,7 @@ impl GerbApp {
     pub fn new() -> Self {
         glib::Object::new(&[
             ("application-id", &"com.epilys.gerb"),
-            ("flags", &ApplicationFlags::empty()),
+            ("flags", &ApplicationFlags::empty()), //&(ApplicationFlags::HANDLES_OPEN | ApplicationFlags::HANDLES_COMMAND_LINE)),
         ])
         .expect("Failed to create App")
     }
@@ -47,6 +47,7 @@ impl GerbApp {
 #[derive(Debug, Default)]
 pub struct Application {
     pub window: OnceCell<MainWindow>,
+    pub env_args: OnceCell<Vec<String>>,
 }
 
 #[glib::object_subclass]
@@ -79,6 +80,11 @@ impl ApplicationImpl for Application {
         window.set_resizable(true);
         app.add_actions();
         app.build_system_menu();
+        if let Some(path) = self.env_args.get().unwrap().clone().pop() {
+            window.emit_by_name::<()>("open-project", &[&path]);
+        } else {
+            //window.imp().load_project(crate::project::Project::default());
+        }
         window.show_all();
         window.present();
     }

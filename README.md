@@ -5,7 +5,13 @@
 
 ## Running the demo
 
-Expects a folder "font.ufo" to be in current directory. I got mine from the `Regular` instance at the [Source Sans repository](https://github.com/adobe-fonts/source-sans).
+Expects a folder "font.ufo" to be defined in the command line:
+
+```shell
+cargo run -- -u ./font.ufo
+```
+
+I got mine from the `Regular` instance at the [Source Sans repository](https://github.com/adobe-fonts/source-sans).
 
 ![./screenshot.png](./screenshot.png)
 
