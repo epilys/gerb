@@ -309,6 +309,9 @@ impl Glyph {
             }
 
             for (jc, c) in contour.curves.iter().enumerate() {
+                if c.smooth && pen_position.is_some() {
+                    pen_position.as_mut().unwrap().0 = c.smooth;
+                }
                 let temp_bezier: Option<(bool, Bezier)> =
                     if let Some((true, prev_point)) = pen_position.as_ref() {
                         let prev_point = *prev_point;
