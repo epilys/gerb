@@ -333,7 +333,7 @@ impl ObjectImpl for GlyphBox {
             cr.reset_clip();
 
             cr.set_source_rgb(0., 0., 0.);
-            cr.select_font_face("Monospace", FontSlant::Normal, FontWeight::Normal);
+            cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             cr.set_font_size(12.);
             let sextents = cr
                 .text_extents(&label)
