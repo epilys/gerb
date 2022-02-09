@@ -140,6 +140,12 @@ impl WindowSidebar {
         self.project_label.queue_draw();
         self.minimap.queue_draw();
     }
+
+    fn unload_project(&self) {
+        self.project_label.set_markup("No project loaded.");
+        self.project_label.queue_draw();
+        self.minimap.queue_draw();
+    }
 }
 
 #[derive(Debug)]

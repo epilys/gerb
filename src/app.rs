@@ -148,7 +148,23 @@ impl GerbApp {
             p.show_all();
         }));
 
+        let open = gtk::gio::SimpleAction::new("open", None);
+        open.connect_activate(glib::clone!(@weak window => move |_, _| {
+            let dialog = gtk::FileChooserNative::new(
+                Some("Open font.ufo directory..."),
+                Some(&window),
+                gtk::FileChooserAction::SelectFolder,
+                None,
+                None
+            );
+            let response = dialog.run();
+            std::dbg!(&response);
+            std::dbg!(&dialog.filename());
+            dialog.hide();
+        }));
+
         application.add_action(&about);
+        application.add_action(&open);
         application.add_action(&quit);
     }
 
@@ -164,6 +180,7 @@ impl GerbApp {
         // makes more sense when you'll be reading the "add_actions" function.
 
         file_menu.append(Some("File"), Some("app.file"));
+        file_menu.append(Some("Open"), Some("app.open"));
         file_menu.append(Some("Quit"), Some("app.quit"));
         menu_bar.append_submenu(Some("_File"), &file_menu);
 
