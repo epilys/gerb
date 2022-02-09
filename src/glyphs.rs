@@ -67,7 +67,7 @@ pub struct Contour {
     pub curves: Vec<Bezier>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GlyphKind {
     Char(char),
     Component,
@@ -312,6 +312,7 @@ impl Glyph {
                 if c.smooth && pen_position.is_some() {
                     pen_position.as_mut().unwrap().0 = c.smooth;
                 }
+
                 let temp_bezier: Option<(bool, Bezier)> =
                     if let Some((true, prev_point)) = pen_position.as_ref() {
                         let prev_point = *prev_point;
@@ -323,19 +324,19 @@ impl Glyph {
                         None
                     };
 
-                if let Some((temp, c)) = temp_bezier
+                if let Some((is_temp, curv)) = temp_bezier
                     .as_ref()
                     .map(|(t, b)| (*t, b))
                     .into_iter()
                     .chain(Some((false, c)).into_iter())
                     .next()
                 {
-                    let prev_point = c.points[0];
+                    let prev_point = curv.points[0];
                     let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
                     let mut sample = 0;
                     for t in (0..100).step_by(1) {
                         let t = (t as f64) / 100.;
-                        if let Some(new_point) = c.get_point(t) {
+                        if let Some(new_point) = curv.get_point(t) {
                             let new_point = (new_point.0 as f64, new_point.1 as f64);
                             if sample == 0 {
                                 if let Some((_smooth, prev_position)) = pen_position.take() {
@@ -343,7 +344,7 @@ impl Glyph {
                                         highlight_strokes.push((prev_position, new_point));
                                     }
                                     strokes.push((prev_position, new_point));
-                                    if temp {
+                                    if is_temp {
                                         temp_strokes.push((prev_position, new_point));
                                     }
                                 }
@@ -358,7 +359,7 @@ impl Glyph {
                                         (new_point.0, new_point.1),
                                     ));
                                 }
-                                if temp {
+                                if is_temp {
                                     temp_strokes.push((
                                         (prev_point.0, prev_point.1),
                                         (new_point.0, new_point.1),
@@ -371,13 +372,13 @@ impl Glyph {
                             sample -= 1;
                         }
                     }
-                    let new_point = *c.points.last().unwrap();
+                    let new_point = *curv.points.last().unwrap();
                     let new_point = (new_point.0 as f64, new_point.1 as f64);
                     strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
                     if highlight == Some((ic, jc)) {
                         strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
                     }
-                    if temp {
+                    if is_temp {
                         temp_strokes
                             .push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
                     }
