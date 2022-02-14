@@ -25,6 +25,8 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::Cell;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Glyph, GlyphDrawingOptions};
@@ -39,10 +41,193 @@ enum MotionMode {
     Pan,
 }
 
+#[derive(Debug, Clone)]
+enum ControlPointKind {
+    Endpoint { handle: Option<usize> },
+    Handle { end_points: Vec<usize> },
+}
+
+use ControlPointKind::*;
+
+#[derive(Debug, Clone)]
+struct ControlPoint {
+    contour_index: usize,
+    curve_index: usize,
+    point_index: usize,
+    position: (i64, i64),
+    kind: ControlPointKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ControlPointMode {
+    None,
+    Drag,
+}
+
+impl Default for ControlPointMode {
+    fn default() -> ControlPointMode {
+        ControlPointMode::None
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+struct GlyphState {
+    glyph: Glyph,
+    selection: Vec<usize>,
+    mode: ControlPointMode,
+    points: Vec<ControlPoint>,
+    points_map: HashMap<(i64, i64), Vec<usize>>,
+    kd_tree: crate::utils::range_query::KdTree,
+}
+
+impl GlyphState {
+    fn new(glyph: &Glyph) -> Self {
+        let mut glyph = glyph.clone();
+        glyph.into_cubic();
+        let points = glyph.points();
+        let kd_tree = crate::utils::range_query::KdTree::new(&points);
+        let mut control_points = vec![];
+        let mut points_map: HashMap<(i64, i64), Vec<usize>> = HashMap::default();
+
+        for (contour_index, contour) in glyph.contours.iter().enumerate() {
+            for (curve_index, curve) in contour.curves.iter().enumerate() {
+                match curve.points.len() {
+                    4 => {
+                        for (endpoint, handle) in [(0, 1), (3, 2)] {
+                            let mut point_index = control_points.len();
+                            control_points.push(ControlPoint {
+                                contour_index,
+                                curve_index,
+                                point_index: endpoint,
+                                position: curve.points[endpoint],
+                                kind: Endpoint {
+                                    handle: Some(point_index + 1),
+                                },
+                            });
+                            points_map
+                                .entry(curve.points[endpoint])
+                                .or_default()
+                                .push(point_index);
+                            let endpoint_index = point_index;
+                            std::dbg!(&control_points[endpoint_index]);
+                            point_index += 1;
+                            control_points.push(ControlPoint {
+                                contour_index,
+                                curve_index,
+                                point_index: handle,
+                                position: curve.points[handle],
+                                kind: Handle {
+                                    end_points: vec![endpoint_index],
+                                },
+                            });
+                            points_map
+                                .entry(curve.points[handle])
+                                .or_default()
+                                .push(point_index);
+                        }
+                    }
+                    3 => {
+                        let mut point_index = control_points.len();
+                        control_points.push(ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: 0,
+                            position: curve.points[0],
+                            kind: Endpoint {
+                                handle: Some(point_index + 1),
+                            },
+                        });
+                        points_map
+                            .entry(curve.points[0])
+                            .or_default()
+                            .push(point_index);
+                        point_index += 1;
+                        control_points.push(ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: 1,
+                            position: curve.points[1],
+                            kind: Handle {
+                                end_points: vec![point_index - 2, point_index + 1],
+                            },
+                        });
+                        points_map
+                            .entry(curve.points[1])
+                            .or_default()
+                            .push(point_index);
+                        point_index += 1;
+                        control_points.push(ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: 2,
+                            position: curve.points[2],
+                            kind: Endpoint {
+                                handle: Some(point_index - 1),
+                            },
+                        });
+                        points_map
+                            .entry(curve.points[2])
+                            .or_default()
+                            .push(point_index);
+                    }
+                    2 => {
+                        let mut point_index = control_points.len();
+                        for endpoint in 0..=1 {
+                            control_points.push(ControlPoint {
+                                contour_index,
+                                curve_index,
+                                point_index: endpoint,
+                                position: curve.points[endpoint],
+                                kind: Endpoint { handle: None },
+                            });
+                            points_map
+                                .entry(curve.points[endpoint])
+                                .or_default()
+                                .push(point_index);
+                            point_index += 1;
+                        }
+                    }
+                    1 => {}
+                    0 => {}
+                    _ => unreachable!(), //FIXME
+                }
+            }
+        }
+        GlyphState {
+            glyph,
+            points: control_points,
+            points_map,
+            mode: ControlPointMode::None,
+            selection: vec![],
+            kd_tree,
+        }
+    }
+
+    fn set_selection(&mut self, selection: &[(usize, (i64, i64))]) {
+        self.selection.clear();
+        for (_, pt) in selection {
+            if let Some(indices) = self.points_map.get(pt) {
+                self.selection.extend(indices.iter().cloned());
+            }
+        }
+    }
+
+    fn update_positions(&mut self, new_pos: (i64, i64)) {
+        for idx in self.selection.iter() {
+            if let Some(p) = self.points.get_mut(*idx) {
+                p.position = new_pos;
+                self.glyph.contours[p.contour_index].curves[p.curve_index].points[p.point_index] =
+                    new_pos;
+            }
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Glyph>,
+    glyph_state: OnceCell<RefCell<GlyphState>>,
     drawing_area: OnceCell<gtk::DrawingArea>,
     hovering: Cell<Option<(usize, usize)>>,
     statusbar_context_id: Cell<Option<u32>>,
@@ -100,6 +285,17 @@ impl ObjectImpl for GlyphEditArea {
         drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 obj.imp().mouse.set(event.position());
+                if event.button() == gtk::gdk::BUTTON_PRIMARY {
+                    let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                    let zoom_factor = obj.imp().zoom.get();
+                    let camera = obj.imp().camera.get();
+                    let position = event.position();
+                    let f =  1000. / EM_SQUARE_PIXELS ;
+                    let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                    let pts = glyph_state.kd_tree.query(position, 10);
+                    glyph_state.set_selection(&pts);
+                    glyph_state.mode = ControlPointMode::Drag;
+                }
                 if event.button() == gtk::gdk::BUTTON_MIDDLE {
                     obj.imp().button.set(Some(MotionMode::Pan));
                 }
@@ -113,6 +309,8 @@ impl ObjectImpl for GlyphEditArea {
             clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
                 //obj.imp().mouse.set((0., 0.));
                 obj.imp().button.set(None);
+                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                glyph_state.mode = ControlPointMode::None;
                 if let Some(screen) = _self.window() {
                     let display = screen.display();
                     screen.set_cursor(Some(
@@ -143,7 +341,11 @@ impl ObjectImpl for GlyphEditArea {
                     let position = event.position();
                     let f =  1000. / EM_SQUARE_PIXELS ;
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
-                    let pts = obj.imp().kd_tree.get().unwrap().lock().unwrap().query(position, 10);
+                    let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                    if glyph_state.mode == ControlPointMode::Drag {
+                        glyph_state.update_positions(position);
+                    }
+                    let pts = glyph_state.kd_tree.query(position, 10);
                     if pts.is_empty() {
                         obj.imp().hovering.set(None);
                         if let Some(screen) = _self.window() {
@@ -153,7 +355,7 @@ impl ObjectImpl for GlyphEditArea {
                             ));
                         }
                     } else if let Some(screen) = _self.window() {
-                        let glyph = obj.imp().glyph.get().unwrap();
+                        let glyph = &glyph_state.glyph;
                         for (ic, contour) in glyph.contours.iter().enumerate() {
                             for (jc, curve) in contour.curves.iter().enumerate() {
                                 for p in &pts {
@@ -263,36 +465,38 @@ impl ObjectImpl for GlyphEditArea {
 
             /* Draw the glyph */
 
-            if let Some(glyph) = obj.imp().glyph.get() {
-                //println!("cairo drawing glyph {}", glyph.name);
-                let options = GlyphDrawingOptions {
-                    scale: EM_SQUARE_PIXELS / units_per_em,
-                    origin: (0.0, 0.0),
-                    outline: (0.2, 0.2, 0.2, 0.6),
-                    inner_fill: None,
-                    highlight: obj.imp().hovering.get(),
-                };
-                glyph.draw(drar, cr, options);
-                cr.save().unwrap();
-                cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
-                for p in obj.imp().points.get().unwrap().lock().unwrap().iter() {
-                    cr.set_line_width(0.5);
-                    //println!("darwing point ({}, {}) at ({}, {})", p.0, p.1, p.0 as f64*f*zoom_factor-50., p.1 as f64 * f*zoom_factor-50.);
-                    cr.rectangle(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 5., 5.);
-                    cr.stroke().unwrap();
-                }
-                cr.restore().unwrap();
-
-                /*for c in &glyph.curves {
-                    for &(x, y) in &c.points {
-                        cr.rectangle(x as f64, y as f64, 5., 5.);
-                        cr.stroke_preserve().expect("Invalid cairo surface state");
+            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+            let options = GlyphDrawingOptions {
+                scale: EM_SQUARE_PIXELS / units_per_em,
+                origin: (0.0, 0.0),
+                outline: (0.2, 0.2, 0.2, 0.6),
+                inner_fill: None,
+                highlight: obj.imp().hovering.get(),
+            };
+            glyph_state.glyph.draw(drar, cr, options);
+            cr.save().unwrap();
+            cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+            cr.set_line_width(0.5);
+            for cp in glyph_state.points.iter() {
+                let p = cp.position;
+                match &cp.kind {
+                    Endpoint { .. } => {
+                        cr.rectangle(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 5., 5.);
+                        cr.stroke().unwrap();
+                    }
+                    Handle { ref end_points } => {
+                        cr.arc(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 2.0, 0., 2.*std::f64::consts::PI);
+                        cr.fill().unwrap();
+                        for ep in end_points {
+                            let ep = glyph_state.points[*ep].position;
+                            cr.move_to(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5);
+                            cr.line_to(ep.0 as f64* f, ep.1 as f64* f);
+                            cr.stroke().unwrap();
+                        }
                     }
                 }
-                */
-            } else {
-                //println!("cairo drawing without glyph");
             }
+            cr.restore().unwrap();
             cr.restore().unwrap();
             cr.restore().unwrap();
 
@@ -637,6 +841,10 @@ impl GlyphEditView {
         *ret.imp().kd_tree.get().unwrap().lock().unwrap() =
             crate::utils::range_query::KdTree::new(&glyph.points());
         *ret.imp().points.get().unwrap().lock().unwrap() = glyph.points();
+        ret.imp()
+            .glyph_state
+            .set(RefCell::new(GlyphState::new(&glyph)))
+            .expect("Failed to create glyph state");
         ret.imp().glyph.set(glyph).unwrap();
         ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();

@@ -156,7 +156,7 @@ fn min_point((ax, ay): Point, (bx, by): Point) -> Point {
     (std::cmp::min(ax, bx), std::cmp::min(ay, by))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum KdNode<Identifier: std::fmt::Debug + Copy, const N: usize> {
     Leaf {
         split_at: Coordinate,
@@ -389,7 +389,7 @@ impl<I: std::fmt::Debug + Copy, const N: usize> KdNode<I, N> {
 
 type TDArena = Arena<KdNode<usize, 2>>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct KdTree {
     arena: TDArena,
     size: usize,
