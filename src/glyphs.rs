@@ -453,6 +453,52 @@ impl Glyph {
         */
     }
 
+    pub fn into_cubic(&mut self) {
+        if self.is_empty() {
+            return;
+        }
+        let f_fn = |(x, y): (i64, i64)| -> (f64, f64) { (x as f64, y as f64) };
+        let i_fn = |(x, y): (f64, f64)| -> (i64, i64) { (x as i64, y as i64) };
+        for contour in self.contours.iter_mut() {
+            let mut pen_position: Option<(f64, f64)> = None;
+            if !contour.open {
+                if let Some(point) = contour.curves.last().and_then(|b| b.points.last()) {
+                    pen_position = Some(f_fn(*point));
+                }
+            }
+
+            for curv in contour.curves.iter_mut() {
+                if curv.points.len() == 3 {
+                    let a = if let Some(v) = pen_position.take() {
+                        v
+                    } else {
+                        f_fn(curv.points[0])
+                    };
+                    let b = f_fn(curv.points[1]);
+                    let c = f_fn(curv.points[2]);
+                    let new_points = vec![
+                        i_fn(a),
+                        i_fn((
+                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
+                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
+                        )),
+                        i_fn((
+                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
+                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
+                        )),
+                        i_fn((c.0, c.1)),
+                    ];
+                    *curv = Bezier::new(curv.smooth, new_points);
+                    pen_position = Some(c);
+                } else {
+                    if let Some(last_p) = curv.points.last() {
+                        pen_position = Some(f_fn(*last_p));
+                    }
+                }
+            }
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.contours.is_empty() || self.contours.iter().all(|c| c.curves.is_empty())
     }
