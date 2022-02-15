@@ -148,7 +148,7 @@ impl GlyphState {
                             point_index: 1,
                             position: curve.points[1],
                             kind: Handle {
-                                end_points: vec![point_index - 2, point_index + 1],
+                                end_points: vec![point_index - 1, point_index + 1],
                             },
                         });
                         points_map
@@ -565,6 +565,26 @@ impl ObjectImpl for GlyphEditArea {
             .can_focus(true)
             .build();
 
+        let bezier_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::BEZIER_ICON_SVG,
+            )),
+            Some("Create Bézier curve"),
+        );
+        bezier_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        bezier_button.set_tooltip_text(Some("Create Bézier curve"));
+
+        let bspline_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::BSPLINE_ICON_SVG,
+            )),
+            Some("Create b-spline curve"),
+        );
+        bspline_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        bspline_button.set_tooltip_text(Some("Create b-spline curve"));
+
         let edit_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
                 crate::resources::GRAB_ICON_SVG,
@@ -717,6 +737,10 @@ impl ObjectImpl for GlyphEditArea {
         toolbar.set_item_homogeneous(&edit_button, false);
         toolbar.add(&pen_button);
         toolbar.set_item_homogeneous(&pen_button, false);
+        toolbar.add(&bezier_button);
+        toolbar.set_item_homogeneous(&bezier_button, false);
+        toolbar.add(&bspline_button);
+        toolbar.set_item_homogeneous(&bspline_button, false);
         toolbar.add(&zoom_in_button);
         toolbar.set_item_homogeneous(&zoom_in_button, false);
         toolbar.add(&zoom_out_button);
