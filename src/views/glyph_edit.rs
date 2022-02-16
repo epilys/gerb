@@ -32,6 +32,8 @@ use std::sync::{Arc, Mutex};
 use crate::glyphs::{Glyph, GlyphDrawingOptions};
 use crate::project::Project;
 
+mod viewhide;
+
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
 #[derive(Debug, Copy, Clone)]
@@ -233,6 +235,7 @@ pub struct GlyphEditArea {
     statusbar_context_id: Cell<Option<u32>>,
     overlay: OnceCell<gtk::Overlay>,
     pub toolbar_box: OnceCell<gtk::Box>,
+    pub viewhidebox: OnceCell<viewhide::ViewHideBox>,
     points: OnceCell<Arc<Mutex<Vec<(i64, i64)>>>>,
     kd_tree: OnceCell<Arc<Mutex<crate::utils::range_query::KdTree>>>,
     zoom_percent_label: OnceCell<gtk::Label>,
@@ -252,7 +255,7 @@ impl ObjectSubclass for GlyphEditArea {
 }
 
 impl ObjectImpl for GlyphEditArea {
-    // Here we are overriding the glib::Objcet::contructed
+    // Here we are overriding the glib::Object::contructed
     // method. Its what gets called when we create our Object
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
@@ -381,6 +384,13 @@ impl ObjectImpl for GlyphEditArea {
         );
 
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
+            let (show_grid, show_guidelines, show_handles) = {
+                let viewhide = obj.imp().viewhidebox.get().unwrap();
+                let show_grid = viewhide.property::<bool>("show-grid");
+                let show_guidelines = viewhide.property::<bool>("show-guidelines");
+                let show_handles = viewhide.property::<bool>("show-handles");
+                (show_grid, show_guidelines, show_handles)
+            };
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
             let (units_per_em, x_height, cap_height, _ascender, _descender) = {
@@ -414,22 +424,24 @@ impl ObjectImpl for GlyphEditArea {
             let camera = obj.imp().camera.get();
             let mouse = obj.imp().mouse.get();
 
-            for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
-                cr.set_source_rgb(color, color, color);
-                let mut y = (camera.1 % step).floor() + 0.5;
-                while y < (height/zoom_factor) {
-                    cr.move_to(0., y);
-                    cr.line_to(width/zoom_factor, y);
-                    y += step;
+            if show_grid {
+                for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
+                    cr.set_source_rgb(color, color, color);
+                    let mut y = (camera.1 % step).floor() + 0.5;
+                    while y < (height/zoom_factor) {
+                        cr.move_to(0., y);
+                        cr.line_to(width/zoom_factor, y);
+                        y += step;
+                    }
+                    cr.stroke().unwrap();
+                    let mut x = (camera.0 % step).floor() + 0.5;
+                    while x < (width/zoom_factor) {
+                        cr.move_to(x, 0.);
+                        cr.line_to(x, height/zoom_factor);
+                        x += step;
+                    }
+                    cr.stroke().unwrap();
                 }
-                cr.stroke().unwrap();
-                let mut x = (camera.0 % step).floor() + 0.5;
-                while x < (width/zoom_factor) {
-                    cr.move_to(x, 0.);
-                    cr.line_to(x, height/zoom_factor);
-                    x += step;
-                }
-                cr.stroke().unwrap();
             }
             /* Draw em square of 1000 units: */
 
@@ -440,28 +452,30 @@ impl ObjectImpl for GlyphEditArea {
             cr.rectangle(0., 0., glyph_width, EM_SQUARE_PIXELS);
             cr.fill().unwrap();
 
-            /* Draw x-height */
-            cr.set_source_rgba(0., 0., 1., 0.6);
-            cr.set_line_width(2.0);
-            cr.move_to(0., x_height*0.2);
-            cr.line_to(glyph_width*1.2, x_height*0.2);
-            cr.stroke().unwrap();
-            cr.move_to(glyph_width*1.2, x_height*0.2);
-            cr.show_text("x-height").unwrap();
+            if show_guidelines {
+                /* Draw x-height */
+                cr.set_source_rgba(0., 0., 1., 0.6);
+                cr.set_line_width(2.0);
+                cr.move_to(0., x_height*0.2);
+                cr.line_to(glyph_width*1.2, x_height*0.2);
+                cr.stroke().unwrap();
+                cr.move_to(glyph_width*1.2, x_height*0.2);
+                cr.show_text("x-height").unwrap();
 
-            /* Draw baseline */
-            cr.move_to(0., units_per_em*0.2);
-            cr.line_to(glyph_width*1.2, units_per_em*0.2);
-            cr.stroke().unwrap();
-            cr.move_to(glyph_width*1.2, units_per_em*0.2);
-            cr.show_text("baseline").unwrap();
+                /* Draw baseline */
+                cr.move_to(0., units_per_em*0.2);
+                cr.line_to(glyph_width*1.2, units_per_em*0.2);
+                cr.stroke().unwrap();
+                cr.move_to(glyph_width*1.2, units_per_em*0.2);
+                cr.show_text("baseline").unwrap();
 
-            /* Draw cap height */
-            cr.move_to(0., EM_SQUARE_PIXELS-cap_height*0.2);
-            cr.line_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
-            cr.stroke().unwrap();
-            cr.move_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
-            cr.show_text("cap height").unwrap();
+                /* Draw cap height */
+                cr.move_to(0., EM_SQUARE_PIXELS-cap_height*0.2);
+                cr.line_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
+                cr.stroke().unwrap();
+                cr.move_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
+                cr.show_text("cap height").unwrap();
+            }
 
             /* Draw the glyph */
 
@@ -476,26 +490,30 @@ impl ObjectImpl for GlyphEditArea {
             glyph_state.glyph.draw(drar, cr, options);
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+
             cr.set_line_width(0.5);
-            for cp in glyph_state.points.iter() {
-                let p = cp.position;
-                match &cp.kind {
-                    Endpoint { .. } => {
-                        cr.rectangle(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 5., 5.);
-                        cr.stroke().unwrap();
-                    }
-                    Handle { ref end_points } => {
-                        cr.arc(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 2.0, 0., 2.*std::f64::consts::PI);
-                        cr.fill().unwrap();
-                        for ep in end_points {
-                            let ep = glyph_state.points[*ep].position;
-                            cr.move_to(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5);
-                            cr.line_to(ep.0 as f64* f, ep.1 as f64* f);
+            if show_handles {
+                for cp in glyph_state.points.iter() {
+                    let p = cp.position;
+                    match &cp.kind {
+                        Endpoint { .. } => {
+                            cr.rectangle(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 5., 5.);
                             cr.stroke().unwrap();
+                        }
+                        Handle { ref end_points } => {
+                            cr.arc(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 2.0, 0., 2.*std::f64::consts::PI);
+                            cr.fill().unwrap();
+                            for ep in end_points {
+                                let ep = glyph_state.points[*ep].position;
+                                cr.move_to(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5);
+                                cr.line_to(ep.0 as f64* f, ep.1 as f64* f);
+                                cr.stroke().unwrap();
+                            }
                         }
                     }
                 }
             }
+
             cr.restore().unwrap();
             cr.restore().unwrap();
             cr.restore().unwrap();
@@ -749,12 +767,30 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
         toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
+        let viewhidebox = viewhide::ViewHideBox::new();
+        viewhidebox.connect_notify_local(
+            Some("show-grid"),
+            clone!(@weak drawing_area => move |_self, _| {
+                drawing_area.queue_draw();
+            }),
+        );
         let overlay = gtk::Overlay::builder()
             .expand(true)
             .visible(true)
             .can_focus(true)
             .build();
-        overlay.add_overlay(&drawing_area);
+        overlay.set_child(Some(&drawing_area));
+        overlay.add_overlay(
+            &gtk::Expander::builder()
+                .child(&viewhidebox)
+                .expanded(true)
+                .visible(true)
+                .can_focus(true)
+                .tooltip_text("Toggle overlay visibilities")
+                .halign(gtk::Align::End)
+                .valign(gtk::Align::End)
+                .build(),
+        );
         overlay.add_overlay(&toolbar_box);
         obj.add(&overlay);
         obj.set_visible(true);
@@ -769,6 +805,9 @@ impl ObjectImpl for GlyphEditArea {
             .expect("Failed to initialize window state");
         self.toolbar_box
             .set(toolbar_box)
+            .expect("Failed to initialize window state");
+        self.viewhidebox
+            .set(viewhidebox)
             .expect("Failed to initialize window state");
         self.drawing_area
             .set(drawing_area)
