@@ -267,6 +267,7 @@ dependencies = [
 name = "gerb"
 version = "0.0.0"
 dependencies = [
+ "cairo-rs",
  "chrono",
  "futures",
  "futures-util",

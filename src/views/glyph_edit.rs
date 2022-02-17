@@ -84,8 +84,7 @@ struct GlyphState {
 
 impl GlyphState {
     fn new(glyph: &Glyph) -> Self {
-        let mut glyph = glyph.clone();
-        glyph.into_cubic();
+        let glyph = glyph.clone();
         let points = glyph.points();
         let kd_tree = crate::utils::range_query::KdTree::new(&points);
         let mut control_points = vec![];
@@ -111,7 +110,7 @@ impl GlyphState {
                                 .or_default()
                                 .push(point_index);
                             let endpoint_index = point_index;
-                            std::dbg!(&control_points[endpoint_index]);
+                            //std::dbg!(&control_points[endpoint_index]);
                             point_index += 1;
                             control_points.push(ControlPoint {
                                 contour_index,
@@ -487,7 +486,7 @@ impl ObjectImpl for GlyphEditArea {
                 inner_fill: None,
                 highlight: obj.imp().hovering.get(),
             };
-            glyph_state.glyph.draw(drar, cr, options);
+            glyph_state.glyph.draw(cr, options);
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
@@ -553,6 +552,7 @@ impl ObjectImpl for GlyphEditArea {
 
            Inhibit(false)
         }));
+        /*
         drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
             let zoom_factor = obj.imp().zoom.get();
@@ -561,9 +561,10 @@ impl ObjectImpl for GlyphEditArea {
             let f =  1000. / EM_SQUARE_PIXELS ;
             let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
             //std::dbg!(obj.imp().kd_tree.get().unwrap().lock().unwrap());
-            std::dbg!(obj.imp().kd_tree.get().unwrap().lock().unwrap().query(position, 10));
+            //std::dbg!(obj.imp().kd_tree.get().unwrap().lock().unwrap().query(position, 10));
             Inhibit(true)
         }));
+        */
         let toolbar_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .expand(false)
@@ -716,7 +717,8 @@ impl ObjectImpl for GlyphEditArea {
         debug_button.set_visible(true);
         debug_button.set_tooltip_text(Some("Debug info"));
         debug_button.connect_clicked(clone!(@weak obj => move |_| {
-            let glyph = obj.imp().glyph.get().unwrap();
+            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+            let glyph = &glyph_state.glyph;
             let window = gtk::Window::new(gtk::WindowType::Toplevel);
             window.set_default_size(640, 480);
             let hbox = gtk::Box::builder()
