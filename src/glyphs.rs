@@ -39,6 +39,14 @@ impl Bezier {
     pub fn get_point(&self, t: f64) -> Option<Point> {
         draw_curve_point(&self.points, t)
     }
+
+    pub fn degree(&self) -> Option<usize> {
+        if self.points.is_empty() {
+            None
+        } else {
+            Some(self.points.len() - 1)
+        }
+    }
 }
 
 fn draw_curve_point(points: &[Point], t: f64) -> Option<Point> {
@@ -276,7 +284,98 @@ impl Glyph {
         Glyph::new(name, char, vec![])
     }
 
-    pub fn draw(&self, _drar: &gtk::DrawingArea, cr: &Context, options: GlyphDrawingOptions) {
+    pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions) {
+        if self.is_empty() {
+            return;
+        }
+        let GlyphDrawingOptions {
+            scale: f,
+            origin: (x, y),
+            outline,
+            inner_fill: _,
+            highlight: _,
+        } = options;
+
+        cr.save().expect("Invalid cairo surface state");
+        cr.move_to(x, y);
+        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
+        cr.set_line_width(2.0);
+        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64 * f + x, p.1 as f64 * f + y) };
+        for (_ic, contour) in self.contours.iter().enumerate() {
+            let mut pen_position: Option<(f64, f64)> = None;
+            if !contour.open {
+                if let Some(point) = contour.curves.last().and_then(|b| b.points.last()) {
+                    let point = p_fn(*point);
+                    cr.move_to(point.0, point.1);
+                    pen_position = Some(point);
+                }
+            } else if let Some(point) = contour.curves.first().and_then(|b| b.points.first()) {
+                let point = p_fn(*point);
+                cr.move_to(point.0, point.1);
+            }
+
+            for (_jc, curv) in contour.curves.iter().enumerate() {
+                if !curv.smooth {
+                    //cr.stroke().expect("Invalid cairo surface state");
+                }
+                let degree = curv.degree();
+                let degree = if let Some(v) = degree {
+                    v
+                } else {
+                    continue;
+                };
+                match degree {
+                    1 => {
+                        /* Line. */
+                        let new_point = p_fn(curv.points[1]);
+                        cr.line_to(new_point.0, new_point.1);
+                        pen_position = Some(new_point);
+                    }
+                    2 => {
+                        /* Quadratic. */
+                        let a = if let Some(v) = pen_position.take() {
+                            v
+                        } else {
+                            p_fn(curv.points[0])
+                        };
+                        let b = p_fn(curv.points[1]);
+                        let c = p_fn(curv.points[2]);
+                        cr.curve_to(
+                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
+                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
+                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
+                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
+                            c.0,
+                            c.1,
+                        );
+                        pen_position = Some(c);
+                    }
+                    3 => {
+                        /* Cubic */
+                        let _a = if let Some(v) = pen_position.take() {
+                            v
+                        } else {
+                            p_fn(curv.points[0])
+                        };
+                        let b = p_fn(curv.points[1]);
+                        let c = p_fn(curv.points[2]);
+                        let d = p_fn(curv.points[3]);
+                        cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
+                        pen_position = Some(d);
+                    }
+                    d => {
+                        eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
+                        pen_position = Some(p_fn(*curv.points.last().unwrap()));
+                        continue;
+                    }
+                }
+            }
+            cr.stroke().expect("Invalid cairo surface state");
+        }
+        cr.restore().expect("Invalid cairo surface state");
+    }
+
+    pub fn draw2(&self, cr: &Context, options: GlyphDrawingOptions) {
         if self.is_empty() {
             return;
         }
@@ -499,6 +598,28 @@ impl Glyph {
         }
     }
 
+    #[cfg(feature = "svg")]
+    pub fn save_to_svg<P: AsRef<std::path::Path>>(
+        &self,
+        path: P,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let surface =
+            gtk::cairo::SvgSurface::new(self.width.unwrap_or(500) as f64, 1000., Some(path))?;
+        let ctx = gtk::cairo::Context::new(&surface)?;
+
+        let options = GlyphDrawingOptions {
+            scale: 1.0,
+            origin: (0., 0.),
+            outline: (0., 0., 0., 1.),
+            inner_fill: None,
+            highlight: None,
+        };
+        self.draw(&ctx, options);
+        surface.flush();
+        surface.finish();
+        Ok(())
+    }
+
     pub fn is_empty(&self) -> bool {
         self.contours.is_empty() || self.contours.iter().all(|c| c.curves.is_empty())
     }
@@ -670,11 +791,13 @@ mod glif {
                     }
                     let mut c;
                     let mut prev_point;
+                    let mut last_oncurve;
                     if points.front().unwrap().is_move() {
                         open = true;
                         // Open contour
                         let p = points.pop_front().unwrap();
                         prev_point = (p.x, 1000 - p.y);
+                        last_oncurve = prev_point;
                         c = vec![prev_point];
                     } else {
                         c = vec![];
@@ -684,6 +807,8 @@ mod glif {
                         }
                         let last_point = points.back().unwrap();
                         prev_point = (last_point.x, 1000 - last_point.y);
+                        let first_point = points.front().unwrap();
+                        last_oncurve = (first_point.x, 1000 - first_point.y);
                     }
                     if points.front().unwrap().is_line() {
                         let p = points.back().unwrap();
@@ -695,7 +820,7 @@ mod glif {
                                 type_: PointKind::Move,
                                 ..
                             }) => {
-                                panic!()
+                                panic!() // FIXME return Err
                             }
                             Some(Point {
                                 type_: PointKind::Offcurve,
@@ -715,9 +840,11 @@ mod glif {
                             }) => {
                                 prev_point = (*x, 1000 - *y);
                                 c.push(prev_point);
+                                c.insert(0, last_oncurve);
                                 let smooth = smooth.as_ref().map(|s| s == "yes").unwrap_or(false);
                                 contour_acc.push(Bezier::new(smooth, c));
                                 c = vec![];
+                                last_oncurve = prev_point;
                             }
                             Some(Point {
                                 type_: PointKind::Line,
@@ -733,6 +860,7 @@ mod glif {
                                 contour_acc.push(Bezier::new(false, c));
                                 c = vec![];
                                 prev_point = (*x, 1000 - *y);
+                                last_oncurve = prev_point;
                             }
                             Some(Point {
                                 type_: PointKind::Qcurve,

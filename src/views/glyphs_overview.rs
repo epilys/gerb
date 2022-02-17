@@ -317,7 +317,7 @@ impl ObjectImpl for GlyphBox {
                     inner_fill: Some((0., 0., 0., 1.)),
                     highlight: None,
                 };
-                glyph.draw(_drar, cr, options);
+                glyph.draw(cr, options);
             }
 
 

@@ -19,3 +19,13 @@ generational-arena = "0.2"
 
 serde = { version = "1.0", features = [ "derive" ] }
 quick-xml = { version = "0.21", features = [ "serialize" ] }
+
+[dependencies.cairo-rs]
+version = "^0.15"
+optional = true
+features = ["svg", ]
+
+
+[features]
+default = ["svg", ]
+svg = ["cairo-rs/svg", ]
