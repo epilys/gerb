@@ -313,8 +313,8 @@ impl ObjectImpl for GlyphBox {
                 let options = GlyphDrawingOptions {
                     scale: (width * 0.8) / 1000.,
                     origin: (point.0 + width / 3., 0.),
-                    outline: (0., 0., 0., 1.),
-                    inner_fill: Some((0., 0., 0., 1.)),
+                    outline: (0., 0., 0., 0.),
+                    inner_fill: Some((0.35, 0.35, 0.35, 1.)),
                     highlight: None,
                 };
                 glyph.draw(cr, options);
