@@ -292,7 +292,7 @@ impl Glyph {
             scale: f,
             origin: (x, y),
             outline,
-            inner_fill: _,
+            inner_fill,
             highlight: _,
         } = options;
 
@@ -370,8 +370,15 @@ impl Glyph {
                     }
                 }
             }
-            cr.stroke().expect("Invalid cairo surface state");
         }
+        if let Some(inner_fill) = inner_fill {
+            cr.save().unwrap();
+            cr.close_path();
+            cr.set_source_rgba(inner_fill.0, inner_fill.1, inner_fill.2, inner_fill.3);
+            cr.fill_preserve().expect("Invalid cairo surface state");
+            cr.restore().expect("Invalid cairo surface state");
+        }
+        cr.stroke().expect("Invalid cairo surface state");
         cr.restore().expect("Invalid cairo surface state");
     }
 
