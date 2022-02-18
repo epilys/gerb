@@ -22,6 +22,8 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
 
+use crate::unicode::names::CharName;
+
 use gtk::cairo::Context;
 pub type Point = (i64, i64);
 
@@ -84,6 +86,7 @@ pub enum GlyphKind {
 #[derive(Debug, Clone)]
 pub struct Glyph {
     pub name: Cow<'static, str>,
+    pub name2: Option<crate::unicode::names::Name>,
     pub kind: GlyphKind,
     pub width: Option<i64>,
     pub contours: Vec<Contour>,
@@ -270,6 +273,7 @@ impl Glyph {
     pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
         Glyph {
             name: name.into(),
+            name2: char.char_name(),
             kind: GlyphKind::Char(char),
             contours: vec![Contour {
                 open: false,
@@ -656,6 +660,7 @@ mod glif {
     extern crate quick_xml;
     extern crate serde;
 
+    use crate::unicode::names::CharName;
     use serde::Deserialize;
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -769,16 +774,17 @@ mod glif {
                 ..
             } = self;
 
-            let kind = if let Some(val) = unicode
+            let (kind, name2) = if let Some(val) = unicode
                 .and_then(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
                 .and_then(|n| n.try_into().ok())
             {
-                super::GlyphKind::Char(val)
+                (super::GlyphKind::Char(val), val.char_name())
             } else {
-                super::GlyphKind::Component
+                (super::GlyphKind::Component, None)
             };
             let mut ret = Glyph {
                 name: name.into(),
+                name2,
                 kind,
                 width: advance.map(|a| a.width),
                 contours: vec![],
