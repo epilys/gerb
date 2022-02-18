@@ -25,6 +25,7 @@ mod app;
 pub mod glyphs;
 pub mod project;
 pub mod resources;
+pub mod unicode;
 pub mod utils;
 pub mod views;
 mod window;
