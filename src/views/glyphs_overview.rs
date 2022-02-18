@@ -25,7 +25,7 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
@@ -41,6 +41,7 @@ pub struct GlyphsArea {
     grid: OnceCell<gtk::Grid>,
     cols: Cell<u32>,
     hide_empty: Cell<bool>,
+    filter_input: RefCell<Option<String>>,
     widgets: OnceCell<Vec<GlyphBoxItem>>,
 }
 
@@ -57,6 +58,7 @@ impl ObjectImpl for GlyphsArea {
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        *self.filter_input.borrow_mut() = None;
         self.cols.set(4);
 
         let grid = gtk::Grid::builder()
@@ -89,6 +91,8 @@ impl ObjectImpl for GlyphsArea {
 
         let box_ = gtk::Box::new(gtk::Orientation::Vertical, 0);
         box_.set_spacing(5);
+        box_.set_visible(true);
+        box_.set_expand(true);
         let tool_palette = gtk::ToolPalette::new();
         tool_palette.set_hexpand(true);
         tool_palette.set_vexpand(false);
@@ -116,7 +120,36 @@ impl ObjectImpl for GlyphsArea {
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
         }));
         glyph_overview_tools.add(&add_glyph_button);
+        let glyph_filter_tools = gtk::ToolItemGroup::new("Filter");
+        glyph_filter_tools.set_visible(true);
+        let search_entry = gtk::Entry::builder()
+            .expand(true)
+            .visible(true)
+            .placeholder_text("Filter glyph name")
+            .build();
+        search_entry.connect_changed(clone!(@weak obj => move |_self| {
+            let imp = obj.imp();
+            let filter_input = if _self.buffer().length() == 0 {
+                None
+            } else {
+                Some(_self.buffer().text())
+            };
+            let mut cur_input = imp.filter_input.borrow_mut();
+            if cur_input.as_ref() != filter_input.as_ref() {
+                *cur_input = filter_input;
+                drop(cur_input);
+                obj.update_grid();
+                imp.grid.get().unwrap().queue_draw();
+            }
+        }));
+        let search_bar = gtk::ToolItem::builder()
+            .expand(true)
+            .visible(true)
+            .child(&search_entry)
+            .build();
+        glyph_filter_tools.add(&search_bar);
         tool_palette.add(&glyph_overview_tools);
+        tool_palette.add(&glyph_filter_tools);
         tool_palette
             .style_context()
             .add_class("glyphs_area_toolbar");
@@ -153,6 +186,7 @@ impl ObjectImpl for GlyphsArea {
                         false,
                         ParamFlags::READABLE,
                     ),
+                    ParamSpecString::new("filter", "filter", "filter", None, ParamFlags::READWRITE),
                 ]
             });
         PROPERTIES.as_ref()
@@ -206,6 +240,18 @@ impl GlyphsOverview {
 
     fn update_grid(&self) {
         let hide_empty: bool = self.imp().hide_empty.get();
+        let filter_input = self.imp().filter_input.borrow();
+        let filter_input_uppercase: Option<String> =
+            filter_input.as_ref().map(|s| s.to_ascii_uppercase());
+        let filter_input_char: Option<char> = filter_input.as_ref().and_then(|s| {
+            let mut iter = s.chars();
+            let first = iter.next()?;
+            if iter.next().is_some() {
+                None
+            } else {
+                Some(first)
+            }
+        });
         let (mut col, mut row) = (0, 0);
         let grid = self.imp().grid.get().unwrap();
         let max_cols = self.imp().cols.get() as i32;
@@ -214,8 +260,23 @@ impl GlyphsOverview {
             grid.remove(&c);
         }
         for c in self.imp().widgets.get().unwrap() {
-            if hide_empty && c.imp().glyph.get().unwrap().is_empty() {
+            let glyph = c.imp().glyph.get().unwrap();
+            if hide_empty && glyph.is_empty() {
                 continue;
+            }
+            if let Some(fu) = filter_input_uppercase.as_ref() {
+                if !(glyph
+                    .name2
+                    .as_ref()
+                    .map(|n| n.contains(fu.as_str()))
+                    .unwrap_or(false)
+                    || filter_input_char
+                        .as_ref()
+                        .map(|c| glyph.kind == GlyphKind::Char(*c))
+                        .unwrap_or(false))
+                {
+                    continue;
+                }
             }
             grid.attach(c, col, row, 1, 1);
             col += 1;
@@ -274,6 +335,7 @@ impl ObjectImpl for GlyphBox {
             .can_focus(true)
             .build();
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
+            cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused:bool = obj.imp().focused.get();
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
@@ -333,7 +395,6 @@ impl ObjectImpl for GlyphBox {
             cr.reset_clip();
 
             cr.set_source_rgb(0., 0., 0.);
-            cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             cr.set_font_size(12.);
             let sextents = cr
                 .text_extents(&label)
