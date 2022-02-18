@@ -383,12 +383,13 @@ impl ObjectImpl for GlyphEditArea {
         );
 
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
-            let (show_grid, show_guidelines, show_handles) = {
+            let (show_grid, show_guidelines, show_handles, inner_fill) = {
                 let viewhide = obj.imp().viewhidebox.get().unwrap();
                 let show_grid = viewhide.property::<bool>("show-grid");
                 let show_guidelines = viewhide.property::<bool>("show-guidelines");
                 let show_handles = viewhide.property::<bool>("show-handles");
-                (show_grid, show_guidelines, show_handles)
+                let inner_fill = viewhide.property::<bool>("inner-fill");
+                (show_grid, show_guidelines, show_handles, inner_fill)
             };
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
@@ -482,8 +483,12 @@ impl ObjectImpl for GlyphEditArea {
             let options = GlyphDrawingOptions {
                 scale: EM_SQUARE_PIXELS / units_per_em,
                 origin: (0.0, 0.0),
-                outline: (0.2, 0.2, 0.2, 0.6),
-                inner_fill: None,
+                outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
+                inner_fill: if inner_fill {
+                    Some((0., 0., 0., 1.))
+                } else {
+                    None
+                },
                 highlight: obj.imp().hovering.get(),
             };
             glyph_state.glyph.draw(cr, options);
