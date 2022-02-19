@@ -112,18 +112,27 @@ fn test_range_query() {
         .into_iter()
         .collect::<std::collections::HashSet<_>>();
     let mut points = hash_set.into_iter().collect::<Vec<_>>();
-    let idx_points = points
-        .clone()
-        .into_iter()
-        .enumerate()
-        .collect::<Vec<(usize, _)>>();
+    //let idx_points = points
+    //    .clone()
+    //    .into_iter()
+    //    .enumerate()
+    //    .collect::<Vec<(usize, _)>>();
     //let kd_tree = KDTree::new(&mut points);
     //println!("{:?}", kd_tree);
     //println!("{:?}", kd_tree.query((135, 176), RADIUS as usize));
-    let kd_tree = KdTree::new2(&points);
+    let mut kd_tree = KdTree::new(&points);
+    println!("{:?}\n", kd_tree.query(std::dbg!((135, 176)), 2));
+    let mut results = kd_tree.query((135, 176), 2);
+    if let Some((i, p)) = results.pop() {
+        kd_tree.remove(p, i);
+    }
+    println!("{:?}\n", kd_tree.query(std::dbg!((135, 176)), 2));
+    if let Some((i, p)) = results.pop() {
+        kd_tree.remove(p, i);
+    }
     println!("{:?}\n", kd_tree.query(std::dbg!((135, 176)), 2));
     //println!("{:#?}\n\n", idx_points);
-    println!("{}", kd_tree.to_svg());
+    //println!("{}", kd_tree.to_svg());
     //let range_tree = RangeTree::new(&points).unwrap();
     //println!("{:?}", range_tree.query(136, 177));
     //println!("\n\n{:?}", range_tree.query2(136, 177));
@@ -186,7 +195,7 @@ struct TempLeaf<Identifier: std::fmt::Debug> {
     size: usize,
 }
 
-impl<I: std::fmt::Debug + Copy, const N: usize> KdNode<I, N> {
+impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, N> {
     fn split(index: Index, arena: &mut Arena<Self>) {
         if let Some(KdNode::Leaf {
             split_at,
@@ -385,6 +394,102 @@ impl<I: std::fmt::Debug + Copy, const N: usize> KdNode<I, N> {
             right,
         })
     }
+
+    fn remove(mut index: Index, point: Point, identifier: I, arena: &mut Arena<Self>) -> bool {
+        let mut path = vec![];
+        let mut update_path = None;
+        let mut ret = false;
+        loop {
+            path.push(index);
+            match arena.get_mut(index) {
+                Some(KdNode::Leaf {
+                    split_at: _,
+                    min,
+                    max,
+                    points,
+                    size,
+                }) => {
+                    if let Some(pos) = points.iter().position(|e| *e == (identifier, point)) {
+                        *size -= 1;
+                        points.swap_remove(pos);
+                        ret = true;
+                    }
+                    if !points.is_empty() {
+                        let mut new_min = (i64::MAX, i64::MAX);
+                        let mut new_max = (i64::MIN, i64::MIN);
+
+                        for (_, p) in points.iter() {
+                            new_min = min_point(new_min, *p);
+                            new_max = max_point(new_max, *p);
+                        }
+
+                        *min = new_min;
+                        *max = new_max;
+                    }
+                    path.pop();
+                    if let Some(parent) = path.pop() {
+                        update_path = Some(((index, parent), (*min, *max)));
+                    }
+                    break;
+                }
+                Some(KdNode::Division {
+                    split_value,
+                    split_at,
+                    min: _,
+                    max: _,
+                    left,
+                    right,
+                    size: _,
+                }) => {
+                    if match split_at {
+                        Coordinate::X => point.0 <= *split_value,
+                        Coordinate::Y => point.1 <= *split_value,
+                    } {
+                        /* belongs to left subtree */
+                        index = *left;
+                    } else {
+                        /* belongs to right subtree */
+                        index = *right;
+                    }
+                }
+                None => {
+                    unreachable!()
+                }
+            }
+        }
+
+        while let Some(((leaf, index), (leaf_min, leaf_max))) = update_path.take() {
+            match arena.get_mut(index) {
+                Some(KdNode::Leaf { .. }) => {
+                    unreachable!()
+                }
+                Some(KdNode::Division {
+                    split_value: _,
+                    split_at: _,
+                    min,
+                    max,
+                    left,
+                    right,
+                    size: _,
+                }) => {
+                    if *left == leaf {
+                        *min = std::cmp::min(*min, leaf_min);
+                    } else if *right == leaf {
+                        *max = std::cmp::max(*max, leaf_max);
+                    } else {
+                        unreachable!()
+                    }
+                    if let Some(parent) = path.pop() {
+                        update_path = Some(((index, parent), (*min, *max)));
+                    }
+                }
+                None => {
+                    unreachable!()
+                }
+            }
+        }
+        ret
+    }
 }
 
 type TDArena = Arena<KdNode<usize, 2>>;
@@ -462,6 +567,21 @@ impl KdTree {
         };
 
         KdNode::insert(root, point, identifier, &mut self.arena);
+    }
+
+    pub fn remove(&mut self, point: Point, identifier: usize) -> bool {
+        let root = if let Some(root) = self.root {
+            root
+        } else {
+            return false;
+        };
+
+        if KdNode::remove(root, point, identifier, &mut self.arena) {
+            self.size -= 1;
+            true
+        } else {
+            false
+        }
     }
 
     pub fn query(&self, center: Point, radius: i64) -> Vec<(usize, Point)> {

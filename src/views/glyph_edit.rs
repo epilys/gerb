@@ -85,8 +85,6 @@ struct GlyphState {
 impl GlyphState {
     fn new(glyph: &Glyph) -> Self {
         let glyph = glyph.clone();
-        let points = glyph.points();
-        let kd_tree = crate::utils::range_query::KdTree::new(&points);
         let mut control_points = vec![];
         let mut points_map: HashMap<(i64, i64), Vec<usize>> = HashMap::default();
 
@@ -194,6 +192,11 @@ impl GlyphState {
                 }
             }
         }
+        let points = control_points
+            .iter()
+            .map(|cp| cp.position)
+            .collect::<Vec<_>>();
+        let kd_tree = crate::utils::range_query::KdTree::new(&points);
         GlyphState {
             glyph,
             points: control_points,
@@ -216,6 +219,16 @@ impl GlyphState {
     fn update_positions(&mut self, new_pos: (i64, i64)) {
         for idx in self.selection.iter() {
             if let Some(p) = self.points.get_mut(*idx) {
+                /* update points_map */
+                self.points_map.entry(p.position).and_modify(|points_vec| {
+                    points_vec.retain(|p| *p != *idx);
+                });
+                self.points_map.entry(new_pos).or_default().push(*idx);
+                /* update kd_tree */
+                assert!(self.kd_tree.remove(p.position, *idx));
+                self.kd_tree.add(new_pos, *idx);
+
+                /* finally update actual point */
                 p.position = new_pos;
                 self.glyph.contours[p.contour_index].curves[p.curve_index].points[p.point_index] =
                     new_pos;
@@ -235,8 +248,6 @@ pub struct GlyphEditArea {
     overlay: OnceCell<gtk::Overlay>,
     pub toolbar_box: OnceCell<gtk::Box>,
     pub viewhidebox: OnceCell<viewhide::ViewHideBox>,
-    points: OnceCell<Arc<Mutex<Vec<(i64, i64)>>>>,
-    kd_tree: OnceCell<Arc<Mutex<crate::utils::range_query::KdTree>>>,
     zoom_percent_label: OnceCell<gtk::Label>,
     resized: Cell<bool>,
     camera: Cell<(f64, f64)>,
@@ -265,12 +276,6 @@ impl ObjectImpl for GlyphEditArea {
         self.camera.set((0., 0.));
         self.mouse.set((0., 0.));
         self.zoom.set(1.);
-        self.points.set(Arc::new(Mutex::new(vec![]))).unwrap();
-        self.kd_tree
-            .set(Arc::new(Mutex::new(
-                crate::utils::range_query::KdTree::new(&[]),
-            )))
-            .unwrap();
 
         let drawing_area = gtk::DrawingArea::builder()
             .expand(true)
@@ -908,9 +913,6 @@ glib::wrapper! {
 impl GlyphEditView {
     pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
-        *ret.imp().kd_tree.get().unwrap().lock().unwrap() =
-            crate::utils::range_query::KdTree::new(&glyph.points());
-        *ret.imp().points.get().unwrap().lock().unwrap() = glyph.points();
         ret.imp()
             .glyph_state
             .set(RefCell::new(GlyphState::new(&glyph)))
