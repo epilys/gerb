@@ -29,9 +29,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use crate::glyphs::{Glyph, GlyphDrawingOptions};
+use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions};
 use crate::project::Project;
 
+mod bezier_pen;
 mod viewhide;
 
 const EM_SQUARE_PIXELS: f64 = 200.0;
@@ -60,7 +61,7 @@ struct ControlPoint {
     kind: ControlPointKind,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum ControlPointMode {
     None,
     Drag,
@@ -72,11 +73,43 @@ impl Default for ControlPointMode {
     }
 }
 
+#[derive(Debug, Clone)]
+enum Tool {
+    Manipulate { mode: ControlPointMode },
+    BezierPen { state: bezier_pen::State },
+}
+
+impl Default for Tool {
+    fn default() -> Tool {
+        Tool::Manipulate {
+            mode: ControlPointMode::default(),
+        }
+    }
+}
+
+impl Tool {
+    fn is_manipulate(&self) -> bool {
+        if let Tool::Manipulate { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_bezier_pen(&self) -> bool {
+        if let Tool::BezierPen { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 struct GlyphState {
     glyph: Glyph,
     selection: Vec<usize>,
-    mode: ControlPointMode,
+    tool: Tool,
     points: Vec<ControlPoint>,
     points_map: HashMap<(i64, i64), Vec<usize>>,
     kd_tree: crate::utils::range_query::KdTree,
@@ -84,114 +117,23 @@ struct GlyphState {
 
 impl GlyphState {
     fn new(glyph: &Glyph) -> Self {
-        let glyph = glyph.clone();
-        let mut control_points = vec![];
-        let mut points_map: HashMap<(i64, i64), Vec<usize>> = HashMap::default();
+        let control_points = vec![];
+        let points_map: HashMap<(i64, i64), Vec<usize>> = HashMap::default();
+
+        let mut ret = GlyphState {
+            glyph: glyph.clone(),
+            points: control_points,
+            points_map,
+            tool: Tool::default(),
+            selection: vec![],
+            kd_tree: crate::utils::range_query::KdTree::new(&[]),
+        };
 
         for (contour_index, contour) in glyph.contours.iter().enumerate() {
-            for (curve_index, curve) in contour.curves.iter().enumerate() {
-                match curve.points.len() {
-                    4 => {
-                        for (endpoint, handle) in [(0, 1), (3, 2)] {
-                            let mut point_index = control_points.len();
-                            control_points.push(ControlPoint {
-                                contour_index,
-                                curve_index,
-                                point_index: endpoint,
-                                position: curve.points[endpoint],
-                                kind: Endpoint {
-                                    handle: Some(point_index + 1),
-                                },
-                            });
-                            points_map
-                                .entry(curve.points[endpoint])
-                                .or_default()
-                                .push(point_index);
-                            let endpoint_index = point_index;
-                            //std::dbg!(&control_points[endpoint_index]);
-                            point_index += 1;
-                            control_points.push(ControlPoint {
-                                contour_index,
-                                curve_index,
-                                point_index: handle,
-                                position: curve.points[handle],
-                                kind: Handle {
-                                    end_points: vec![endpoint_index],
-                                },
-                            });
-                            points_map
-                                .entry(curve.points[handle])
-                                .or_default()
-                                .push(point_index);
-                        }
-                    }
-                    3 => {
-                        let mut point_index = control_points.len();
-                        control_points.push(ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: 0,
-                            position: curve.points[0],
-                            kind: Endpoint {
-                                handle: Some(point_index + 1),
-                            },
-                        });
-                        points_map
-                            .entry(curve.points[0])
-                            .or_default()
-                            .push(point_index);
-                        point_index += 1;
-                        control_points.push(ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: 1,
-                            position: curve.points[1],
-                            kind: Handle {
-                                end_points: vec![point_index - 1, point_index + 1],
-                            },
-                        });
-                        points_map
-                            .entry(curve.points[1])
-                            .or_default()
-                            .push(point_index);
-                        point_index += 1;
-                        control_points.push(ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: 2,
-                            position: curve.points[2],
-                            kind: Endpoint {
-                                handle: Some(point_index - 1),
-                            },
-                        });
-                        points_map
-                            .entry(curve.points[2])
-                            .or_default()
-                            .push(point_index);
-                    }
-                    2 => {
-                        let mut point_index = control_points.len();
-                        for endpoint in 0..=1 {
-                            control_points.push(ControlPoint {
-                                contour_index,
-                                curve_index,
-                                point_index: endpoint,
-                                position: curve.points[endpoint],
-                                kind: Endpoint { handle: None },
-                            });
-                            points_map
-                                .entry(curve.points[endpoint])
-                                .or_default()
-                                .push(point_index);
-                            point_index += 1;
-                        }
-                    }
-                    1 => {}
-                    0 => {}
-                    _ => unreachable!(), //FIXME
-                }
-            }
+            ret.add_contour(contour, contour_index);
         }
+        ret
+        /*
         let points = control_points
             .iter()
             .map(|cp| cp.position)
@@ -201,9 +143,120 @@ impl GlyphState {
             glyph,
             points: control_points,
             points_map,
-            mode: ControlPointMode::None,
+            tool: Tool::default(),
             selection: vec![],
             kd_tree,
+        }
+        */
+    }
+
+    fn add_contour(&mut self, contour: &Contour, contour_index: usize) {
+        let prev_len = self.points.len();
+        for (curve_index, curve) in contour.curves.iter().enumerate() {
+            match curve.points.len() {
+                4 => {
+                    for (endpoint, handle) in [(0, 1), (3, 2)] {
+                        let mut point_index = self.points.len();
+                        self.points.push(ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: endpoint,
+                            position: curve.points[endpoint],
+                            kind: Endpoint {
+                                handle: Some(point_index + 1),
+                            },
+                        });
+                        self.points_map
+                            .entry(curve.points[endpoint])
+                            .or_default()
+                            .push(point_index);
+                        let endpoint_index = point_index;
+                        //std::dbg!(&points[endpoint_index]);
+                        point_index += 1;
+                        self.points.push(ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: handle,
+                            position: curve.points[handle],
+                            kind: Handle {
+                                end_points: vec![endpoint_index],
+                            },
+                        });
+                        self.points_map
+                            .entry(curve.points[handle])
+                            .or_default()
+                            .push(point_index);
+                    }
+                }
+                3 => {
+                    let mut point_index = self.points.len();
+                    self.points.push(ControlPoint {
+                        contour_index,
+                        curve_index,
+                        point_index: 0,
+                        position: curve.points[0],
+                        kind: Endpoint {
+                            handle: Some(point_index + 1),
+                        },
+                    });
+                    self.points_map
+                        .entry(curve.points[0])
+                        .or_default()
+                        .push(point_index);
+                    point_index += 1;
+                    self.points.push(ControlPoint {
+                        contour_index,
+                        curve_index,
+                        point_index: 1,
+                        position: curve.points[1],
+                        kind: Handle {
+                            end_points: vec![point_index - 1, point_index + 1],
+                        },
+                    });
+                    self.points_map
+                        .entry(curve.points[1])
+                        .or_default()
+                        .push(point_index);
+                    point_index += 1;
+                    self.points.push(ControlPoint {
+                        contour_index,
+                        curve_index,
+                        point_index: 2,
+                        position: curve.points[2],
+                        kind: Endpoint {
+                            handle: Some(point_index - 1),
+                        },
+                    });
+                    self.points_map
+                        .entry(curve.points[2])
+                        .or_default()
+                        .push(point_index);
+                }
+                2 => {
+                    let mut point_index = self.points.len();
+                    for endpoint in 0..=1 {
+                        self.points.push(ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: endpoint,
+                            position: curve.points[endpoint],
+                            kind: Endpoint { handle: None },
+                        });
+                        self.points_map
+                            .entry(curve.points[endpoint])
+                            .or_default()
+                            .push(point_index);
+                        point_index += 1;
+                    }
+                }
+                1 => {}
+                0 => {}
+                _ => unreachable!(), //FIXME
+            }
+        }
+        for i in prev_len..self.points.len() {
+            let pos = self.points[i].position;
+            self.kd_tree.add(pos, i);
         }
     }
 
@@ -300,8 +353,24 @@ impl ObjectImpl for GlyphEditArea {
                     let f =  1000. / EM_SQUARE_PIXELS ;
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
                     let pts = glyph_state.kd_tree.query(position, 10);
-                    glyph_state.set_selection(&pts);
-                    glyph_state.mode = ControlPointMode::Drag;
+                    if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
+                        *mode = ControlPointMode::Drag;
+                        glyph_state.set_selection(&pts);
+                    } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
+                        let zoom_factor = obj.imp().zoom.get();
+                        let camera = obj.imp().camera.get();
+                        let position = event.position();
+                        let f =  1000. / EM_SQUARE_PIXELS ;
+                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                        if !state.insert_point(position) {
+                            let state = std::mem::replace(state, Default::default());
+                            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                            let new_contour = state.close(false);
+                            let contour_index = glyph_state.glyph.contours.len();
+                            glyph_state.add_contour(&new_contour, contour_index);
+                            glyph_state.glyph.contours.push(new_contour);
+                        }
+                    }
                 }
                 if event.button() == gtk::gdk::BUTTON_MIDDLE {
                     obj.imp().button.set(Some(MotionMode::Pan));
@@ -313,11 +382,36 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
         drawing_area.connect_button_release_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 //obj.imp().mouse.set((0., 0.));
                 obj.imp().button.set(None);
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                glyph_state.mode = ControlPointMode::None;
+                if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
+                    *mode = ControlPointMode::None;
+                } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
+                    if event.button() == gtk::gdk::BUTTON_PRIMARY {
+                        let zoom_factor = obj.imp().zoom.get();
+                        let camera = obj.imp().camera.get();
+                        let position = event.position();
+                        let f =  1000. / EM_SQUARE_PIXELS ;
+                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                        if !state.insert_point(position) {
+                            let state = std::mem::replace(state, Default::default());
+                            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                            let new_contour = state.close(true);
+                            let contour_index = glyph_state.glyph.contours.len();
+                            glyph_state.add_contour(&new_contour, contour_index);
+                            glyph_state.glyph.contours.push(new_contour);
+                        }
+                    } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
+                        let state = std::mem::replace(state, Default::default());
+                        glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                        let new_contour = state.close(true);
+                        let contour_index = glyph_state.glyph.contours.len();
+                        glyph_state.add_contour(&new_contour, contour_index);
+                        glyph_state.glyph.contours.push(new_contour);
+                    }
+                }
                 if let Some(screen) = _self.window() {
                     let display = screen.display();
                     screen.set_cursor(Some(
@@ -349,7 +443,7 @@ impl ObjectImpl for GlyphEditArea {
                     let f =  1000. / EM_SQUARE_PIXELS ;
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
                     let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                    if glyph_state.mode == ControlPointMode::Drag {
+                    if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
                     }
                     let pts = glyph_state.kd_tree.query(position, 10);
@@ -358,7 +452,13 @@ impl ObjectImpl for GlyphEditArea {
                         if let Some(screen) = _self.window() {
                             let display = screen.display();
                             screen.set_cursor(Some(
-                                    &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
+                                    &if glyph_state.tool.is_manipulate() {
+                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
+                                    } else if glyph_state.tool.is_bezier_pen() {
+                                        gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap()
+                                    } else {
+                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
+                                    }
                             ));
                         }
                     } else if let Some(screen) = _self.window() {
@@ -497,6 +597,10 @@ impl ObjectImpl for GlyphEditArea {
                 highlight: obj.imp().hovering.get(),
             };
             glyph_state.glyph.draw(cr, options);
+            if let Tool::BezierPen { ref state } = glyph_state.tool {
+                let position = (((mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor)) as i64, ((mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor)) as i64);
+                state.draw(cr, options, position);
+            }
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
@@ -594,6 +698,26 @@ impl ObjectImpl for GlyphEditArea {
             .can_focus(true)
             .build();
 
+        let manipulate_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::GRAB_ICON_SVG,
+            )),
+            Some("Manipulate"),
+        );
+        manipulate_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        manipulate_button.set_tooltip_text(Some("Pan"));
+        manipulate_button.connect_clicked(clone!(@weak obj => move |_self| {
+            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+            if let Some(screen) = _self.window() {
+                let display = screen.display();
+                screen.set_cursor(Some(
+                        &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
+                ));
+            }
+        }));
+
         let bezier_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
                 crate::resources::BEZIER_ICON_SVG,
@@ -603,6 +727,16 @@ impl ObjectImpl for GlyphEditArea {
         bezier_button.set_visible(true);
         // FIXME: doesn't seem to work?
         bezier_button.set_tooltip_text(Some("Create Bézier curve"));
+        bezier_button.connect_clicked(clone!(@weak obj => move |_self| {
+            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+            glyph_state.tool = Tool::BezierPen { state: Default::default() };
+            if let Some(screen) = _self.window() {
+                let display = screen.display();
+                screen.set_cursor(Some(
+                        &gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap(),
+                ));
+            }
+        }));
 
         let bspline_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -614,24 +748,14 @@ impl ObjectImpl for GlyphEditArea {
         // FIXME: doesn't seem to work?
         bspline_button.set_tooltip_text(Some("Create b-spline curve"));
 
-        let edit_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::GRAB_ICON_SVG,
-            )),
-            Some("Edit"),
-        );
-        edit_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        edit_button.set_tooltip_text(Some("Pan"));
-
-        let pen_button = gtk::ToolButton::new(
+        /*let pen_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
                 crate::resources::PEN_ICON_SVG,
             )),
             Some("Pen"),
         );
         pen_button.set_visible(true);
-        pen_button.set_tooltip_text(Some("Pen"));
+        pen_button.set_tooltip_text(Some("Pen"));*/
 
         let zoom_in_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -763,10 +887,8 @@ impl ObjectImpl for GlyphEditArea {
             window.add(&hbox);
             window.show_all();
         }));
-        toolbar.add(&edit_button);
-        toolbar.set_item_homogeneous(&edit_button, false);
-        toolbar.add(&pen_button);
-        toolbar.set_item_homogeneous(&pen_button, false);
+        toolbar.add(&manipulate_button);
+        toolbar.set_item_homogeneous(&manipulate_button, false);
         toolbar.add(&bezier_button);
         toolbar.set_item_homogeneous(&bezier_button, false);
         toolbar.add(&bspline_button);
