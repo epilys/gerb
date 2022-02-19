@@ -140,3 +140,18 @@ button.image-button > box {
 notebook header {
   box-shadow: 0px 1px #a9a9a9;
 }
+
+scrollbar {
+  -GtkScrollbar-has-backward-stepper: true;
+  -GtkScrollbar-has-forward-stepper: true;
+}
+
+scrollbar slider {
+    /* Size of the slider */
+    min-width: 10px;
+    min-height: 20px;
+    border-radius: 0px;
+
+    /* Padding around the slider */
+    border: 0px solid transparent;
+}
