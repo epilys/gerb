@@ -360,12 +360,26 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
         drawing_area.connect_button_release_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 //obj.imp().mouse.set((0., 0.));
                 obj.imp().button.set(None);
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
                     *mode = ControlPointMode::None;
+                } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
+                    let zoom_factor = obj.imp().zoom.get();
+                    let camera = obj.imp().camera.get();
+                    let position = event.position();
+                    let f =  1000. / EM_SQUARE_PIXELS ;
+                    let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                    if !state.insert_point(position) {
+                        let state = std::mem::replace(state, Default::default());
+                        glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                        let new_contour = state.close();
+                        let contour_index = glyph_state.glyph.contours.len();
+                        glyph_state.add_contour(&new_contour, contour_index);
+                        glyph_state.glyph.contours.push(new_contour);
+                    }
                 }
                 if let Some(screen) = _self.window() {
                     let display = screen.display();
@@ -546,6 +560,9 @@ impl ObjectImpl for GlyphEditArea {
                 highlight: obj.imp().hovering.get(),
             };
             glyph_state.glyph.draw(cr, options);
+            if let Tool::BezierPen { ref state} = glyph_state.tool {
+                state.draw(cr, options, mouse);
+            }
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
