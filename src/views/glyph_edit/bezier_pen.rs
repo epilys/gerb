@@ -60,28 +60,35 @@ impl State {
         match self.inner {
             InnerState::AddControlPoint => {
                 self.inner = InnerState::AddControlHandle;
-                self.current_curve.points.push(point);
                 match self.first_point.as_ref() {
                     None => {
                         self.first_point = Some(point);
                     }
-                    Some(fp) if distance_between_two_points(point, *fp) < 5.0 => {
+                    Some(fp) if distance_between_two_points(point, *fp) < 10.0 => {
                         return false;
                     }
                     _ => {}
                 }
+                self.current_curve.points.push(point);
 
+                true
+            }
+            InnerState::AddControlHandle => {
+                self.inner = InnerState::AddControlPoint;
+                match self.first_point.as_ref() {
+                    None => {}
+                    Some(fp) if distance_between_two_points(point, *fp) < 10.0 => {
+                        return false;
+                    }
+                    _ => {}
+                }
+                self.current_curve.points.push(point);
                 if self.current_curve.points.len() == 4 {
                     /* current_curve is cubic, so split it. */
                     let curv =
                         std::mem::replace(&mut self.current_curve, Bezier::new(true, vec![]));
                     self.curves.push(curv);
                 }
-                true
-            }
-            InnerState::AddControlHandle => {
-                self.inner = InnerState::AddControlPoint;
-                self.current_curve.points.push(point);
                 true
             }
         }
@@ -98,13 +105,17 @@ impl State {
             curves.push(current_curve);
         }
 
-        Contour { open: true, curves }
+        Contour {
+            open: false,
+            curves,
+        }
     }
 
-    pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions, cursor_position: (f64, f64)) {
-        if self.first_point.is_none() {
-            return;
-        }
+    pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions, cursor_position: (i64, i64)) {
+        let first_point = match self.first_point {
+            Some(v) => v,
+            None => return,
+        };
         let GlyphDrawingOptions {
             scale: f,
             origin: (x, y),
@@ -114,12 +125,17 @@ impl State {
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
-        cr.move_to(x, y);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
         cr.set_line_width(2.0);
         let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64 * f + x, p.1 as f64 * f + y) };
-        let mut pen_position: Option<(f64, f64)> = None;
-        for curv in self.curves.iter() {
+        let fp = p_fn(first_point);
+        let mut pen_position: Option<(f64, f64)> = Some(fp);
+        cr.move_to(fp.0, fp.1);
+        for curv in self
+            .curves
+            .iter()
+            .chain(Some(&self.current_curve).into_iter())
+        {
             if !curv.smooth {
                 //cr.stroke().expect("Invalid cairo surface state");
             }
@@ -130,6 +146,7 @@ impl State {
                 continue;
             };
             match degree {
+                0 => { /* ignore */ }
                 1 => {
                     /* Line. */
                     let new_point = p_fn(curv.points[1]);
@@ -175,7 +192,7 @@ impl State {
                 }
             }
         }
-        let (pos_x, pos_y) = cursor_position;
+        let (pos_x, pos_y) = p_fn(cursor_position);
         cr.line_to(pos_x, pos_y);
 
         cr.stroke().expect("Invalid cairo surface state");

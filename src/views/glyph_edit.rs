@@ -95,6 +95,14 @@ impl Tool {
             false
         }
     }
+
+    fn is_bezier_pen(&self) -> bool {
+        if let Tool::BezierPen { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -421,7 +429,13 @@ impl ObjectImpl for GlyphEditArea {
                         if let Some(screen) = _self.window() {
                             let display = screen.display();
                             screen.set_cursor(Some(
-                                    &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
+                                    &if glyph_state.tool.is_manipulate() {
+                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
+                                    } else if glyph_state.tool.is_bezier_pen() {
+                                        gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap()
+                                    } else {
+                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
+                                    }
                             ));
                         }
                     } else if let Some(screen) = _self.window() {
@@ -560,8 +574,9 @@ impl ObjectImpl for GlyphEditArea {
                 highlight: obj.imp().hovering.get(),
             };
             glyph_state.glyph.draw(cr, options);
-            if let Tool::BezierPen { ref state} = glyph_state.tool {
-                state.draw(cr, options, mouse);
+            if let Tool::BezierPen { ref state } = glyph_state.tool {
+                let position = (((mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor)) as i64, ((mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor)) as i64);
+                state.draw(cr, options, position);
             }
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
@@ -660,6 +675,26 @@ impl ObjectImpl for GlyphEditArea {
             .can_focus(true)
             .build();
 
+        let manipulate_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::GRAB_ICON_SVG,
+            )),
+            Some("Manipulate"),
+        );
+        manipulate_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        manipulate_button.set_tooltip_text(Some("Pan"));
+        manipulate_button.connect_clicked(clone!(@weak obj => move |_self| {
+            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+            if let Some(screen) = _self.window() {
+                let display = screen.display();
+                screen.set_cursor(Some(
+                        &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
+                ));
+            }
+        }));
+
         let bezier_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
                 crate::resources::BEZIER_ICON_SVG,
@@ -669,6 +704,16 @@ impl ObjectImpl for GlyphEditArea {
         bezier_button.set_visible(true);
         // FIXME: doesn't seem to work?
         bezier_button.set_tooltip_text(Some("Create Bézier curve"));
+        bezier_button.connect_clicked(clone!(@weak obj => move |_self| {
+            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+            glyph_state.tool = Tool::BezierPen { state: Default::default() };
+            if let Some(screen) = _self.window() {
+                let display = screen.display();
+                screen.set_cursor(Some(
+                        &gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap(),
+                ));
+            }
+        }));
 
         let bspline_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -679,16 +724,6 @@ impl ObjectImpl for GlyphEditArea {
         bspline_button.set_visible(true);
         // FIXME: doesn't seem to work?
         bspline_button.set_tooltip_text(Some("Create b-spline curve"));
-
-        let edit_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::GRAB_ICON_SVG,
-            )),
-            Some("Edit"),
-        );
-        edit_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        edit_button.set_tooltip_text(Some("Pan"));
 
         let pen_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -829,8 +864,8 @@ impl ObjectImpl for GlyphEditArea {
             window.add(&hbox);
             window.show_all();
         }));
-        toolbar.add(&edit_button);
-        toolbar.set_item_homogeneous(&edit_button, false);
+        toolbar.add(&manipulate_button);
+        toolbar.set_item_homogeneous(&manipulate_button, false);
         toolbar.add(&pen_button);
         toolbar.set_item_homogeneous(&pen_button, false);
         toolbar.add(&bezier_button);
