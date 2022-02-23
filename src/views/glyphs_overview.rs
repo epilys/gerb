@@ -336,7 +336,7 @@ impl ObjectImpl for GlyphBox {
             .build();
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
-            let is_focused:bool = obj.imp().focused.get();
+            let is_focused: bool = obj.imp().focused.get();
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
             //cr.set_source_rgb(r, g, b);
@@ -352,6 +352,7 @@ impl ObjectImpl for GlyphBox {
             };
             cr.set_line_width(1.5);
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (GLYPH_BOX_WIDTH, GLYPH_BOX_HEIGHT), 1.0, 1.5);
+            let glyph_width = glyph.width.unwrap_or(1000) as f64 * (width * 0.8) / 1000.;
             if is_focused {
                 cr.set_source_rgb(1., 250./255., 141./255.);
             } else {
@@ -363,7 +364,6 @@ impl ObjectImpl for GlyphBox {
             cr.clip();
             cr.new_path();
             cr.set_source_rgba(0., 0., 0., 0.4);
-            cr.move_to(x+width/2., point.1+ 2.* (height / 3.));
             cr.set_font_size(62.);
             let sextents = cr
                 .text_extents(&label)
@@ -374,7 +374,7 @@ impl ObjectImpl for GlyphBox {
             } else {
                 let options = GlyphDrawingOptions {
                     scale: (width * 0.8) / 1000.,
-                    origin: (point.0 + width / 3., 0.),
+                    origin: ((width - glyph_width) / 2., 0.),
                     outline: (0., 0., 0., 0.),
                     inner_fill: Some((0.35, 0.35, 0.35, 1.)),
                     highlight: None,
