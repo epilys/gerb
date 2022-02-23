@@ -356,6 +356,20 @@ impl ObjectImpl for GlyphEditArea {
                     if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
                         *mode = ControlPointMode::Drag;
                         glyph_state.set_selection(&pts);
+                    } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
+                        let zoom_factor = obj.imp().zoom.get();
+                        let camera = obj.imp().camera.get();
+                        let position = event.position();
+                        let f =  1000. / EM_SQUARE_PIXELS ;
+                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                        if !state.insert_point(position) {
+                            let state = std::mem::replace(state, Default::default());
+                            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                            let new_contour = state.close(false);
+                            let contour_index = glyph_state.glyph.contours.len();
+                            glyph_state.add_contour(&new_contour, contour_index);
+                            glyph_state.glyph.contours.push(new_contour);
+                        }
                     }
                 }
                 if event.button() == gtk::gdk::BUTTON_MIDDLE {
@@ -375,15 +389,24 @@ impl ObjectImpl for GlyphEditArea {
                 if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
                     *mode = ControlPointMode::None;
                 } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
-                    let zoom_factor = obj.imp().zoom.get();
-                    let camera = obj.imp().camera.get();
-                    let position = event.position();
-                    let f =  1000. / EM_SQUARE_PIXELS ;
-                    let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
-                    if !state.insert_point(position) {
+                    if event.button() == gtk::gdk::BUTTON_PRIMARY {
+                        let zoom_factor = obj.imp().zoom.get();
+                        let camera = obj.imp().camera.get();
+                        let position = event.position();
+                        let f =  1000. / EM_SQUARE_PIXELS ;
+                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                        if !state.insert_point(position) {
+                            let state = std::mem::replace(state, Default::default());
+                            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                            let new_contour = state.close(true);
+                            let contour_index = glyph_state.glyph.contours.len();
+                            glyph_state.add_contour(&new_contour, contour_index);
+                            glyph_state.glyph.contours.push(new_contour);
+                        }
+                    } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
                         let state = std::mem::replace(state, Default::default());
                         glyph_state.tool = Tool::Manipulate { mode: Default::default() };
-                        let new_contour = state.close();
+                        let new_contour = state.close(true);
                         let contour_index = glyph_state.glyph.contours.len();
                         glyph_state.add_contour(&new_contour, contour_index);
                         glyph_state.glyph.contours.push(new_contour);
