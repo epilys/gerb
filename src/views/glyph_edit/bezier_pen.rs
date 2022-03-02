@@ -107,14 +107,14 @@ impl State {
             None => return,
         };
         let GlyphDrawingOptions {
-            scale: f,
-            origin: (x, y),
             outline,
             inner_fill: _,
             highlight: _,
+            matrix,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
+        cr.transform(matrix);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
         cr.set_line_width(2.0);
         let draw_endpoint = |p: (f64, f64)| {
@@ -128,7 +128,7 @@ impl State {
             cr.line_to(ep.0, ep.1);
             cr.stroke().unwrap();
         };
-        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64 * f + x, p.1 as f64 * f + y) };
+        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64, p.1 as f64) };
         let fp = p_fn(first_point);
         draw_endpoint(fp);
         let mut pen_position: Option<(f64, f64)> = Some(fp);
