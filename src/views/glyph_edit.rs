@@ -24,9 +24,9 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
-use std::cell::Cell;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions};
@@ -108,6 +108,7 @@ impl Tool {
 #[derive(Debug, Clone, Default)]
 struct GlyphState {
     glyph: Glyph,
+    reference: Rc<RefCell<Glyph>>,
     selection: Vec<usize>,
     tool: Tool,
     points: Vec<ControlPoint>,
@@ -116,12 +117,13 @@ struct GlyphState {
 }
 
 impl GlyphState {
-    fn new(glyph: &Glyph) -> Self {
+    fn new(glyph: &Rc<RefCell<Glyph>>) -> Self {
         let control_points = vec![];
         let points_map: HashMap<(i64, i64), Vec<usize>> = HashMap::default();
 
         let mut ret = GlyphState {
-            glyph: glyph.clone(),
+            glyph: glyph.borrow().clone(),
+            reference: Rc::clone(glyph),
             points: control_points,
             points_map,
             tool: Tool::default(),
@@ -129,7 +131,7 @@ impl GlyphState {
             kd_tree: crate::utils::range_query::KdTree::new(&[]),
         };
 
-        for (contour_index, contour) in glyph.contours.iter().enumerate() {
+        for (contour_index, contour) in glyph.borrow().contours.iter().enumerate() {
             ret.add_contour(contour, contour_index);
         }
         ret
@@ -293,7 +295,7 @@ impl GlyphState {
 #[derive(Debug, Default)]
 pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
-    glyph: OnceCell<Glyph>,
+    glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<RefCell<GlyphState>>,
     drawing_area: OnceCell<gtk::DrawingArea>,
     hovering: Cell<Option<(usize, usize)>>,
@@ -508,7 +510,8 @@ impl ObjectImpl for GlyphEditArea {
                 (p.units_per_em, p.x_height, p.cap_height, p.ascender, p.descender)
             };
             let f = EM_SQUARE_PIXELS / units_per_em;
-            let glyph_width = f * obj.imp().glyph.get().unwrap().width.unwrap_or(units_per_em as i64) as f64;
+            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+            let glyph_width = f * glyph_state.glyph.width.unwrap_or(units_per_em as i64) as f64;
 
             if obj.imp().resized.get() {
                 obj.imp().resized.set(false);
@@ -584,7 +587,6 @@ impl ObjectImpl for GlyphEditArea {
 
             /* Draw the glyph */
 
-            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
             let options = GlyphDrawingOptions {
                 scale: EM_SQUARE_PIXELS / units_per_em,
                 origin: (0.0, 0.0),
@@ -979,7 +981,12 @@ impl ObjectImpl for GlyphEditArea {
     fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             "tab-title" => {
-                if let Some(name) = obj.imp().glyph.get().map(|g| g.name_markup()) {
+                if let Some(name) = obj
+                    .imp()
+                    .glyph_state
+                    .get()
+                    .map(|s| s.borrow().glyph.name_markup())
+                {
                     format!("edit <i>{}</i>", name).to_value()
                 } else {
                     "edit glyph".to_value()
@@ -1033,7 +1040,11 @@ glib::wrapper! {
 }
 
 impl GlyphEditView {
-    pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
+    pub fn new(
+        app: gtk::Application,
+        project: Arc<Mutex<Option<Project>>>,
+        glyph: Rc<RefCell<Glyph>>,
+    ) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp()
             .glyph_state
