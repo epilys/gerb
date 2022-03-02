@@ -613,16 +613,16 @@ impl ObjectImpl for GlyphEditArea {
                     let p = cp.position;
                     match &cp.kind {
                         Endpoint { .. } => {
-                            cr.rectangle(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 5., 5.);
+                            cr.rectangle(p.0 as f64 * f - 2.5, p.1 as f64 * f - 2.5, 5., 5.);
                             cr.stroke().unwrap();
                         }
                         Handle { ref end_points } => {
-                            cr.arc(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5, 2.0, 0., 2.*std::f64::consts::PI);
+                            cr.arc(p.0 as f64 * f, p.1 as f64 * f, 2.0, 0., 2.0 * std::f64::consts::PI);
                             cr.fill().unwrap();
                             for ep in end_points {
                                 let ep = glyph_state.points[*ep].position;
-                                cr.move_to(p.0 as f64* f - 2.5, p.1 as f64* f - 2.5);
-                                cr.line_to(ep.0 as f64* f, ep.1 as f64* f);
+                                cr.move_to(p.0 as f64 * f, p.1 as f64 * f);
+                                cr.line_to(ep.0 as f64 * f, ep.1 as f64 * f);
                                 cr.stroke().unwrap();
                             }
                         }
