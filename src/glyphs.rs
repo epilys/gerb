@@ -142,9 +142,7 @@ impl Eq for Glyph {}
 
 impl Default for Glyph {
     fn default() -> Self {
-        let g = glif::Glif::default();
-        let g: Glyph = g.into();
-        g
+        Glyph::new_empty("space", ' ')
         /*
         let curves = vec![
             Bezier::new(vec![(54, 72), (55, 298)]),
@@ -279,15 +277,16 @@ impl Glyph {
                     eprintln!("couldn't parse {}: {}", entry.path().display(), err);
                 }
                 Ok(g) => {
-                    let mut g: Glyph = g.into();
-                    g.glif_source = s;
-                    let has_components = !g.components.is_empty();
-                    let name = g.name.clone();
-                    let g = Rc::new(RefCell::new(g));
-                    if has_components {
-                        glyphs_with_refs.push(g.clone());
+                    for mut g in g.into_iter() {
+                        g.glif_source = s.clone();
+                        let has_components = !g.components.is_empty();
+                        let name = g.name.clone();
+                        let g = Rc::new(RefCell::new(g));
+                        if has_components {
+                            glyphs_with_refs.push(g.clone());
+                        }
+                        ret.insert(name.into(), g);
                     }
-                    ret.insert(name.into(), g);
                 }
             }
         }
@@ -538,7 +537,7 @@ mod glif {
     use crate::unicode::names::CharName;
     use serde::Deserialize;
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     #[serde(rename_all = "lowercase")]
     enum PointKind {
         /// A point of this type MUST be the first in a contour. The reverse is not true: a contour does not necessarily start with a move point. When a contour does start with a move point, it signifies the beginning of an open contour. A closed contour does not start with a move and is defined as a cyclic list of points, with no predominant start point. There is always a next point and a previous point. For this purpose the list of points can be seen as endless in both directions. The actual list of points can be rotated arbitrarily (by removing the first N points and appending them at the end) while still describing the same outline.
@@ -559,7 +558,7 @@ mod glif {
         }
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct Point {
         x: i64,
         y: i64,
@@ -596,13 +595,13 @@ mod glif {
         }
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct Contour {
         #[serde(rename = "$value", default)]
         point: Vec<Point>,
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     #[serde(rename_all = "camelCase")]
     struct Component {
         base: String,
@@ -624,42 +623,42 @@ mod glif {
         1.0
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     #[serde(rename_all = "lowercase")]
     enum OutlineEntry {
         Contour(Contour),
         Component(Component),
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct Anchor {
         name: String,
         x: i64,
         y: i64,
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct Outline {
         #[serde(rename = "$value", default)]
         countours: Vec<OutlineEntry>,
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct Unicode {
         hex: String,
     }
 
-    #[derive(Debug, Deserialize, PartialEq, Default)]
+    #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
     struct Advance {
         width: i64,
     }
 
-    #[derive(Debug, Deserialize, PartialEq)]
+    #[derive(Debug, Clone, Deserialize, PartialEq)]
     pub struct Glif {
         name: String,
         format: Option<String>,
         #[serde(default)]
-        unicode: Option<Unicode>,
+        unicode: Vec<Unicode>,
         #[serde(default)]
         advance: Option<Advance>,
         #[serde(default)]
@@ -668,25 +667,44 @@ mod glif {
         anchors: Vec<Anchor>,
     }
 
-    impl Into<super::Glyph> for Glif {
-        fn into(self) -> super::Glyph {
+    pub struct GlifIterator {
+        glif: Glif,
+        kinds: Vec<(super::GlyphKind, Option<crate::unicode::names::Name>)>,
+    }
+
+    impl IntoIterator for Glif {
+        type Item = super::Glyph;
+        type IntoIter = GlifIterator;
+
+        fn into_iter(mut self) -> Self::IntoIter {
+            let unicodes = std::mem::take(&mut self.unicode);
+
+            let kinds = if unicodes.is_empty() {
+                vec![(super::GlyphKind::Component, None)]
+            } else {
+                unicodes
+                    .into_iter()
+                    .filter_map(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
+                    .filter_map(|n| n.try_into().ok())
+                    .map(|val| (super::GlyphKind::Char(val), val.char_name()))
+                    .collect::<Vec<_>>()
+            };
+            GlifIterator { glif: self, kinds }
+        }
+    }
+
+    impl Iterator for GlifIterator {
+        type Item = super::Glyph;
+
+        fn next(&mut self) -> Option<Self::Item> {
             use super::{Bezier, Glyph};
-            let Self {
+            let (kind, name2) = self.kinds.pop()?;
+            let Glif {
                 name,
-                unicode,
                 outline,
                 advance,
                 ..
-            } = self;
-
-            let (kind, name2) = if let Some(val) = unicode
-                .and_then(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
-                .and_then(|n| n.try_into().ok())
-            {
-                (super::GlyphKind::Char(val), val.char_name())
-            } else {
-                (super::GlyphKind::Component, None)
-            };
+            } = self.glif.clone();
             let mut ret = Glyph {
                 name: name.into(),
                 name2,
@@ -830,7 +848,7 @@ mod glif {
                 }
             }
 
-            ret
+            Some(ret)
         }
     }
 
