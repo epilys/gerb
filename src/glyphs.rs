@@ -27,7 +27,7 @@ use std::rc::{Rc, Weak};
 
 use crate::unicode::names::CharName;
 
-use gtk::cairo::Context;
+use gtk::cairo::{Context, Matrix};
 pub type Point = (i64, i64);
 
 #[derive(Debug, Clone)]
@@ -86,6 +86,10 @@ pub struct Component {
     base: Weak<RefCell<Glyph>>,
     x_offset: i64,
     y_offset: i64,
+    x_scale: f64,
+    xy_scale: f64,
+    yx_scale: f64,
+    y_scale: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -221,21 +225,19 @@ impl Default for Glyph {
 
 #[derive(Clone, Copy)]
 pub struct GlyphDrawingOptions {
-    pub scale: f64,
-    pub origin: (f64, f64),
     pub outline: (f64, f64, f64, f64),
     pub inner_fill: Option<(f64, f64, f64, f64)>,
     pub highlight: Option<(usize, usize)>,
+    pub matrix: Matrix,
 }
 
 impl Default for GlyphDrawingOptions {
     fn default() -> Self {
         Self {
-            scale: 1.,
-            origin: (0., 0.),
             outline: (1., 1., 1., 1.),
             inner_fill: None,
             highlight: None,
+            matrix: Matrix::identity(),
         }
     }
 }
@@ -325,18 +327,17 @@ impl Glyph {
             return;
         }
         let GlyphDrawingOptions {
-            scale: f,
-            origin: (x, y),
             outline,
             inner_fill,
             highlight: _,
+            matrix,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
-        cr.move_to(x, y);
+        cr.transform(matrix);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
         cr.set_line_width(2.0);
-        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64 * f + x, p.1 as f64 * f + y) };
+        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64, p.1 as f64) };
         for (_ic, contour) in self.contours.iter().enumerate() {
             let mut pen_position: Option<(f64, f64)> = None;
             if !contour.open {
@@ -407,6 +408,23 @@ impl Glyph {
                 }
             }
         }
+        for component in self.components.iter() {
+            if let Some(rc) = component.base.upgrade() {
+                let glyph = rc.borrow();
+                cr.save().unwrap();
+                let matrix = Matrix::new(
+                    component.x_scale,
+                    component.xy_scale,
+                    component.yx_scale,
+                    component.y_scale,
+                    component.x_offset as f64,
+                    -component.y_offset as f64,
+                );
+                glyph.draw(cr, GlyphDrawingOptions { matrix, ..options });
+                cr.restore().expect("Invalid cairo surface state");
+            }
+        }
+
         if let Some(inner_fill) = inner_fill {
             cr.save().unwrap();
             cr.close_path();
@@ -416,183 +434,6 @@ impl Glyph {
         }
         cr.stroke().expect("Invalid cairo surface state");
         cr.restore().expect("Invalid cairo surface state");
-    }
-
-    pub fn draw2(&self, cr: &Context, options: GlyphDrawingOptions) {
-        if self.is_empty() {
-            return;
-        }
-        let GlyphDrawingOptions {
-            scale: f,
-            origin: (x, y),
-            outline,
-            inner_fill: _,
-            highlight,
-        } = options;
-
-        cr.save().expect("Invalid cairo surface state");
-        cr.move_to(x, y);
-        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
-        cr.set_line_width(2.0);
-        for (ic, contour) in self.contours.iter().enumerate() {
-            let mut strokes = vec![];
-            let mut highlight_strokes = vec![];
-            let mut temp_strokes = vec![];
-            let mut pen_position: Option<(bool, (f64, f64))> = None;
-            if !contour.open {
-                if let Some((smooth, point)) = contour
-                    .curves
-                    .last()
-                    .and_then(|b| b.points.last().map(|p| (b.smooth, p)))
-                {
-                    let point = (point.0 as f64, point.1 as f64);
-                    pen_position = Some((smooth, point));
-                }
-            }
-
-            for (jc, c) in contour.curves.iter().enumerate() {
-                if c.smooth && pen_position.is_some() {
-                    pen_position.as_mut().unwrap().0 = c.smooth;
-                }
-
-                let temp_bezier: Option<(bool, Bezier)> =
-                    if let Some((true, prev_point)) = pen_position.as_ref() {
-                        let prev_point = *prev_point;
-                        pen_position.take();
-                        let mut points = c.points.clone();
-                        points.insert(0, (prev_point.0 as i64, prev_point.1 as i64));
-                        Some((false, Bezier::new(true, points)))
-                    } else {
-                        None
-                    };
-
-                if let Some((is_temp, curv)) = temp_bezier
-                    .as_ref()
-                    .map(|(t, b)| (*t, b))
-                    .into_iter()
-                    .chain(Some((false, c)).into_iter())
-                    .next()
-                {
-                    let prev_point = curv.points[0];
-                    let mut prev_point = (prev_point.0 as f64, prev_point.1 as f64);
-                    let mut sample = 0;
-                    for t in (0..100).step_by(1) {
-                        let t = (t as f64) / 100.;
-                        if let Some(new_point) = curv.get_point(t) {
-                            let new_point = (new_point.0 as f64, new_point.1 as f64);
-                            if sample == 0 {
-                                if let Some((_smooth, prev_position)) = pen_position.take() {
-                                    if highlight == Some((ic, jc)) {
-                                        highlight_strokes.push((prev_position, new_point));
-                                    }
-                                    strokes.push((prev_position, new_point));
-                                    if is_temp {
-                                        temp_strokes.push((prev_position, new_point));
-                                    }
-                                }
-                                //println!("{:?} {:?}", prev_point, new_point);
-                                strokes.push((
-                                    (prev_point.0, prev_point.1),
-                                    (new_point.0, new_point.1),
-                                ));
-                                if highlight == Some((ic, jc)) {
-                                    highlight_strokes.push((
-                                        (prev_point.0, prev_point.1),
-                                        (new_point.0, new_point.1),
-                                    ));
-                                }
-                                if is_temp {
-                                    temp_strokes.push((
-                                        (prev_point.0, prev_point.1),
-                                        (new_point.0, new_point.1),
-                                    ));
-                                }
-
-                                sample = 5;
-                                prev_point = new_point;
-                            }
-                            sample -= 1;
-                        }
-                    }
-                    let new_point = *curv.points.last().unwrap();
-                    let new_point = (new_point.0 as f64, new_point.1 as f64);
-                    strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
-                    if highlight == Some((ic, jc)) {
-                        strokes.push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
-                    }
-                    if is_temp {
-                        temp_strokes
-                            .push(((prev_point.0, prev_point.1), (new_point.0, new_point.1)));
-                    }
-                    pen_position = Some((c.smooth, prev_point));
-                }
-            }
-            cr.new_path();
-            let mut prev_point = (x, y);
-            for ((ax, ay), (bx, by)) in &strokes {
-                if ((prev_point.0 - *ax).powi(2) + (prev_point.1 - *ay).powi(2)).sqrt()
-                    > f64::EPSILON
-                {
-                    cr.move_to(ax * f + x, ay * f + y);
-                }
-                prev_point = (*bx, *by);
-                cr.line_to(bx * f + x, by * f + y);
-            }
-            /*
-            if let Some(inner_fill) = inner_fill {
-                cr.save().unwrap();
-                cr.close_path();
-                cr.set_source_rgba(inner_fill.0, inner_fill.1, inner_fill.2, inner_fill.3);
-                cr.fill_preserve().expect("Invalid cairo surface state");
-                cr.restore().expect("Invalid cairo surface state");
-            }
-            */
-            cr.stroke().expect("Invalid cairo surface state");
-
-            if !highlight_strokes.is_empty() {
-                cr.save().unwrap();
-                cr.set_source_rgba(1., 0., 0., 0.8);
-                cr.new_path();
-                let mut prev_point = (x, y);
-                for ((ax, ay), (bx, by)) in &highlight_strokes {
-                    if ((prev_point.0 - *ax).powi(2) + (prev_point.1 - *ay).powi(2)).sqrt()
-                        > f64::EPSILON
-                    {
-                        cr.move_to(ax * f + x, ay * f + y);
-                    }
-                    prev_point = (*bx, *by);
-                    cr.line_to(bx * f + x, by * f + y);
-                }
-                cr.stroke().expect("Invalid cairo surface state");
-                cr.restore().expect("Invalid cairo surface state");
-            }
-            if !temp_strokes.is_empty() {
-                cr.save().unwrap();
-                cr.set_source_rgba(0., 1., 0., 0.8);
-                cr.new_path();
-                let mut prev_point = (x, y);
-                for ((ax, ay), (bx, by)) in &temp_strokes {
-                    if ((prev_point.0 - *ax).powi(2) + (prev_point.1 - *ay).powi(2)).sqrt()
-                        > f64::EPSILON
-                    {
-                        cr.move_to(ax * f + x, ay * f + y);
-                    }
-                    prev_point = (*bx, *by);
-                    cr.line_to(bx * f + x, by * f + y);
-                }
-                cr.stroke().expect("Invalid cairo surface state");
-                cr.restore().expect("Invalid cairo surface state");
-            }
-        }
-        cr.restore().expect("Invalid cairo surface state");
-        /*
-        cr.set_source_rgb(0.0, 0.0, 0.0);
-        cr.set_line_width(0.005);
-        for &(x, y) in &c.points {
-        cr.rectangle(x as f64 / width, y as f64 / height, 0.001, 0.001);
-        cr.stroke_preserve().expect("Invalid cairo surface state");
-        }
-        */
     }
 
     pub fn into_cubic(&mut self) {
@@ -651,11 +492,10 @@ impl Glyph {
         let ctx = gtk::cairo::Context::new(&surface)?;
 
         let options = GlyphDrawingOptions {
-            scale: 1.0,
-            origin: (0., 0.),
             outline: (0., 0., 0., 1.),
             inner_fill: None,
             highlight: None,
+            ..Default::default()
         };
         self.draw(&ctx, options);
         surface.flush();
@@ -664,7 +504,8 @@ impl Glyph {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.contours.is_empty() || self.contours.iter().all(|c| c.curves.is_empty())
+        (self.contours.is_empty() || self.contours.iter().all(|c| c.curves.is_empty()))
+            && self.components.is_empty()
     }
 
     pub fn name_markup(&self) -> gtk::glib::GString {
@@ -769,6 +610,18 @@ mod glif {
         x_offset: i64,
         #[serde(default)]
         y_offset: i64,
+        #[serde(default = "one_fn")]
+        x_scale: f64,
+        #[serde(default)]
+        xy_scale: f64,
+        #[serde(default)]
+        yx_scale: f64,
+        #[serde(default = "one_fn")]
+        y_scale: f64,
+    }
+
+    const fn one_fn() -> f64 {
+        1.0
     }
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -852,12 +705,20 @@ mod glif {
                             base,
                             x_offset,
                             y_offset,
+                            x_scale,
+                            xy_scale,
+                            yx_scale,
+                            y_scale,
                         }) => {
                             ret.components.push(super::Component {
                                 base_name: base,
                                 base: std::rc::Weak::new(),
                                 x_offset,
                                 y_offset,
+                                x_scale,
+                                xy_scale,
+                                yx_scale,
+                                y_scale,
                             });
                             continue;
                         }

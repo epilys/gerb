@@ -587,9 +587,9 @@ impl ObjectImpl for GlyphEditArea {
 
             /* Draw the glyph */
 
+            let mut matrix = gtk::cairo::Matrix::identity();
+            matrix.scale(EM_SQUARE_PIXELS / units_per_em, EM_SQUARE_PIXELS / units_per_em);
             let options = GlyphDrawingOptions {
-                scale: EM_SQUARE_PIXELS / units_per_em,
-                origin: (0.0, 0.0),
                 outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
                 inner_fill: if inner_fill {
                     Some((0., 0., 0., 1.))
@@ -597,6 +597,7 @@ impl ObjectImpl for GlyphEditArea {
                     None
                 },
                 highlight: obj.imp().hovering.get(),
+                matrix
             };
             glyph_state.glyph.draw(cr, options);
             if let Tool::BezierPen { ref state } = glyph_state.tool {
