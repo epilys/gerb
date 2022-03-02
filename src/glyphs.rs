@@ -20,7 +20,10 @@
  */
 
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::rc::{Rc, Weak};
 
 use crate::unicode::names::CharName;
 
@@ -77,6 +80,14 @@ pub struct Contour {
     pub curves: Vec<Bezier>,
 }
 
+#[derive(Debug, Clone)]
+pub struct Component {
+    base_name: String,
+    base: Weak<RefCell<Glyph>>,
+    x_offset: i64,
+    y_offset: i64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum GlyphKind {
     Char(char),
@@ -90,6 +101,7 @@ pub struct Glyph {
     pub kind: GlyphKind,
     pub width: Option<i64>,
     pub contours: Vec<Contour>,
+    pub components: Vec<Component>,
     pub glif_source: String,
 }
 
@@ -229,11 +241,15 @@ impl Default for GlyphDrawingOptions {
 }
 
 impl Glyph {
-    pub fn from_ufo(path: &str) -> Result<Vec<Self>, Box<dyn std::error::Error>> {
+    pub fn from_ufo(
+        path: &str,
+    ) -> Result<HashMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
         use std::path::Path;
 
         //assert!(path.ends_with(".ufo"));
-        let mut ret = vec![];
+        let mut ret: HashMap<String, Rc<RefCell<Glyph>>> = HashMap::default();
+
+        let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
         let path = Path::new(path);
         let path = path.join("glyphs");
 
@@ -263,7 +279,22 @@ impl Glyph {
                 Ok(g) => {
                     let mut g: Glyph = g.into();
                     g.glif_source = s;
-                    ret.push(g);
+                    let has_components = !g.components.is_empty();
+                    let name = g.name.clone();
+                    let g = Rc::new(RefCell::new(g));
+                    if has_components {
+                        glyphs_with_refs.push(g.clone());
+                    }
+                    ret.insert(name.into(), g);
+                }
+            }
+        }
+
+        for g in glyphs_with_refs {
+            let mut deref = g.borrow_mut();
+            for c in deref.components.iter_mut() {
+                if let Some(o) = ret.get(&c.base_name) {
+                    c.base = Rc::downgrade(o);
                 }
             }
         }
@@ -279,6 +310,7 @@ impl Glyph {
                 open: false,
                 curves,
             }],
+            components: vec![],
             width: None,
             glif_source: String::new(),
         }
@@ -646,6 +678,7 @@ impl Glyph {
         }
     }
 
+    /*
     pub fn points(&self) -> Vec<Point> {
         self.contours
             .clone()
@@ -654,6 +687,7 @@ impl Glyph {
             .flatten()
             .collect::<Vec<Point>>()
     }
+    */
 }
 
 mod glif {
@@ -728,15 +762,33 @@ mod glif {
     }
 
     #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(rename_all = "camelCase")]
+    struct Component {
+        base: String,
+        #[serde(default)]
+        x_offset: i64,
+        #[serde(default)]
+        y_offset: i64,
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
+    #[serde(rename_all = "lowercase")]
+    enum OutlineEntry {
+        Contour(Contour),
+        Component(Component),
+    }
+
+    #[derive(Debug, Deserialize, PartialEq)]
     struct Anchor {
         name: String,
         x: i64,
         y: i64,
     }
+
     #[derive(Debug, Deserialize, PartialEq)]
     struct Outline {
         #[serde(rename = "$value", default)]
-        countours: Vec<Contour>,
+        countours: Vec<OutlineEntry>,
     }
 
     #[derive(Debug, Deserialize, PartialEq)]
@@ -788,11 +840,29 @@ mod glif {
                 kind,
                 width: advance.map(|a| a.width),
                 contours: vec![],
+                components: vec![],
                 glif_source: String::new(),
             };
 
             if let Some(outline) = outline {
                 for contour in outline.countours {
+                    let contour = match contour {
+                        OutlineEntry::Contour(c) => c,
+                        OutlineEntry::Component(Component {
+                            base,
+                            x_offset,
+                            y_offset,
+                        }) => {
+                            ret.components.push(super::Component {
+                                base_name: base,
+                                base: std::rc::Weak::new(),
+                                x_offset,
+                                y_offset,
+                            });
+                            continue;
+                        }
+                    };
+
                     let mut contour_acc = vec![];
                     let mut open = false;
                     let mut points = contour

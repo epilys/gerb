@@ -19,10 +19,12 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use crate::glyphs::Glyph;
 
@@ -41,7 +43,7 @@ pub struct Project {
     pub name: String,
     pub modified: bool,
     pub last_saved: Option<u64>,
-    pub glyphs: HashMap<String, Glyph>,
+    pub glyphs: HashMap<String, Rc<RefCell<Glyph>>>,
     pub path: Option<PathBuf>,
     pub family_name: String,
     pub style_name: String,
@@ -220,10 +222,7 @@ impl Project {
             name: family_name.clone(),
             modified: false,
             last_saved: None,
-            glyphs: glyphs?
-                .into_iter()
-                .map(|g| (g.name.to_string(), g))
-                .collect::<HashMap<String, Glyph>>(),
+            glyphs: glyphs?,
             path: Some(path),
             family_name,
             style_name,

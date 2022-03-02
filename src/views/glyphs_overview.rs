@@ -26,6 +26,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
@@ -219,7 +220,7 @@ impl GlyphsOverview {
         let project_copy = project.clone();
         let mut widgets = vec![];
         if let Some(p) = project.lock().unwrap().as_ref() {
-            let mut glyphs = p.glyphs.values().collect::<Vec<&Glyph>>();
+            let mut glyphs = p.glyphs.values().collect::<Vec<&Rc<RefCell<Glyph>>>>();
             glyphs.sort();
             for glyph in glyphs {
                 let glyph_box = GlyphBoxItem::new(app.clone(), project_copy.clone(), glyph.clone());
@@ -260,7 +261,7 @@ impl GlyphsOverview {
             grid.remove(&c);
         }
         for c in self.imp().widgets.get().unwrap() {
-            let glyph = c.imp().glyph.get().unwrap();
+            let glyph = c.imp().glyph.get().unwrap().borrow();
             if hide_empty && glyph.is_empty() {
                 continue;
             }
@@ -293,7 +294,7 @@ impl GlyphsOverview {
 pub struct GlyphBox {
     pub app: OnceCell<gtk::Application>,
     pub project: OnceCell<Arc<Mutex<Option<Project>>>>,
-    pub glyph: OnceCell<Glyph>,
+    pub glyph: OnceCell<Rc<RefCell<Glyph>>>,
     pub focused: Cell<bool>,
     pub drawing_area: OnceCell<gtk::DrawingArea>,
 }
@@ -344,7 +345,7 @@ impl ObjectImpl for GlyphBox {
             cr.paint().expect("Invalid cairo surface state");
 
             let (x, y) = (0.01, 0.01);
-            let glyph = obj.imp().glyph.get().unwrap();
+            let glyph = obj.imp().glyph.get().unwrap().borrow();
             let c = &glyph.name;
             let label = match glyph.kind {
                 GlyphKind::Char(c) => c.to_string(),
@@ -469,7 +470,11 @@ glib::wrapper! {
 }
 
 impl GlyphBoxItem {
-    pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>, glyph: Glyph) -> Self {
+    pub fn new(
+        app: gtk::Application,
+        project: Arc<Mutex<Option<Project>>>,
+        glyph: Rc<RefCell<Glyph>>,
+    ) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();

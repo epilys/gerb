@@ -29,6 +29,8 @@ use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::{sync::Lazy, unsync::OnceCell};
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crate::app::GerbApp;
@@ -411,7 +413,7 @@ impl Window {
         );
     }
 
-    pub fn edit_glyph(&self, glyph: &crate::glyphs::Glyph) {
+    pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
         let widgets = self.widgets.get().unwrap();
         let mutex = self.project.get().unwrap();
         let edit_view = crate::views::GlyphEditView::new(
