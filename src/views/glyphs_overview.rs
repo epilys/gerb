@@ -42,6 +42,7 @@ pub struct GlyphsArea {
     grid: OnceCell<gtk::Grid>,
     cols: Cell<u32>,
     hide_empty: Cell<bool>,
+    zoom_factor: Cell<f64>,
     filter_input: RefCell<Option<String>>,
     widgets: OnceCell<Vec<GlyphBoxItem>>,
 }
@@ -78,14 +79,14 @@ impl ObjectImpl for GlyphsArea {
             .build();
         scrolled_window.set_child(Some(&grid));
         scrolled_window.connect_size_allocate(clone!(@weak obj => move |_scrolled_window, rect| {
-            let mut new_cols = rect.width() as u32 / GLYPH_BOX_WIDTH as u32;
+            let mut new_cols = rect.width() as u32 / ((obj.imp().zoom_factor.get()) * GLYPH_BOX_WIDTH) as u32;
             if new_cols < 4 {
                 new_cols = 4;
             }
             let prev_cols = obj.imp().cols.get();
             if new_cols != prev_cols {
                 //println!("grid resized: {} -> {}", prev_cols, new_cols);
-                obj.imp().cols.set(new_cols);
+                obj.imp().cols.set(new_cols.saturating_sub(1));
                 obj.update_grid();
             }
         }));
@@ -100,6 +101,23 @@ impl ObjectImpl for GlyphsArea {
         tool_palette.set_height_request(40);
         tool_palette.set_orientation(gtk::Orientation::Horizontal);
         let glyph_overview_tools = gtk::ToolItemGroup::new("");
+        /*
+        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 2.0, 0.05);
+        zoom_scale.set_value(1.0);
+        zoom_scale.connect_value_changed(clone!(@weak obj => move |_self| {
+            let value = _self.value();
+            std::dbg!(value);
+
+            let imp = obj.imp();
+            imp.zoom_factor.set(value);
+            obj.update_grid();
+        }));
+        let zoom_scale = gtk::ToolItem::builder()
+            .expand(true)
+            .visible(true)
+            .child(&zoom_scale)
+            .build();
+        */
         let hide_empty_button = gtk::ToggleToolButton::builder()
             .label("Hide empty glyphs")
             .valign(gtk::Align::Center)
@@ -112,6 +130,7 @@ impl ObjectImpl for GlyphsArea {
             obj.update_grid();
             imp.grid.get().unwrap().queue_draw();
         }));
+        //glyph_overview_tools.add(&zoom_scale);
         glyph_overview_tools.add(&hide_empty_button);
         let add_glyph_button = gtk::ToggleToolButton::builder()
             .label("Add glyph")
@@ -158,6 +177,7 @@ impl ObjectImpl for GlyphsArea {
         box_.add(&scrolled_window);
         obj.set_child(Some(&box_));
         self.hide_empty.set(false);
+        self.zoom_factor.set(1.0);
 
         self.grid
             .set(grid)
@@ -241,6 +261,7 @@ impl GlyphsOverview {
 
     fn update_grid(&self) {
         let hide_empty: bool = self.imp().hide_empty.get();
+        let zoom_factor: f64 = self.imp().zoom_factor.get();
         let filter_input = self.imp().filter_input.borrow();
         let filter_input_uppercase: Option<String> =
             filter_input.as_ref().map(|s| s.to_ascii_uppercase());
@@ -261,6 +282,10 @@ impl GlyphsOverview {
             grid.remove(&c);
         }
         for c in self.imp().widgets.get().unwrap() {
+            c.set_height_request((zoom_factor * GLYPH_BOX_HEIGHT) as i32);
+            c.set_width_request((zoom_factor * GLYPH_BOX_WIDTH) as i32);
+            //c.queue_draw();
+            c.imp().zoom_factor.set(zoom_factor);
             let glyph = c.imp().glyph.get().unwrap().borrow();
             if hide_empty && glyph.is_empty() {
                 continue;
@@ -296,6 +321,7 @@ pub struct GlyphBox {
     pub project: OnceCell<Arc<Mutex<Option<Project>>>>,
     pub glyph: OnceCell<Rc<RefCell<Glyph>>>,
     pub focused: Cell<bool>,
+    pub zoom_factor: Cell<f64>,
     pub drawing_area: OnceCell<gtk::DrawingArea>,
 }
 
@@ -314,8 +340,8 @@ impl ObjectSubclass for GlyphBox {
 impl ObjectImpl for GlyphBox {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        obj.set_height_request(140);
-        obj.set_width_request(110);
+        obj.set_height_request(GLYPH_BOX_HEIGHT as _);
+        obj.set_width_request(GLYPH_BOX_WIDTH as _);
         obj.set_can_focus(true);
         obj.set_expand(false);
 
@@ -338,6 +364,7 @@ impl ObjectImpl for GlyphBox {
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
+            let zoom_factor: f64 = obj.imp().zoom_factor.get();
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
             //cr.set_source_rgb(r, g, b);
@@ -352,7 +379,7 @@ impl ObjectImpl for GlyphBox {
                 GlyphKind::Component => c.to_string(),
             };
             cr.set_line_width(1.5);
-            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (GLYPH_BOX_WIDTH, GLYPH_BOX_HEIGHT), 1.0, 1.5);
+            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
             let glyph_width = glyph.width.unwrap_or(1000) as f64 * (width * 0.8) / 1000.;
             if is_focused {
                 cr.set_source_rgb(1., 250./255., 141./255.);
@@ -365,7 +392,7 @@ impl ObjectImpl for GlyphBox {
             cr.clip();
             cr.new_path();
             cr.set_source_rgba(0., 0., 0., 0.4);
-            cr.set_font_size(62.);
+            cr.set_font_size(zoom_factor * 62.);
             let sextents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
@@ -398,7 +425,7 @@ impl ObjectImpl for GlyphBox {
             cr.reset_clip();
 
             cr.set_source_rgb(0., 0., 0.);
-            cr.set_font_size(12.);
+            cr.set_font_size(zoom_factor * 12.);
             let sextents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
@@ -458,6 +485,7 @@ impl ObjectImpl for GlyphBox {
             .set(drawing_area)
             .expect("Failed to initialize window state");
         self.focused.set(false);
+        self.zoom_factor.set(1.0);
     }
 }
 
