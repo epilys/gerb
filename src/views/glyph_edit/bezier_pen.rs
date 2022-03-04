@@ -19,7 +19,11 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::glyphs::{Bezier, Contour, GlyphDrawingOptions, Point};
+use crate::glyphs::{Contour, GlyphDrawingOptions};
+use crate::utils::{
+    curves::{Bezier, Point},
+    distance_between_two_points,
+};
 use gtk::cairo::Context;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -45,14 +49,6 @@ impl Default for State {
             first_point: None,
         }
     }
-}
-
-fn distance_between_two_points(p_k: Point, p_l: Point) -> f64 {
-    let (x_k, y_k) = p_k;
-    let (x_l, y_l) = p_l;
-    let xlk = x_l - x_k;
-    let ylk = y_l - y_k;
-    f64::sqrt((xlk * xlk + ylk * ylk) as f64)
 }
 
 impl State {
@@ -114,9 +110,9 @@ impl State {
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
+        cr.set_line_width(4.0);
         cr.transform(matrix);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
-        cr.set_line_width(2.0);
         let draw_endpoint = |p: (f64, f64)| {
             cr.rectangle(p.0 - 2.5, p.1 - 2.5, 5., 5.);
             cr.stroke().expect("Invalid cairo surface state");
@@ -198,7 +194,7 @@ impl State {
         }
         let (pos_x, pos_y) = p_fn(cursor_position);
         cr.set_dash(&[3., 2., 1.], 1.);
-        cr.set_line_width(1.5);
+        cr.set_line_width(2.5);
         cr.set_source_rgba(outline.0, outline.1, outline.2, 0.5 * outline.3);
         match self.current_curve.degree() {
             None => {
@@ -232,7 +228,7 @@ impl State {
                 let b = p_fn(self.current_curve.points[1]);
                 let c = p_fn(self.current_curve.points[2]);
                 let d = (pos_x, pos_y);
-                cr.set_line_width(1.5);
+                cr.set_line_width(2.5);
                 cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
                 cr.stroke().expect("Invalid cairo surface state");
                 cr.set_dash(&[], 0.);

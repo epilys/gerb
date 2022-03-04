@@ -448,6 +448,7 @@ impl ObjectImpl for GlyphEditArea {
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
                     }
+
                     let pts = glyph_state.kd_tree.query(position, 10);
                     if pts.is_empty() {
                         obj.imp().hovering.set(None);
@@ -464,22 +465,28 @@ impl ObjectImpl for GlyphEditArea {
                             ));
                         }
                     } else if let Some(screen) = _self.window() {
-                        let glyph = &glyph_state.glyph;
-                        for (ic, contour) in glyph.contours.iter().enumerate() {
-                            for (jc, curve) in contour.curves.iter().enumerate() {
-                                for p in &pts {
-                                    if curve.points.contains(&p.1) {
-                                        obj.imp().new_statusbar_message(&format!("{:?}", curve));
-                                        obj.imp().hovering.set(Some((ic, jc)));
-                                        break;
-                                    }
-                                }
-                            }
-                        }
                         let display = screen.display();
                         screen.set_cursor(Some(
                                 &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
                         ));
+                    }
+
+                    let glyph = &glyph_state.glyph;
+                    'hover: for (ic, contour) in glyph.contours.iter().enumerate() {
+                        for (jc, curve) in contour.curves.iter().enumerate() {
+                            if curve.on_curve_query(position, None) {
+                                obj.imp().new_statusbar_message(&format!("{:?}", curve));
+                                obj.imp().hovering.set(Some((ic, jc)));
+                                break 'hover;
+                            }
+                            for p in &pts {
+                                if curve.points.contains(&p.1) {
+                                    obj.imp().new_statusbar_message(&format!("{:?}", curve));
+                                    obj.imp().hovering.set(Some((ic, jc)));
+                                    break 'hover;
+                                }
+                            }
+                        }
                     }
                 }
                 obj.imp().mouse.set(event.position());

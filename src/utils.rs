@@ -22,6 +22,7 @@
 use gtk::cairo::Context;
 use std::f64::consts::PI;
 
+pub mod curves;
 pub mod range_query;
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
@@ -111,4 +112,17 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
     } else {
         None
     }
+}
+
+pub fn distance_between_two_points<K: Into<(i64, i64)>, L: Into<(i64, i64)>>(
+    p_k: K,
+    p_l: L,
+) -> f64 {
+    let p_k = p_k.into();
+    let p_l = p_l.into();
+    let (x_k, y_k) = p_k;
+    let (x_l, y_l) = p_l;
+    let xlk = x_l - x_k;
+    let ylk = y_l - y_k;
+    f64::sqrt((xlk * xlk + ylk * ylk) as f64)
 }
