@@ -26,53 +26,9 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::unicode::names::CharName;
+use crate::utils::curves::*;
 
 use gtk::cairo::{Context, Matrix};
-pub type Point = (i64, i64);
-
-#[derive(Debug, Clone)]
-pub struct Bezier {
-    pub smooth: bool,
-    pub points: Vec<Point>,
-}
-
-impl Bezier {
-    pub fn new(smooth: bool, points: Vec<Point>) -> Self {
-        Bezier { smooth, points }
-    }
-
-    pub fn get_point(&self, t: f64) -> Option<Point> {
-        draw_curve_point(&self.points, t)
-    }
-
-    pub fn degree(&self) -> Option<usize> {
-        if self.points.is_empty() {
-            None
-        } else {
-            Some(self.points.len() - 1)
-        }
-    }
-}
-
-fn draw_curve_point(points: &[Point], t: f64) -> Option<Point> {
-    if points.is_empty() {
-        return None;
-    }
-    if points.len() == 1 {
-        //std::dbg!(points[0]);
-        return Some(points[0]);
-    }
-    let mut new_points = Vec::with_capacity(points.len() - 1);
-    for chunk in points.windows(2) {
-        let p1 = chunk[0];
-        let p2 = chunk[1];
-        let x = (1. - t) * (p1.0 as f64) + t * (p2.0 as f64);
-        let y = (1. - t) * (p1.1 as f64) + t * (p2.1 as f64);
-        new_points.push((x as i64, y as i64));
-    }
-    assert_eq!(new_points.len(), points.len() - 1);
-    draw_curve_point(&new_points, t)
-}
 
 #[derive(Debug, Clone)]
 pub struct Contour {
@@ -328,17 +284,17 @@ impl Glyph {
         let GlyphDrawingOptions {
             outline,
             inner_fill,
-            highlight: _,
+            highlight,
             matrix,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
+        cr.set_line_width(4.0);
         cr.transform(matrix);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
-        cr.set_line_width(2.0);
         let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64, p.1 as f64) };
+        let mut pen_position: Option<(f64, f64)> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
-            let mut pen_position: Option<(f64, f64)> = None;
             if !contour.open {
                 if let Some(point) = contour.curves.last().and_then(|b| b.points.last()) {
                     let point = p_fn(*point);
@@ -431,7 +387,73 @@ impl Glyph {
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.restore().expect("Invalid cairo surface state");
         }
+
         cr.stroke().expect("Invalid cairo surface state");
+
+        for curv in highlight
+            .and_then(|(contour_idx, curve_idx)| {
+                self.contours
+                    .get(contour_idx)
+                    .map(|contour| &contour.curves[curve_idx])
+            })
+            .into_iter()
+        {
+            cr.set_source_rgba(1.0, 0., 0., 1.0);
+            let degree = curv.degree();
+            let degree = if let Some(v) = degree {
+                v
+            } else {
+                continue;
+            };
+            let point = p_fn(curv.points[0]);
+            cr.move_to(point.0, point.1);
+            match degree {
+                1 => {
+                    /* Line. */
+                    let new_point = p_fn(curv.points[1]);
+                    cr.line_to(new_point.0, new_point.1);
+                    pen_position = Some(new_point);
+                }
+                2 => {
+                    /* Quadratic. */
+                    let a = if let Some(v) = pen_position.take() {
+                        v
+                    } else {
+                        p_fn(curv.points[0])
+                    };
+                    let b = p_fn(curv.points[1]);
+                    let c = p_fn(curv.points[2]);
+                    cr.curve_to(
+                        2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
+                        2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
+                        2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
+                        2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
+                        c.0,
+                        c.1,
+                    );
+                    pen_position = Some(c);
+                }
+                3 => {
+                    /* Cubic */
+                    let _a = if let Some(v) = pen_position.take() {
+                        v
+                    } else {
+                        p_fn(curv.points[0])
+                    };
+                    let b = p_fn(curv.points[1]);
+                    let c = p_fn(curv.points[2]);
+                    let d = p_fn(curv.points[3]);
+                    cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
+                    pen_position = Some(d);
+                }
+                d => {
+                    eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
+                    pen_position = Some(p_fn(*curv.points.last().unwrap()));
+                    continue;
+                }
+            }
+            cr.stroke().expect("Invalid cairo surface state");
+        }
         cr.restore().expect("Invalid cairo surface state");
     }
 
