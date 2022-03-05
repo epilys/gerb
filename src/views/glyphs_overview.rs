@@ -72,12 +72,20 @@ impl ObjectImpl for GlyphsArea {
             .row_spacing(5)
             .build();
 
+        let overlay = gtk::Overlay::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .build();
+
         let scrolled_window = gtk::ScrolledWindow::builder()
             .expand(true)
             .visible(true)
             .can_focus(true)
+            .margin_top(5)
             .margin_start(5)
             .build();
+
         scrolled_window.set_child(Some(&grid));
         scrolled_window.connect_size_allocate(clone!(@weak obj => move |_scrolled_window, rect| {
             let mut new_cols = rect.width() as u32 / ((obj.imp().zoom_factor.get()) * GLYPH_BOX_WIDTH) as u32;
@@ -92,16 +100,13 @@ impl ObjectImpl for GlyphsArea {
             }
         }));
 
-        let box_ = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        box_.set_spacing(5);
-        box_.set_visible(true);
-        box_.set_expand(true);
-        let tool_palette = gtk::ToolPalette::new();
-        tool_palette.set_hexpand(true);
-        tool_palette.set_vexpand(false);
-        tool_palette.set_height_request(40);
-        tool_palette.set_orientation(gtk::Orientation::Horizontal);
-        let glyph_overview_tools = gtk::ToolItemGroup::new("");
+        let tool_palette = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        tool_palette.set_expand(false);
+        tool_palette.set_halign(gtk::Align::End);
+        tool_palette.set_valign(gtk::Align::End);
+        tool_palette.set_spacing(5);
+        tool_palette.set_visible(true);
+        tool_palette.set_can_focus(true);
         /*
         let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 2.0, 0.05);
         zoom_scale.set_value(1.0);
@@ -119,10 +124,12 @@ impl ObjectImpl for GlyphsArea {
             .child(&zoom_scale)
             .build();
         */
-        let hide_empty_button = gtk::ToggleToolButton::builder()
+        let hide_empty_button = gtk::CheckButton::builder()
             .label("Hide empty glyphs")
             .valign(gtk::Align::Center)
             .halign(gtk::Align::Start)
+            .visible(true)
+            .active(false)
             .build();
         hide_empty_button.connect_toggled(clone!(@weak obj => move |_| {
             let imp = obj.imp();
@@ -131,23 +138,27 @@ impl ObjectImpl for GlyphsArea {
             obj.update_grid();
             imp.grid.get().unwrap().queue_draw();
         }));
-        //glyph_overview_tools.add(&zoom_scale);
-        glyph_overview_tools.add(&hide_empty_button);
-        let add_glyph_button = gtk::ToggleToolButton::builder()
+
+        tool_palette.pack_start(&hide_empty_button, false, false, 0);
+
+        let add_glyph_button = gtk::Button::builder()
             .label("Add glyph")
             .valign(gtk::Align::Center)
             .halign(gtk::Align::Start)
+            .visible(true)
             .build();
+
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
         }));
-        glyph_overview_tools.add(&add_glyph_button);
-        let glyph_filter_tools = gtk::ToolItemGroup::new("Filter");
-        glyph_filter_tools.set_visible(true);
+
+        tool_palette.pack_start(&add_glyph_button, false, false, 0);
+
         let search_entry = gtk::Entry::builder()
             .expand(true)
             .visible(true)
             .placeholder_text("Filter glyph name")
             .build();
+
         search_entry.connect_changed(clone!(@weak obj => move |_self| {
             let imp = obj.imp();
             let filter_input = if _self.buffer().length() == 0 {
@@ -163,20 +174,35 @@ impl ObjectImpl for GlyphsArea {
                 imp.grid.get().unwrap().queue_draw();
             }
         }));
-        let search_bar = gtk::ToolItem::builder()
+
+        tool_palette.pack_start(&search_entry, false, false, 0);
+
+        /*let filter_pop = gtk::Popover::builder()
             .expand(true)
             .visible(true)
-            .child(&search_entry)
+            .modal(true)
+            .child(&tree)
             .build();
-        glyph_filter_tools.add(&search_bar);
-        tool_palette.add(&glyph_overview_tools);
-        tool_palette.add(&glyph_filter_tools);
+        tool_palette.pack_start(&filter_pop, false, false, 0);
+        */
+
         tool_palette
             .style_context()
             .add_class("glyphs_area_toolbar");
-        box_.add(&tool_palette);
-        box_.add(&scrolled_window);
-        obj.set_child(Some(&box_));
+
+        overlay.set_child(Some(&scrolled_window));
+        overlay.add_overlay(
+            &gtk::Expander::builder()
+                .child(&tool_palette)
+                .expanded(true)
+                .visible(true)
+                .can_focus(true)
+                .tooltip_text("Overview tools")
+                .halign(gtk::Align::End)
+                .valign(gtk::Align::End)
+                .build(),
+        );
+        obj.set_child(Some(&overlay));
         self.hide_empty.set(false);
         self.zoom_factor.set(1.0);
 
