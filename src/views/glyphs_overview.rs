@@ -26,6 +26,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
@@ -41,6 +42,9 @@ pub struct GlyphsArea {
     app: OnceCell<gtk::Application>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
     grid: OnceCell<gtk::Grid>,
+    tree: OnceCell<gtk::TreeView>,
+    tree_store: OnceCell<gtk::TreeStore>,
+    show_blocks: RefCell<HashMap<&'static str, bool>>,
     cols: Cell<u32>,
     hide_empty: Cell<bool>,
     zoom_factor: Cell<f64>,
@@ -177,14 +181,114 @@ impl ObjectImpl for GlyphsArea {
 
         tool_palette.pack_start(&search_entry, false, false, 0);
 
-        /*let filter_pop = gtk::Popover::builder()
+        let tree = gtk::TreeView::new();
+        tree.set_visible(true);
+        tree.set_grid_lines(gtk::TreeViewGridLines::Both);
+        let store = gtk::TreeStore::new(&[
+            bool::static_type(),
+            String::static_type(),
+            i64::static_type(),
+        ]);
+
+        let append_text_column = |tree: &gtk::TreeView| {
+            let column = gtk::TreeViewColumn::new();
+            let cell = gtk::CellRendererToggle::new();
+            cell.set_radio(false);
+            cell.set_active(true);
+            cell.set_activatable(true);
+            cell.connect_toggled(clone!(@weak store, @weak obj => move |_self, treepath| {
+                if let Some(iter) = store.iter(&treepath) {
+                    let prev_value: bool = store.value(&iter, 0).get().unwrap();
+                    std::dbg!(prev_value);
+                    std::dbg!(store.value(&iter, 1));
+                    let cat_value = store.value(&iter, 1);
+                    let block_category: &str = cat_value.get().unwrap();
+                    let new_value = !prev_value;
+                    store.set_value(&iter, 0, &new_value.to_value());
+                    let mut update = false;
+                    if let Some(v) = obj.imp().show_blocks.borrow_mut().get_mut(block_category) {
+                        *v = new_value;
+                        update = true;
+                    }
+                    if update {
+                    obj.update_grid();
+                    }
+                }
+                //_self.set_active(!_self.is_active());
+                //std::dbg!(treepath.indices());
+                //std::dbg!(_self, treepath);
+            }));
+            column.pack_start(&cell, true);
+            column.add_attribute(&cell, "active", 0);
+            tree.append_column(&column);
+
+            let column = gtk::TreeViewColumn::new();
+            let cell = gtk::CellRendererText::new();
+
+            column.pack_start(&cell, true);
+            column.add_attribute(&cell, "text", 1);
+            tree.append_column(&column);
+
+            let column = gtk::TreeViewColumn::new();
+            let cell = gtk::CellRendererText::new();
+
+            column.pack_start(&cell, true);
+            column.add_attribute(&cell, "text", 2);
+            tree.append_column(&column);
+        };
+        tree.set_model(Some(&store));
+        tree.set_headers_visible(false);
+        append_text_column(&tree);
+
+        let filter_pop_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(5)
             .expand(true)
             .visible(true)
-            .modal(true)
-            .child(&tree)
+            .can_focus(true)
             .build();
-        tool_palette.pack_start(&filter_pop, false, false, 0);
-        */
+        let tree_scrolled_window = gtk::ScrolledWindow::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .min_content_height(30)
+            .min_content_width(50)
+            .margin_top(5)
+            .margin_start(5)
+            .build();
+
+        tree_scrolled_window.set_child(Some(&tree));
+        let close_filter_pop_box = gtk::Button::builder()
+            .label("Close")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Center)
+            .visible(true)
+            .build();
+
+        filter_pop_box.pack_start(&close_filter_pop_box, false, false, 0);
+        filter_pop_box.pack_start(&tree_scrolled_window, true, true, 0);
+
+        let filter_pop = gtk::Popover::builder()
+            .expand(true)
+            .visible(false)
+            .modal(true)
+            .child(&filter_pop_box)
+            .relative_to(&tool_palette)
+            .build();
+        let show_filter_pop = gtk::Button::builder()
+            .label("Filter...")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Start)
+            .visible(true)
+            .build();
+        show_filter_pop.connect_clicked(clone!(@strong filter_pop => move |_| {
+            filter_pop.show();
+        }));
+        close_filter_pop_box.connect_clicked(clone!(@strong filter_pop => move |_| {
+            filter_pop.hide();
+        }));
+
+        tool_palette.pack_start(&show_filter_pop, false, false, 0);
 
         tool_palette
             .style_context()
@@ -205,6 +309,8 @@ impl ObjectImpl for GlyphsArea {
         obj.set_child(Some(&overlay));
         self.hide_empty.set(false);
         self.zoom_factor.set(1.0);
+        self.tree.set(tree).unwrap();
+        self.tree_store.set(store).unwrap();
 
         self.grid
             .set(grid)
@@ -283,12 +389,55 @@ impl GlyphsOverview {
         ret.imp().app.set(app).unwrap();
         ret.imp().widgets.set(widgets).unwrap();
         ret.imp().project.set(project).unwrap();
+        ret.update_grid();
+        ret.update_tree_store();
         ret
+    }
+
+    fn update_tree_store(&self) {
+        let tree_store = self.imp().tree_store.get().unwrap();
+        let mut show_blocks = self.imp().show_blocks.borrow_mut();
+        show_blocks.clear();
+        tree_store.clear();
+        let mut blocks_set: std::collections::HashMap<&'static str, usize> = Default::default();
+        for c in self.imp().widgets.get().unwrap() {
+            let glyph = c.imp().glyph.get().unwrap().borrow();
+            if let GlyphKind::Char(c) = glyph.kind {
+                if let Some(idx) = c.char_block() {
+                    *blocks_set.entry(UNICODE_BLOCKS[idx].1).or_default() += 1;
+                } else {
+                    *blocks_set.entry("Unknown").or_default() += 1;
+                }
+            } else {
+                *blocks_set.entry("Components").or_default() += 1;
+            }
+        }
+        if let Some(c) = blocks_set.remove("Components") {
+            show_blocks.insert("Components", true);
+            tree_store.insert_with_values(
+                None,
+                None,
+                &[(0, &true), (1, &"Components"), (2, &(c as i64))],
+            );
+        }
+        let unicode = tree_store.insert_with_values(None, None, &[(0, &true), (1, &"Unicode")]);
+        let mut block_set: Vec<(&'static str, usize)> = blocks_set.into_iter().collect();
+        block_set.sort_by_key(|e| e.1);
+        block_set.reverse();
+        for (block_name, count) in block_set {
+            show_blocks.insert(block_name, true);
+            tree_store.insert_with_values(
+                Some(&unicode),
+                None,
+                &[(0, &true), (1, &block_name), (2, &(count as i64))],
+            );
+        }
     }
 
     fn update_grid(&self) {
         let hide_empty: bool = self.imp().hide_empty.get();
         let zoom_factor: f64 = self.imp().zoom_factor.get();
+        let show_blocks = self.imp().show_blocks.borrow();
         let filter_input = self.imp().filter_input.borrow();
         let filter_input_uppercase: Option<String> =
             filter_input.as_ref().map(|s| s.to_ascii_uppercase());
@@ -317,6 +466,16 @@ impl GlyphsOverview {
             if hide_empty && glyph.is_empty() {
                 continue;
             }
+            if !match glyph.kind {
+                GlyphKind::Component => *show_blocks.get("Component").unwrap_or(&true),
+                GlyphKind::Char(c) => *c
+                    .char_block()
+                    .and_then(|idx| show_blocks.get(UNICODE_BLOCKS[idx].1))
+                    .unwrap_or(&true),
+            } {
+                continue;
+            }
+
             if let Some(fu) = filter_input_uppercase.as_ref() {
                 if !(glyph
                     .name2
