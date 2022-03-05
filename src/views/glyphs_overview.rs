@@ -104,31 +104,69 @@ impl ObjectImpl for GlyphsArea {
             }
         }));
 
-        let tool_palette = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        tool_palette.set_expand(false);
-        tool_palette.set_halign(gtk::Align::End);
-        tool_palette.set_valign(gtk::Align::End);
-        tool_palette.set_spacing(5);
-        tool_palette.set_visible(true);
-        tool_palette.set_can_focus(true);
-        /*
-        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 2.0, 0.05);
+        let tool_palette = gtk::Toolbar::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .expand(true)
+            .halign(gtk::Align::End)
+            .valign(gtk::Align::End)
+            //.row_spacing(5)
+            //.column_spacing(5)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 2.0, 0.1);
+        zoom_scale.set_visible(true);
         zoom_scale.set_value(1.0);
         zoom_scale.connect_value_changed(clone!(@weak obj => move |_self| {
             let value = _self.value();
-            std::dbg!(value);
-
             let imp = obj.imp();
             imp.zoom_factor.set(value);
             obj.update_grid();
         }));
-        let zoom_scale = gtk::ToolItem::builder()
-            .expand(true)
+
+        let zoom_pop_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(5)
+            .expand(false)
             .visible(true)
-            .child(&zoom_scale)
+            .can_focus(true)
             .build();
-        */
-        let hide_empty_button = gtk::CheckButton::builder()
+
+        let close_zoom_pop_box = gtk::Button::builder()
+            .label("Close")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Center)
+            .visible(true)
+            .build();
+
+        zoom_pop_box.pack_start(&close_zoom_pop_box, false, false, 0);
+        zoom_pop_box.pack_start(&zoom_scale, true, false, 0);
+
+        let zoom_pop = gtk::Popover::builder()
+            .expand(false)
+            .visible(false)
+            .modal(true)
+            .child(&zoom_pop_box)
+            .relative_to(&tool_palette)
+            .width_request(200)
+            .build();
+        let show_zoom_pop = gtk::ToolButton::builder()
+            .label("Scale")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Start)
+            .visible(true)
+            .build();
+        show_zoom_pop.connect_clicked(clone!(@strong zoom_pop => move |_| {
+            zoom_pop.show();
+        }));
+        close_zoom_pop_box.connect_clicked(clone!(@strong zoom_pop => move |_| {
+            zoom_pop.hide();
+        }));
+
+        tool_palette.add(&show_zoom_pop);
+        tool_palette.set_item_homogeneous(&show_zoom_pop, false);
+
+        let hide_empty_button = gtk::ToggleToolButton::builder()
             .label("Hide empty glyphs")
             .valign(gtk::Align::Center)
             .halign(gtk::Align::Start)
@@ -143,9 +181,10 @@ impl ObjectImpl for GlyphsArea {
             imp.grid.get().unwrap().queue_draw();
         }));
 
-        tool_palette.pack_start(&hide_empty_button, false, false, 0);
+        tool_palette.add(&hide_empty_button);
+        tool_palette.set_item_homogeneous(&hide_empty_button, false);
 
-        let add_glyph_button = gtk::Button::builder()
+        let add_glyph_button = gtk::ToolButton::builder()
             .label("Add glyph")
             .valign(gtk::Align::Center)
             .halign(gtk::Align::Start)
@@ -155,7 +194,8 @@ impl ObjectImpl for GlyphsArea {
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
         }));
 
-        tool_palette.pack_start(&add_glyph_button, false, false, 0);
+        tool_palette.add(&add_glyph_button);
+        tool_palette.set_item_homogeneous(&add_glyph_button, false);
 
         let search_entry = gtk::Entry::builder()
             .expand(true)
@@ -179,7 +219,12 @@ impl ObjectImpl for GlyphsArea {
             }
         }));
 
-        tool_palette.pack_start(&search_entry, false, false, 0);
+        tool_palette.add(
+            &gtk::ToolItem::builder()
+                .visible(true)
+                .child(&search_entry)
+                .build(),
+        );
 
         let tree = gtk::TreeView::new();
         tree.set_visible(true);
@@ -199,8 +244,6 @@ impl ObjectImpl for GlyphsArea {
             cell.connect_toggled(clone!(@weak store, @weak obj => move |_self, treepath| {
                 if let Some(iter) = store.iter(&treepath) {
                     let prev_value: bool = store.value(&iter, 0).get().unwrap();
-                    std::dbg!(prev_value);
-                    std::dbg!(store.value(&iter, 1));
                     let cat_value = store.value(&iter, 1);
                     let block_category: &str = cat_value.get().unwrap();
                     let new_value = !prev_value;
@@ -211,12 +254,9 @@ impl ObjectImpl for GlyphsArea {
                         update = true;
                     }
                     if update {
-                    obj.update_grid();
+                        obj.update_grid();
                     }
                 }
-                //_self.set_active(!_self.is_active());
-                //std::dbg!(treepath.indices());
-                //std::dbg!(_self, treepath);
             }));
             column.pack_start(&cell, true);
             column.add_attribute(&cell, "active", 0);
@@ -275,7 +315,7 @@ impl ObjectImpl for GlyphsArea {
             .child(&filter_pop_box)
             .relative_to(&tool_palette)
             .build();
-        let show_filter_pop = gtk::Button::builder()
+        let show_filter_pop = gtk::ToolButton::builder()
             .label("Filter...")
             .valign(gtk::Align::Center)
             .halign(gtk::Align::Start)
@@ -288,7 +328,8 @@ impl ObjectImpl for GlyphsArea {
             filter_pop.hide();
         }));
 
-        tool_palette.pack_start(&show_filter_pop, false, false, 0);
+        tool_palette.add(&show_filter_pop);
+        tool_palette.set_item_homogeneous(&show_filter_pop, false);
 
         tool_palette
             .style_context()
