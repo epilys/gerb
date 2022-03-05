@@ -31,6 +31,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
 use crate::project::Project;
+use crate::unicode::blocks::*;
 
 const GLYPH_BOX_WIDTH: f64 = 110.;
 const GLYPH_BOX_HEIGHT: f64 = 140.;
@@ -360,7 +361,25 @@ impl ObjectImpl for GlyphBox {
             .expand(true)
             .visible(true)
             .can_focus(true)
+            .has_tooltip(true)
             .build();
+        drawing_area.connect_query_tooltip(
+            clone!(@weak obj => @default-return false, move |_self, _x: i32, _y: i32, _by_keyboard: bool, tooltip| {
+                let glyph = obj.imp().glyph.get().unwrap().borrow();
+                if let GlyphKind::Char(c) = glyph.kind {
+                    let block_name = if let Some(idx) = c.char_block() {
+                        UNICODE_BLOCKS[idx].1
+                    } else {
+                        "Unknown"
+                    };
+                    let unicode = format!("U+{:04X}", c as u32);
+
+                    tooltip.set_text(Some(&format!("Name: {}\nUnicode: {}\nBlock: {}", glyph.name, unicode, block_name)));
+                } else {
+                    tooltip.set_text(Some(&format!("Name: {}\nComponent", glyph.name)));
+                }
+                true
+            }));
         drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
