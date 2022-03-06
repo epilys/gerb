@@ -1,1 +1,7 @@
 theme: jekyll-theme-architect
+plugins:
+  - jekyll-feed
+title: gerb font editor
+description: graphical font editor
+author: epilys
+baseurl: "gerb/"
