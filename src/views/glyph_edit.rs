@@ -65,6 +65,7 @@ struct ControlPoint {
 enum ControlPointMode {
     None,
     Drag,
+    DragGuideline(usize),
 }
 
 impl Default for ControlPointMode {
@@ -357,16 +358,21 @@ impl ObjectImpl for GlyphEditArea {
                     let f =  1000. / EM_SQUARE_PIXELS ;
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
                     obj.imp().transformed_mouse.set(position);
-                    let pts = glyph_state.kd_tree.query(position, 10);
-                    if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
-                        *mode = ControlPointMode::Drag;
-                        glyph_state.set_selection(&pts);
+                    if glyph_state.tool.is_manipulate() {
+                        let mut is_guideline: bool = false;
+                        for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
+                            if g.on_line_query(position, None) {
+                                glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
+                                is_guideline = true;
+                                break;
+                            }
+                        }
+                        if !is_guideline {
+                            let pts = glyph_state.kd_tree.query(position, 10);
+                            glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::Drag };
+                            glyph_state.set_selection(&pts);
+                        }
                     } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
-                        let zoom_factor = obj.imp().zoom.get();
-                        let camera = obj.imp().camera.get();
-                        let position = event.position();
-                        let f =  1000. / EM_SQUARE_PIXELS ;
-                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
                         if !state.insert_point(position) {
                             let state = std::mem::replace(state, Default::default());
                             glyph_state.tool = Tool::Manipulate { mode: Default::default() };
@@ -452,6 +458,9 @@ impl ObjectImpl for GlyphEditArea {
                     let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
+                    } else if let Tool::Manipulate { mode: ControlPointMode::DragGuideline(idx) } = glyph_state.tool {
+                        glyph_state.glyph.guidelines[idx].x = position.0;
+                        glyph_state.glyph.guidelines[idx].y = position.1;
                     }
 
                     let pts = glyph_state.kd_tree.query(position, 10);
