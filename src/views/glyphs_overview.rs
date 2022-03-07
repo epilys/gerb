@@ -517,12 +517,13 @@ impl GlyphsOverview {
                 continue;
             }
 
-            if let Some(fu) = filter_input_uppercase.as_ref() {
-                if !(glyph
-                    .name2
-                    .as_ref()
-                    .map(|n| n.contains(fu.as_str()))
-                    .unwrap_or(false)
+            if let (Some(f), Some(fu)) = (filter_input.as_ref(), filter_input_uppercase.as_ref()) {
+                if !(glyph.name.contains(f.as_str())
+                    || glyph
+                        .name2
+                        .as_ref()
+                        .map(|n| n.contains(fu.as_str()))
+                        .unwrap_or(false)
                     || filter_input_char
                         .as_ref()
                         .map(|c| glyph.kind == GlyphKind::Char(*c))
