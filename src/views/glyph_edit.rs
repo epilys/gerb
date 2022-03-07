@@ -307,6 +307,7 @@ pub struct GlyphEditArea {
     resized: Cell<bool>,
     camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
+    transformed_mouse: Cell<(i64, i64)>,
     zoom: Cell<f64>,
     button: Cell<Option<MotionMode>>,
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
@@ -330,6 +331,7 @@ impl ObjectImpl for GlyphEditArea {
         self.statusbar_context_id.set(None);
         self.camera.set((0., 0.));
         self.mouse.set((0., 0.));
+        self.transformed_mouse.set((0, 0));
         self.zoom.set(1.);
 
         let drawing_area = gtk::DrawingArea::builder()
@@ -354,6 +356,7 @@ impl ObjectImpl for GlyphEditArea {
                     let position = event.position();
                     let f =  1000. / EM_SQUARE_PIXELS ;
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                    obj.imp().transformed_mouse.set(position);
                     let pts = glyph_state.kd_tree.query(position, 10);
                     if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
                         *mode = ControlPointMode::Drag;
@@ -397,6 +400,7 @@ impl ObjectImpl for GlyphEditArea {
                         let position = event.position();
                         let f =  1000. / EM_SQUARE_PIXELS ;
                         let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                        obj.imp().transformed_mouse.set(position);
                         if !state.insert_point(position) {
                             let state = std::mem::replace(state, Default::default());
                             glyph_state.tool = Tool::Manipulate { mode: Default::default() };
@@ -444,6 +448,7 @@ impl ObjectImpl for GlyphEditArea {
                     let position = event.position();
                     let f =  1000. / EM_SQUARE_PIXELS ;
                     let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                    obj.imp().transformed_mouse.set(position);
                     let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
@@ -607,6 +612,7 @@ impl ObjectImpl for GlyphEditArea {
                 matrix
             };
             glyph_state.glyph.draw(cr, options);
+
             if let Tool::BezierPen { ref state } = glyph_state.tool {
                 let position = (((mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor)) as i64, ((mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor)) as i64);
                 state.draw(cr, options, position);
@@ -640,6 +646,43 @@ impl ObjectImpl for GlyphEditArea {
             cr.restore().unwrap();
             cr.restore().unwrap();
             cr.restore().unwrap();
+
+            if show_guidelines {
+                let mut matrix = gtk::cairo::Matrix::identity();
+                matrix.scale(zoom_factor, zoom_factor);
+                matrix.translate(camera.0, camera.1);
+                matrix.scale(EM_SQUARE_PIXELS / units_per_em, EM_SQUARE_PIXELS / units_per_em);
+                for g in glyph_state.glyph.guidelines.iter() {
+                    let highlight = g.on_line_query(obj.imp().transformed_mouse.get(), None);
+                    g.draw(cr, matrix, (width, height), highlight);
+                    if highlight {
+                        cr.move_to(mouse.0, mouse.1);
+                        let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
+                        cr.show_text("Guideline").unwrap();
+                        for (i, line) in [
+                            format!(
+                                "Name: {}",
+                                g.name.as_ref().map(String::as_str).unwrap_or("-")
+                            ),
+                            format!(
+                                "Identifier: {}",
+                                g.identifier.as_ref().map(String::as_str).unwrap_or("-")
+                            ),
+                            format!("Point: ({}, {})", g.x, g.y),
+                            format!("Angle: {:02}deg", g.angle),
+                        ]
+                            .into_iter()
+                            .enumerate()
+                            {
+                                cr.move_to(
+                                    mouse.0,
+                                    mouse.1 + (i + 1) as f64 * line_height,
+                                );
+                                cr.show_text(&line).unwrap();
+                            }
+                    }
+                }
+            }
 
             /* Draw rulers */
             const RULER_BREADTH: f64 = 13.;
