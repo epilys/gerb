@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions};
+use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
 
 mod bezier_pen;
@@ -314,6 +314,8 @@ pub struct GlyphEditArea {
     project: OnceCell<Arc<Mutex<Option<Project>>>>,
 }
 
+const RULER_BREADTH: f64 = 13.;
+
 #[glib::object_subclass]
 impl ObjectSubclass for GlyphEditArea {
     const NAME: &'static str = "GlyphEditArea";
@@ -350,44 +352,87 @@ impl ObjectImpl for GlyphEditArea {
         drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 obj.imp().mouse.set(event.position());
-                if event.button() == gtk::gdk::BUTTON_PRIMARY {
-                    let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                    let zoom_factor = obj.imp().zoom.get();
-                    let camera = obj.imp().camera.get();
-                    let position = event.position();
-                    let f =  1000. / EM_SQUARE_PIXELS ;
-                    let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
-                    obj.imp().transformed_mouse.set(position);
-                    if glyph_state.tool.is_manipulate() {
-                        let mut is_guideline: bool = false;
-                        for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
-                            if g.on_line_query(position, None) {
-                                glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
-                                is_guideline = true;
-                                break;
+                let zoom_factor = obj.imp().zoom.get();
+                let camera = obj.imp().camera.get();
+                let event_position = event.position();
+                let f =  1000. / EM_SQUARE_PIXELS ;
+                let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor) as i64);
+                obj.imp().transformed_mouse.set(position);
+                match event.button() {
+                    gtk::gdk::BUTTON_PRIMARY => {
+                        let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                        if event_position.0 < RULER_BREADTH || event_position.1 < RULER_BREADTH {
+                            let angle = if event_position.0 < RULER_BREADTH && event_position.1 < RULER_BREADTH {
+                                -45.
+                            } else if event_position.0 < RULER_BREADTH {
+                                90.
+                            } else {
+                                0.
+                            };
+                            glyph_state.glyph.guidelines.push(Guideline {
+                                angle,
+                                x: position.0,
+                                y: position.1,
+                                ..Guideline::default()
+                            });
+                        }
+
+                        if glyph_state.tool.is_manipulate() {
+                            let mut is_guideline: bool = false;
+                            for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
+                                if g.on_line_query(position, None) {
+                                    glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
+                                    is_guideline = true;
+                                    break;
+                                }
+                            }
+                            if !is_guideline {
+                                let pts = glyph_state.kd_tree.query(position, 10);
+                                glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::Drag };
+                                glyph_state.set_selection(&pts);
+                            }
+                        } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
+                            if !state.insert_point(position) {
+                                let state = std::mem::replace(state, Default::default());
+                                glyph_state.tool = Tool::Manipulate { mode: Default::default() };
+                                let new_contour = state.close(false);
+                                let contour_index = glyph_state.glyph.contours.len();
+                                glyph_state.add_contour(&new_contour, contour_index);
+                                glyph_state.glyph.contours.push(new_contour);
                             }
                         }
-                        if !is_guideline {
-                            let pts = glyph_state.kd_tree.query(position, 10);
-                            glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::Drag };
-                            glyph_state.set_selection(&pts);
+                    },
+                    gtk::gdk::BUTTON_MIDDLE => {
+                        obj.imp().button.set(Some(MotionMode::Pan));
+                    },
+                    gtk::gdk::BUTTON_SECONDARY => {
+                        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+                        if glyph_state.tool.is_manipulate() {
+                            for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
+                                if g.on_line_query(position, None) {
+                                    let menu = gtk::Menu::builder().attach_widget(_self).take_focus(true).visible(true).build();
+                                    let name = gtk::MenuItem::builder().label(&format!("{} - {}", g.name.as_ref().map(String::as_str).unwrap_or("Anonymous guideline"), g.identifier.as_ref().map(String::as_str).unwrap_or("No identifier"))).sensitive(false).visible(true).build();
+                                    menu.append(&name);
+                                    menu.append(&gtk::SeparatorMenuItem::builder().visible(true).build());
+                                    let delete = gtk::MenuItem::builder().label("Delete").sensitive(true).visible(true).build();
+                                    drop(glyph_state);
+                                    delete.connect_activate(clone!(@weak obj, @weak _self as drar => move |_del_self| {
+                                        let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                                        if glyph_state.glyph.guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
+                                            glyph_state.glyph.guidelines.remove(i);
+                                            drar.queue_draw();
+                                        }
+                                    }));
+                                    menu.append(&delete);
+                                    menu.show_all();
+                                    menu.popup_easy(event.button(), event.time());
+                                    break;
+                                }
+                            }
                         }
-                    } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
-                        if !state.insert_point(position) {
-                            let state = std::mem::replace(state, Default::default());
-                            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
-                            let new_contour = state.close(false);
-                            let contour_index = glyph_state.glyph.contours.len();
-                            glyph_state.add_contour(&new_contour, contour_index);
-                            glyph_state.glyph.contours.push(new_contour);
-                        }
+                        return Inhibit(true);
                     }
-                }
-                if event.button() == gtk::gdk::BUTTON_MIDDLE {
-                    obj.imp().button.set(Some(MotionMode::Pan));
-                }
-                if event.button() == 3 {
-                    return Inhibit(true);
+                    _ => {},
                 }
                 Inhibit(false)
             }),
@@ -451,9 +496,9 @@ impl ObjectImpl for GlyphEditArea {
                 } else {
                     let zoom_factor = obj.imp().zoom.get();
                     let camera = obj.imp().camera.get();
-                    let position = event.position();
+                    let event_position = event.position();
                     let f =  1000. / EM_SQUARE_PIXELS ;
-                    let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                    let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor) as i64);
                     obj.imp().transformed_mouse.set(position);
                     let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
@@ -694,7 +739,6 @@ impl ObjectImpl for GlyphEditArea {
             }
 
             /* Draw rulers */
-            const RULER_BREADTH: f64 = 13.;
             cr.rectangle(0., 0., width, RULER_BREADTH);
             cr.set_source_rgb(1., 1., 1.);
             cr.fill_preserve().expect("Invalid cairo surface state");
