@@ -633,6 +633,7 @@ impl ObjectImpl for GlyphBox {
                 GlyphKind::Char(c) => c.to_string(),
                 GlyphKind::Component => c.to_string(),
             };
+            let label = label.replace('\0', "").trim().to_string();
             cr.set_line_width(1.5);
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
             let glyph_width = glyph.width.unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
