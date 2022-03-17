@@ -611,6 +611,15 @@ impl ObjectImpl for GlyphBox {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
+            let units_per_em = {
+                let mutex = obj.imp().project.get().unwrap();
+                let lck = mutex.lock().unwrap();
+                if lck.is_none() {
+                    return Inhibit(false);
+                }
+                let p = lck.as_ref().unwrap();
+                p.units_per_em
+            };
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
             //cr.set_source_rgb(r, g, b);
@@ -626,7 +635,7 @@ impl ObjectImpl for GlyphBox {
             };
             cr.set_line_width(1.5);
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
-            let glyph_width = glyph.width.unwrap_or(1000) as f64 * (width * 0.8) / 1000.;
+            let glyph_width = glyph.width.unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
             if is_focused {
                 cr.set_source_rgb(1., 250./255., 141./255.);
             } else {
@@ -648,12 +657,13 @@ impl ObjectImpl for GlyphBox {
             } else {
                 let mut matrix = gtk::cairo::Matrix::identity();
                 matrix.translate((width - glyph_width) / 2., 0.);
-                matrix.scale((width * 0.8) / 1000., (width * 0.8) / 1000.);
+                matrix.scale((width * 0.8) / units_per_em, (width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
                     outline: (0., 0., 0., 0.),
                     inner_fill: Some((0.35, 0.35, 0.35, 1.)),
                     highlight: None,
                     matrix,
+                    units_per_em,
                 };
                 glyph.draw(cr, options);
             }

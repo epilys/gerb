@@ -355,8 +355,17 @@ impl ObjectImpl for GlyphEditArea {
                 let zoom_factor = obj.imp().zoom.get();
                 let camera = obj.imp().camera.get();
                 let event_position = event.position();
-                let f =  1000. / EM_SQUARE_PIXELS ;
-                let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor) as i64);
+                let units_per_em = {
+                    let mutex = obj.imp().project.get().unwrap();
+                    let lck = mutex.lock().unwrap();
+                    if lck.is_none() {
+                        return Inhibit(false);
+                    }
+                    let p = lck.as_ref().unwrap();
+                    p.units_per_em
+                };
+                let f = units_per_em / EM_SQUARE_PIXELS;
+                let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                 obj.imp().transformed_mouse.set(position);
                 match event.button() {
                     gtk::gdk::BUTTON_PRIMARY => {
@@ -449,8 +458,17 @@ impl ObjectImpl for GlyphEditArea {
                         let zoom_factor = obj.imp().zoom.get();
                         let camera = obj.imp().camera.get();
                         let position = event.position();
-                        let f =  1000. / EM_SQUARE_PIXELS ;
-                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, ((position.1*f-camera.1*f * zoom_factor)/zoom_factor) as i64);
+                        let units_per_em = {
+                            let mutex = obj.imp().project.get().unwrap();
+                            let lck = mutex.lock().unwrap();
+                            if lck.is_none() {
+                                return Inhibit(false);
+                            }
+                            let p = lck.as_ref().unwrap();
+                            p.units_per_em
+                        };
+                        let f = units_per_em / EM_SQUARE_PIXELS;
+                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, (units_per_em - ((position.1*f-camera.1*f * zoom_factor)/zoom_factor)) as i64);
                         obj.imp().transformed_mouse.set(position);
                         if !state.insert_point(position) {
                             let state = std::mem::replace(state, Default::default());
@@ -497,8 +515,17 @@ impl ObjectImpl for GlyphEditArea {
                     let zoom_factor = obj.imp().zoom.get();
                     let camera = obj.imp().camera.get();
                     let event_position = event.position();
-                    let f =  1000. / EM_SQUARE_PIXELS ;
-                    let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor) as i64);
+                    let units_per_em = {
+                        let mutex = obj.imp().project.get().unwrap();
+                        let lck = mutex.lock().unwrap();
+                        if lck.is_none() {
+                            return Inhibit(false);
+                        }
+                        let p = lck.as_ref().unwrap();
+                        p.units_per_em
+                    };
+                    let f = units_per_em / EM_SQUARE_PIXELS;
+                    let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                     obj.imp().transformed_mouse.set(position);
                     let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
@@ -577,7 +604,7 @@ impl ObjectImpl for GlyphEditArea {
             };
             let f = EM_SQUARE_PIXELS / units_per_em;
             let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-            let glyph_width = f * glyph_state.glyph.width.unwrap_or(units_per_em as i64) as f64;
+            let glyph_width = f * glyph_state.glyph.width.unwrap_or(units_per_em);
 
             if obj.imp().resized.get() {
                 obj.imp().resized.set(false);
@@ -617,7 +644,7 @@ impl ObjectImpl for GlyphEditArea {
                     cr.stroke().unwrap();
                 }
             }
-            /* Draw em square of 1000 units: */
+            /* Draw em square of units_per_em units: */
 
             cr.save().unwrap();
             cr.translate(camera.0, camera.1);
@@ -630,24 +657,24 @@ impl ObjectImpl for GlyphEditArea {
                 /* Draw x-height */
                 cr.set_source_rgba(0., 0., 1., 0.6);
                 cr.set_line_width(2.0);
-                cr.move_to(0., x_height*0.2);
-                cr.line_to(glyph_width*1.2, x_height*0.2);
+                cr.move_to(0., (units_per_em - x_height) * f);
+                cr.line_to(glyph_width * 1.2, (units_per_em - x_height) * f);
                 cr.stroke().unwrap();
-                cr.move_to(glyph_width*1.2, x_height*0.2);
+                cr.move_to(glyph_width * 1.2, (units_per_em - x_height) * f);
                 cr.show_text("x-height").unwrap();
 
                 /* Draw baseline */
-                cr.move_to(0., units_per_em*0.2);
-                cr.line_to(glyph_width*1.2, units_per_em*0.2);
+                cr.move_to(0., units_per_em * f);
+                cr.line_to(glyph_width * 1.2, units_per_em * f);
                 cr.stroke().unwrap();
-                cr.move_to(glyph_width*1.2, units_per_em*0.2);
+                cr.move_to(glyph_width * 1.2, units_per_em * f);
                 cr.show_text("baseline").unwrap();
 
                 /* Draw cap height */
-                cr.move_to(0., EM_SQUARE_PIXELS-cap_height*0.2);
-                cr.line_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
+                cr.move_to(0., EM_SQUARE_PIXELS - cap_height * f);
+                cr.line_to(glyph_width * 1.2, EM_SQUARE_PIXELS - cap_height * f);
                 cr.stroke().unwrap();
-                cr.move_to(glyph_width*1.2, EM_SQUARE_PIXELS-cap_height*0.2);
+                cr.move_to(glyph_width * 1.2, EM_SQUARE_PIXELS - cap_height * f);
                 cr.show_text("cap height").unwrap();
             }
 
@@ -663,33 +690,36 @@ impl ObjectImpl for GlyphEditArea {
                     None
                 },
                 highlight: obj.imp().hovering.get(),
-                matrix
+                matrix,
+                units_per_em,
             };
             glyph_state.glyph.draw(cr, options);
 
             if let Tool::BezierPen { ref state } = glyph_state.tool {
-                let position = (((mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor)) as i64, ((mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor)) as i64);
+                let position = (((mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor)) as i64, (units_per_em - ((mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor))) as i64);
                 state.draw(cr, options, position);
             }
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
-            cr.set_line_width(0.5);
+            cr.set_line_width(0.5 / f);
             if show_handles {
+                cr.transform(matrix);
+                cr.transform(gtk::cairo::Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
                 for cp in glyph_state.points.iter() {
                     let p = cp.position;
                     match &cp.kind {
                         Endpoint { .. } => {
-                            cr.rectangle(p.0 as f64 * f - 2.5, p.1 as f64 * f - 2.5, 5., 5.);
+                            cr.rectangle(p.0 as f64 - 2.5 / f, p.1 as f64 - 2.5 / f, 5. / f, 5. / f);
                             cr.stroke().unwrap();
                         }
                         Handle { ref end_points } => {
-                            cr.arc(p.0 as f64 * f, p.1 as f64 * f, 2.0, 0., 2.0 * std::f64::consts::PI);
+                            cr.arc(p.0 as f64, p.1 as f64, 2.0 / f, 0., 2.0 * std::f64::consts::PI);
                             cr.fill().unwrap();
                             for ep in end_points {
                                 let ep = glyph_state.points[*ep].position;
-                                cr.move_to(p.0 as f64 * f, p.1 as f64 * f);
-                                cr.line_to(ep.0 as f64 * f, ep.1 as f64 * f);
+                                cr.move_to(p.0 as f64, p.1 as f64);
+                                cr.line_to(ep.0 as f64, ep.1 as f64);
                                 cr.stroke().unwrap();
                             }
                         }
@@ -706,6 +736,8 @@ impl ObjectImpl for GlyphEditArea {
                 matrix.scale(zoom_factor, zoom_factor);
                 matrix.translate(camera.0, camera.1);
                 matrix.scale(EM_SQUARE_PIXELS / units_per_em, EM_SQUARE_PIXELS / units_per_em);
+                matrix.translate(0., units_per_em.abs());
+                matrix.scale(1.0, -1.0);
                 for g in glyph_state.glyph.guidelines.iter() {
                     let highlight = g.on_line_query(obj.imp().transformed_mouse.get(), None);
                     g.draw(cr, matrix, (width, height), highlight);
