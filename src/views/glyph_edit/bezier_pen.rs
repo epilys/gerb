@@ -24,7 +24,7 @@ use crate::utils::{
     curves::{Bezier, Point},
     distance_between_two_points,
 };
-use gtk::cairo::Context;
+use gtk::cairo::{Context, Matrix};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum InnerState {
@@ -107,11 +107,13 @@ impl State {
             inner_fill: _,
             highlight: _,
             matrix,
+            units_per_em,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
         cr.set_line_width(4.0);
         cr.transform(matrix);
+        cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
         let draw_endpoint = |p: (f64, f64)| {
             cr.rectangle(p.0 - 2.5, p.1 - 2.5, 5., 5.);

@@ -73,7 +73,7 @@ impl Guideline {
     pub fn distance_from_point(&self, (xp, yp): Point) -> f64 {
         // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
         //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
-        let r = self.angle * 0.01745;
+        let r = -self.angle * 0.01745;
         let sin = f64::sin(r);
         let cos = f64::cos(r);
         (cos * (self.y - yp) as f64 - sin * (self.x - xp) as f64).abs()
@@ -95,8 +95,8 @@ pub struct Contour {
 pub struct Component {
     base_name: String,
     base: Weak<RefCell<Glyph>>,
-    x_offset: i64,
-    y_offset: i64,
+    x_offset: f64,
+    y_offset: f64,
     x_scale: f64,
     xy_scale: f64,
     yx_scale: f64,
@@ -114,7 +114,7 @@ pub struct Glyph {
     pub name: Cow<'static, str>,
     pub name2: Option<crate::unicode::names::Name>,
     pub kind: GlyphKind,
-    pub width: Option<i64>,
+    pub width: Option<f64>,
     pub contours: Vec<Contour>,
     pub components: Vec<Component>,
     pub guidelines: Vec<Guideline>,
@@ -239,6 +239,7 @@ pub struct GlyphDrawingOptions {
     pub inner_fill: Option<(f64, f64, f64, f64)>,
     pub highlight: Option<(usize, usize)>,
     pub matrix: Matrix,
+    pub units_per_em: f64,
 }
 
 impl Default for GlyphDrawingOptions {
@@ -248,6 +249,7 @@ impl Default for GlyphDrawingOptions {
             inner_fill: None,
             highlight: None,
             matrix: Matrix::identity(),
+            units_per_em: 1000.,
         }
     }
 }
@@ -343,11 +345,13 @@ impl Glyph {
             inner_fill,
             highlight,
             matrix,
+            units_per_em,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
         cr.set_line_width(4.0);
         cr.transform(matrix);
+        cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
         let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64, p.1 as f64) };
         let mut pen_position: Option<(f64, f64)> = None;
@@ -418,22 +422,6 @@ impl Glyph {
                         continue;
                     }
                 }
-            }
-        }
-        for component in self.components.iter() {
-            if let Some(rc) = component.base.upgrade() {
-                let glyph = rc.borrow();
-                cr.save().unwrap();
-                let matrix = Matrix::new(
-                    component.x_scale,
-                    component.xy_scale,
-                    component.yx_scale,
-                    component.y_scale,
-                    component.x_offset as f64,
-                    -component.y_offset as f64,
-                );
-                glyph.draw(cr, GlyphDrawingOptions { matrix, ..options });
-                cr.restore().expect("Invalid cairo surface state");
             }
         }
 
@@ -512,6 +500,23 @@ impl Glyph {
             cr.stroke().expect("Invalid cairo surface state");
         }
         cr.restore().expect("Invalid cairo surface state");
+        for component in self.components.iter() {
+            if let Some(rc) = component.base.upgrade() {
+                let glyph = rc.borrow();
+                cr.save().unwrap();
+                cr.transform(matrix);
+                let matrix = Matrix::new(
+                    component.x_scale,
+                    component.xy_scale,
+                    component.yx_scale,
+                    component.y_scale,
+                    component.x_offset,
+                    -component.y_offset,
+                );
+                glyph.draw(cr, GlyphDrawingOptions { matrix, ..options });
+                cr.restore().expect("Invalid cairo surface state");
+            }
+        }
     }
 
     pub fn into_cubic(&mut self) {
@@ -565,8 +570,7 @@ impl Glyph {
         &self,
         path: P,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let surface =
-            gtk::cairo::SvgSurface::new(self.width.unwrap_or(500) as f64, 1000., Some(path))?;
+        let surface = gtk::cairo::SvgSurface::new(self.width.unwrap_or(500.0), 1000., Some(path))?;
         let ctx = gtk::cairo::Context::new(&surface)?;
 
         let options = GlyphDrawingOptions {
@@ -685,9 +689,9 @@ mod glif {
     struct Component {
         base: String,
         #[serde(default)]
-        x_offset: i64,
+        x_offset: f64,
         #[serde(default)]
-        y_offset: i64,
+        y_offset: f64,
         #[serde(default = "one_fn")]
         x_scale: f64,
         #[serde(default)]
@@ -712,8 +716,8 @@ mod glif {
     #[derive(Debug, Clone, Deserialize, PartialEq)]
     struct Anchor {
         name: String,
-        x: i64,
-        y: i64,
+        x: f64,
+        y: f64,
     }
 
     #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -727,9 +731,9 @@ mod glif {
         #[serde(default)]
         angle: f64,
         #[serde(default)]
-        x: i64,
+        x: f64,
         #[serde(default)]
-        y: i64,
+        y: f64,
     }
 
     #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -745,7 +749,7 @@ mod glif {
 
     #[derive(Debug, Clone, Deserialize, PartialEq, Default)]
     struct Advance {
-        width: i64,
+        width: f64,
     }
 
     #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -818,8 +822,8 @@ mod glif {
                         identifier: g.identifier,
                         color: g.color,
                         angle: g.angle,
-                        x: g.x,
-                        y: g.y,
+                        x: g.x as i64,
+                        y: g.y as i64,
                     })
                     .collect::<Vec<_>>(),
                 glif_source: String::new(),
@@ -868,7 +872,7 @@ mod glif {
                         open = true;
                         // Open contour
                         let p = points.pop_front().unwrap();
-                        prev_point = (p.x, 1000 - p.y);
+                        prev_point = (p.x, p.y);
                         last_oncurve = prev_point;
                         c = vec![prev_point];
                     } else {
@@ -878,13 +882,13 @@ mod glif {
                             points.rotate_left(1);
                         }
                         let last_point = points.back().unwrap();
-                        prev_point = (last_point.x, 1000 - last_point.y);
+                        prev_point = (last_point.x, last_point.y);
                         let first_point = points.front().unwrap();
-                        last_oncurve = (first_point.x, 1000 - first_point.y);
+                        last_oncurve = (first_point.x, first_point.y);
                     }
                     if points.front().unwrap().is_line() {
                         let p = points.back().unwrap();
-                        prev_point = (p.x, 1000 - p.y);
+                        prev_point = (p.x, p.y);
                     }
                     loop {
                         match points.pop_front() {
@@ -900,7 +904,7 @@ mod glif {
                                 y,
                                 ..
                             }) => {
-                                prev_point = (*x, 1000 - *y);
+                                prev_point = (*x, *y);
                                 c.push(prev_point);
                             }
                             Some(Point {
@@ -910,7 +914,7 @@ mod glif {
                                 smooth,
                                 ..
                             }) => {
-                                prev_point = (*x, 1000 - *y);
+                                prev_point = (*x, *y);
                                 c.push(prev_point);
                                 c.insert(0, last_oncurve);
                                 let smooth = smooth.as_ref().map(|s| s == "yes").unwrap_or(false);
@@ -928,10 +932,10 @@ mod glif {
                                 if c.is_empty() {
                                     c.push(prev_point);
                                 }
-                                c.push((*x, 1000 - *y));
+                                c.push((*x, *y));
                                 contour_acc.push(Bezier::new(false, c));
                                 c = vec![];
-                                prev_point = (*x, 1000 - *y);
+                                prev_point = (*x, *y);
                                 last_oncurve = prev_point;
                             }
                             Some(Point {
