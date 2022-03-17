@@ -594,10 +594,11 @@ impl Glyph {
         match self.kind {
             GlyphKind::Char(c) => {
                 let mut b = [0; 4];
-
-                gtk::glib::markup_escape_text(c.encode_utf8(&mut b))
+                gtk::glib::markup_escape_text(c.encode_utf8(&mut b).replace('\0', "").trim())
             }
-            GlyphKind::Component => gtk::glib::markup_escape_text(self.name.as_ref()),
+            GlyphKind::Component => {
+                gtk::glib::markup_escape_text(self.name.as_ref().replace('\0', "").trim())
+            }
         }
     }
 
