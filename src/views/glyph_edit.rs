@@ -27,7 +27,6 @@ use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
@@ -311,7 +310,7 @@ pub struct GlyphEditArea {
     transformed_mouse: Cell<(i64, i64)>,
     zoom: Cell<f64>,
     button: Cell<Option<MotionMode>>,
-    project: OnceCell<Arc<Mutex<Option<Project>>>>,
+    project: OnceCell<Project>,
 }
 
 const RULER_BREADTH: f64 = 13.;
@@ -355,15 +354,7 @@ impl ObjectImpl for GlyphEditArea {
                 let zoom_factor = obj.imp().zoom.get();
                 let camera = obj.imp().camera.get();
                 let event_position = event.position();
-                let units_per_em = {
-                    let mutex = obj.imp().project.get().unwrap();
-                    let lck = mutex.lock().unwrap();
-                    if lck.is_none() {
-                        return Inhibit(false);
-                    }
-                    let p = lck.as_ref().unwrap();
-                    p.units_per_em
-                };
+                let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
                 let f = units_per_em / EM_SQUARE_PIXELS;
                 let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                 obj.imp().transformed_mouse.set(position);
@@ -454,15 +445,7 @@ impl ObjectImpl for GlyphEditArea {
                         let zoom_factor = obj.imp().zoom.get();
                         let camera = obj.imp().camera.get();
                         let position = event.position();
-                        let units_per_em = {
-                            let mutex = obj.imp().project.get().unwrap();
-                            let lck = mutex.lock().unwrap();
-                            if lck.is_none() {
-                                return Inhibit(false);
-                            }
-                            let p = lck.as_ref().unwrap();
-                            p.units_per_em
-                        };
+                        let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
                         let f = units_per_em / EM_SQUARE_PIXELS;
                         let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, (units_per_em - ((position.1*f-camera.1*f * zoom_factor)/zoom_factor)) as i64);
                         obj.imp().transformed_mouse.set(position);
@@ -511,15 +494,7 @@ impl ObjectImpl for GlyphEditArea {
                     let zoom_factor = obj.imp().zoom.get();
                     let camera = obj.imp().camera.get();
                     let event_position = event.position();
-                    let units_per_em = {
-                        let mutex = obj.imp().project.get().unwrap();
-                        let lck = mutex.lock().unwrap();
-                        if lck.is_none() {
-                            return Inhibit(false);
-                        }
-                        let p = lck.as_ref().unwrap();
-                        p.units_per_em
-                    };
+                    let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
                     let f = units_per_em / EM_SQUARE_PIXELS;
                     let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                     obj.imp().transformed_mouse.set(position);
@@ -589,15 +564,12 @@ impl ObjectImpl for GlyphEditArea {
             };
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
-            let (units_per_em, x_height, cap_height, _ascender, _descender) = {
-                let mutex = obj.imp().project.get().unwrap();
-                let lck = mutex.lock().unwrap();
-                if lck.is_none() {
-                    return Inhibit(false);
-                }
-                let p = lck.as_ref().unwrap();
-                (p.units_per_em, p.x_height, p.cap_height, p.ascender, p.descender)
-            };
+            let project = obj.imp().project.get().unwrap().imp();
+            let units_per_em = *project.units_per_em.borrow();
+            let x_height = *project.x_height.borrow();
+            let cap_height = *project.cap_height.borrow();
+            let _ascender = *project.ascender.borrow();
+            let _descender = *project.descender.borrow();
             let f = EM_SQUARE_PIXELS / units_per_em;
             let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
             let glyph_width = f * glyph_state.glyph.width.unwrap_or(units_per_em);
@@ -1183,11 +1155,7 @@ glib::wrapper! {
 }
 
 impl GlyphEditView {
-    pub fn new(
-        app: gtk::Application,
-        project: Arc<Mutex<Option<Project>>>,
-        glyph: Rc<RefCell<Glyph>>,
-    ) -> Self {
+    pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp()
             .glyph_state
