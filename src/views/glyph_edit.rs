@@ -620,7 +620,7 @@ impl ObjectImpl for GlyphEditArea {
             cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
 
-            cr.set_line_width(1.0);
+            cr.set_line_width(0.5);
 
             let camera = obj.imp().camera.get();
             let mouse = obj.imp().mouse.get();
@@ -628,14 +628,14 @@ impl ObjectImpl for GlyphEditArea {
             if show_grid {
                 for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
                     cr.set_source_rgb(color, color, color);
-                    let mut y = (camera.1 % step).floor() + 0.5;
+                    let mut y = (camera.1 % step).floor();
                     while y < (height/zoom_factor) {
                         cr.move_to(0., y);
                         cr.line_to(width/zoom_factor, y);
                         y += step;
                     }
                     cr.stroke().unwrap();
-                    let mut x = (camera.0 % step).floor() + 0.5;
+                    let mut x = (camera.0 % step).floor();
                     while x < (width/zoom_factor) {
                         cr.move_to(x, 0.);
                         cr.line_to(x, height/zoom_factor);
@@ -702,7 +702,7 @@ impl ObjectImpl for GlyphEditArea {
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
-            cr.set_line_width(0.5 / f);
+            cr.set_line_width(0.5 / (2.0 * f));
             if show_handles {
                 cr.transform(matrix);
                 cr.transform(gtk::cairo::Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
@@ -710,12 +710,12 @@ impl ObjectImpl for GlyphEditArea {
                     let p = cp.position;
                     match &cp.kind {
                         Endpoint { .. } => {
-                            cr.rectangle(p.0 as f64 - 2.5 / f, p.1 as f64 - 2.5 / f, 5. / f, 5. / f);
+                            cr.rectangle(p.0 as f64 - 2.5 / (2.0 * f), p.1 as f64 - 2.5 / (2.0 * f), 5. / (2.0 * f), 5. / (2.0 * f));
                             cr.stroke().unwrap();
                         }
                         Handle { ref end_points } => {
-                            cr.arc(p.0 as f64, p.1 as f64, 2.0 / f, 0., 2.0 * std::f64::consts::PI);
-                            cr.fill().unwrap();
+                            cr.arc(p.0 as f64, p.1 as f64, 2.0 / (2.0 * f), 0., 2.0 * std::f64::consts::PI);
+                            cr.stroke().unwrap();
                             for ep in end_points {
                                 let ep = glyph_state.points[*ep].position;
                                 cr.move_to(p.0 as f64, p.1 as f64);
@@ -1140,7 +1140,7 @@ impl BinImpl for GlyphEditArea {}
 
 impl GlyphEditArea {
     fn set_zoom(&self, new_val: f64) {
-        if new_val > 0.09 && new_val < 7.26 {
+        if new_val > 0.09 && new_val < 15.26 {
             self.zoom.set(new_val);
             self.zoom_percent_label
                 .get()

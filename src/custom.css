@@ -66,6 +66,7 @@ toolpalette  {
   background: white;
   border-radius: 5px;
   padding: 5px;
+  margin-top: 20px;
   box-shadow: 0 2px gray, 0 -2px gray;
 }
 
