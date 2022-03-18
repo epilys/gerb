@@ -245,6 +245,7 @@ impl ObjectImpl for Window {
             match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::from_path(&path)) {
                 Ok(project) => {
                     obj.imp().load_project(project);
+                    obj.queue_draw();
                 }
                 Err(err) => {
                     let dialog = gtk::MessageDialog::new(
