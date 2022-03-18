@@ -201,4 +201,9 @@ impl GerbApp {
         let window = self.imp().window.get().unwrap();
         window.imp().widgets.get().unwrap().statusbar.clone()
     }
+
+    pub fn tabinfo(&self) -> crate::window::TabInfo {
+        let window = self.imp().window.get().unwrap();
+        window.imp().widgets.get().unwrap().sidebar.tabinfo.clone()
+    }
 }

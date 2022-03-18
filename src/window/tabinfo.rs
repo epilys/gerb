@@ -19,7 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::clone;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -27,7 +26,7 @@ use once_cell::unsync::OnceCell;
 
 #[derive(Debug)]
 struct TabInfoWidgets {
-    flow_box: gtk::FlowBox,
+    grid: gtk::Grid,
 }
 
 #[derive(Debug, Default)]
@@ -46,7 +45,22 @@ impl ObjectImpl for TabInfoInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
 
-        let flow_box = gtk::FlowBox::builder().expand(true).visible(true).build();
+        let scrolled_window = gtk::ScrolledWindow::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .margin_top(5)
+            .margin_start(5)
+            .build();
+        let grid = gtk::Grid::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .column_spacing(5)
+            .row_spacing(5)
+            .build();
+
+        scrolled_window.set_child(Some(&grid));
         //flow_box.add(&gtk::Separator::builder().expand(false).visible(true).build());
         /*let edit = gtk::Button::builder()
             .label("edit")
@@ -55,11 +69,11 @@ impl ObjectImpl for TabInfoInner {
             .build();
         flow_box.add(&edit);
         */
-        obj.pack_start(&flow_box, true, true, 0);
+        obj.pack_start(&scrolled_window, true, true, 0);
         obj.set_visible(true);
         obj.set_expand(true);
         self.widgets
-            .set(TabInfoWidgets { flow_box })
+            .set(TabInfoWidgets { grid })
             .expect("Failed to initialize TabInfoInner state");
     }
 }
@@ -76,19 +90,131 @@ glib::wrapper! {
 }
 
 impl TabInfo {
-    pub fn new(notebook: &gtk::Notebook) -> Self {
+    pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create TabInfo");
+        /*
         notebook.connect_switch_page(clone!(@strong ret => move |_self_, _page_widget, _page| {
             //println!("switched {:?} {}", page_widget, page);
             //ret.imp().widgets.get().unwrap().flow_box.add(&widg);
 
         }));
-        /*ret.imp()
+        ret.imp()
             .app
-            .set(app.upcast_ref::<gtk::Application>().clone())
+            .set(app)
             .unwrap();
         */
-
         ret
+    }
+
+    fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
+        let val: glib::Value = obj.property(property);
+        match val.type_().name() {
+            "gchararray" => {
+                let val = val.get::<Option<String>>().unwrap().unwrap_or_default();
+                let entry = gtk::Entry::builder().visible(true).build();
+                entry.buffer().set_text(&val);
+                entry
+                    .buffer()
+                    .bind_property("text", obj, property)
+                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                    .build();
+
+                entry.upcast()
+            }
+            "gint64" => {
+                let val = val.get::<i64>().unwrap();
+                let entry = gtk::Entry::builder()
+                    .input_purpose(gtk::InputPurpose::Number)
+                    .visible(true)
+                    .build();
+                entry.buffer().set_text(&val.to_string());
+                entry
+                    .buffer()
+                    .bind_property("text", obj, property)
+                    .transform_to(|_, value| {
+                        let number = value.get::<String>().ok()?;
+                        Some(number.parse::<i64>().ok()?.to_value())
+                    })
+                    .transform_from(|_, value| {
+                        let number = value.get::<i64>().ok()?;
+                        Some(number.to_string().to_value())
+                    })
+                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                    .build();
+                entry.upcast()
+            }
+            "gdouble" => {
+                let val = val.get::<f64>().unwrap();
+                let entry = gtk::Entry::builder()
+                    .input_purpose(gtk::InputPurpose::Number)
+                    .visible(true)
+                    .build();
+                entry.buffer().set_text(&val.to_string());
+                entry
+                    .buffer()
+                    .bind_property("text", obj, property)
+                    .transform_to(|_, value| {
+                        let number = value.get::<String>().ok()?;
+                        Some(number.parse::<f64>().ok()?.to_value())
+                    })
+                    .transform_from(|_, value| {
+                        let number = value.get::<f64>().ok()?;
+                        Some(number.to_string().to_value())
+                    })
+                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                    .build();
+                entry.upcast()
+            }
+            _other => gtk::Label::builder()
+                .label(&format!("{:?}", val))
+                .visible(true)
+                .build()
+                .upcast(),
+        }
+    }
+
+    pub fn set_object(&self, new_obj: Option<glib::Object>) {
+        if let Some(obj) = new_obj {
+            self.set_visible(true);
+            let grid = self.imp().widgets.get().unwrap().grid.clone();
+            let children = grid.children();
+            for c in children {
+                grid.remove(&c);
+            }
+            grid.attach(
+                &gtk::Label::builder()
+                    .label(obj.type_().name())
+                    .visible(true)
+                    .build(),
+                0,
+                0,
+                1,
+                1,
+            );
+            for (row, prop) in obj.list_properties().as_slice().into_iter().enumerate() {
+                grid.attach(
+                    &gtk::Label::builder()
+                        .label(prop.name())
+                        .visible(true)
+                        .build(),
+                    0,
+                    row as i32 + 1,
+                    1,
+                    1,
+                );
+                //let val: glib::Value = std::dbg!(obj.property(prop.name()));
+                grid.attach(
+                    &Self::get_widget_for_value(&obj, prop.name()),
+                    1,
+                    row as i32 + 1,
+                    1,
+                    1,
+                );
+            }
+            grid.queue_draw();
+        } else {
+            self.set_visible(false);
+        }
+        self.queue_draw();
     }
 }

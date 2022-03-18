@@ -20,7 +20,7 @@
  */
 
 mod tabinfo;
-use tabinfo::*;
+pub use tabinfo::*;
 
 use glib::clone;
 use gtk::cairo::{Context, FontSlant, FontWeight};
@@ -37,21 +37,19 @@ use crate::app::GerbApp;
 use crate::project::Project;
 
 #[derive(Debug)]
-struct WindowSidebar {
-    main: gtk::Paned,
-    project_info_sidebar: gtk::Paned,
-    project_label: gtk::Label,
-    minimap: gtk::DrawingArea,
+pub struct WindowSidebar {
+    pub tabinfo: TabInfo,
+    pub main: gtk::Paned,
+    pub project_info_sidebar: gtk::Paned,
+    pub project_label: gtk::Label,
+    pub minimap: gtk::DrawingArea,
 }
 
 impl WindowSidebar {
     #[inline(always)]
-    fn new(
-        main: gtk::Paned,
-        notebook: &gtk::Notebook,
-        obj: &<Window as ObjectSubclass>::Type,
-    ) -> Self {
+    fn new(main: gtk::Paned, obj: &<Window as ObjectSubclass>::Type) -> Self {
         let ret = Self {
+            tabinfo: TabInfo::new(),
             main,
             project_info_sidebar: gtk::Paned::builder()
                 .orientation(gtk::Orientation::Vertical)
@@ -125,8 +123,7 @@ impl WindowSidebar {
         sidebar.pack2(&ret.minimap, true, false);
         sidebar.style_context().add_class("sidebar");
 
-        let tabinfo = TabInfo::new(notebook);
-        ret.project_info_sidebar.pack1(&tabinfo, true, true);
+        ret.project_info_sidebar.pack1(&ret.tabinfo, true, true);
         ret.project_info_sidebar
             .pack2(&ret.project_label, true, true);
 
@@ -153,7 +150,7 @@ impl WindowSidebar {
 #[derive(Debug)]
 pub struct WindowWidgets {
     headerbar: gtk::HeaderBar,
-    sidebar: WindowSidebar,
+    pub sidebar: WindowSidebar,
     pub statusbar: gtk::Statusbar,
     //tool_palette: gtk::ToolPalette,
     //create_item_group: gtk::ToolItemGroup,
@@ -287,7 +284,7 @@ impl ObjectImpl for Window {
         self.widgets
             .set(WindowWidgets {
                 headerbar,
-                sidebar: WindowSidebar::new(paned, &notebook, obj),
+                sidebar: WindowSidebar::new(paned, obj),
                 statusbar,
                 notebook,
                 //tool_palette,
