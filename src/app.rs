@@ -160,6 +160,12 @@ impl GerbApp {
             let response = dialog.run();
             std::dbg!(&response);
             std::dbg!(&dialog.filename());
+            if let Some(f) = dialog.filename() {
+                if let Some(path) = f.to_str() {
+                    window.emit_by_name::<()>("open-project", &[&path]);
+                    window.show_all();
+                }
+            }
             dialog.hide();
         }));
 
