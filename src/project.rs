@@ -19,6 +19,10 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use glib::{ParamSpec, Value};
+use gtk::glib;
+use gtk::subclass::prelude::*;
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
@@ -26,107 +30,112 @@ use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::glyphs::Glyph;
+use crate::glyphs::{Glyph, Guideline};
 
-#[derive(Debug)]
-pub struct Guideline {
-    name: Option<String>,
-    identifier: Option<String>,
-    color: Option<(f64, f64, f64, f64)>,
-    x: Option<f64>,
-    y: Option<f64>,
-    angle: Option<f64>,
-}
+mod imp {
+    use super::*;
 
-#[derive(Debug)]
-pub struct Project {
-    pub name: String,
-    pub modified: bool,
-    pub last_saved: Option<u64>,
-    pub glyphs: HashMap<String, Rc<RefCell<Glyph>>>,
-    pub path: Option<PathBuf>,
-    pub family_name: String,
-    pub style_name: String,
-    pub version_major: i64,
-    pub version_minor: u64,
-    /// Copyright statement.
-    pub copyright: String,
-    /// Trademark statement.
-    pub trademark: String,
-    /// Units per em.
-    pub units_per_em: f64,
-    /// Descender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
-    pub descender: f64,
-    /// x-height value.
-    pub x_height: f64,
-    /// Cap height value.
-    pub cap_height: f64,
-    /// Ascender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
-    pub ascender: f64,
-    /// Italic angle. This must be an angle in counter-clockwise degrees from the vertical.
-    pub italic_angle: f64,
-    /// Arbitrary note about the font.
-    pub note: String,
-    /// A list of guideline definitions that apply to all glyphs in all layers in the font. This attribute is optional.
-    pub guidelines: Vec<Guideline>,
-}
+    #[derive(Debug)]
+    pub struct Project {
+        pub name: RefCell<String>,
+        pub modified: RefCell<bool>,
+        pub last_saved: RefCell<Option<u64>>,
+        pub glyphs: RefCell<HashMap<String, Rc<RefCell<Glyph>>>>,
+        pub path: RefCell<Option<PathBuf>>,
+        pub family_name: RefCell<String>,
+        pub style_name: RefCell<String>,
+        pub version_major: RefCell<i64>,
+        pub version_minor: RefCell<u64>,
+        /// Copyright statement.
+        pub copyright: RefCell<String>,
+        /// Trademark statement.
+        pub trademark: RefCell<String>,
+        /// Units per em.
+        pub units_per_em: RefCell<f64>,
+        /// Descender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
+        pub descender: RefCell<f64>,
+        /// x-height value.
+        pub x_height: RefCell<f64>,
+        /// Cap height value.
+        pub cap_height: RefCell<f64>,
+        /// Ascender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
+        pub ascender: RefCell<f64>,
+        /// Italic angle. This must be an angle in counter-clockwise degrees from the vertical.
+        pub italic_angle: RefCell<f64>,
+        /// Arbitrary note about the font.
+        pub note: RefCell<String>,
+        /// A list of guideline definitions that apply to all glyphs in all layers in the font. This attribute is optional.
+        pub guidelines: RefCell<Vec<Guideline>>,
+    }
 
-impl Default for Project {
-    fn default() -> Self {
-        //Self::new("./font.ufo").unwrap()
-        /*
-        let glyphs = Glyph::from_ufo("./font.ufo");
-        Project {
-            name: "test project".to_string(),
-            modified: false,
-            last_saved: None,
-            glyphs: glyphs
-                .into_iter()
-                .map(|g| (g.name.to_string(), g))
-                .collect::<HashMap<String, Glyph>>(),
-            path: None,
-            family_name: "Test Sans".to_string(),
-            style_name: String::new(),
-            version_major: 3,
-            version_minor: 38,
-            copyright: String::new(),
-            trademark: String::new(),
-            units_per_em: 1000.0,
-            descender: -205.,
-            x_height: 486.,
-            cap_height: 656.,
-            ascender: 712.,
-            italic_angle: 0.,
-            note: String::new(),
-            guidelines: vec![],
+    impl Default for Project {
+        fn default() -> Self {
+            Project {
+                name: RefCell::new("New project".to_string()),
+                modified: RefCell::new(false),
+                last_saved: RefCell::new(None),
+                glyphs: RefCell::new(HashMap::default()),
+                path: RefCell::new(None),
+                family_name: RefCell::new("New project".to_string()),
+                style_name: RefCell::new(String::new()),
+                version_major: RefCell::new(0),
+                version_minor: RefCell::new(0),
+                copyright: RefCell::new(String::new()),
+                trademark: RefCell::new(String::new()),
+                units_per_em: RefCell::new(1000.0),
+                descender: RefCell::new(-200.),
+                x_height: RefCell::new(450.),
+                cap_height: RefCell::new(650.),
+                ascender: RefCell::new(700.),
+                italic_angle: RefCell::new(0.),
+                note: RefCell::new(String::new()),
+                guidelines: RefCell::new(vec![]),
+            }
         }
-            */
-        Project {
-            name: "New project".to_string(),
-            modified: false,
-            last_saved: None,
-            glyphs: HashMap::default(),
-            path: None,
-            family_name: "New project".to_string(),
-            style_name: String::new(),
-            version_major: 0,
-            version_minor: 0,
-            copyright: String::new(),
-            trademark: String::new(),
-            units_per_em: 1000.0,
-            descender: -200.,
-            x_height: 450.,
-            cap_height: 650.,
-            ascender: 700.,
-            italic_angle: 0.,
-            note: String::new(),
-            guidelines: vec![],
+    }
+
+    // The central trait for subclassing a GObject
+    #[glib::object_subclass]
+    impl ObjectSubclass for Project {
+        const NAME: &'static str = "Project";
+        type Type = super::Project;
+        type ParentType = glib::Object;
+        type Interfaces = ();
+    }
+
+    // Trait shared by all GObjects
+    impl ObjectImpl for Project {
+        fn properties() -> &'static [ParamSpec] {
+            static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+                once_cell::sync::Lazy::new(|| vec![]);
+            PROPERTIES.as_ref()
+        }
+
+        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+            match pspec.name() {
+                _ => unimplemented!(),
+            }
+        }
+
+        fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &Value, pspec: &ParamSpec) {
+            match pspec.name() {
+                _ => unimplemented!(),
+            }
         }
     }
 }
 
+glib::wrapper! {
+    pub struct Project(ObjectSubclass<imp::Project>);
+}
+
 impl Project {
-    pub fn new(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new() -> Self {
+        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
+        ret
+    }
+
+    pub fn from_path(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let glyphs = Glyph::from_ufo(path);
         let mut path: PathBuf = Path::new(path).into();
         if !path.exists() {
@@ -218,27 +227,53 @@ impl Project {
             } else {
                 0
             };
-        Ok(Project {
-            name: family_name.clone(),
-            modified: false,
-            last_saved: None,
-            glyphs: glyphs?,
-            path: Some(path),
-            family_name,
-            style_name,
-            version_major,
-            version_minor,
-            copyright,
-            trademark,
-            units_per_em,
-            descender,
-            x_height,
-            cap_height,
-            ascender,
-            italic_angle,
-            note: String::new(),
-            guidelines: vec![],
-        })
+        let ret: Self = Self::new();
+        *ret.imp().name.borrow_mut() = family_name.clone();
+        *ret.imp().modified.borrow_mut() = false;
+        *ret.imp().last_saved.borrow_mut() = None;
+        *ret.imp().glyphs.borrow_mut() = glyphs?;
+        *ret.imp().path.borrow_mut() = Some(path);
+        *ret.imp().family_name.borrow_mut() = family_name;
+        *ret.imp().style_name.borrow_mut() = style_name;
+        *ret.imp().version_major.borrow_mut() = version_major;
+        *ret.imp().version_minor.borrow_mut() = version_minor;
+        *ret.imp().copyright.borrow_mut() = copyright;
+        *ret.imp().trademark.borrow_mut() = trademark;
+        *ret.imp().units_per_em.borrow_mut() = units_per_em;
+        *ret.imp().descender.borrow_mut() = descender;
+        *ret.imp().x_height.borrow_mut() = x_height;
+        *ret.imp().cap_height.borrow_mut() = cap_height;
+        *ret.imp().ascender.borrow_mut() = ascender;
+        *ret.imp().italic_angle.borrow_mut() = italic_angle;
+        *ret.imp().note.borrow_mut() = String::new();
+        *ret.imp().guidelines.borrow_mut() = vec![];
+        Ok(ret)
+    }
+}
+
+impl Default for Project {
+    fn default() -> Self {
+        let ret: Self = Self::new();
+        *ret.imp().name.borrow_mut() = "New project".to_string();
+        *ret.imp().modified.borrow_mut() = false;
+        *ret.imp().last_saved.borrow_mut() = None;
+        *ret.imp().glyphs.borrow_mut() = HashMap::default();
+        *ret.imp().path.borrow_mut() = None;
+        *ret.imp().family_name.borrow_mut() = "New project".to_string();
+        *ret.imp().style_name.borrow_mut() = String::new();
+        *ret.imp().version_major.borrow_mut() = 0;
+        *ret.imp().version_minor.borrow_mut() = 0;
+        *ret.imp().copyright.borrow_mut() = String::new();
+        *ret.imp().trademark.borrow_mut() = String::new();
+        *ret.imp().units_per_em.borrow_mut() = 1000.0;
+        *ret.imp().descender.borrow_mut() = -200.;
+        *ret.imp().x_height.borrow_mut() = 450.;
+        *ret.imp().cap_height.borrow_mut() = 650.;
+        *ret.imp().ascender.borrow_mut() = 700.;
+        *ret.imp().italic_angle.borrow_mut() = 0.;
+        *ret.imp().note.borrow_mut() = String::new();
+        *ret.imp().guidelines.borrow_mut() = vec![];
+        ret
     }
 }
 

@@ -31,7 +31,6 @@ use gtk::subclass::prelude::*;
 use once_cell::{sync::Lazy, unsync::OnceCell};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
 use crate::app::GerbApp;
 use crate::project::Project;
@@ -133,7 +132,7 @@ impl WindowSidebar {
     }
 
     fn load_project(&self, project: &Project) {
-        self.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.name, version_major=project.version_major,version_minor=project.version_minor, units_per_em=project.units_per_em, descender=project.descender, x_height=project.x_height, cap_height=project.cap_height, ascender=project.ascender, italic_angle=project.italic_angle));
+        self.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.imp().name.borrow(), version_major=project.imp().version_major.borrow(),version_minor=project.imp().version_minor.borrow(), units_per_em=project.imp().units_per_em.borrow(), descender=project.imp().descender.borrow(), x_height=project.imp().x_height.borrow(), cap_height=project.imp().cap_height.borrow(), ascender=project.imp().ascender.borrow(), italic_angle=project.imp().italic_angle.borrow()));
         self.project_label.set_single_line_mode(false);
         self.project_label.set_use_markup(true);
         self.project_label.queue_draw();
@@ -163,7 +162,7 @@ pub struct Window {
     app: OnceCell<gtk::Application>,
     super_: OnceCell<MainWindow>,
     pub widgets: OnceCell<WindowWidgets>,
-    project: OnceCell<Arc<Mutex<Option<Project>>>>,
+    project: RefCell<Project>,
 }
 
 #[glib::object_subclass]
@@ -243,7 +242,7 @@ impl ObjectImpl for Window {
 
         obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
             //println!("open-project received!");
-            match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::new(&path)) {
+            match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::from_path(&path)) {
                 Ok(project) => {
                     obj.imp().load_project(project);
                 }
@@ -292,7 +291,7 @@ impl ObjectImpl for Window {
                 //project_item_group,
             })
             .expect("Failed to initialize window state");
-        self.project.set(Arc::new(Mutex::new(None))).unwrap();
+        *self.project.borrow_mut() = Project::new();
     }
 
     fn signals() -> &'static [Signal] {
@@ -375,9 +374,10 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
 impl Window {
     pub fn load_project(&self, project: Project) {
         let widgets = self.widgets.get().unwrap();
-        widgets
-            .headerbar
-            .set_subtitle(Some(&format!("Loaded project: {}", project.name.as_str())));
+        widgets.headerbar.set_subtitle(Some(&format!(
+            "Loaded project: {}",
+            project.imp().name.borrow().as_str()
+        )));
         /*
         let item_groups = widgets.tool_palette.children();
         if item_groups
@@ -395,13 +395,12 @@ impl Window {
         }
         */
         widgets.sidebar.load_project(&project);
+        {
+            *self.project.borrow_mut() = project.clone();
+        }
 
-        let mutex = self.project.get().unwrap();
-        let mut lck = mutex.lock().unwrap();
-        *lck = Some(project);
-        drop(lck);
         let glyphs_view =
-            crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), mutex.clone());
+            crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), project.clone());
         add_tab(
             &widgets.notebook,
             glyphs_view.upcast_ref::<gtk::Widget>(),
@@ -412,10 +411,9 @@ impl Window {
 
     pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
         let widgets = self.widgets.get().unwrap();
-        let mutex = self.project.get().unwrap();
         let edit_view = crate::views::GlyphEditView::new(
             self.app.get().unwrap().clone(),
-            mutex.clone(),
+            self.project.borrow().clone(),
             glyph.clone(),
         );
         add_tab(
@@ -459,9 +457,7 @@ impl Window {
         widgets.tool_palette.queue_draw();
         */
         widgets.notebook.queue_draw();
-        let mutex = self.project.get().unwrap();
-        let mut lck = mutex.lock().unwrap();
-        *lck = None;
+        *self.project.borrow_mut() = Project::new();
     }
 }
 

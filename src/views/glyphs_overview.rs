@@ -28,7 +28,6 @@ use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
 use crate::project::Project;
@@ -40,7 +39,7 @@ const GLYPH_BOX_HEIGHT: f64 = 140.;
 #[derive(Debug, Default)]
 pub struct GlyphsArea {
     app: OnceCell<gtk::Application>,
-    project: OnceCell<Arc<Mutex<Option<Project>>>>,
+    project: OnceCell<Project>,
     grid: OnceCell<gtk::Grid>,
     tree: OnceCell<gtk::TreeView>,
     tree_store: OnceCell<gtk::TreeStore>,
@@ -381,7 +380,7 @@ impl ObjectImpl for GlyphsArea {
                         false,
                         ParamFlags::READABLE,
                     ),
-                    ParamSpecString::new("filter", "filter", "filter", None, ParamFlags::READWRITE),
+                    //ParamSpecString::new("filter", "filter", "filter", None, ParamFlags::READWRITE),
                 ]
             });
         PROPERTIES.as_ref()
@@ -391,7 +390,7 @@ impl ObjectImpl for GlyphsArea {
         match pspec.name() {
             "tab-title" => "overview".to_value(),
             "tab-can-close" => false.to_value(),
-            _ => unreachable!(),
+            _ => unreachable!(pspec.name()),
         }
     }
 }
@@ -407,17 +406,17 @@ glib::wrapper! {
 }
 
 impl GlyphsOverview {
-    pub fn new(app: gtk::Application, project: Arc<Mutex<Option<Project>>>) -> Self {
+    pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         let (mut col, mut row) = (0, 0);
         let grid = ret.imp().grid.get().unwrap();
-        let project_copy = project.clone();
         let mut widgets = vec![];
-        if let Some(p) = project.lock().unwrap().as_ref() {
-            let mut glyphs = p.glyphs.values().collect::<Vec<&Rc<RefCell<Glyph>>>>();
+        {
+            let glyphs_b = project.imp().glyphs.borrow();
+            let mut glyphs = glyphs_b.values().collect::<Vec<&Rc<RefCell<Glyph>>>>();
             glyphs.sort();
             for glyph in glyphs {
-                let glyph_box = GlyphBoxItem::new(app.clone(), project_copy.clone(), glyph.clone());
+                let glyph_box = GlyphBoxItem::new(app.clone(), project.clone(), glyph.clone());
                 grid.attach(&glyph_box, col, row, 1, 1);
                 widgets.push(glyph_box);
                 col += 1;
@@ -546,7 +545,7 @@ impl GlyphsOverview {
 #[derive(Debug, Default)]
 pub struct GlyphBox {
     pub app: OnceCell<gtk::Application>,
-    pub project: OnceCell<Arc<Mutex<Option<Project>>>>,
+    pub project: OnceCell<Project>,
     pub glyph: OnceCell<Rc<RefCell<Glyph>>>,
     pub focused: Cell<bool>,
     pub zoom_factor: Cell<f64>,
@@ -611,15 +610,7 @@ impl ObjectImpl for GlyphBox {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
-            let units_per_em = {
-                let mutex = obj.imp().project.get().unwrap();
-                let lck = mutex.lock().unwrap();
-                if lck.is_none() {
-                    return Inhibit(false);
-                }
-                let p = lck.as_ref().unwrap();
-                p.units_per_em
-            };
+            let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
             //cr.set_source_rgb(r, g, b);
@@ -757,11 +748,7 @@ glib::wrapper! {
 }
 
 impl GlyphBoxItem {
-    pub fn new(
-        app: gtk::Application,
-        project: Arc<Mutex<Option<Project>>>,
-        glyph: Rc<RefCell<Glyph>>,
-    ) -> Self {
+    pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();
