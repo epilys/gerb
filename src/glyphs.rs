@@ -37,11 +37,8 @@ pub use guidelines::*;
 
 mod glif;
 
-#[derive(Debug, Clone)]
-pub struct Contour {
-    pub open: bool,
-    pub curves: Vec<Bezier>,
-}
+mod contours;
+pub use contours::*;
 
 #[derive(Debug, Clone)]
 pub struct Component {
@@ -107,81 +104,6 @@ impl Eq for Glyph {}
 impl Default for Glyph {
     fn default() -> Self {
         Glyph::new_empty("space", ' ')
-        /*
-        let curves = vec![
-            Bezier::new(vec![(54, 72), (55, 298)]),
-            Bezier::new(vec![(27, 328), (61, 333), (55, 299)]),
-            Bezier::new(vec![(26, 328), (27, 338)]),
-            Bezier::new(vec![(27, 339), (124, 339)]),
-            Bezier::new(vec![(98, 306), (97, 209)]),
-            Bezier::new(vec![(97, 301), (98, 334), (123, 330)]),
-            Bezier::new(vec![(123, 330), (124, 337)]),
-            Bezier::new(vec![(12, 53), (54, 55), (53, 72)]),
-            Bezier::new(vec![(11, 52), (174, 53)]),
-            Bezier::new(vec![(174, 55), (251, 63), (266, 124)]),
-            Bezier::new(vec![(183, 192), (265, 182), (266, 127)]),
-            Bezier::new(vec![(100, 180), (101, 78)]),
-            Bezier::new(vec![(100, 79), (125, 78)]),
-            Bezier::new(vec![(126, 79), (209, 67), (216, 120)]),
-            Bezier::new(vec![(136, 177), (217, 178), (218, 122)]),
-            Bezier::new(vec![(105, 176), (135, 176)]),
-            Bezier::new(vec![(96, 209), (138, 209)]),
-            Bezier::new(vec![(140, 210), (183, 201), (203, 243)]),
-            Bezier::new(vec![(205, 245), (215, 296), (241, 327)]),
-            Bezier::new(vec![(187, 192), (244, 197), (252, 237)]),
-            Bezier::new(vec![(253, 241), (263, 304), (290, 317)]),
-            Bezier::new(vec![(241, 327), (287, 359), (339, 301)]),
-            Bezier::new(vec![(292, 317), (316, 318), (332, 294)]),
-            Bezier::new(vec![(335, 295), (339, 303)]),
-        ];
-        Glyph {
-            name: "R".into(),
-            char: 'R',
-            curves,
-        }
-        */
-        /*
-        let outline = vec![
-            vec![
-                ContourPoint::Curve(Bezier::new(vec![(201, 11), (252, -12), (297, -12)]));
-        ContourPointBezier::new(vec![(408, -12), (507, 85), (507, 251)])),
-            <point x="507" y="401"/>
-            <point x="440" y="498"/>
-            <point x="314" y="498" type="curve" smooth="yes"/>
-            <point x="260" y="498"/>
-            <point x="206" y="469"/>
-            <point x="162" y="430" type="curve"/>
-            <point x="164" y="518" type="line"/>
-            <point x="164" y="712" type="line"/>
-            <point x="82" y="712" type="line"/>
-            <point x="82" y="0" type="line"/>
-            <point x="148" y="0" type="line"/>
-            <point x="155" y="50" type="line"/>
-            <point x="158" y="50" type="line"/>
-            ],
-            vec![
-            <point x="283" y="57" type="curve" smooth="yes"/>
-            <point x="251" y="57"/>
-            <point x="207" y="71"/>
-            <point x="164" y="108" type="curve"/>
-            <point x="164" y="363" type="line"/>
-            <point x="210" y="406"/>
-            <point x="253" y="429"/>
-            <point x="294" y="429" type="curve" smooth="yes"/>
-            <point x="386" y="429"/>
-            <point x="422" y="357"/>
-            <point x="422" y="250" type="curve" smooth="yes"/>
-            <point x="422" y="130"/>
-            <point x="363" y="57"/>
-            ],
-        ];
-
-        Glyph {
-            name: "b",
-            char: 'b',
-            outline,
-        }
-        */
     }
 }
 
