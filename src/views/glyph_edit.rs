@@ -385,6 +385,7 @@ impl ObjectImpl for GlyphEditArea {
                             let mut is_guideline: bool = false;
                             for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
                                 if g.imp().on_line_query(position, None) {
+                                    obj.imp().select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
                                     glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
                                     is_guideline = true;
                                     break;
@@ -1161,6 +1162,17 @@ impl GlyphEditArea {
             if let Some(cid) = self.statusbar_context_id.get().as_ref() {
                 statusbar.push(*cid, msg);
             }
+        }
+    }
+
+    fn select_object(&self, new_obj: Option<glib::Object>) {
+        if let Some(app) = self
+            .app
+            .get()
+            .and_then(|app| app.downcast_ref::<crate::GerbApp>())
+        {
+            let tabinfo = app.tabinfo();
+            tabinfo.set_object(new_obj);
         }
     }
 }
