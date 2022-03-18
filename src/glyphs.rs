@@ -30,60 +30,10 @@ use crate::utils::curves::*;
 
 use gtk::cairo::{Context, Matrix};
 
-#[derive(Debug, Default, Clone)]
-pub struct Guideline {
-    pub name: Option<String>,
-    pub identifier: Option<String>,
-    pub color: Option<String>,
-    pub angle: f64,
-    pub x: i64,
-    pub y: i64,
-}
+use gtk::subclass::prelude::*;
 
-impl Guideline {
-    pub fn draw(
-        &self,
-        cr: &Context,
-        matrix: Matrix,
-        (_width, height): (f64, f64),
-        highlight: bool,
-    ) {
-        fn move_point(p: (f64, f64), d: f64, r: f64) -> (f64, f64) {
-            let (x, y) = p;
-            (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
-        }
-        cr.save().unwrap();
-        if highlight {
-            cr.set_source_rgba(1., 0., 0., 0.8);
-            cr.set_line_width(2.0);
-        } else {
-            cr.set_source_rgba(0., 0., 1., 0.8);
-            cr.set_line_width(1.5);
-        }
-        let p = matrix.transform_point(self.x as f64, self.y as f64);
-        let r = self.angle * 0.01745;
-        let top = move_point(p, height * 10., r);
-        cr.move_to(top.0, top.1);
-        let bottom = move_point(p, -height * 10., r);
-        cr.line_to(bottom.0, bottom.1);
-        cr.stroke().unwrap();
-        cr.restore().unwrap();
-    }
-
-    pub fn distance_from_point(&self, (xp, yp): Point) -> f64 {
-        // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
-        //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
-        let r = -self.angle * 0.01745;
-        let sin = f64::sin(r);
-        let cos = f64::cos(r);
-        (cos * (self.y - yp) as f64 - sin * (self.x - xp) as f64).abs()
-    }
-
-    pub fn on_line_query(&self, point: Point, error: Option<f64>) -> bool {
-        let error = error.unwrap_or(5.0);
-        self.distance_from_point(point) <= error
-    }
-}
+mod guidelines;
+pub use guidelines::*;
 
 #[derive(Debug, Clone)]
 pub struct Contour {
@@ -818,13 +768,15 @@ mod glif {
                 components: vec![],
                 guidelines: guidelines
                     .into_iter()
-                    .map(|g| super::Guideline {
-                        name: g.name,
-                        identifier: g.identifier,
-                        color: g.color,
-                        angle: g.angle,
-                        x: g.x as i64,
-                        y: g.y as i64,
+                    .map(|g| {
+                        super::Guideline::builder()
+                            .name(g.name)
+                            .identifier(g.identifier)
+                            .color(g.color)
+                            .angle(g.angle)
+                            .x(g.x as i64)
+                            .y(g.y as i64)
+                            .build()
                     })
                     .collect::<Vec<_>>(),
                 glif_source: String::new(),

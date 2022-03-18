@@ -378,18 +378,13 @@ impl ObjectImpl for GlyphEditArea {
                             } else {
                                 0.
                             };
-                            glyph_state.glyph.guidelines.push(Guideline {
-                                angle,
-                                x: position.0,
-                                y: position.1,
-                                ..Guideline::default()
-                            });
+                            glyph_state.glyph.guidelines.push(Guideline::builder().angle(angle).x(position.0).y(position.1).build());
                         }
 
                         if glyph_state.tool.is_manipulate() {
                             let mut is_guideline: bool = false;
                             for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
-                                if g.on_line_query(position, None) {
+                                if g.imp().on_line_query(position, None) {
                                     glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
                                     is_guideline = true;
                                     break;
@@ -418,9 +413,9 @@ impl ObjectImpl for GlyphEditArea {
                         let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
                         if glyph_state.tool.is_manipulate() {
                             for (i, g) in glyph_state.glyph.guidelines.iter().enumerate() {
-                                if g.on_line_query(position, None) {
+                                if g.imp().on_line_query(position, None) {
                                     let menu = gtk::Menu::builder().attach_widget(_self).take_focus(true).visible(true).build();
-                                    let name = gtk::MenuItem::builder().label(&format!("{} - {}", g.name.as_ref().map(String::as_str).unwrap_or("Anonymous guideline"), g.identifier.as_ref().map(String::as_str).unwrap_or("No identifier"))).sensitive(false).visible(true).build();
+                                    let name = gtk::MenuItem::builder().label(&format!("{} - {}", g.name().as_ref().map(String::as_str).unwrap_or("Anonymous guideline"), g.identifier().as_ref().map(String::as_str).unwrap_or("No identifier"))).sensitive(false).visible(true).build();
                                     menu.append(&name);
                                     menu.append(&gtk::SeparatorMenuItem::builder().visible(true).build());
                                     let delete = gtk::MenuItem::builder().label("Delete").sensitive(true).visible(true).build();
@@ -531,8 +526,8 @@ impl ObjectImpl for GlyphEditArea {
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
                     } else if let Tool::Manipulate { mode: ControlPointMode::DragGuideline(idx) } = glyph_state.tool {
-                        glyph_state.glyph.guidelines[idx].x = position.0;
-                        glyph_state.glyph.guidelines[idx].y = position.1;
+                        glyph_state.glyph.guidelines[idx].set_property("x", position.0);
+                        glyph_state.glyph.guidelines[idx].set_property("y", position.1);
                     }
 
                     let pts = glyph_state.kd_tree.query(position, 10);
@@ -739,8 +734,8 @@ impl ObjectImpl for GlyphEditArea {
                 matrix.translate(0., units_per_em.abs());
                 matrix.scale(1.0, -1.0);
                 for g in glyph_state.glyph.guidelines.iter() {
-                    let highlight = g.on_line_query(obj.imp().transformed_mouse.get(), None);
-                    g.draw(cr, matrix, (width, height), highlight);
+                    let highlight = g.imp().on_line_query(obj.imp().transformed_mouse.get(), None);
+                    g.imp().draw(cr, matrix, (width, height), highlight);
                     if highlight {
                         cr.move_to(mouse.0, mouse.1);
                         let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
@@ -748,14 +743,14 @@ impl ObjectImpl for GlyphEditArea {
                         for (i, line) in [
                             format!(
                                 "Name: {}",
-                                g.name.as_ref().map(String::as_str).unwrap_or("-")
+                                g.name().as_ref().map(String::as_str).unwrap_or("-")
                             ),
                             format!(
                                 "Identifier: {}",
-                                g.identifier.as_ref().map(String::as_str).unwrap_or("-")
+                                g.identifier().as_ref().map(String::as_str).unwrap_or("-")
                             ),
-                            format!("Point: ({}, {})", g.x, g.y),
-                            format!("Angle: {:02}deg", g.angle),
+                            format!("Point: ({}, {})", g.x(), g.y()),
+                            format!("Angle: {:02}deg", g.angle()),
                         ]
                             .into_iter()
                             .enumerate()
