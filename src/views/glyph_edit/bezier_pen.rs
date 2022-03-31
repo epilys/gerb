@@ -65,14 +65,14 @@ impl State {
                     }
                     _ => {}
                 }
-                self.current_curve.points.push(point);
+                self.current_curve.points().borrow_mut().push(point);
 
                 true
             }
             InnerState::AddControlHandle => {
                 self.inner = InnerState::AddControlPoint;
-                self.current_curve.points.push(point);
-                if self.current_curve.points.len() == 4 {
+                self.current_curve.points().borrow_mut().push(point);
+                if self.current_curve.points().borrow().len() == 4 {
                     /* current_curve is cubic, so split it. */
                     let curv =
                         std::mem::replace(&mut self.current_curve, Bezier::new(true, vec![]));
@@ -94,7 +94,10 @@ impl State {
             curves.push(current_curve);
         }
 
-        Contour { open, curves }
+        let ret = Contour::new();
+        *ret.open().borrow_mut() = open;
+        *ret.curves().borrow_mut() = curves;
+        ret
     }
 
     pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions, cursor_position: (i64, i64)) {
@@ -131,7 +134,7 @@ impl State {
         draw_endpoint(fp);
         let mut pen_position: Option<(f64, f64)> = Some(fp);
         for curv in self.curves.iter() {
-            if !curv.smooth {
+            if !*curv.smooth().borrow() {
                 //cr.stroke().expect("Invalid cairo surface state");
             }
             let degree = curv.degree();
@@ -147,7 +150,7 @@ impl State {
                 0 => { /* ignore */ }
                 1 => {
                     /* Line. */
-                    let new_point = p_fn(curv.points[1]);
+                    let new_point = p_fn(curv.points().borrow()[1]);
                     cr.line_to(new_point.0, new_point.1);
                     pen_position = Some(new_point);
                 }
@@ -156,10 +159,10 @@ impl State {
                     let a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        p_fn(curv.points[0])
+                        p_fn(curv.points().borrow()[0])
                     };
-                    let b = p_fn(curv.points[1]);
-                    let c = p_fn(curv.points[2]);
+                    let b = p_fn(curv.points().borrow()[1]);
+                    let c = p_fn(curv.points().borrow()[2]);
                     cr.curve_to(
                         2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
                         2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
@@ -175,17 +178,17 @@ impl State {
                     let _a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        p_fn(curv.points[0])
+                        p_fn(curv.points().borrow()[0])
                     };
-                    let b = p_fn(curv.points[1]);
-                    let c = p_fn(curv.points[2]);
-                    let d = p_fn(curv.points[3]);
+                    let b = p_fn(curv.points().borrow()[1]);
+                    let c = p_fn(curv.points().borrow()[2]);
+                    let d = p_fn(curv.points().borrow()[3]);
                     cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
                     pen_position = Some(d);
                 }
                 d => {
                     eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
-                    pen_position = Some(p_fn(*curv.points.last().unwrap()));
+                    pen_position = Some(p_fn(*curv.points().borrow().last().unwrap()));
                     continue;
                 }
             }
@@ -204,7 +207,7 @@ impl State {
                 cr.stroke().expect("Invalid cairo surface state");
             }
             Some(0) => {
-                let new_point = p_fn(self.current_curve.points[0]);
+                let new_point = p_fn(self.current_curve.points().borrow()[0]);
                 cr.line_to(new_point.0, new_point.1);
                 cr.line_to(pos_x, pos_y);
                 cr.stroke().expect("Invalid cairo surface state");
@@ -212,9 +215,9 @@ impl State {
                 draw_endpoint(new_point);
             }
             Some(1) => {
-                let a = p_fn(self.current_curve.points[0]);
+                let a = p_fn(self.current_curve.points().borrow()[0]);
                 cr.line_to(a.0, a.1);
-                let b = p_fn(self.current_curve.points[1]);
+                let b = p_fn(self.current_curve.points().borrow()[1]);
                 let c = (pos_x, pos_y);
                 let d = (pos_x, pos_y);
                 cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
@@ -225,10 +228,10 @@ impl State {
                 draw_handle(b, a);
             }
             Some(2) => {
-                let a = p_fn(self.current_curve.points[0]);
+                let a = p_fn(self.current_curve.points().borrow()[0]);
                 cr.line_to(a.0, a.1);
-                let b = p_fn(self.current_curve.points[1]);
-                let c = p_fn(self.current_curve.points[2]);
+                let b = p_fn(self.current_curve.points().borrow()[1]);
+                let c = p_fn(self.current_curve.points().borrow()[2]);
                 let d = (pos_x, pos_y);
                 cr.set_line_width(2.5);
                 cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);

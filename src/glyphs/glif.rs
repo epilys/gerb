@@ -23,6 +23,7 @@ extern crate quick_xml;
 extern crate serde;
 
 use crate::unicode::names::CharName;
+use gtk::subclass::prelude::ObjectSubclassIsExt;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -362,10 +363,10 @@ impl Iterator for GlifIterator {
                         }
                     }
                 }
-                ret.contours.push(super::Contour {
-                    open,
-                    curves: contour_acc,
-                });
+                let super_ = super::Contour::new();
+                *super_.imp().open.borrow_mut() = open;
+                *super_.imp().curves.borrow_mut() = contour_acc;
+                ret.contours.push(super_);
             }
         }
 

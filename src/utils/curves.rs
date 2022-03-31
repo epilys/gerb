@@ -19,46 +19,76 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use gtk::glib;
+use gtk::subclass::prelude::*;
 use std::cell::Ref;
 use std::cell::RefCell;
 
 pub type Point = (i64, i64);
 
-#[derive(Debug, Clone)]
-pub struct Bezier {
-    pub smooth: bool,
-    pub points: Vec<Point>,
-    pub lut: RefCell<Vec<Point>>,
+glib::wrapper! {
+    pub struct Bezier(ObjectSubclass<imp::Bezier>);
+}
+
+impl Bezier {
+    pub fn smooth(&self) -> &RefCell<bool> {
+        &self.imp().smooth
+    }
+
+    pub fn points(&self) -> &RefCell<Vec<Point>> {
+        &self.imp().points
+    }
+}
+
+mod imp {
+    use super::*;
+    #[derive(Debug, Default)]
+    pub struct Bezier {
+        pub smooth: RefCell<bool>,
+        pub points: RefCell<Vec<Point>>,
+        pub lut: RefCell<Vec<Point>>,
+    }
+
+    #[glib::object_subclass]
+    impl ObjectSubclass for Bezier {
+        const NAME: &'static str = "Bezier";
+        type Type = super::Bezier;
+        type ParentType = glib::Object;
+        type Interfaces = ();
+    }
+
+    impl ObjectImpl for Bezier {}
 }
 
 impl Bezier {
     pub fn new(smooth: bool, points: Vec<Point>) -> Self {
-        Bezier {
-            smooth,
-            points,
-            lut: RefCell::new(vec![]),
-        }
+        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
+        *ret.imp().smooth.borrow_mut() = smooth;
+        *ret.imp().points.borrow_mut() = points;
+        ret
     }
 
     pub fn get_point(&self, t: f64) -> Option<Point> {
-        draw_curve_point(&self.points, t)
+        let points = self.points().borrow();
+        draw_curve_point(&points, t)
     }
 
     pub fn degree(&self) -> Option<usize> {
-        if self.points.is_empty() {
+        let points = self.points().borrow();
+        if points.is_empty() {
             None
         } else {
-            Some(self.points.len() - 1)
+            Some(points.len() - 1)
         }
     }
 
     /* https://github.com/Pomax/bezierinfo/blob/adc3ad6397ca9d98339b89183a74cb52fad8f43a/js/graphics-element/lib/bezierjs/bezier.js#L88*/
     pub fn get_lut(&'_ self, steps: Option<usize>) -> Ref<'_, Vec<Point>> {
         let mut steps = steps.unwrap_or(100);
-        let mut lut = self.lut.borrow_mut();
+        let mut lut = self.imp().lut.borrow_mut();
         if lut.len() == steps {
             drop(lut);
-            return self.lut.borrow();
+            return self.imp().lut.borrow();
         }
 
         lut.clear();
@@ -73,23 +103,24 @@ impl Bezier {
             lut.push(p);
         }
         drop(lut);
-        self.lut.borrow()
+        self.imp().lut.borrow()
     }
 
     pub fn compute(&self, t: f64) -> Point {
+        let points = self.points().borrow();
         // shortcuts
         if t == 0.0 {
-            return self.points[0];
+            return points[0];
         }
 
         let order = self.degree().unwrap();
 
         if t == 1.0 {
-            return self.points[order];
+            return points[order];
         }
 
         let mt = 1.0 - t;
-        let mut p = self.points.as_slice();
+        let mut p = points.as_slice();
 
         // constant?
         if order == 0 {
