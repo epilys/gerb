@@ -154,8 +154,8 @@ impl GlyphState {
 
     fn add_contour(&mut self, contour: &Contour, contour_index: usize) {
         let prev_len = self.points.len();
-        for (curve_index, curve) in contour.curves.iter().enumerate() {
-            match curve.points.len() {
+        for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
+            match curve.points().borrow().len() {
                 4 => {
                     for (endpoint, handle) in [(0, 1), (3, 2)] {
                         let mut point_index = self.points.len();
@@ -163,13 +163,13 @@ impl GlyphState {
                             contour_index,
                             curve_index,
                             point_index: endpoint,
-                            position: curve.points[endpoint],
+                            position: curve.points().borrow()[endpoint],
                             kind: Endpoint {
                                 handle: Some(point_index + 1),
                             },
                         });
                         self.points_map
-                            .entry(curve.points[endpoint])
+                            .entry(curve.points().borrow()[endpoint])
                             .or_default()
                             .push(point_index);
                         let endpoint_index = point_index;
@@ -179,13 +179,13 @@ impl GlyphState {
                             contour_index,
                             curve_index,
                             point_index: handle,
-                            position: curve.points[handle],
+                            position: curve.points().borrow()[handle],
                             kind: Handle {
                                 end_points: vec![endpoint_index],
                             },
                         });
                         self.points_map
-                            .entry(curve.points[handle])
+                            .entry(curve.points().borrow()[handle])
                             .or_default()
                             .push(point_index);
                     }
@@ -196,13 +196,13 @@ impl GlyphState {
                         contour_index,
                         curve_index,
                         point_index: 0,
-                        position: curve.points[0],
+                        position: curve.points().borrow()[0],
                         kind: Endpoint {
                             handle: Some(point_index + 1),
                         },
                     });
                     self.points_map
-                        .entry(curve.points[0])
+                        .entry(curve.points().borrow()[0])
                         .or_default()
                         .push(point_index);
                     point_index += 1;
@@ -210,13 +210,13 @@ impl GlyphState {
                         contour_index,
                         curve_index,
                         point_index: 1,
-                        position: curve.points[1],
+                        position: curve.points().borrow()[1],
                         kind: Handle {
                             end_points: vec![point_index - 1, point_index + 1],
                         },
                     });
                     self.points_map
-                        .entry(curve.points[1])
+                        .entry(curve.points().borrow()[1])
                         .or_default()
                         .push(point_index);
                     point_index += 1;
@@ -224,13 +224,13 @@ impl GlyphState {
                         contour_index,
                         curve_index,
                         point_index: 2,
-                        position: curve.points[2],
+                        position: curve.points().borrow()[2],
                         kind: Endpoint {
                             handle: Some(point_index - 1),
                         },
                     });
                     self.points_map
-                        .entry(curve.points[2])
+                        .entry(curve.points().borrow()[2])
                         .or_default()
                         .push(point_index);
                 }
@@ -241,11 +241,11 @@ impl GlyphState {
                             contour_index,
                             curve_index,
                             point_index: endpoint,
-                            position: curve.points[endpoint],
+                            position: curve.points().borrow()[endpoint],
                             kind: Endpoint { handle: None },
                         });
                         self.points_map
-                            .entry(curve.points[endpoint])
+                            .entry(curve.points().borrow()[endpoint])
                             .or_default()
                             .push(point_index);
                         point_index += 1;
@@ -285,8 +285,9 @@ impl GlyphState {
 
                 /* finally update actual point */
                 p.position = new_pos;
-                self.glyph.contours[p.contour_index].curves[p.curve_index].points[p.point_index] =
-                    new_pos;
+                self.glyph.contours[p.contour_index].curves().borrow_mut()[p.curve_index]
+                    .points()
+                    .borrow_mut()[p.point_index] = new_pos;
             }
         }
     }
@@ -530,14 +531,14 @@ impl ObjectImpl for GlyphEditArea {
 
                     let glyph = &glyph_state.glyph;
                     'hover: for (ic, contour) in glyph.contours.iter().enumerate() {
-                        for (jc, curve) in contour.curves.iter().enumerate() {
+                        for (jc, curve) in contour.curves().borrow().iter().enumerate() {
                             if curve.on_curve_query(position, None) {
                                 obj.imp().new_statusbar_message(&format!("{:?}", curve));
                                 obj.imp().hovering.set(Some((ic, jc)));
                                 break 'hover;
                             }
                             for p in &pts {
-                                if curve.points.contains(&p.1) {
+                                if curve.points().borrow().contains(&p.1) {
                                     obj.imp().new_statusbar_message(&format!("{:?}", curve));
                                     obj.imp().hovering.set(Some((ic, jc)));
                                     break 'hover;
