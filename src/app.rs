@@ -27,6 +27,10 @@ use crate::window::MainWindow;
 
 use gio::ApplicationFlags;
 use gtk::{gio, glib};
+use std::cell::RefCell;
+
+mod undo;
+pub use undo::*;
 
 glib::wrapper! {
     pub struct GerbApp(ObjectSubclass<Application>)
@@ -47,6 +51,7 @@ impl GerbApp {
 #[derive(Debug, Default)]
 pub struct Application {
     pub window: OnceCell<MainWindow>,
+    pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
 }
 
@@ -124,6 +129,8 @@ impl GerbApp {
         let application = self.upcast_ref::<gtk::Application>();
         application.set_accels_for_action("app.quit", &["<Primary>Q", "Q"]);
         application.set_accels_for_action("app.about", &["question", "F1"]);
+        application.set_accels_for_action("app.undo", &["<Primary>Z"]);
+        application.set_accels_for_action("app.redo", &["<Primary>R"]);
         let window = self.imp().window.get().unwrap().upcast_ref::<gtk::Window>();
         let quit = gtk::gio::SimpleAction::new("quit", None);
         quit.connect_activate(glib::clone!(@weak window => move |_, _| {
@@ -168,9 +175,27 @@ impl GerbApp {
             }
             dialog.hide();
         }));
+        let undo = gtk::gio::SimpleAction::new("undo", None);
+        undo.set_enabled(false);
+        undo.connect_activate(glib::clone!(@weak self as _self => move |_, _| {
+            _self.imp().undo_db.borrow_mut().undo();
+        }));
+        let redo = gtk::gio::SimpleAction::new("redo", None);
+        redo.set_enabled(false);
+        redo.connect_activate(glib::clone!(@weak self as _self => move |_, _| {
+            _self.imp().undo_db.borrow_mut().redo();
+        }));
+        undo.bind_property("enabled", &*self.imp().undo_db.borrow(), "can-undo")
+            .flags(glib::BindingFlags::BIDIRECTIONAL)
+            .build();
+        redo.bind_property("enabled", &*self.imp().undo_db.borrow(), "can-redo")
+            .flags(glib::BindingFlags::BIDIRECTIONAL)
+            .build();
 
         application.add_action(&about);
         application.add_action(&open);
+        application.add_action(&undo);
+        application.add_action(&redo);
         application.add_action(&quit);
     }
 
@@ -190,6 +215,8 @@ impl GerbApp {
         file_menu.append(Some("Quit"), Some("app.quit"));
         menu_bar.append_submenu(Some("_File"), &file_menu);
 
+        settings_menu.append(Some("Undo"), Some("app.undo"));
+        settings_menu.append(Some("Redo"), Some("app.redo"));
         settings_menu.append(Some("Sub another"), Some("app.sub_another"));
         submenu.append(Some("Sub sub another"), Some("app.sub_sub_another"));
         submenu.append(Some("Sub sub another2"), Some("app.sub_sub_another2"));

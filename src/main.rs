@@ -22,6 +22,7 @@
 use gtk::prelude::*;
 
 mod app;
+pub use app::*;
 pub mod glyphs;
 pub mod project;
 pub mod resources;
