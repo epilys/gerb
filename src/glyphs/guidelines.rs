@@ -149,6 +149,13 @@ mod imp {
             }
             let p = matrix.transform_point(*self.x.borrow() as f64, *self.y.borrow() as f64);
             let r = *self.angle.borrow() * 0.01745;
+            if let Some(ref name) = self.name.borrow().as_ref() {
+                cr.save().unwrap();
+                cr.move_to(p.0, p.1);
+                cr.rotate(r);
+                cr.show_text(&name).unwrap();
+                cr.restore().unwrap();
+            }
             let top = move_point(p, height * 10., r);
             cr.move_to(top.0, top.1);
             let bottom = move_point(p, -height * 10., r);

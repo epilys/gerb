@@ -25,7 +25,9 @@ version = "^0.15"
 optional = true
 features = ["svg", ]
 
-
 [features]
 default = ["svg", ]
 svg = ["cairo-rs/svg", ]
+
+[profile.release]
+lto = true
