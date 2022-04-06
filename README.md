@@ -36,3 +36,13 @@ I got mine from the `Regular` instance at the [Source Sans repository](https://g
 ![./screenshot.png](./screenshot.png)
 
 ![./screenshot2.png](./screenshot2.png)
+
+### Dependencies
+
+Needs `gtk-3`.
+
+On `macOS` you can install dependencies with `Homebrew`:
+
+```
+brew install librsvg gtk+3
+```
