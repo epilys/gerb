@@ -274,6 +274,76 @@ impl GlyphState {
         undo_db.event(action);
     }
 
+    fn new_guideline(&self, angle: f64, (x, y): (i64, i64)) -> crate::Action {
+        let drar = self.drar.clone();
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: Box::new([]),
+            },
+            compress: false,
+            redo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
+                glyph.borrow_mut().guidelines.push(Guideline::builder().angle(angle).x(x).y(y).build());
+                drar.queue_draw();
+            })),
+            undo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
+                glyph.borrow_mut().guidelines.pop();
+                drar.queue_draw();
+            })),
+        }
+    }
+
+    fn update_guideline(&self, idx: usize, position: (i64, i64)) -> crate::Action {
+        let drar = self.drar.clone();
+        let old_position: (i64, i64) = {
+            let g = self.glyph.borrow();
+            let x = g.guidelines[idx].property("x");
+            let y = g.guidelines[idx].property("y");
+            (x, y)
+        };
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
+            },
+            compress: true,
+            redo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
+                glyph.borrow().guidelines[idx].set_property("x", position.0);
+                glyph.borrow().guidelines[idx].set_property("y", position.1);
+                drar.queue_draw();
+            })),
+            undo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
+                glyph.borrow().guidelines[idx].set_property("x", old_position.0);
+                glyph.borrow().guidelines[idx].set_property("y", old_position.1);
+                drar.queue_draw();
+            })),
+        }
+    }
+
+    fn delete_guideline(&self, idx: usize) -> crate::Action {
+        let drar = self.drar.clone();
+        let json: serde_json::Value =
+            { serde_json::to_value(&self.glyph.borrow().guidelines[idx].imp()).unwrap() };
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
+            },
+            compress: false,
+            redo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
+                glyph.borrow_mut().guidelines.remove(idx);
+                drar.queue_draw();
+            })),
+            undo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
+                glyph.borrow_mut().guidelines.push(Guideline::try_from(json.clone()).unwrap());
+                drar.queue_draw();
+            })),
+        }
+    }
+
     fn update_point(&self, idxs: &[usize], new_pos: (i64, i64)) -> crate::Action {
         let drar = self.drar.clone();
         let old_positions = {
@@ -434,7 +504,12 @@ impl ObjectImpl for GlyphEditArea {
                             } else {
                                 0.
                             };
-                            glyph_state.glyph.borrow_mut().guidelines.push(Guideline::builder().angle(angle).x(position.0).y(position.1).build());
+                            let mut action = glyph_state.new_guideline(angle, position);
+                            (action.redo)();
+                            let app: &crate::Application =
+                                crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
+                            let undo_db = app.undo_db.borrow_mut();
+                            undo_db.event(action);
                         }
 
                         if glyph_state.tool.is_manipulate() {
@@ -487,7 +562,12 @@ impl ObjectImpl for GlyphEditArea {
                                     delete.connect_activate(clone!(@weak obj, @weak _self as drar => move |_del_self| {
                                         let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                                         if glyph_state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
-                                            glyph_state.glyph.borrow_mut().guidelines.remove(i);
+                                            let mut action = glyph_state.delete_guideline(i);
+                                            (action.redo)();
+                                            let app: &crate::Application =
+                                                crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
+                                            let undo_db = app.undo_db.borrow_mut();
+                                            undo_db.event(action);
                                             drar.queue_draw();
                                         }
                                     }));
@@ -574,8 +654,12 @@ impl ObjectImpl for GlyphEditArea {
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
                     } else if let Tool::Manipulate { mode: ControlPointMode::DragGuideline(idx) } = glyph_state.tool {
-                        glyph_state.glyph.borrow().guidelines[idx].set_property("x", position.0);
-                        glyph_state.glyph.borrow().guidelines[idx].set_property("y", position.1);
+                        let mut action = glyph_state.update_guideline(idx, position);
+                        (action.redo)();
+                        let app: &crate::Application =
+                            crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
+                        let undo_db = app.undo_db.borrow_mut();
+                        undo_db.event(action);
                     }
 
                     let pts = glyph_state.kd_tree.borrow().query(position, 10);

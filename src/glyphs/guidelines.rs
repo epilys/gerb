@@ -28,8 +28,9 @@ use std::cell::RefCell;
 
 mod imp {
     use super::*;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Default, Clone)]
+    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
     pub struct Guideline {
         pub name: RefCell<Option<String>>,
         pub identifier: RefCell<Option<String>>,
@@ -182,6 +183,21 @@ mod imp {
 
 glib::wrapper! {
     pub struct Guideline(ObjectSubclass<imp::Guideline>);
+}
+
+impl TryFrom<serde_json::Value> for Guideline {
+    type Error = serde_json::Error;
+    fn try_from(v: serde_json::Value) -> Result<Guideline, Self::Error> {
+        let mut inner: imp::Guideline = serde_json::from_value(v)?;
+        let ret = Self::new();
+        ret.imp().name.swap(&mut inner.name);
+        ret.imp().identifier.swap(&mut inner.identifier);
+        ret.imp().color.swap(&mut inner.color);
+        ret.imp().angle.swap(&mut inner.angle);
+        ret.imp().x.swap(&mut inner.x);
+        ret.imp().y.swap(&mut inner.y);
+        Ok(ret)
+    }
 }
 
 impl Guideline {
