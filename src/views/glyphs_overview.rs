@@ -390,7 +390,7 @@ impl ObjectImpl for GlyphsArea {
         match pspec.name() {
             "tab-title" => "overview".to_value(),
             "tab-can-close" => false.to_value(),
-            _ => unreachable!(pspec.name()),
+            _ => unreachable!("{}", pspec.name()),
         }
     }
 }
