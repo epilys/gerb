@@ -44,5 +44,5 @@ Needs `gtk-3`.
 On `macOS` you can install dependencies with `Homebrew`:
 
 ```
-brew install librsvg gtk+3
+brew install librsvg gtk+3 gnome-icon-theme
 ```
