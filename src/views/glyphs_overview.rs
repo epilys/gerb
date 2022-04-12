@@ -656,6 +656,7 @@ impl ObjectImpl for GlyphBox {
                     highlight: None,
                     matrix,
                     units_per_em,
+                    ..Default::default()
                 };
                 glyph.draw(cr, options);
             }

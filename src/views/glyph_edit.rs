@@ -718,6 +718,9 @@ impl ObjectImpl for GlyphEditArea {
                 let inner_fill = viewhide.property::<bool>("inner-fill");
                 (show_grid, show_guidelines, show_handles, inner_fill)
             };
+            let app: &crate::GerbApp =
+                obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap();
+            let settings = app.imp().settings.clone();
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
             let project = obj.imp().project.get().unwrap().imp();
@@ -745,6 +748,8 @@ impl ObjectImpl for GlyphEditArea {
             cr.paint().expect("Invalid cairo surface state");
 
             cr.set_line_width(0.5);
+
+            let glyph_line_width = settings.borrow().property("line-width");
 
             let camera = obj.imp().camera.get();
             let mouse = obj.imp().mouse.get();
@@ -816,6 +821,7 @@ impl ObjectImpl for GlyphEditArea {
                 highlight: obj.imp().hovering.get(),
                 matrix,
                 units_per_em,
+                line_width: glyph_line_width,
             };
             glyph_state.glyph.borrow().draw(cr, options);
 
@@ -826,19 +832,20 @@ impl ObjectImpl for GlyphEditArea {
             cr.save().unwrap();
             cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
-            cr.set_line_width(0.5 / (2.0 * f));
+            cr.set_line_width(1.0 / (2.0 * f));
             if show_handles {
+                let handle_size: f64 = settings.borrow().property("handle-size");
                 cr.transform(matrix);
                 cr.transform(gtk::cairo::Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
                 for cp in glyph_state.points.borrow().iter() {
                     let p = cp.position;
                     match &cp.kind {
                         Endpoint { .. } => {
-                            cr.rectangle(p.0 as f64 - 2.5 / (2.0 * f), p.1 as f64 - 2.5 / (2.0 * f), 5. / (2.0 * f), 5. / (2.0 * f));
+                            cr.rectangle(p.0 as f64 - handle_size / (2.0 * f), p.1 as f64 - handle_size / (2.0 * f), handle_size / (2.0 * f), handle_size / (2.0 * f));
                             cr.stroke().unwrap();
                         }
                         Handle { ref end_points } => {
-                            cr.arc(p.0 as f64, p.1 as f64, 2.0 / (2.0 * f), 0., 2.0 * std::f64::consts::PI);
+                            cr.arc(p.0 as f64, p.1 as f64, handle_size / (2.0 * f), 0., 2.0 * std::f64::consts::PI);
                             cr.stroke().unwrap();
                             for ep in end_points {
                                 let ep = glyph_state.points.borrow()[*ep].position;

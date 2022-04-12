@@ -111,10 +111,11 @@ impl State {
             highlight: _,
             matrix,
             units_per_em,
+            line_width,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
-        cr.set_line_width(4.0);
+        cr.set_line_width(line_width);
         cr.transform(matrix);
         cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);

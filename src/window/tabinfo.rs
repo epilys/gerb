@@ -106,7 +106,7 @@ impl TabInfo {
         ret
     }
 
-    fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
+    pub fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
         let val: glib::Value = obj.property(property);
         match val.type_().name() {
             "gchararray" => {

@@ -114,6 +114,7 @@ pub struct GlyphDrawingOptions {
     pub highlight: Option<(usize, usize)>,
     pub matrix: Matrix,
     pub units_per_em: f64,
+    pub line_width: f64,
 }
 
 impl Default for GlyphDrawingOptions {
@@ -124,6 +125,7 @@ impl Default for GlyphDrawingOptions {
             highlight: None,
             matrix: Matrix::identity(),
             units_per_em: 1000.,
+            line_width: 4.0,
         }
     }
 }
@@ -219,10 +221,11 @@ impl Glyph {
             highlight,
             matrix,
             units_per_em,
+            line_width,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
-        cr.set_line_width(4.0);
+        cr.set_line_width(line_width);
         cr.transform(matrix);
         cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
