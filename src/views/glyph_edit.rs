@@ -36,13 +36,6 @@ mod viewhide;
 
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
-#[derive(Debug, Copy, Clone)]
-#[repr(u8)]
-enum MotionMode {
-    _Zoom = 0,
-    Pan,
-}
-
 #[derive(Debug, Clone)]
 enum ControlPointKind {
     Endpoint { handle: Option<usize> },
@@ -75,6 +68,7 @@ impl Default for ControlPointMode {
 
 #[derive(Debug, Clone)]
 enum Tool {
+    Panning,
     Manipulate { mode: ControlPointMode },
     BezierPen { state: bezier_pen::State },
 }
@@ -89,19 +83,15 @@ impl Default for Tool {
 
 impl Tool {
     fn is_manipulate(&self) -> bool {
-        if let Tool::Manipulate { .. } = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Tool::Manipulate { .. })
     }
 
     fn is_bezier_pen(&self) -> bool {
-        if let Tool::BezierPen { .. } = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Tool::BezierPen { .. })
+    }
+
+    fn is_panning(&self) -> bool {
+        matches!(self, Tool::Panning)
     }
 }
 
@@ -444,7 +434,6 @@ pub struct GlyphEditArea {
     mouse: Cell<(f64, f64)>,
     transformed_mouse: Cell<(i64, i64)>,
     zoom: Cell<f64>,
-    button: Cell<Option<MotionMode>>,
     project: OnceCell<Project>,
 }
 
@@ -544,7 +533,7 @@ impl ObjectImpl for GlyphEditArea {
                         }
                     },
                     gtk::gdk::BUTTON_MIDDLE => {
-                        obj.imp().button.set(Some(MotionMode::Pan));
+                        obj.imp().glyph_state.get().unwrap().borrow_mut().tool = Tool::Panning;
                     },
                     gtk::gdk::BUTTON_SECONDARY => {
                         let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
@@ -588,12 +577,15 @@ impl ObjectImpl for GlyphEditArea {
         drawing_area.connect_button_release_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 //obj.imp().mouse.set((0., 0.));
-                obj.imp().button.set(None);
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                if let Tool::Manipulate { ref mut mode } = glyph_state.tool {
-                    *mode = ControlPointMode::None;
-                } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
-                    if event.button() == gtk::gdk::BUTTON_PRIMARY {
+                match glyph_state.tool {
+                    Tool::Panning => {
+                        glyph_state.tool = Tool::default();
+                    },
+                    Tool::Manipulate { ref mut mode } => {
+                        *mode = ControlPointMode::None;
+                    },
+                    Tool::BezierPen { ref mut state } if event.button() == gtk::gdk::BUTTON_PRIMARY => {
                         let zoom_factor = obj.imp().zoom.get();
                         let camera = obj.imp().camera.get();
                         let position = event.position();
@@ -609,7 +601,8 @@ impl ObjectImpl for GlyphEditArea {
                             glyph_state.add_contour(&new_contour, contour_index);
                             glyph_state.glyph.borrow_mut().contours.push(new_contour);
                         }
-                    } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
+                    }
+                    Tool::BezierPen { ref mut state } if event.button() == gtk::gdk::BUTTON_SECONDARY => {
                         let state = std::mem::replace(state, Default::default());
                         glyph_state.tool = Tool::Manipulate { mode: Default::default() };
                         let new_contour = state.close(true);
@@ -617,6 +610,7 @@ impl ObjectImpl for GlyphEditArea {
                         glyph_state.add_contour(&new_contour, contour_index);
                         glyph_state.glyph.borrow_mut().contours.push(new_contour);
                     }
+                    Tool::BezierPen { .. } => {},
                 }
                 if let Some(screen) = _self.window() {
                     let display = screen.display();
@@ -630,7 +624,8 @@ impl ObjectImpl for GlyphEditArea {
         );
         drawing_area.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                if let Some(MotionMode::Pan) = obj.imp().button.get(){
+                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                if glyph_state.tool.is_panning() {
                     let mut camera = obj.imp().camera.get();
                     let mouse = obj.imp().mouse.get();
                     camera.0 += event.position().0 - mouse.0;
@@ -650,7 +645,6 @@ impl ObjectImpl for GlyphEditArea {
                     let f = units_per_em / EM_SQUARE_PIXELS;
                     let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                     obj.imp().transformed_mouse.set(position);
-                    let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
                     } else if let Tool::Manipulate { mode: ControlPointMode::DragGuideline(idx) } = glyph_state.tool {
@@ -954,9 +948,29 @@ impl ObjectImpl for GlyphEditArea {
             .can_focus(true)
             .build();
 
-        let manipulate_button = gtk::ToolButton::new(
+        let panning_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
                 crate::resources::GRAB_ICON_SVG,
+            )),
+            Some("panning"),
+        );
+        panning_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        panning_button.set_tooltip_text(Some("Pan"));
+        panning_button.connect_clicked(clone!(@weak obj => move |_self| {
+            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+            glyph_state.tool = Tool::Panning;
+            if let Some(screen) = _self.window() {
+                let display = screen.display();
+                screen.set_cursor(Some(
+                        &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
+                ));
+            }
+        }));
+
+        let manipulate_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::SELECT_ICON_SVG,
             )),
             Some("Manipulate"),
         );
@@ -1143,6 +1157,8 @@ impl ObjectImpl for GlyphEditArea {
             window.add(&hbox);
             window.show_all();
         }));
+        toolbar.add(&panning_button);
+        toolbar.set_item_homogeneous(&panning_button, false);
         toolbar.add(&manipulate_button);
         toolbar.set_item_homogeneous(&manipulate_button, false);
         toolbar.add(&bezier_button);
