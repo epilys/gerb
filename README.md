@@ -21,7 +21,7 @@
 - [x] be able to create new paths/contours in a glyph ([Tracking issue #3](https://github.com/epilys/gerb/issues/3))
 - [ ] be able to add/remove glyphs
 - [ ] create new projects ([Tracking issue #4](https://github.com/epilys/gerb/issues/4))
-- [ ] {un,re}do (event sourcing) ([Tracking issue #2](https://github.com/epilys/gerb/issues/2))
+- [x] {un,re}do (event sourcing) ([Tracking issue #2](https://github.com/epilys/gerb/issues/2))
 
 ## Running the demo
 
@@ -41,8 +41,14 @@ I got mine from the `Regular` instance at the [Source Sans repository](https://g
 
 Needs `gtk-3`.
 
+On Debian and relatives:
+
+```shell
+apt install libgtk-3-dev
+```
+
 On `macOS` you can install dependencies with `Homebrew`:
 
-```
+```shell
 brew install librsvg gtk+3 gnome-icon-theme
 ```
