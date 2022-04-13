@@ -835,12 +835,12 @@ impl ObjectImpl for GlyphEditArea {
                     let p = cp.position;
                     match &cp.kind {
                         Endpoint { .. } => {
-                            cr.rectangle(p.0 as f64 - handle_size / (2.0 * f), p.1 as f64 - handle_size / (2.0 * f), handle_size / (2.0 * f), handle_size / (2.0 * f));
+                            cr.rectangle(p.0 as f64 - handle_size / (4.0 * f), p.1 as f64 - handle_size / (4.0 * f), handle_size / (2.0 * f), handle_size / (2.0 * f));
                             cr.stroke().unwrap();
                         }
                         Handle { ref end_points } => {
                             cr.arc(p.0 as f64, p.1 as f64, handle_size / (2.0 * f), 0., 2.0 * std::f64::consts::PI);
-                            cr.stroke().unwrap();
+                            cr.fill().unwrap();
                             for ep in end_points {
                                 let ep = glyph_state.points.borrow()[*ep].position;
                                 cr.move_to(p.0 as f64, p.1 as f64);
@@ -1095,6 +1095,10 @@ impl ObjectImpl for GlyphEditArea {
                 }
             }
             Inhibit(false)
+        }));
+
+        drawing_area.connect_size_allocate(clone!(@weak obj => move |_scrolled_window, _rect| {
+            obj.imp().resized.set(true);
         }));
 
         let zoom_percent_label = gtk::Label::new(Some("100%"));
