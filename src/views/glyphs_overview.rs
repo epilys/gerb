@@ -40,11 +40,10 @@ const GLYPH_BOX_HEIGHT: f64 = 140.;
 pub struct GlyphsArea {
     app: OnceCell<gtk::Application>,
     project: OnceCell<Project>,
-    grid: OnceCell<gtk::Grid>,
+    grid: OnceCell<gtk::FlowBox>,
     tree: OnceCell<gtk::TreeView>,
     tree_store: OnceCell<gtk::TreeStore>,
     show_blocks: RefCell<HashMap<&'static str, bool>>,
-    cols: Cell<u32>,
     hide_empty: Cell<bool>,
     zoom_factor: Cell<f64>,
     filter_input: RefCell<Option<String>>,
@@ -65,9 +64,9 @@ impl ObjectImpl for GlyphsArea {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         *self.filter_input.borrow_mut() = None;
-        self.cols.set(4);
 
-        let grid = gtk::Grid::builder()
+        let grid = gtk::FlowBox::builder()
+            .max_children_per_line(150)
             .expand(true)
             .visible(true)
             .can_focus(true)
@@ -90,18 +89,6 @@ impl ObjectImpl for GlyphsArea {
             .build();
 
         scrolled_window.set_child(Some(&grid));
-        scrolled_window.connect_size_allocate(clone!(@weak obj => move |_scrolled_window, rect| {
-            let mut new_cols = rect.width() as u32 / ((obj.imp().zoom_factor.get()) * GLYPH_BOX_WIDTH) as u32;
-            if new_cols < 4 {
-                new_cols = 4;
-            }
-            let prev_cols = obj.imp().cols.get();
-            if new_cols != prev_cols {
-                //println!("grid resized: {} -> {}", prev_cols, new_cols);
-                obj.imp().cols.set(new_cols.saturating_sub(1));
-                obj.update_grid();
-            }
-        }));
 
         let tool_palette = gtk::Toolbar::builder()
             .orientation(gtk::Orientation::Horizontal)
@@ -408,7 +395,6 @@ glib::wrapper! {
 impl GlyphsOverview {
     pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
-        let (mut col, mut row) = (0, 0);
         let grid = ret.imp().grid.get().unwrap();
         let mut widgets = vec![];
         {
@@ -417,13 +403,8 @@ impl GlyphsOverview {
             glyphs.sort();
             for glyph in glyphs {
                 let glyph_box = GlyphBoxItem::new(app.clone(), project.clone(), glyph.clone());
-                grid.attach(&glyph_box, col, row, 1, 1);
+                grid.add(&glyph_box);
                 widgets.push(glyph_box);
-                col += 1;
-                if col == 4 {
-                    col = 0;
-                    row += 1;
-                }
             }
         }
         ret.imp().app.set(app).unwrap();
@@ -477,11 +458,13 @@ impl GlyphsOverview {
     fn update_grid(&self) {
         let hide_empty: bool = self.imp().hide_empty.get();
         let zoom_factor: f64 = self.imp().zoom_factor.get();
-        let show_blocks = self.imp().show_blocks.borrow();
-        let filter_input = self.imp().filter_input.borrow();
-        let filter_input_uppercase: Option<String> =
-            filter_input.as_ref().map(|s| s.to_ascii_uppercase());
-        let filter_input_char: Option<char> = filter_input.as_ref().and_then(|s| {
+        let show_blocks = self.imp().show_blocks.clone();
+        let filter_input = self.imp().filter_input.clone();
+        let filter_input_uppercase: Option<String> = filter_input
+            .borrow()
+            .as_ref()
+            .map(|s| s.to_ascii_uppercase());
+        let filter_input_char: Option<char> = filter_input.borrow().as_ref().and_then(|s| {
             let mut iter = s.chars();
             let first = iter.next()?;
             if iter.next().is_some() {
@@ -490,54 +473,56 @@ impl GlyphsOverview {
                 Some(first)
             }
         });
-        let (mut col, mut row) = (0, 0);
         let grid = self.imp().grid.get().unwrap();
-        let max_cols = self.imp().cols.get() as i32;
-        let children = grid.children();
-        for c in children {
-            grid.remove(&c);
-        }
-        for c in self.imp().widgets.get().unwrap() {
-            c.set_height_request((zoom_factor * GLYPH_BOX_HEIGHT) as i32);
-            c.set_width_request((zoom_factor * GLYPH_BOX_WIDTH) as i32);
-            //c.queue_draw();
-            c.imp().zoom_factor.set(zoom_factor);
-            let glyph = c.imp().glyph.get().unwrap().borrow();
-            if hide_empty && glyph.is_empty() {
-                continue;
-            }
-            if !match glyph.kind {
-                GlyphKind::Component => *show_blocks.get("Component").unwrap_or(&true),
-                GlyphKind::Char(c) => *c
-                    .char_block()
-                    .and_then(|idx| show_blocks.get(UNICODE_BLOCKS[idx].1))
-                    .unwrap_or(&true),
-            } {
-                continue;
-            }
-
-            if let (Some(f), Some(fu)) = (filter_input.as_ref(), filter_input_uppercase.as_ref()) {
-                if !(glyph.name.contains(f.as_str())
-                    || glyph
-                        .name2
-                        .as_ref()
-                        .map(|n| n.contains(fu.as_str()))
-                        .unwrap_or(false)
-                    || filter_input_char
-                        .as_ref()
-                        .map(|c| glyph.kind == GlyphKind::Char(*c))
-                        .unwrap_or(false))
+        grid.set_filter_func(Some(Box::new(
+            clone!(@weak self as _self => @default-return true, move |flowbox: &gtk::FlowBoxChild| {
+                let child = flowbox.child();
+                if let Some(c) = child.as_ref()
+                    .and_then(|w| w.downcast_ref::<GlyphBoxItem>())
                 {
-                    continue;
+                    c.set_height_request((zoom_factor * GLYPH_BOX_HEIGHT) as i32);
+                    c.set_width_request((zoom_factor * GLYPH_BOX_WIDTH) as i32);
+                    c.queue_draw();
+                    c.imp().zoom_factor.set(zoom_factor);
+                    let show_blocks = show_blocks.borrow();
+                    let filter_input = filter_input.borrow();
+                    let glyph = c.imp().glyph.get().unwrap().borrow();
+                    if hide_empty && glyph.is_empty() {
+                        return false;
+                    }
+                    if !match glyph.kind {
+                        GlyphKind::Component => *show_blocks.get("Component").unwrap_or(&true),
+                            GlyphKind::Char(c) => *c
+                                .char_block()
+                                .and_then(|idx| show_blocks.get(UNICODE_BLOCKS[idx].1))
+                                .unwrap_or(&true),
+                    } {
+                        return false;
+                    }
+
+                    if let (Some(f), Some(fu)) =
+                        (filter_input.as_ref(), filter_input_uppercase.as_ref())
+                    {
+                        if !(glyph.name.contains(f.as_str())
+                            || glyph
+                            .name2
+                            .as_ref()
+                            .map(|n| n.contains(fu.as_str()))
+                            .unwrap_or(false)
+                            || filter_input_char
+                            .as_ref()
+                            .map(|c| glyph.kind == GlyphKind::Char(*c))
+                            .unwrap_or(false))
+                        {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
                 }
-            }
-            grid.attach(c, col, row, 1, 1);
-            col += 1;
-            if col == max_cols {
-                col = 0;
-                row += 1;
-            }
-        }
+            }),
+        )));
         grid.queue_draw();
     }
 }
@@ -557,6 +542,7 @@ unsafe impl Sync for GlyphBox {}
 
 unsafe impl Send for GlyphBoxItem {}
 unsafe impl Sync for GlyphBoxItem {}
+
 #[glib::object_subclass]
 impl ObjectSubclass for GlyphBox {
     const NAME: &'static str = "GlyphBox";
