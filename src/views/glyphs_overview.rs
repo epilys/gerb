@@ -429,6 +429,7 @@ impl GlyphsOverview {
                 } else {
                     *blocks_set.entry("Unknown").or_default() += 1;
                 }
+                *blocks_set.entry("Unicode").or_default() += 1;
             } else {
                 *blocks_set.entry("Components").or_default() += 1;
             }
@@ -441,14 +442,23 @@ impl GlyphsOverview {
                 &[(0, &true), (1, &"Components"), (2, &(c as i64))],
             );
         }
-        let unicode = tree_store.insert_with_values(None, None, &[(0, &true), (1, &"Unicode")]);
+        let unicode = if let Some(c) = blocks_set.remove("Unicode") {
+            show_blocks.insert("Unicode", true);
+            Some(tree_store.insert_with_values(
+                None,
+                None,
+                &[(0, &true), (1, &"Unicode"), (2, &(c as i64))],
+            ))
+        } else {
+            None
+        };
         let mut block_set: Vec<(&'static str, usize)> = blocks_set.into_iter().collect();
         block_set.sort_by_key(|e| e.1);
         block_set.reverse();
         for (block_name, count) in block_set {
             show_blocks.insert(block_name, true);
             tree_store.insert_with_values(
-                Some(&unicode),
+                unicode.as_ref(),
                 None,
                 &[(0, &true), (1, &block_name), (2, &(count as i64))],
             );
@@ -477,7 +487,8 @@ impl GlyphsOverview {
         grid.set_filter_func(Some(Box::new(
             clone!(@weak self as _self => @default-return true, move |flowbox: &gtk::FlowBoxChild| {
                 let child = flowbox.child();
-                if let Some(c) = child.as_ref()
+                if let Some(c) = child
+                    .as_ref()
                     .and_then(|w| w.downcast_ref::<GlyphBoxItem>())
                 {
                     c.set_height_request((zoom_factor * GLYPH_BOX_HEIGHT) as i32);
@@ -491,11 +502,14 @@ impl GlyphsOverview {
                         return false;
                     }
                     if !match glyph.kind {
-                        GlyphKind::Component => *show_blocks.get("Component").unwrap_or(&true),
-                            GlyphKind::Char(c) => *c
-                                .char_block()
-                                .and_then(|idx| show_blocks.get(UNICODE_BLOCKS[idx].1))
-                                .unwrap_or(&true),
+                        GlyphKind::Component => *show_blocks.get("Components").unwrap_or(&true),
+                        GlyphKind::Char(c) => {
+                            *show_blocks.get("Unicode").unwrap_or(&true)
+                                && *c
+                                    .char_block()
+                                    .and_then(|idx| show_blocks.get(UNICODE_BLOCKS[idx].1))
+                                    .unwrap_or(&true)
+                        }
                     } {
                         return false;
                     }
@@ -505,14 +519,14 @@ impl GlyphsOverview {
                     {
                         if !(glyph.name.contains(f.as_str())
                             || glyph
-                            .name2
-                            .as_ref()
-                            .map(|n| n.contains(fu.as_str()))
-                            .unwrap_or(false)
+                                .name2
+                                .as_ref()
+                                .map(|n| n.contains(fu.as_str()))
+                                .unwrap_or(false)
                             || filter_input_char
-                            .as_ref()
-                            .map(|c| glyph.kind == GlyphKind::Char(*c))
-                            .unwrap_or(false))
+                                .as_ref()
+                                .map(|c| glyph.kind == GlyphKind::Char(*c))
+                                .unwrap_or(false))
                         {
                             return false;
                         }
