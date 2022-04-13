@@ -730,10 +730,10 @@ impl ObjectImpl for GlyphEditArea {
             if obj.imp().resized.get() {
                 obj.imp().resized.set(false);
                 /* resize and center glyph to view */
-                let target_width = width / 3. * 0.8;
-                let target_zoom_factor = target_width / glyph_width;
-                obj.imp().set_zoom(target_zoom_factor);
-                obj.imp().camera.set((EM_SQUARE_PIXELS / 2.0, 0.0));
+                let target_zoom_factor_x = (2.0 * width) / (3.0 * EM_SQUARE_PIXELS);
+                let target_zoom_factor_y = (2.0 * height) / (3.0 * EM_SQUARE_PIXELS);
+                obj.imp().set_zoom(target_zoom_factor_x.min(target_zoom_factor_y));
+                obj.imp().camera.set(((2.0 * EM_SQUARE_PIXELS) / 3.0, 0.0));
             }
             let zoom_factor = obj.imp().zoom.get();
             cr.save().unwrap();
@@ -1112,6 +1112,8 @@ impl ObjectImpl for GlyphEditArea {
                      let zoom_factor = imp.zoom.get();
                      if (zoom_factor - 1.0).abs() > f64::EPSILON {
                          imp.set_zoom(1.0);
+                     } else if zoom_factor == 1.0 {
+                         imp.resized.set(true);
                      }
                 }
                 Inhibit(false)
