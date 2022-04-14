@@ -21,9 +21,10 @@
 
 mod tabinfo;
 pub use tabinfo::*;
+mod minimap;
+pub use minimap::*;
 
 use glib::clone;
-use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
 use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
@@ -41,12 +42,12 @@ pub struct WindowSidebar {
     pub main: gtk::Paned,
     pub project_info_sidebar: gtk::Paned,
     pub project_label: gtk::Label,
-    pub minimap: gtk::DrawingArea,
+    pub minimap: Minimap,
 }
 
 impl WindowSidebar {
     #[inline(always)]
-    fn new(main: gtk::Paned, obj: &<Window as ObjectSubclass>::Type) -> Self {
+    fn new(main: gtk::Paned, _obj: &<Window as ObjectSubclass>::Type) -> Self {
         let ret = Self {
             tabinfo: TabInfo::new(),
             main,
@@ -64,12 +65,7 @@ impl WindowSidebar {
                 .visible(true)
                 .name("main-window-project-label")
                 .build(),
-            minimap: gtk::DrawingArea::builder()
-                .expand(true)
-                .visible(true)
-                .name("main-window-minimap")
-                .tooltip_text("pangram minimap")
-                .build(),
+            minimap: Minimap::new(),
         };
         let sidebar = gtk::Paned::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -81,44 +77,6 @@ impl WindowSidebar {
             .build();
         ret.project_label.set_valign(gtk::Align::Start);
         ret.project_label.style_context().add_class("project-label");
-
-        ret.minimap.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
-            const PANGRAM: &str = "A wizard's job is to vex chumps quickly in fog.";
-            let (red, green, blue) = crate::utils::hex_color_to_rgb("#959595").unwrap();
-            cr.set_source_rgb(red, green, blue);
-            cr.paint().expect("Invalid cairo surface state");
-            cr.select_font_face("Inter", FontSlant::Normal, FontWeight::Normal);
-            cr.set_source_rgb(1., 1., 1.);
-            cr.set_font_size(8.);
-            let (x, mut y) = (2., 15.);
-            cr.move_to(x, y);
-            let extends = cr.text_extents(PANGRAM).unwrap();
-            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
-            y += extends.height + 10.;
-            cr.move_to(x, y);
-            cr.set_font_size(14.);
-            let extends = cr.text_extents(PANGRAM).unwrap();
-            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
-            y += extends.height + 10.;
-            cr.move_to(x, y);
-            cr.set_font_size(20.);
-            let extends = cr.text_extents(PANGRAM).unwrap();
-            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
-            y += extends.height + 10.;
-            cr.move_to(x, y);
-            cr.set_font_size(32.);
-            let extends = cr.text_extents(PANGRAM).unwrap();
-            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
-            y += extends.height + 25.;
-            cr.move_to(x, y);
-            cr.set_font_size(64.);
-            let extends = cr.text_extents(PANGRAM).unwrap();
-            cr.show_text(PANGRAM).expect("Invalid cairo surface state");
-            y += extends.height;
-            cr.move_to(x, y);
-            Inhibit(false)
-        }));
-        ret.minimap.style_context().add_class("project-minimap");
         sidebar.pack2(&ret.minimap, true, false);
         sidebar.style_context().add_class("sidebar");
 
