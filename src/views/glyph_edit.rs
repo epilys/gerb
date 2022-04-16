@@ -34,6 +34,8 @@ use crate::project::Project;
 mod bezier_pen;
 mod viewhide;
 
+use super::Canvas;
+
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
 #[derive(Debug, Clone)]
@@ -105,11 +107,11 @@ struct GlyphState {
     points: Rc<RefCell<Vec<ControlPoint>>>,
     points_map: Rc<RefCell<HashMap<(i64, i64), Vec<usize>>>>,
     kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
-    drar: gtk::DrawingArea,
+    drar: Canvas,
 }
 
 impl GlyphState {
-    fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, drar: gtk::DrawingArea) -> Self {
+    fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, drar: Canvas) -> Self {
         let control_points = Rc::new(RefCell::new(vec![]));
         let points_map: Rc<RefCell<HashMap<(i64, i64), Vec<usize>>>> =
             Rc::new(RefCell::new(HashMap::default()));
@@ -422,7 +424,7 @@ pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<RefCell<GlyphState>>,
-    drawing_area: OnceCell<gtk::DrawingArea>,
+    drawing_area: OnceCell<Canvas>,
     hovering: Cell<Option<(usize, usize)>>,
     statusbar_context_id: Cell<Option<u32>>,
     overlay: OnceCell<gtk::Overlay>,
@@ -460,18 +462,7 @@ impl ObjectImpl for GlyphEditArea {
         self.transformed_mouse.set((0, 0));
         self.zoom.set(1.);
 
-        let drawing_area = gtk::DrawingArea::builder()
-            .expand(true)
-            .visible(true)
-            .build();
-        drawing_area.set_events(
-            gtk::gdk::EventMask::BUTTON_PRESS_MASK
-                | gtk::gdk::EventMask::BUTTON_RELEASE_MASK
-                | gtk::gdk::EventMask::BUTTON_MOTION_MASK
-                | gtk::gdk::EventMask::SCROLL_MASK
-                | gtk::gdk::EventMask::SMOOTH_SCROLL_MASK
-                | gtk::gdk::EventMask::POINTER_MOTION_MASK,
-        );
+        let drawing_area = Canvas::new();
         drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 obj.imp().mouse.set(event.position());
@@ -703,13 +694,12 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
 
-        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &gtk::DrawingArea, cr: &gtk::cairo::Context| {
+        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &Canvas, cr: &gtk::cairo::Context| {
             let (show_grid, show_guidelines, show_handles, inner_fill) = {
-                let viewhide = obj.imp().viewhidebox.get().unwrap();
-                let show_grid = viewhide.property::<bool>("show-grid");
-                let show_guidelines = viewhide.property::<bool>("show-guidelines");
-                let show_handles = viewhide.property::<bool>("show-handles");
-                let inner_fill = viewhide.property::<bool>("inner-fill");
+                let show_grid = drar.property::<bool>("show-grid");
+                let show_guidelines = drar.property::<bool>("show-guidelines");
+                let show_handles = drar.property::<bool>("show-handles");
+                let inner_fill = drar.property::<bool>("inner-fill");
                 (show_grid, show_guidelines, show_handles, inner_fill)
             };
             let app: &crate::GerbApp =
@@ -1179,13 +1169,7 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
         toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
-        let viewhidebox = viewhide::ViewHideBox::new();
-        viewhidebox.connect_notify_local(
-            Some("show-grid"),
-            clone!(@weak drawing_area => move |_self, _| {
-                drawing_area.queue_draw();
-            }),
-        );
+        let viewhidebox = viewhide::ViewHideBox::new(&drawing_area);
         let overlay = gtk::Overlay::builder()
             .expand(true)
             .visible(true)

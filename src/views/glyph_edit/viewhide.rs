@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, Value};
+use glib::{clone, ParamFlags, ParamSpec, ParamSpecBoolean, Value};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -175,8 +175,19 @@ glib::wrapper! {
 }
 
 impl ViewHideBox {
-    pub fn new() -> Self {
+    pub fn new(canvas: &super::Canvas) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create ViewHideBox");
+        ret.connect_notify_local(
+            Some("show-grid"),
+            clone!(@weak canvas => move |_self, _| {
+                canvas.queue_draw();
+            }),
+        );
+        for property in ["show-grid", "show-guidelines", "show-handles", "inner-fill"] {
+            ret.bind_property(property, canvas, property)
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
         ret
     }
 }

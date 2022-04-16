@@ -19,8 +19,10 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+mod canvas;
 mod glyph_edit;
 mod glyphs_overview;
 
+pub use canvas::Canvas;
 pub use glyph_edit::*;
 pub use glyphs_overview::*;
