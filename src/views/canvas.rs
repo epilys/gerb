@@ -19,19 +19,23 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, Value};
-//use gtk::cairo::{Context, FontSlant, FontWeight};
+mod transformation;
+use transformation::*;
+
+use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecObject, Value};
+use gtk::cairo::{Context, FontSlant, FontWeight, Matrix};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Default)]
 pub struct CanvasInner {
-    show_grid: Cell<bool>,
-    show_guidelines: Cell<bool>,
-    show_handles: Cell<bool>,
-    inner_fill: Cell<bool>,
+    pub show_grid: Cell<bool>,
+    pub show_guidelines: Cell<bool>,
+    pub show_handles: Cell<bool>,
+    pub inner_fill: Cell<bool>,
+    pub transformation: Transformation,
 }
 
 #[glib::object_subclass]
@@ -89,6 +93,13 @@ impl ObjectImpl for CanvasInner {
                         true,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecObject::new(
+                        "transformation",
+                        "transformation",
+                        "transformation",
+                        Transformation::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -100,6 +111,7 @@ impl ObjectImpl for CanvasInner {
             "show-guidelines" => self.show_guidelines.get().to_value(),
             "show-handles" => self.show_handles.get().to_value(),
             "inner-fill" => self.inner_fill.get().to_value(),
+            "transformation" => self.transformation.to_value(),
             _ => unimplemented!(),
         }
     }
@@ -117,6 +129,13 @@ impl ObjectImpl for CanvasInner {
             }
             "inner-fill" => {
                 self.inner_fill.set(value.get().unwrap());
+            }
+            "transformation" => {
+                let new_val: Transformation = value.get().unwrap();
+                self.transformation
+                    .imp()
+                    .matrix
+                    .set(new_val.imp().matrix.get());
             }
             _ => unimplemented!(),
         }
@@ -137,5 +156,11 @@ impl Canvas {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
         ret
+    }
+}
+
+impl Default for Canvas {
+    fn default() -> Self {
+        Self::new()
     }
 }
