@@ -591,9 +591,27 @@ impl KdTree {
             return vec![];
         };
 
+        /// Overflow guard
+        macro_rules! o {
+            ($left:expr, - $right:expr) => {{
+                let (result, overflow_flag) = $left.overflowing_sub($right);
+                if overflow_flag {
+                    return vec![];
+                }
+                result
+            }};
+            ($left:expr, + $right:expr) => {{
+                let (result, overflow_flag) = $left.overflowing_add($right);
+                if overflow_flag {
+                    return vec![];
+                }
+                result
+            }};
+        }
+
         let query_region: (Point, Point) = (
-            (center.0 - radius / 2, center.1 - radius / 2),
-            (center.0 + radius / 2, center.1 + radius / 2),
+            (o! { center.0, - radius / 2 }, o! { center.1, - radius / 2 }),
+            (o! { center.0, + radius / 2 }, o! { center.1, + radius / 2 }),
         );
 
         fn report_subtree(root: Index, ret: &mut Vec<(usize, Point)>, arena: &TDArena) {
