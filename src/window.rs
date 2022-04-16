@@ -85,7 +85,7 @@ impl WindowSidebar {
             .pack2(&ret.project_label, true, true);
 
         sidebar.pack1(&ret.project_info_sidebar, true, false);
-        ret.main.pack1(&sidebar, true, true);
+        //ret.main.pack1(&sidebar, true, true);
         ret
     }
 

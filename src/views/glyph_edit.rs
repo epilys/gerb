@@ -436,6 +436,7 @@ pub struct GlyphEditArea {
     mouse: Cell<(f64, f64)>,
     transformed_mouse: Cell<(i64, i64)>,
     zoom: Cell<f64>,
+    zoom_locus: Cell<Option<(f64, f64)>>,
     project: OnceCell<Project>,
 }
 
@@ -717,6 +718,10 @@ impl ObjectImpl for GlyphEditArea {
             let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
             let glyph_width = f * glyph_state.glyph.borrow().width.unwrap_or(units_per_em);
 
+            if let Some((cx, cy)) = obj.imp().zoom_locus.take() {
+                //obj.imp().camera.set((cx + width / 2.0, cy + height / 2.0));
+                //obj.imp().transformation.pan(cx + width / 2.0, cy + height / 2.0);
+            }
             if obj.imp().resized.get() {
                 obj.imp().resized.set(false);
                 /* resize and center glyph to view */
@@ -726,6 +731,9 @@ impl ObjectImpl for GlyphEditArea {
                 obj.imp().camera.set(((2.0 * EM_SQUARE_PIXELS) / 3.0, 0.0));
             }
             let zoom_factor = obj.imp().zoom.get();
+            let camera = obj.imp().camera.get();
+            let mouse = obj.imp().mouse.get();
+
             cr.save().unwrap();
             cr.scale(zoom_factor, zoom_factor);
             cr.set_source_rgb(1., 1., 1.);
@@ -735,23 +743,20 @@ impl ObjectImpl for GlyphEditArea {
 
             let glyph_line_width = settings.borrow().property("line-width");
 
-            let camera = obj.imp().camera.get();
-            let mouse = obj.imp().mouse.get();
-
             if show_grid {
                 for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
                     cr.set_source_rgb(color, color, color);
                     let mut y = (camera.1 % step).floor();
-                    while y < (height/zoom_factor) {
-                        cr.move_to(0., y);
-                        cr.line_to(width/zoom_factor, y);
+                    while y < (height / zoom_factor) {
+                        cr.move_to(0.5, y + 0.5);
+                        cr.line_to(width / zoom_factor + 0.5, y + 0.5);
                         y += step;
                     }
                     cr.stroke().unwrap();
                     let mut x = (camera.0 % step).floor();
-                    while x < (width/zoom_factor) {
-                        cr.move_to(x, 0.);
-                        cr.line_to(x, height/zoom_factor);
+                    while x < (width / zoom_factor) {
+                        cr.move_to(x + 0.5, 0.5);
+                        cr.line_to(x + 0.5, height / zoom_factor + 0.5);
                         x += step;
                     }
                     cr.stroke().unwrap();
@@ -1070,15 +1075,21 @@ impl ObjectImpl for GlyphEditArea {
                     /* zoom */
                     let (_, dy) = event.delta();
                     let imp = obj.imp();
-                    let mut camera =imp.camera.get();
-                    let mouse = imp.mouse.get();
-                    camera.0 += event.position().0 - mouse.0;
-                    camera.1 += event.position().1 - mouse.1;
-                    imp.mouse.set(event.position());
-                    imp.camera.set(camera);
-                    let zoom_factor = imp.zoom.get() - 0.25* dy;
-                    imp.set_zoom(zoom_factor);
-                    _drar.queue_draw();
+                    let zoom_factor = imp.zoom.get() - 0.05* dy;
+                    if imp.set_zoom(zoom_factor) {
+                        let mut camera = imp.camera.get();
+                        let mouse = imp.mouse.get();
+                        //camera.0 += event.position().0 - mouse.0;
+                        //camera.1 += event.position().1 - mouse.1;
+                        imp.mouse.set(event.position());
+                        //imp.camera.set(camera);
+                        let dx = (event.position().0 - camera.0) * (zoom_factor - 1.0);
+                        let dy = (event.position().1 - camera.1) * (zoom_factor - 1.0);
+                        camera.0 -= dx;
+                        camera.1 -= dy;
+                        imp.camera.set(camera);
+                        _drar.queue_draw();
+                    }
                 },
                 _ => {
                     /* ignore */
@@ -1105,7 +1116,7 @@ impl ObjectImpl for GlyphEditArea {
                      let imp = obj.imp();
                      let zoom_factor = imp.zoom.get();
                      if (zoom_factor - 1.0).abs() > f64::EPSILON {
-                         imp.set_zoom(1.0);
+                         let _ = imp.set_zoom(1.0);
                      } else if zoom_factor == 1.0 {
                          imp.resized.set(true);
                      }
@@ -1263,7 +1274,8 @@ impl ContainerImpl for GlyphEditArea {}
 impl BinImpl for GlyphEditArea {}
 
 impl GlyphEditArea {
-    fn set_zoom(&self, new_val: f64) {
+    #[must_use]
+    fn set_zoom(&self, new_val: f64) -> bool {
         if new_val > 0.09 && new_val < 15.26 {
             self.zoom.set(new_val);
             self.zoom_percent_label
@@ -1271,6 +1283,9 @@ impl GlyphEditArea {
                 .unwrap()
                 .set_text(&format!("{:.0}%", new_val * 100.));
             self.overlay.get().unwrap().queue_draw();
+            true
+        } else {
+            false
         }
     }
 
