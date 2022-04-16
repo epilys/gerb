@@ -51,10 +51,20 @@ impl Transformation {
         ret
     }
 
-    pub fn scale(&self, factor: f64) {
+    pub fn set_scale(&self, factor: f64) {
+        self.apply_scale(factor);
+    }
+
+    pub fn apply_scale(&self, factor: f64) {
         let mut m = self.imp().matrix.get();
-        m.scale(factor, factor);
+        m.xx = factor;
+        m.yy = factor;
         self.imp().matrix.set(m);
+    }
+
+    pub fn scale(&self) -> f64 {
+        let m = self.imp().matrix.get();
+        m.xx
     }
 
     pub fn scale_towards_point(&self, factor: f64, (lx, ly): (f64, f64)) {
@@ -65,8 +75,30 @@ impl Transformation {
         self.imp().matrix.set(m);
     }
 
+    pub fn pan(&self, (dx, dy): (f64, f64)) {
+        let mut m = self.imp().matrix.get();
+        m.translate(dx, dy);
+        self.imp().matrix.set(m);
+    }
+
+    pub fn set_pan(&self, (x, y): (f64, f64)) {
+        let mut m = self.imp().matrix.get();
+        m.x0 += x;
+        m.y0 += y;
+        self.imp().matrix.set(m);
+    }
+
     pub fn reset(&self) {
         self.imp().matrix.set(Matrix::identity());
+    }
+
+    pub fn matrix(&self) -> Matrix {
+        self.imp().matrix.get()
+    }
+
+    pub fn camera(&self) -> (f64, f64) {
+        let m = self.imp().matrix.get();
+        (m.x0, m.y0)
     }
 }
 

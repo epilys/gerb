@@ -424,7 +424,7 @@ pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<RefCell<GlyphState>>,
-    drawing_area: OnceCell<Canvas>,
+    drawing_area: Canvas,
     hovering: Cell<Option<(usize, usize)>>,
     statusbar_context_id: Cell<Option<u32>>,
     overlay: OnceCell<gtk::Overlay>,
@@ -432,7 +432,6 @@ pub struct GlyphEditArea {
     pub viewhidebox: OnceCell<viewhide::ViewHideBox>,
     zoom_percent_label: OnceCell<gtk::Label>,
     resized: Cell<bool>,
-    camera: Cell<(f64, f64)>,
     mouse: Cell<(f64, f64)>,
     transformed_mouse: Cell<(i64, i64)>,
     zoom: Cell<f64>,
@@ -458,17 +457,15 @@ impl ObjectImpl for GlyphEditArea {
         self.hovering.set(None);
         self.resized.set(true);
         self.statusbar_context_id.set(None);
-        self.camera.set((0., 0.));
         self.mouse.set((0., 0.));
         self.transformed_mouse.set((0, 0));
         self.zoom.set(1.);
 
-        let drawing_area = Canvas::new();
-        drawing_area.connect_button_press_event(
+        self.drawing_area.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 obj.imp().mouse.set(event.position());
-                let zoom_factor = obj.imp().zoom.get();
-                let camera = obj.imp().camera.get();
+                let zoom_factor = obj.imp().zoom_factor();
+                let camera = obj.imp().camera();
                 let event_position = event.position();
                 let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
                 let f = units_per_em / EM_SQUARE_PIXELS;
@@ -566,7 +563,7 @@ impl ObjectImpl for GlyphEditArea {
                 Inhibit(false)
             }),
         );
-        drawing_area.connect_button_release_event(
+        self.drawing_area.connect_button_release_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 //obj.imp().mouse.set((0., 0.));
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
@@ -578,8 +575,8 @@ impl ObjectImpl for GlyphEditArea {
                         *mode = ControlPointMode::None;
                     },
                     Tool::BezierPen { ref mut state } if event.button() == gtk::gdk::BUTTON_PRIMARY => {
-                        let zoom_factor = obj.imp().zoom.get();
-                        let camera = obj.imp().camera.get();
+                        let zoom_factor = obj.imp().zoom_factor();
+                        let camera = obj.imp().camera();
                         let position = event.position();
                         let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
                         let f = units_per_em / EM_SQUARE_PIXELS;
@@ -614,15 +611,13 @@ impl ObjectImpl for GlyphEditArea {
                 Inhibit(false)
             }),
         );
-        drawing_area.connect_motion_notify_event(
+        self.drawing_area.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 if glyph_state.tool.is_panning() {
-                    let mut camera = obj.imp().camera.get();
+                    let scale = _self.imp().transformation.scale();
                     let mouse = obj.imp().mouse.get();
-                    camera.0 += event.position().0 - mouse.0;
-                    camera.1 += event.position().1 - mouse.1;
-                    obj.imp().camera.set(camera);
+                    _self.imp().transformation.set_pan(((event.position().0 - mouse.0) * (1.0/scale), (event.position().1 - mouse.1) * (1.0 / scale)));
                     if let Some(screen) = _self.window() {
                         let display = screen.display();
                         screen.set_cursor(Some(
@@ -630,8 +625,8 @@ impl ObjectImpl for GlyphEditArea {
                         ));
                     }
                 } else {
-                    let zoom_factor = obj.imp().zoom.get();
-                    let camera = obj.imp().camera.get();
+                    let zoom_factor = obj.imp().zoom_factor();
+                    let camera = obj.imp().camera();
                     let event_position = event.position();
                     let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
                     let f = units_per_em / EM_SQUARE_PIXELS;
@@ -695,7 +690,7 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
 
-        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &Canvas, cr: &gtk::cairo::Context| {
+        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &Canvas, cr: &gtk::cairo::Context| {
             let (show_grid, show_guidelines, show_handles, inner_fill) = {
                 let show_grid = drar.property::<bool>("show-grid");
                 let show_guidelines = drar.property::<bool>("show-guidelines");
@@ -728,10 +723,10 @@ impl ObjectImpl for GlyphEditArea {
                 let target_zoom_factor_x = (2.0 * width) / (3.0 * EM_SQUARE_PIXELS);
                 let target_zoom_factor_y = (2.0 * height) / (3.0 * EM_SQUARE_PIXELS);
                 obj.imp().set_zoom(target_zoom_factor_x.min(target_zoom_factor_y));
-                obj.imp().camera.set(((2.0 * EM_SQUARE_PIXELS) / 3.0, 0.0));
+                drar.imp().transformation.set_pan(((2.0 * EM_SQUARE_PIXELS) / 3.0, 0.0));
             }
-            let zoom_factor = obj.imp().zoom.get();
-            let camera = obj.imp().camera.get();
+            let zoom_factor = drar.imp().transformation.scale();
+            let camera = drar.imp().transformation.camera();
             let mouse = obj.imp().mouse.get();
 
             cr.save().unwrap();
@@ -1032,7 +1027,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_in_button.set_tooltip_text(Some("Zoom in"));
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
-            let zoom_factor = imp.zoom.get() + 0.25;
+            let zoom_factor = imp.drawing_area.imp().transformation.scale() + 0.25;
             imp.set_zoom(zoom_factor);
         }));
         let zoom_out_button = gtk::ToolButton::new(
@@ -1045,11 +1040,11 @@ impl ObjectImpl for GlyphEditArea {
         zoom_out_button.set_tooltip_text(Some("Zoom out"));
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
             let imp = obj.imp();
-            let zoom_factor = imp.zoom.get() - 0.25;
+            let zoom_factor = imp.drawing_area.imp().transformation.scale() - 0.25;
             imp.set_zoom(zoom_factor);
         }));
 
-        drawing_area.connect_scroll_event(clone!(@weak obj => @default-return Inhibit(false), move |_drar, event| {
+        self.drawing_area.connect_scroll_event(clone!(@weak obj => @default-return Inhibit(false), move |drar, event| {
             if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
                 obj.imp().mouse.set(event.position());
                 let (mut dx, mut dy) = event.delta();
@@ -1060,14 +1055,11 @@ impl ObjectImpl for GlyphEditArea {
                     dy = 0.0;
                 }
 
-                let dx = dx * EM_SQUARE_PIXELS/2. * obj.imp().zoom.get();
-                let dy = dy * EM_SQUARE_PIXELS/2. * obj.imp().zoom.get();
-                let mut camera = obj.imp().camera.get();
+                let dx = dx * EM_SQUARE_PIXELS / 2.0 * obj.imp().zoom_factor();
+                let dy = dy * EM_SQUARE_PIXELS / 2.0 * obj.imp().zoom_factor();
                 let mouse = obj.imp().mouse.get();
-                camera.0 += event.position().0 - mouse.0 - dx;
-                camera.1 += event.position().1 - mouse.1 - dy;
-                obj.imp().camera.set(camera);
-                _drar.queue_draw();
+                drar.imp().transformation.pan((event.position().0 - mouse.0 - dx, event.position().1 - mouse.1 - dy));
+                drar.queue_draw();
                 return Inhibit(false);
             }
             match event.direction() {
@@ -1075,20 +1067,11 @@ impl ObjectImpl for GlyphEditArea {
                     /* zoom */
                     let (_, dy) = event.delta();
                     let imp = obj.imp();
-                    let zoom_factor = imp.zoom.get() - 0.05* dy;
-                    if imp.set_zoom(zoom_factor) {
-                        let mut camera = imp.camera.get();
+                    let zoom_factor = imp.zoom_factor() - 0.05 * dy;
+                    if imp.set_zoom_towards_point(zoom_factor, event.position()) {
                         let mouse = imp.mouse.get();
-                        //camera.0 += event.position().0 - mouse.0;
-                        //camera.1 += event.position().1 - mouse.1;
                         imp.mouse.set(event.position());
-                        //imp.camera.set(camera);
-                        let dx = (event.position().0 - camera.0) * (zoom_factor - 1.0);
-                        let dy = (event.position().1 - camera.1) * (zoom_factor - 1.0);
-                        camera.0 -= dx;
-                        camera.1 -= dy;
-                        imp.camera.set(camera);
-                        _drar.queue_draw();
+                        drar.queue_draw();
                     }
                 },
                 _ => {
@@ -1098,9 +1081,11 @@ impl ObjectImpl for GlyphEditArea {
             Inhibit(false)
         }));
 
-        drawing_area.connect_size_allocate(clone!(@weak obj => move |_scrolled_window, _rect| {
-            obj.imp().resized.set(true);
-        }));
+        self.drawing_area.connect_size_allocate(
+            clone!(@weak obj => move |_scrolled_window, _rect| {
+                obj.imp().resized.set(true);
+            }),
+        );
 
         let zoom_percent_label = gtk::Label::new(Some("100%"));
         zoom_percent_label.set_visible(true);
@@ -1114,7 +1099,7 @@ impl ObjectImpl for GlyphEditArea {
                 if event.button() == gtk::gdk::BUTTON_PRIMARY &&
                  event.event_type() == gtk::gdk::EventType::DoubleButtonPress {
                      let imp = obj.imp();
-                     let zoom_factor = imp.zoom.get();
+                     let zoom_factor = imp.zoom_factor();
                      if (zoom_factor - 1.0).abs() > f64::EPSILON {
                          let _ = imp.set_zoom(1.0);
                      } else if zoom_factor == 1.0 {
@@ -1180,13 +1165,13 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
         toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
-        let viewhidebox = viewhide::ViewHideBox::new(&drawing_area);
+        let viewhidebox = viewhide::ViewHideBox::new(&self.drawing_area);
         let overlay = gtk::Overlay::builder()
             .expand(true)
             .visible(true)
             .can_focus(true)
             .build();
-        overlay.set_child(Some(&drawing_area));
+        overlay.set_child(Some(&self.drawing_area));
         overlay.add_overlay(
             &gtk::Expander::builder()
                 .child(&viewhidebox)
@@ -1215,9 +1200,6 @@ impl ObjectImpl for GlyphEditArea {
             .expect("Failed to initialize window state");
         self.viewhidebox
             .set(viewhidebox)
-            .expect("Failed to initialize window state");
-        self.drawing_area
-            .set(drawing_area)
             .expect("Failed to initialize window state");
     }
 
@@ -1274,9 +1256,36 @@ impl ContainerImpl for GlyphEditArea {}
 impl BinImpl for GlyphEditArea {}
 
 impl GlyphEditArea {
+    fn camera(&self) -> (f64, f64) {
+        self.drawing_area.imp().transformation.camera()
+    }
+
+    fn zoom_factor(&self) -> f64 {
+        self.drawing_area.imp().transformation.scale()
+    }
+
+    fn set_zoom_towards_point(&self, new_val: f64, p: (f64, f64)) -> bool {
+        if new_val > 0.09 && new_val < 15.26 {
+            self.drawing_area
+                .imp()
+                .transformation
+                .scale_towards_point(new_val, p);
+            self.zoom.set(new_val);
+            self.zoom_percent_label
+                .get()
+                .unwrap()
+                .set_text(&format!("{:.0}%", new_val * 100.));
+            self.overlay.get().unwrap().queue_draw();
+            true
+        } else {
+            false
+        }
+    }
+
     #[must_use]
     fn set_zoom(&self, new_val: f64) -> bool {
         if new_val > 0.09 && new_val < 15.26 {
+            self.drawing_area.imp().transformation.apply_scale(new_val);
             self.zoom.set(new_val);
             self.zoom_percent_label
                 .get()
@@ -1333,7 +1342,7 @@ impl GlyphEditView {
             .set(RefCell::new(GlyphState::new(
                 &glyph,
                 app.clone(),
-                ret.imp().drawing_area.get().unwrap().clone(),
+                ret.imp().drawing_area.clone(),
             )))
             .expect("Failed to create glyph state");
         ret.imp().glyph.set(glyph).unwrap();

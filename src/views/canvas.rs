@@ -31,11 +31,11 @@ use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Default)]
 pub struct CanvasInner {
-    show_grid: Cell<bool>,
-    show_guidelines: Cell<bool>,
-    show_handles: Cell<bool>,
-    inner_fill: Cell<bool>,
-    transformation: Transformation,
+    pub show_grid: Cell<bool>,
+    pub show_guidelines: Cell<bool>,
+    pub show_handles: Cell<bool>,
+    pub inner_fill: Cell<bool>,
+    pub transformation: Transformation,
 }
 
 #[glib::object_subclass]
@@ -156,5 +156,11 @@ impl Canvas {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
         ret
+    }
+}
+
+impl Default for Canvas {
+    fn default() -> Self {
+        Self::new()
     }
 }
