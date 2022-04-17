@@ -23,11 +23,11 @@ mod transformation;
 use transformation::*;
 
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecObject, Value};
-use gtk::cairo::{Context, FontSlant, FontWeight, Matrix};
+
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 
 #[derive(Debug, Default)]
 pub struct CanvasInner {
