@@ -102,7 +102,7 @@ mod imp {
                 "angle" => self.angle.borrow().to_value(),
                 "x" => self.x.borrow().to_value(),
                 "y" => self.y.borrow().to_value(),
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
 
@@ -123,7 +123,7 @@ mod imp {
                 "y" => {
                     *self.y.borrow_mut() = value.get().unwrap();
                 }
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
     }

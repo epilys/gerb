@@ -126,7 +126,7 @@ impl ObjectImpl for CanvasInner {
             "inner-fill" => self.inner_fill.get().to_value(),
             "transformation" => self.transformation.to_value(),
             "show-total-area" => self.show_total_area.get().to_value(),
-            _ => unimplemented!(),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 
@@ -154,7 +154,7 @@ impl ObjectImpl for CanvasInner {
             "show-total-area" => {
                 self.show_total_area.set(value.get().unwrap());
             }
-            _ => unimplemented!(),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
