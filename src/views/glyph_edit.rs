@@ -819,15 +819,20 @@ impl ObjectImpl for GlyphEditArea {
                 state.draw(cr, options, position);
             }
             cr.save().unwrap();
-            cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
 
             cr.set_line_width(1.0 / (2.0 * f));
             if show_handles {
+                let transformed_mouse = obj.imp().transformed_mouse.get();
                 let handle_size: f64 = settings.borrow().property("handle-size");
                 cr.transform(matrix);
                 cr.transform(gtk::cairo::Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
                 for cp in glyph_state.points.borrow().iter() {
                     let p = cp.position;
+                    if crate::utils::distance_between_two_points(p, transformed_mouse) <= 10.0 {
+                        cr.set_source_rgba(1., 0., 0., 0.8);
+                    } else {
+                        cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                    }
                     match &cp.kind {
                         Endpoint { .. } => {
                             cr.rectangle(p.0 as f64 - handle_size / (4.0 * f), p.1 as f64 - handle_size / (4.0 * f), handle_size / (2.0 * f), handle_size / (2.0 * f));
