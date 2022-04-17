@@ -19,11 +19,15 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamSpec, Value};
+use glib::{
+    ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecInt64, ParamSpecString,
+    ParamSpecUInt64, Value,
+};
 use gtk::glib;
+use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::prelude::*;
@@ -37,31 +41,31 @@ mod imp {
 
     #[derive(Debug)]
     pub struct Project {
-        pub name: RefCell<String>,
-        pub modified: RefCell<bool>,
+        name: RefCell<String>,
+        modified: Cell<bool>,
         pub last_saved: RefCell<Option<u64>>,
         pub glyphs: RefCell<HashMap<String, Rc<RefCell<Glyph>>>>,
         pub path: RefCell<Option<PathBuf>>,
         pub family_name: RefCell<String>,
         pub style_name: RefCell<String>,
-        pub version_major: RefCell<i64>,
-        pub version_minor: RefCell<u64>,
+        version_major: Cell<i64>,
+        version_minor: Cell<u64>,
         /// Copyright statement.
         pub copyright: RefCell<String>,
         /// Trademark statement.
         pub trademark: RefCell<String>,
         /// Units per em.
-        pub units_per_em: RefCell<f64>,
+        units_per_em: Cell<f64>,
         /// Descender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
-        pub descender: RefCell<f64>,
+        descender: Cell<f64>,
         /// x-height value.
-        pub x_height: RefCell<f64>,
+        x_height: Cell<f64>,
         /// Cap height value.
-        pub cap_height: RefCell<f64>,
+        cap_height: Cell<f64>,
         /// Ascender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
-        pub ascender: RefCell<f64>,
+        ascender: Cell<f64>,
         /// Italic angle. This must be an angle in counter-clockwise degrees from the vertical.
-        pub italic_angle: RefCell<f64>,
+        italic_angle: Cell<f64>,
         /// Arbitrary note about the font.
         pub note: RefCell<String>,
         /// A list of guideline definitions that apply to all glyphs in all layers in the font. This attribute is optional.
@@ -72,22 +76,22 @@ mod imp {
         fn default() -> Self {
             Project {
                 name: RefCell::new("New project".to_string()),
-                modified: RefCell::new(false),
+                modified: Cell::new(false),
                 last_saved: RefCell::new(None),
                 glyphs: RefCell::new(HashMap::default()),
                 path: RefCell::new(None),
                 family_name: RefCell::new("New project".to_string()),
                 style_name: RefCell::new(String::new()),
-                version_major: RefCell::new(0),
-                version_minor: RefCell::new(0),
+                version_major: Cell::new(0),
+                version_minor: Cell::new(0),
                 copyright: RefCell::new(String::new()),
                 trademark: RefCell::new(String::new()),
-                units_per_em: RefCell::new(1000.0),
-                descender: RefCell::new(-200.),
-                x_height: RefCell::new(450.),
-                cap_height: RefCell::new(650.),
-                ascender: RefCell::new(700.),
-                italic_angle: RefCell::new(0.),
+                units_per_em: Cell::new(1000.0),
+                descender: Cell::new(-200.),
+                x_height: Cell::new(450.),
+                cap_height: Cell::new(650.),
+                ascender: Cell::new(700.),
+                italic_angle: Cell::new(0.),
                 note: RefCell::new(String::new()),
                 guidelines: RefCell::new(vec![]),
             }
@@ -107,18 +111,147 @@ mod imp {
     impl ObjectImpl for Project {
         fn properties() -> &'static [ParamSpec] {
             static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-                once_cell::sync::Lazy::new(|| vec![]);
+                once_cell::sync::Lazy::new(|| {
+                    vec![
+                        ParamSpecString::new(
+                            "name",
+                            "name",
+                            "name",
+                            Some("New project"),
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecBoolean::new(
+                            "modified",
+                            "modified",
+                            "modified",
+                            false,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecInt64::new(
+                            "version-major",
+                            "version-major",
+                            "version-major",
+                            0,
+                            std::i64::MAX,
+                            1,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecUInt64::new(
+                            "version-minor",
+                            "version-minor",
+                            "version-minor",
+                            0,
+                            std::u64::MAX,
+                            1,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecDouble::new(
+                            "units-per-em",
+                            "units-per-em",
+                            "units-per-em",
+                            1.0,
+                            std::f64::MAX,
+                            1000.0,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecDouble::new(
+                            "x-height",
+                            "x-height",
+                            "x-height",
+                            1.0,
+                            std::f64::MAX,
+                            450.0,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecDouble::new(
+                            "ascender",
+                            "ascender",
+                            "ascender",
+                            std::f64::MIN,
+                            std::f64::MAX,
+                            700.0,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecDouble::new(
+                            "descender",
+                            "descender",
+                            "descender",
+                            std::f64::MIN,
+                            std::f64::MAX,
+                            -200.0,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecDouble::new(
+                            "cap-height",
+                            "cap-height",
+                            "cap-height",
+                            std::f64::MIN,
+                            std::f64::MAX,
+                            650.0,
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecDouble::new(
+                            "italic-angle",
+                            "italic-angle",
+                            "italic-angle",
+                            0.0,
+                            std::f64::MAX,
+                            0.0,
+                            ParamFlags::READWRITE,
+                        ),
+                    ]
+                });
             PROPERTIES.as_ref()
         }
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
             match pspec.name() {
+                "name" => self.name.borrow().to_value(),
+                "modified" => self.modified.get().to_value(),
+                "version-major" => self.version_major.get().to_value(),
+                "version-minor" => self.version_minor.get().to_value(),
+                "units-per-em" => self.units_per_em.get().to_value(),
+                "x-height" => self.x_height.get().to_value(),
+                "ascender" => self.ascender.get().to_value(),
+                "descender" => self.descender.get().to_value(),
+                "cap-height" => self.cap_height.get().to_value(),
+                "italic-angle" => self.italic_angle.get().to_value(),
                 _ => unimplemented!(),
             }
         }
 
-        fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &Value, pspec: &ParamSpec) {
+        fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
+                "name" => {
+                    *self.name.borrow_mut() = value.get().unwrap();
+                }
+                "modified" => {
+                    self.modified.set(value.get().unwrap());
+                }
+                "version-major" => {
+                    self.version_major.set(value.get().unwrap());
+                }
+                "version-minor" => {
+                    self.version_minor.set(value.get().unwrap());
+                }
+                "units-per-em" => {
+                    self.units_per_em.set(value.get().unwrap());
+                }
+                "x-height" => {
+                    self.x_height.set(value.get().unwrap());
+                }
+                "ascender" => {
+                    self.ascender.set(value.get().unwrap());
+                }
+                "descender" => {
+                    self.descender.set(value.get().unwrap());
+                }
+                "cap-height" => {
+                    self.cap_height.set(value.get().unwrap());
+                }
+                "italic-angle" => {
+                    self.italic_angle.set(value.get().unwrap());
+                }
                 _ => unimplemented!(),
             }
         }
@@ -228,23 +361,23 @@ impl Project {
                 0
             };
         let ret: Self = Self::new();
-        *ret.imp().name.borrow_mut() = family_name.clone();
-        *ret.imp().modified.borrow_mut() = false;
+        ret.set_property("name", family_name.clone());
+        ret.set_property("modified", false);
         *ret.imp().last_saved.borrow_mut() = None;
         *ret.imp().glyphs.borrow_mut() = glyphs?;
         *ret.imp().path.borrow_mut() = Some(path);
         *ret.imp().family_name.borrow_mut() = family_name;
         *ret.imp().style_name.borrow_mut() = style_name;
-        *ret.imp().version_major.borrow_mut() = version_major;
-        *ret.imp().version_minor.borrow_mut() = version_minor;
+        ret.set_property("version-major", version_major);
+        ret.set_property("version-minor", version_minor);
         *ret.imp().copyright.borrow_mut() = copyright;
         *ret.imp().trademark.borrow_mut() = trademark;
-        *ret.imp().units_per_em.borrow_mut() = units_per_em;
-        *ret.imp().descender.borrow_mut() = descender;
-        *ret.imp().x_height.borrow_mut() = x_height;
-        *ret.imp().cap_height.borrow_mut() = cap_height;
-        *ret.imp().ascender.borrow_mut() = ascender;
-        *ret.imp().italic_angle.borrow_mut() = italic_angle;
+        ret.set_property("units-per-em", units_per_em);
+        ret.set_property("ascender", ascender);
+        ret.set_property("descender", descender);
+        ret.set_property("x-height", x_height);
+        ret.set_property("cap-height", cap_height);
+        ret.set_property("italic-angle", italic_angle);
         *ret.imp().note.borrow_mut() = String::new();
         *ret.imp().guidelines.borrow_mut() = vec![];
         Ok(ret)
@@ -254,23 +387,13 @@ impl Project {
 impl Default for Project {
     fn default() -> Self {
         let ret: Self = Self::new();
-        *ret.imp().name.borrow_mut() = "New project".to_string();
-        *ret.imp().modified.borrow_mut() = false;
         *ret.imp().last_saved.borrow_mut() = None;
         *ret.imp().glyphs.borrow_mut() = HashMap::default();
         *ret.imp().path.borrow_mut() = None;
         *ret.imp().family_name.borrow_mut() = "New project".to_string();
         *ret.imp().style_name.borrow_mut() = String::new();
-        *ret.imp().version_major.borrow_mut() = 0;
-        *ret.imp().version_minor.borrow_mut() = 0;
         *ret.imp().copyright.borrow_mut() = String::new();
         *ret.imp().trademark.borrow_mut() = String::new();
-        *ret.imp().units_per_em.borrow_mut() = 1000.0;
-        *ret.imp().descender.borrow_mut() = -200.;
-        *ret.imp().x_height.borrow_mut() = 450.;
-        *ret.imp().cap_height.borrow_mut() = 650.;
-        *ret.imp().ascender.borrow_mut() = 700.;
-        *ret.imp().italic_angle.borrow_mut() = 0.;
         *ret.imp().note.borrow_mut() = String::new();
         *ret.imp().guidelines.borrow_mut() = vec![];
         ret

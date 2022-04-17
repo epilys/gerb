@@ -90,7 +90,7 @@ impl WindowSidebar {
     }
 
     fn load_project(&self, project: &Project) {
-        self.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.imp().name.borrow(), version_major=project.imp().version_major.borrow(),version_minor=project.imp().version_minor.borrow(), units_per_em=project.imp().units_per_em.borrow(), descender=project.imp().descender.borrow(), x_height=project.imp().x_height.borrow(), cap_height=project.imp().cap_height.borrow(), ascender=project.imp().ascender.borrow(), italic_angle=project.imp().italic_angle.borrow()));
+        self.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.property::<String>("name").as_str(), version_major=project.property::<i64>("version-major"), version_minor=project.property::<u64>("version-minor"), units_per_em=project.property::<f64>("units-per-em"), descender=project.property::<f64>("descender"), x_height=project.property::<f64>("x-height"), cap_height=project.property::<f64>("cap-height"), ascender=project.property::<f64>("ascender"), italic_angle=project.property::<f64>("italic-angle")));
         self.project_label.set_single_line_mode(false);
         self.project_label.set_use_markup(true);
         self.project_label.queue_draw();
@@ -335,7 +335,7 @@ impl Window {
         let widgets = self.widgets.get().unwrap();
         widgets.headerbar.set_subtitle(Some(&format!(
             "Loaded project: {}",
-            project.imp().name.borrow().as_str()
+            project.property::<String>("name").as_str()
         )));
         /*
         let item_groups = widgets.tool_palette.children();
