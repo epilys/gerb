@@ -610,7 +610,7 @@ impl ObjectImpl for GlyphBox {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
-            let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
+            let units_per_em = obj.imp().project.get().unwrap().property("units-per-em");
             //cr.scale(500f64, 500f64);
             //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
             //cr.set_source_rgb(r, g, b);

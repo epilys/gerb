@@ -19,7 +19,9 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
+use glib::{
+    clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
+};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -436,7 +438,11 @@ pub struct GlyphEditArea {
     transformed_mouse: Cell<(i64, i64)>,
     zoom: Cell<f64>,
     zoom_locus: Cell<Option<(f64, f64)>>,
-    project: OnceCell<Project>,
+    units_per_em: Cell<f64>,
+    descender: Cell<f64>,
+    x_height: Cell<f64>,
+    cap_height: Cell<f64>,
+    ascender: Cell<f64>,
 }
 
 const RULER_BREADTH: f64 = 13.;
@@ -467,7 +473,7 @@ impl ObjectImpl for GlyphEditArea {
                 let zoom_factor = obj.imp().zoom_factor();
                 let camera = obj.imp().camera();
                 let event_position = event.position();
-                let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
+                let units_per_em = obj.property::<f64>("units-per-em");
                 let f = units_per_em / EM_SQUARE_PIXELS;
                 let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                 obj.imp().transformed_mouse.set(position);
@@ -578,7 +584,7 @@ impl ObjectImpl for GlyphEditArea {
                         let zoom_factor = obj.imp().zoom_factor();
                         let camera = obj.imp().camera();
                         let position = event.position();
-                        let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
+                        let units_per_em = obj.property::<f64>("units-per-em");
                         let f = units_per_em / EM_SQUARE_PIXELS;
                         let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, (units_per_em - ((position.1*f-camera.1*f * zoom_factor)/zoom_factor)) as i64);
                         obj.imp().transformed_mouse.set(position);
@@ -628,7 +634,7 @@ impl ObjectImpl for GlyphEditArea {
                     let zoom_factor = obj.imp().zoom_factor();
                     let camera = obj.imp().camera();
                     let event_position = event.position();
-                    let units_per_em = *obj.imp().project.get().unwrap().imp().units_per_em.borrow();
+                    let units_per_em = obj.property::<f64>("units-per-em");
                     let f = units_per_em / EM_SQUARE_PIXELS;
                     let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
                     obj.imp().transformed_mouse.set(position);
@@ -703,12 +709,11 @@ impl ObjectImpl for GlyphEditArea {
             let settings = app.imp().settings.clone();
             let width = drar.allocated_width() as f64;
             let height = drar.allocated_height() as f64;
-            let project = obj.imp().project.get().unwrap().imp();
-            let units_per_em = *project.units_per_em.borrow();
-            let x_height = *project.x_height.borrow();
-            let cap_height = *project.cap_height.borrow();
-            let _ascender = *project.ascender.borrow();
-            let _descender = *project.descender.borrow();
+            let units_per_em = obj.property::<f64>("units-per-em");
+            let x_height = obj.property::<f64>("x-height");
+            let cap_height = obj.property::<f64>("cap-height");
+            let _ascender = obj.property::<f64>("ascender");
+            let _descender = obj.property::<f64>("descender");
             let f = EM_SQUARE_PIXELS / units_per_em;
             let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
             let glyph_width = f * glyph_state.glyph.borrow().width.unwrap_or(units_per_em);
@@ -1226,6 +1231,51 @@ impl ObjectImpl for GlyphEditArea {
                         true,
                         ParamFlags::READABLE,
                     ),
+                    ParamSpecDouble::new(
+                        "units-per-em",
+                        "units-per-em",
+                        "units-per-em",
+                        1.0,
+                        std::f64::MAX,
+                        1000.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        "x-height",
+                        "x-height",
+                        "x-height",
+                        1.0,
+                        std::f64::MAX,
+                        1000.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        "ascender",
+                        "ascender",
+                        "ascender",
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        700.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        "descender",
+                        "descender",
+                        "descender",
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        -200.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        "cap-height",
+                        "cap-height",
+                        "cap-height",
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        650.0,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -1246,7 +1296,33 @@ impl ObjectImpl for GlyphEditArea {
                 }
             }
             "tab-can-close" => true.to_value(),
-            _ => unreachable!(),
+            "units-per-em" => self.units_per_em.get().to_value(),
+            "x-height" => self.x_height.get().to_value(),
+            "ascender" => self.ascender.get().to_value(),
+            "descender" => self.descender.get().to_value(),
+            "cap-height" => self.cap_height.get().to_value(),
+            _ => unreachable!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            "units-per-em" => {
+                self.units_per_em.set(value.get().unwrap());
+            }
+            "x-height" => {
+                self.x_height.set(value.get().unwrap());
+            }
+            "ascender" => {
+                self.ascender.set(value.get().unwrap());
+            }
+            "descender" => {
+                self.descender.set(value.get().unwrap());
+            }
+            "cap-height" => {
+                self.cap_height.set(value.get().unwrap());
+            }
+            _ => unimplemented!(),
         }
     }
 }
@@ -1337,17 +1413,28 @@ glib::wrapper! {
 impl GlyphEditView {
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
+        ret.imp().glyph.set(glyph.clone()).unwrap();
+        ret.imp().app.set(app.clone()).unwrap();
+        for property in [
+            "units-per-em",
+            "x-height",
+            "ascender",
+            "descender",
+            "cap-height",
+        ] {
+            project
+                .bind_property(property, &ret, property)
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
         ret.imp()
             .glyph_state
             .set(RefCell::new(GlyphState::new(
                 &glyph,
-                app.clone(),
+                app,
                 ret.imp().drawing_area.clone(),
             )))
             .expect("Failed to create glyph state");
-        ret.imp().glyph.set(glyph).unwrap();
-        ret.imp().app.set(app).unwrap();
-        ret.imp().project.set(project).unwrap();
         ret
     }
 }
