@@ -36,6 +36,7 @@ pub struct CanvasInner {
     pub show_handles: Cell<bool>,
     pub inner_fill: Cell<bool>,
     pub transformation: Transformation,
+    pub show_total_area: Cell<bool>,
 }
 
 #[glib::object_subclass]
@@ -48,6 +49,11 @@ impl ObjectSubclass for CanvasInner {
 impl ObjectImpl for CanvasInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.show_grid.set(true);
+        self.show_guidelines.set(true);
+        self.show_handles.set(true);
+        self.inner_fill.set(false);
+        self.show_total_area.set(true);
         obj.set_tooltip_text(None);
         obj.set_visible(true);
         obj.set_expand(true);
@@ -100,6 +106,13 @@ impl ObjectImpl for CanvasInner {
                         Transformation::static_type(),
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        "show-total-area",
+                        "show-total-area",
+                        "show-total-area",
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -112,6 +125,7 @@ impl ObjectImpl for CanvasInner {
             "show-handles" => self.show_handles.get().to_value(),
             "inner-fill" => self.inner_fill.get().to_value(),
             "transformation" => self.transformation.to_value(),
+            "show-total-area" => self.show_total_area.get().to_value(),
             _ => unimplemented!(),
         }
     }
@@ -136,6 +150,9 @@ impl ObjectImpl for CanvasInner {
                     .imp()
                     .matrix
                     .set(new_val.imp().matrix.get());
+            }
+            "show-total-area" => {
+                self.show_total_area.set(value.get().unwrap());
             }
             _ => unimplemented!(),
         }

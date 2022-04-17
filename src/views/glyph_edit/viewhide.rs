@@ -32,10 +32,12 @@ pub struct ViewHideBoxInner {
     show_guidelines_btn: OnceCell<gtk::CheckButton>,
     show_handles_btn: OnceCell<gtk::CheckButton>,
     inner_fill_btn: OnceCell<gtk::CheckButton>,
+    show_total_area_btn: OnceCell<gtk::CheckButton>,
     show_grid: Cell<bool>,
     show_guidelines: Cell<bool>,
     show_handles: Cell<bool>,
     inner_fill: Cell<bool>,
+    show_total_area: Cell<bool>,
 }
 
 #[glib::object_subclass]
@@ -52,6 +54,7 @@ impl ObjectImpl for ViewHideBoxInner {
         self.show_guidelines.set(true);
         self.show_handles.set(true);
         self.inner_fill.set(false);
+        self.show_total_area.set(true);
         //obj.set_orientation(gtk::Orientation::Vertical);
         //obj.set_orientation(gtk::Orientation::Horizontal);
         obj.set_expand(false);
@@ -61,38 +64,30 @@ impl ObjectImpl for ViewHideBoxInner {
         obj.set_visible(true);
         obj.set_can_focus(true);
 
-        let btn = gtk::CheckButton::with_label("Show grid");
-        btn.set_visible(true);
-        btn.set_active(true);
-        obj.pack_start(&btn, false, false, 0);
-        btn.bind_property("active", obj, "show-grid").build();
-        self.show_grid_btn
-            .set(btn)
-            .expect("Failed to create ViewHideBox");
-        let btn = gtk::CheckButton::with_label("Show guidelines");
-        btn.set_visible(true);
-        btn.set_active(true);
-        obj.pack_start(&btn, false, false, 0);
-        btn.bind_property("active", obj, "show-guidelines").build();
-        self.show_guidelines_btn
-            .set(btn)
-            .expect("Failed to create ViewHideBox");
-        let btn = gtk::CheckButton::with_label("Show handles");
-        btn.set_visible(true);
-        btn.set_active(true);
-        obj.pack_start(&btn, false, false, 0);
-        btn.bind_property("active", obj, "show-handles").build();
-        self.show_handles_btn
-            .set(btn)
-            .expect("Failed to create ViewHideBox");
-        let btn = gtk::CheckButton::with_label("Inner fill");
-        btn.set_visible(true);
-        btn.set_active(false);
-        obj.pack_start(&btn, false, false, 0);
-        btn.bind_property("active", obj, "inner-fill").build();
-        self.inner_fill_btn
-            .set(btn)
-            .expect("Failed to create ViewHideBox");
+        for (property, label, field) in [
+            ("show-grid", "Show grid", &self.show_grid_btn),
+            (
+                "show-guidelines",
+                "Show guidelines",
+                &self.show_guidelines_btn,
+            ),
+            ("show-handles", "Show handles", &self.show_handles_btn),
+            ("inner-fill", "Inner fill", &self.inner_fill_btn),
+            (
+                "show-total-area",
+                "Show total area",
+                &self.show_total_area_btn,
+            ),
+        ] {
+            let btn = gtk::CheckButton::with_label(label);
+            btn.set_visible(true);
+            btn.set_active(false);
+            obj.pack_start(&btn, false, false, 0);
+            obj.bind_property(property, &btn, "active")
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build();
+            field.set(btn).expect("Failed to create ViewHideBox");
+        }
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -127,6 +122,13 @@ impl ObjectImpl for ViewHideBoxInner {
                         false,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        "show-total-area",
+                        "show-total-area",
+                        "show-total-area",
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -138,6 +140,7 @@ impl ObjectImpl for ViewHideBoxInner {
             "show-guidelines" => self.show_guidelines.get().to_value(),
             "show-handles" => self.show_handles.get().to_value(),
             "inner-fill" => self.inner_fill.get().to_value(),
+            "show-total-area" => self.show_total_area.get().to_value(),
             _ => unreachable!(),
         }
     }
@@ -159,6 +162,10 @@ impl ObjectImpl for ViewHideBoxInner {
             "inner-fill" => {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.inner_fill.set(val);
+            }
+            "show-total-area" => {
+                let val = value.get().expect("The value needs to be of type `bool`.");
+                self.show_total_area.set(val);
             }
             _ => unimplemented!(),
         }
@@ -183,7 +190,13 @@ impl ViewHideBox {
                 canvas.queue_draw();
             }),
         );
-        for property in ["show-grid", "show-guidelines", "show-handles", "inner-fill"] {
+        for property in [
+            "show-grid",
+            "show-guidelines",
+            "show-handles",
+            "inner-fill",
+            "show-total-area",
+        ] {
             ret.bind_property(property, canvas, property)
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
                 .build();

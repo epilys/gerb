@@ -697,12 +697,13 @@ impl ObjectImpl for GlyphEditArea {
         );
 
         self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &Canvas, cr: &gtk::cairo::Context| {
-            let (show_grid, show_guidelines, show_handles, inner_fill) = {
+            let (show_grid, show_guidelines, show_handles, inner_fill, show_total_area) = {
                 let show_grid = drar.property::<bool>("show-grid");
                 let show_guidelines = drar.property::<bool>("show-guidelines");
                 let show_handles = drar.property::<bool>("show-handles");
                 let inner_fill = drar.property::<bool>("inner-fill");
-                (show_grid, show_guidelines, show_handles, inner_fill)
+                let show_total_area = drar.property::<bool>("show-total-area");
+                (show_grid, show_guidelines, show_handles, inner_fill, show_total_area)
             };
             let app: &crate::GerbApp =
                 obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap();
@@ -767,9 +768,11 @@ impl ObjectImpl for GlyphEditArea {
             cr.save().unwrap();
             cr.translate(camera.0, camera.1);
 
-            cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-            cr.rectangle(0., 0., glyph_width, EM_SQUARE_PIXELS);
-            cr.fill().unwrap();
+            if show_total_area {
+                cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
+                cr.rectangle(0., 0., glyph_width, EM_SQUARE_PIXELS);
+                cr.fill().unwrap();
+            }
 
             if show_guidelines {
                 /* Draw x-height */
