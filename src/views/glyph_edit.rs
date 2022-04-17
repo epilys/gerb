@@ -718,7 +718,7 @@ impl ObjectImpl for GlyphEditArea {
             let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
             let glyph_width = f * glyph_state.glyph.borrow().width.unwrap_or(units_per_em);
 
-            if let Some((cx, cy)) = obj.imp().zoom_locus.take() {
+            if let Some((_cx, _cy)) = obj.imp().zoom_locus.take() {
                 //obj.imp().camera.set((cx + width / 2.0, cy + height / 2.0));
                 //obj.imp().transformation.pan(cx + width / 2.0, cy + height / 2.0);
             }
@@ -746,14 +746,14 @@ impl ObjectImpl for GlyphEditArea {
             if show_grid {
                 for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
                     cr.set_source_rgb(color, color, color);
-                    let mut y = (camera.1 % step).floor();
+                    let mut y = camera.1 % step;
                     while y < (height / zoom_factor) {
                         cr.move_to(0.5, y + 0.5);
                         cr.line_to(width / zoom_factor + 0.5, y + 0.5);
                         y += step;
                     }
                     cr.stroke().unwrap();
-                    let mut x = (camera.0 % step).floor();
+                    let mut x = camera.0 % step;
                     while x < (width / zoom_factor) {
                         cr.move_to(x + 0.5, 0.5);
                         cr.line_to(x + 0.5, height / zoom_factor + 0.5);
@@ -1069,12 +1069,20 @@ impl ObjectImpl for GlyphEditArea {
             }
             match event.direction() {
                 gtk::gdk::ScrollDirection::Up | gtk::gdk::ScrollDirection::Down | gtk::gdk::ScrollDirection::Smooth => {
+                    let zoom_factor = drar.imp().transformation.scale();
+                    let camera = drar.imp().transformation.camera();
+                    let units_per_em = obj.property::<f64>("units-per-em");
+                    let f = EM_SQUARE_PIXELS / units_per_em;
+                    let event_position = event.position();
+                    let (x, y) = ((event_position.0) / (f * zoom_factor),
+                        (event_position.1) / (f * zoom_factor));
+                    std::dbg!(event.position(), event.delta(), camera, (x,y));
                     /* zoom */
                     let (_, dy) = event.delta();
                     let imp = obj.imp();
-                    let zoom_factor = imp.zoom_factor() - 0.05 * dy;
-                    if imp.set_zoom_towards_point(zoom_factor, event.position()) {
-                        let mouse = imp.mouse.get();
+                    let zoom_factor = zoom_factor - 0.05 * dy;
+                    if imp.set_zoom_towards_point(zoom_factor, event_position) {
+                        let _mouse = imp.mouse.get();
                         imp.mouse.set(event.position());
                         drar.queue_draw();
                     }

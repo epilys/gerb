@@ -124,5 +124,5 @@ pub fn distance_between_two_points<K: Into<(i64, i64)>, L: Into<(i64, i64)>>(
     let (x_l, y_l) = p_l;
     let xlk = x_l - x_k;
     let ylk = y_l - y_k;
-    f64::sqrt((xlk * xlk + ylk * ylk) as f64)
+    f64::sqrt((xlk * xlk + ylk * ylk) as f64) // FIXME overflow check
 }

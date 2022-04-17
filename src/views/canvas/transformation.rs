@@ -19,8 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecObject, Value};
-use gtk::cairo::{Context, FontSlant, FontWeight, Matrix};
+use gtk::cairo::Matrix;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -67,12 +66,40 @@ impl Transformation {
         m.xx
     }
 
-    pub fn scale_towards_point(&self, factor: f64, (lx, ly): (f64, f64)) {
+    pub fn scale_towards_point(&self, factor: f64, (x, y): (f64, f64)) {
         let mut m = self.imp().matrix.get();
-        m.translate(lx, ly);
-        m.scale(factor, factor);
-        m.translate(-lx, -ly);
-        self.imp().matrix.set(m);
+        let m_ = m;
+        let scale = m.xx;
+        eprintln!("scale_towards_point {factor:?} ({x:?}, {y:?})");
+        let mut to_pt_mx = Matrix::identity();
+        to_pt_mx.translate(-x, -y);
+        let mut scale_mx = Matrix::identity();
+        scale_mx.scale(factor / scale, factor / scale);
+        let mut from_pt_mx = Matrix::identity();
+        from_pt_mx.translate(x, y);
+        m = Matrix::multiply(&m, &to_pt_mx);
+        m = Matrix::multiply(&m, &scale_mx);
+        m = Matrix::multiply(&m, &from_pt_mx);
+        //m.translate(-x, -y);
+        //m.scale(factor, factor);
+        //m.translate(x, y);
+        std::dbg!(m_, m);
+        //  let mut ident = Matrix::identity();
+        //  let scale = m.xx;
+        //  let m_ = m;
+        //  m.translate(-x, -y);
+        //  m.scale(factor/scale, factor/scale);
+        //  m.translate(x, y);
+        //  std::dbg!(m_,m);
+        //m.xx = factor;
+        //m.yy = factor;
+        //let (lx, ly) = m.transform_point(x, y);
+        //std::dbg!((lx,ly));
+        ////m.translate(-lx, -ly);
+        ////m.translate(lx, ly);
+        //m.x0 = lx;
+        //m.y0 = ly;
+        self.imp().matrix.set(m); //Matrix::multiply(&ident, &m));
     }
 
     pub fn pan(&self, (dx, dy): (f64, f64)) {
