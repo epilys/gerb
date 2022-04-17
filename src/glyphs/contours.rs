@@ -67,13 +67,13 @@ mod imp {
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
             match pspec.name() {
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
 
         fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
     }

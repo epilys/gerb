@@ -141,7 +141,7 @@ impl ObjectImpl for ViewHideBoxInner {
             "show-handles" => self.show_handles.get().to_value(),
             "inner-fill" => self.inner_fill.get().to_value(),
             "show-total-area" => self.show_total_area.get().to_value(),
-            _ => unreachable!(),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 
@@ -167,7 +167,7 @@ impl ObjectImpl for ViewHideBoxInner {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_total_area.set(val);
             }
-            _ => unimplemented!(),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }

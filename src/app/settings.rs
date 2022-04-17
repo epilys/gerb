@@ -78,7 +78,7 @@ mod imp {
             match pspec.name() {
                 "handle-size" => self.handle_size.borrow().to_value(),
                 "line-width" => self.line_width.borrow().to_value(),
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
 
@@ -96,7 +96,7 @@ mod imp {
                 "line-width" => {
                     *self.line_width.borrow_mut() = value.get().unwrap();
                 }
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
     }

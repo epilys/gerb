@@ -216,7 +216,7 @@ mod imp {
                 "descender" => self.descender.get().to_value(),
                 "cap-height" => self.cap_height.get().to_value(),
                 "italic-angle" => self.italic_angle.get().to_value(),
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
 
@@ -252,7 +252,7 @@ mod imp {
                 "italic-angle" => {
                     self.italic_angle.set(value.get().unwrap());
                 }
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
     }

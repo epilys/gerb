@@ -89,7 +89,7 @@ mod imp {
                     let cursor = self.cursor.borrow();
                     (!(*cursor >= db.len())).to_value()
                 }
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
 
@@ -103,7 +103,7 @@ mod imp {
             match pspec.name() {
                 "can-undo" => { /* ignore value*/ }
                 "can-redo" => { /* ignore value*/ }
-                _ => unimplemented!(),
+                _ => unimplemented!("{}", pspec.name()),
             }
         }
     }

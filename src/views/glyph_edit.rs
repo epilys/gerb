@@ -1317,7 +1317,7 @@ impl ObjectImpl for GlyphEditArea {
             "ascender" => self.ascender.get().to_value(),
             "descender" => self.descender.get().to_value(),
             "cap-height" => self.cap_height.get().to_value(),
-            _ => unreachable!("{}", pspec.name()),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 
@@ -1338,7 +1338,7 @@ impl ObjectImpl for GlyphEditArea {
             "cap-height" => {
                 self.cap_height.set(value.get().unwrap());
             }
-            _ => unimplemented!(),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
