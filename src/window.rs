@@ -337,6 +337,13 @@ impl Window {
             "Loaded project: {}",
             project.property::<String>("name").as_str()
         )));
+        widgets.statusbar.push(
+            widgets.statusbar.context_id("main"),
+            &format!(
+                "Loaded project: {}",
+                project.property::<String>("name").as_str()
+            ),
+        );
         /*
         let item_groups = widgets.tool_palette.children();
         if item_groups
