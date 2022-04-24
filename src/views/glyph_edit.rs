@@ -429,7 +429,7 @@ pub struct GlyphEditArea {
     drawing_area: Canvas,
     hovering: Cell<Option<(usize, usize)>>,
     statusbar_context_id: Cell<Option<u32>>,
-    overlay: OnceCell<gtk::Overlay>,
+    overlay: super::Overlay,
     pub toolbar_box: OnceCell<gtk::Box>,
     pub viewhidebox: OnceCell<viewhide::ViewHideBox>,
     zoom_percent_label: OnceCell<gtk::Label>,
@@ -1218,13 +1218,8 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
         let viewhidebox = viewhide::ViewHideBox::new(&self.drawing_area);
-        let overlay = gtk::Overlay::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .build();
-        overlay.set_child(Some(&self.drawing_area));
-        overlay.add_overlay(
+        self.overlay.set_child(&self.drawing_area);
+        self.overlay.add_overlay(
             &gtk::Expander::builder()
                 .child(&viewhidebox)
                 .expanded(true)
@@ -1234,18 +1229,16 @@ impl ObjectImpl for GlyphEditArea {
                 .halign(gtk::Align::End)
                 .valign(gtk::Align::End)
                 .build(),
+            true,
         );
-        overlay.add_overlay(&toolbar_box);
-        obj.add(&overlay);
+        self.overlay.add_overlay(&toolbar_box, true);
+        obj.add(&self.overlay);
         obj.set_visible(true);
         obj.set_expand(true);
         obj.set_can_focus(true);
 
         self.zoom_percent_label
             .set(zoom_percent_label)
-            .expect("Failed to initialize window state");
-        self.overlay
-            .set(overlay)
             .expect("Failed to initialize window state");
         self.toolbar_box
             .set(toolbar_box)
@@ -1393,7 +1386,7 @@ impl GlyphEditArea {
                 .get()
                 .unwrap()
                 .set_text(&format!("{:.0}%", new_val * 100.));
-            self.overlay.get().unwrap().queue_draw();
+            self.overlay.queue_draw();
             true
         } else {
             false
@@ -1409,7 +1402,7 @@ impl GlyphEditArea {
                 .get()
                 .unwrap()
                 .set_text(&format!("{:.0}%", new_val * 100.));
-            self.overlay.get().unwrap().queue_draw();
+            self.overlay.queue_draw();
             true
         } else {
             false
