@@ -623,6 +623,37 @@ impl ObjectImpl for GlyphEditArea {
                 if glyph_state.tool.is_panning() {
                     let scale = _self.imp().transformation.scale();
                     let mouse = obj.imp().mouse.get();
+                    let (width, height) = (_self.allocated_width(), _self.allocated_height());
+                    let warp_cursor = _self.property::<bool>("warp-cursor");
+                    let (x, y) = event.position();
+                    if (x + RULER_BREADTH >= width.into()
+                        || y + RULER_BREADTH >= height.into()
+                            || x <= RULER_BREADTH
+                            || y <= RULER_BREADTH) && warp_cursor
+                    {
+                        if let Some(device) = event.device() {
+                            let (screen, root_x, root_y) = device.position();
+                            let move_: Option<(i32, i32)> = if x + RULER_BREADTH >= width.into() {
+                                obj.imp().mouse.set((mouse.0 - width as f64, mouse.1));
+                                (root_x - width + 3 * RULER_BREADTH as i32, root_y).into()
+                            } else if y + RULER_BREADTH >= height.into() {
+                                obj.imp().mouse.set((mouse.0, mouse.1 - height as f64));
+                                (root_x, root_y - height - RULER_BREADTH as i32).into()
+                            } else if x <= RULER_BREADTH {
+                                obj.imp().mouse.set((mouse.0 + width as f64, mouse.1));
+                                (root_x + width - 3 * RULER_BREADTH as i32, root_y).into()
+                            } else if y <= RULER_BREADTH {
+                                obj.imp().mouse.set((mouse.0, mouse.1 + height as f64));
+                                (root_x, root_y + height - 3 * RULER_BREADTH as i32).into()
+                            } else {
+                                None
+                            };
+                            if let Some((move_x, move_y)) = move_ {
+                                device.warp(&screen, move_x, move_y);
+                            }
+                        }
+                    }
+                    let mouse = obj.imp().mouse.get();
                     _self.imp().transformation.set_pan(((event.position().0 - mouse.0) * (1.0/scale), (event.position().1 - mouse.1) * (1.0 / scale)));
                     if let Some(screen) = _self.window() {
                         let display = screen.display();
@@ -1438,6 +1469,14 @@ impl GlyphEditView {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
+        app.downcast_ref::<crate::GerbApp>()
+            .unwrap()
+            .imp()
+            .settings
+            .borrow()
+            .bind_property("warp-cursor", &ret.imp().drawing_area, "warp-cursor")
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
         ret.imp()
             .glyph_state
             .set(RefCell::new(GlyphState::new(

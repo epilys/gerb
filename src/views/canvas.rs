@@ -37,6 +37,7 @@ pub struct CanvasInner {
     pub inner_fill: Cell<bool>,
     pub transformation: Transformation,
     pub show_total_area: Cell<bool>,
+    pub warp_cursor: Cell<bool>,
 }
 
 #[glib::object_subclass]
@@ -113,6 +114,13 @@ impl ObjectImpl for CanvasInner {
                         true,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        "warp-cursor",
+                        "warp-cursor",
+                        "warp-cursor",
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -126,6 +134,7 @@ impl ObjectImpl for CanvasInner {
             "inner-fill" => self.inner_fill.get().to_value(),
             "transformation" => self.transformation.to_value(),
             "show-total-area" => self.show_total_area.get().to_value(),
+            "warp-cursor" => self.warp_cursor.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -153,6 +162,9 @@ impl ObjectImpl for CanvasInner {
             }
             "show-total-area" => {
                 self.show_total_area.set(value.get().unwrap());
+            }
+            "warp-cursor" => {
+                self.warp_cursor.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
         }

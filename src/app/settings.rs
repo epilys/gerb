@@ -19,11 +19,11 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamFlags, ParamSpec, ParamSpecDouble};
+use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use std::cell::RefCell;
+use std::cell::Cell;
 
 glib::wrapper! {
     pub struct Settings(ObjectSubclass<imp::Settings>);
@@ -34,8 +34,9 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct Settings {
-        pub handle_size: RefCell<f64>,
-        pub line_width: RefCell<f64>,
+        pub handle_size: Cell<f64>,
+        pub line_width: Cell<f64>,
+        pub warp_cursor: Cell<bool>,
     }
 
     #[glib::object_subclass]
@@ -69,6 +70,13 @@ mod imp {
                             2.0,
                             ParamFlags::READWRITE,
                         ),
+                        ParamSpecBoolean::new(
+                            "warp-cursor",
+                            "warp-cursor",
+                            "warp-cursor",
+                            true,
+                            ParamFlags::READWRITE,
+                        ),
                     ]
                 });
             PROPERTIES.as_ref()
@@ -76,8 +84,9 @@ mod imp {
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
             match pspec.name() {
-                "handle-size" => self.handle_size.borrow().to_value(),
-                "line-width" => self.line_width.borrow().to_value(),
+                "handle-size" => self.handle_size.get().to_value(),
+                "line-width" => self.line_width.get().to_value(),
+                "warp-cursor" => self.warp_cursor.get().to_value(),
                 _ => unimplemented!("{}", pspec.name()),
             }
         }
@@ -91,10 +100,13 @@ mod imp {
         ) {
             match pspec.name() {
                 "handle-size" => {
-                    *self.handle_size.borrow_mut() = value.get().unwrap();
+                    self.handle_size.set(value.get().unwrap());
                 }
                 "line-width" => {
-                    *self.line_width.borrow_mut() = value.get().unwrap();
+                    self.line_width.set(value.get().unwrap());
+                }
+                "warp-cursor" => {
+                    self.warp_cursor.set(value.get().unwrap());
                 }
                 _ => unimplemented!("{}", pspec.name()),
             }
@@ -111,8 +123,9 @@ impl Default for Settings {
 impl Settings {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        *ret.imp().handle_size.borrow_mut() = 5.0;
-        *ret.imp().line_width.borrow_mut() = 8.0;
+        ret.imp().handle_size.set(5.0);
+        ret.imp().line_width.set(8.0);
+        ret.imp().warp_cursor.set(true);
         ret
     }
 }
