@@ -1229,21 +1229,16 @@ impl ObjectImpl for GlyphEditArea {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecString::new(
-                        // Name
-                        "tab-title",
-                        // Nickname
-                        "tab-title",
-                        // Short description
-                        "tab-title",
-                        // Default value
+                        "title",
+                        "title",
+                        "title",
                         Some("edit glyph"),
-                        // The property can be read and written to
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoolean::new(
-                        "tab-can-close",
-                        "tab-can-close",
-                        "tab-can-close",
+                        "closeable",
+                        "closeable",
+                        "closeable",
                         true,
                         ParamFlags::READABLE,
                     ),
@@ -1299,7 +1294,7 @@ impl ObjectImpl for GlyphEditArea {
 
     fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            "tab-title" => {
+            "title" => {
                 if let Some(name) = obj
                     .imp()
                     .glyph_state
@@ -1311,7 +1306,7 @@ impl ObjectImpl for GlyphEditArea {
                     "edit glyph".to_value()
                 }
             }
-            "tab-can-close" => true.to_value(),
+            "closeable" => true.to_value(),
             "units-per-em" => self.units_per_em.get().to_value(),
             "x-height" => self.x_height.get().to_value(),
             "ascender" => self.ascender.get().to_value(),

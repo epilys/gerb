@@ -349,25 +349,19 @@ impl ObjectImpl for GlyphsArea {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecString::new(
-                        // Name
-                        "tab-title",
-                        // Nickname
-                        "tab-title",
-                        // Short description
-                        "tab-title",
-                        // Default value
+                        "title",
+                        "title",
+                        "title",
                         Some("overview"),
-                        // The property can be read and written to
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoolean::new(
-                        "tab-can-close",
-                        "tab-can-close",
-                        "tab-can-close",
+                        "closeable",
+                        "closeable",
+                        "closeable",
                         false,
                         ParamFlags::READABLE,
                     ),
-                    //ParamSpecString::new("filter", "filter", "filter", None, ParamFlags::READWRITE),
                 ]
             });
         PROPERTIES.as_ref()
@@ -375,8 +369,8 @@ impl ObjectImpl for GlyphsArea {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            "tab-title" => "overview".to_value(),
-            "tab-can-close" => false.to_value(),
+            "title" => "overview".to_value(),
+            "closeable" => false.to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }

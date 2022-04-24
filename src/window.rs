@@ -19,6 +19,8 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+mod workspace;
+pub use workspace::*;
 mod tabinfo;
 pub use tabinfo::*;
 mod minimap;
@@ -283,7 +285,7 @@ impl ObjectImpl for Window {
 fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, closeable: bool) {
     notebook.add(widget);
     let tab_label = gtk::Label::builder()
-        .label(&widget.property::<String>("tab-title"))
+        .label(&widget.property::<String>("title"))
         .visible(true)
         .use_markup(true)
         .build();
@@ -309,7 +311,7 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
             .visible(true)
             .build();
         close_button.connect_clicked(clone!(@strong notebook, @strong widget => move |_self| {
-            if std::dbg!(widget.property::<bool>("tab-can-close")) {
+            if widget.property::<bool>("closeable") {
                 notebook.remove(&widget);
                 notebook.queue_draw();
             }
@@ -369,7 +371,7 @@ impl Window {
             crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), project.clone());
         add_tab(
             &widgets.notebook,
-            glyphs_view.upcast_ref::<gtk::Widget>(),
+            Workspace::new(glyphs_view.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
             false,
             false,
         );
@@ -384,7 +386,7 @@ impl Window {
         );
         add_tab(
             &widgets.notebook,
-            edit_view.upcast_ref::<gtk::Widget>(),
+            Workspace::new(edit_view.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
             true,
             true,
         );
