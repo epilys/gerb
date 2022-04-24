@@ -109,6 +109,19 @@ impl TabInfo {
     pub fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
         let val: glib::Value = obj.property(property);
         match val.type_().name() {
+            "gboolean" => {
+                let val = val.get::<bool>().unwrap();
+                let entry = gtk::CheckButton::builder()
+                    .visible(true)
+                    .active(val)
+                    .build();
+                entry
+                    .bind_property("active", obj, property)
+                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                    .build();
+
+                entry.upcast()
+            }
             "gchararray" => {
                 let val = val.get::<Option<String>>().unwrap().unwrap_or_default();
                 let entry = gtk::Entry::builder().visible(true).build();
