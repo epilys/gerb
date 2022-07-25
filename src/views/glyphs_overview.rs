@@ -566,15 +566,26 @@ impl ObjectImpl for GlyphBox {
         obj.set_can_focus(true);
         obj.set_expand(false);
 
-        obj.connect(
-            "button-press-event",
-            false,
-            clone!(@weak obj => @default-return Some(false.to_value()), move |_| {
-                obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap().imp().window.get().unwrap().emit_by_name::<()>("open-glyph-edit", &[&obj]);
-                println!("open-glyph-edit emitted!");
-
-
-                Some(true.to_value())
+        obj.connect_button_press_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+                match event.button() {
+                    gtk::gdk::BUTTON_SECONDARY => {
+                        println!("context-menu");
+                        let context_menu = crate::utils::menu::Menu::new()
+                            .add_button_cb("Edit in canvas", clone!(@weak obj => @default-return Inhibit(false), move |_, _| {
+                                obj.emit_open_glyph_edit();
+                                Inhibit(true)
+                            })).add_button("Edit properties")
+                        .add_button("Delete glyph").add_button("Export SVG");
+                        println!("{:?}", context_menu.popup());
+                    }
+                    gtk::gdk::BUTTON_PRIMARY => {
+                        obj.emit_open_glyph_edit();
+                        println!("open-glyph-edit emitted!");
+                    }
+                    _ => return Inhibit(false),
+                }
+                Inhibit(true)
             }),
         );
         let drawing_area = gtk::DrawingArea::builder()
@@ -736,6 +747,22 @@ impl WidgetImpl for GlyphBox {}
 impl ContainerImpl for GlyphBox {}
 impl BinImpl for GlyphBox {}
 impl EventBoxImpl for GlyphBox {}
+
+impl GlyphBoxItem {
+    fn emit_open_glyph_edit(&self) {
+        self.imp()
+            .app
+            .get()
+            .unwrap()
+            .downcast_ref::<crate::GerbApp>()
+            .unwrap()
+            .imp()
+            .window
+            .get()
+            .unwrap()
+            .emit_by_name::<()>("open-glyph-edit", &[&self])
+    }
+}
 
 glib::wrapper! {
     pub struct GlyphBoxItem(ObjectSubclass<GlyphBox>)

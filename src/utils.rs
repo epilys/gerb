@@ -23,6 +23,7 @@ use gtk::cairo::Context;
 use std::f64::consts::PI;
 
 pub mod curves;
+pub mod menu;
 pub mod range_query;
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
