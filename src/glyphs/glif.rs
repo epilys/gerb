@@ -145,7 +145,7 @@ struct Guideline {
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 struct Outline {
     #[serde(rename = "$value", default)]
-    countours: Vec<OutlineEntry>,
+    contours: Vec<OutlineEntry>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -238,7 +238,7 @@ impl Iterator for GlifIterator {
         };
 
         if let Some(outline) = outline {
-            for contour in outline.countours {
+            for contour in outline.contours {
                 let contour = match contour {
                     OutlineEntry::Contour(c) => c,
                     OutlineEntry::Component(Component {

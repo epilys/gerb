@@ -74,14 +74,14 @@ impl ObjectImpl for Application {}
 impl ApplicationImpl for Application {
     /// `gio::Application::activate` is what gets called when the
     /// application is launched by the desktop environment and
-    /// aksed to present itself.
+    /// asked to present itself.
     fn activate(&self, app: &Self::Type) {
         let app = app.downcast_ref::<super::GerbApp>().unwrap();
         let imp = app.imp();
         let window = imp
             .window
             .get()
-            .expect("Should always be initiliazed in gio_application_startup");
+            .expect("Should always be initialized in gio_application_startup");
         gtk::Window::set_interactive_debugging(true);
 
         //window.set_app_paintable(true); // crucial for transparency
