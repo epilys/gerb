@@ -636,7 +636,7 @@ impl ObjectImpl for GlyphBox {
             };
             let label = label.replace('\0', "").trim().to_string();
             cr.set_line_width(1.5);
-            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
+            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y).into(), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
             let glyph_width = glyph.width.unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
             if is_focused {
                 cr.set_source_rgb(1., 250./255., 141./255.);
@@ -654,7 +654,7 @@ impl ObjectImpl for GlyphBox {
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
             if glyph.is_empty() {
-                cr.move_to(point.0 + width/2. - sextents.width/2., point.1+(height / 3.)+20.);
+                cr.move_to(point.x + width/2. - sextents.width/2., point.y+(height / 3.)+20.);
                 cr.show_text(&label).expect("Invalid cairo surface state");
             } else {
                 let mut matrix = gtk::cairo::Matrix::identity();
@@ -674,12 +674,12 @@ impl ObjectImpl for GlyphBox {
 
             cr.set_line_width(2.);
             cr.set_source_rgb(0., 0., 0.);
-            cr.move_to(x, point.1+ 2.* (height / 3.));
-            cr.line_to(x+width*1.2, point.1+ 2.* (height / 3.));
+            cr.move_to(x, point.y+ 2.* (height / 3.));
+            cr.line_to(x+width*1.2, point.y+ 2.* (height / 3.));
             cr.stroke().expect("Invalid cairo surface state");
             cr.set_source_rgb(196./255., 196./255., 196./255.);
             cr.new_path();
-            cr.rectangle(x, point.1+2.*(height/3.), width*1.2, 1.2*height/3.);
+            cr.rectangle(x, point.y+2.*(height/3.), width*1.2, 1.2*height/3.);
             cr.fill().expect("Invalid cairo surface state");
             cr.reset_clip();
 
@@ -688,7 +688,7 @@ impl ObjectImpl for GlyphBox {
             let sextents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
-            cr.move_to(point.0 + width/2. - sextents.width/2., point.1+ 2.* (height / 3.)+20.);
+            cr.move_to(point.x + width/2. - sextents.width/2., point.y+ 2.* (height / 3.)+20.);
             cr.show_text(&label).expect("Invalid cairo surface state");
 
 
@@ -699,7 +699,7 @@ impl ObjectImpl for GlyphBox {
             let extents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
-            cr.move_to(point.0 + width/2. - extents.width/2., point.1+ 2.* (height / 3.)+22.0 + sextents.height);
+            cr.move_to(point.x + width/2. - extents.width/2., point.y+ 2.* (height / 3.)+22.0 + sextents.height);
             cr.show_text(&label).expect("Invalid cairo surface state");
 
             Inhibit(false)

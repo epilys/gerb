@@ -49,8 +49,8 @@ impl Default for PointKind {
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 struct Point {
-    x: i64,
-    y: i64,
+    x: f64,
+    y: f64,
     #[serde(rename = "type", default)]
     type_: PointKind,
     smooth: Option<String>,
@@ -229,8 +229,8 @@ impl Iterator for GlifIterator {
                         .identifier(g.identifier)
                         .color(g.color)
                         .angle(g.angle)
-                        .x(g.x as i64)
-                        .y(g.y as i64)
+                        .x(g.x)
+                        .y(g.y)
                         .build()
                 })
                 .collect::<Vec<_>>(),
@@ -264,7 +264,6 @@ impl Iterator for GlifIterator {
                     }
                 };
 
-                let mut contour_acc = vec![];
                 let mut open = false;
                 let mut points = contour
                     .point
@@ -285,19 +284,23 @@ impl Iterator for GlifIterator {
                     c = vec![prev_point];
                 } else {
                     c = vec![];
+                    let first_point = points.front().unwrap();
+                    last_oncurve = (first_point.x, first_point.y);
                     // Closed contour
                     while points.front().unwrap().is_curve() {
+                        //let Point { x, y, .. } = points.front().unwrap();
+                        //c.push((*x, *y));
                         points.rotate_left(1);
                     }
                     let last_point = points.back().unwrap();
                     prev_point = (last_point.x, last_point.y);
-                    let first_point = points.front().unwrap();
-                    last_oncurve = (first_point.x, first_point.y);
                 }
                 if points.front().unwrap().is_line() {
                     let p = points.back().unwrap();
                     prev_point = (p.x, p.y);
                 }
+                let super_ = super::Contour::new();
+                *super_.imp().open.borrow_mut() = open;
                 loop {
                     match points.pop_front() {
                         Some(Point {
@@ -326,7 +329,10 @@ impl Iterator for GlifIterator {
                             c.push(prev_point);
                             c.insert(0, last_oncurve);
                             let smooth = smooth.as_ref().map(|s| s == "yes").unwrap_or(false);
-                            contour_acc.push(Bezier::new(smooth, c));
+                            super_.push_curve(Bezier::new(
+                                smooth,
+                                c.into_iter().map(Into::into).collect(),
+                            ));
                             c = vec![];
                             last_oncurve = prev_point;
                         }
@@ -341,7 +347,10 @@ impl Iterator for GlifIterator {
                                 c.push(prev_point);
                             }
                             c.push((*x, *y));
-                            contour_acc.push(Bezier::new(false, c));
+                            super_.push_curve(Bezier::new(
+                                false,
+                                c.into_iter().map(Into::into).collect(),
+                            ));
                             c = vec![];
                             prev_point = (*x, *y);
                             last_oncurve = prev_point;
@@ -357,15 +366,15 @@ impl Iterator for GlifIterator {
                                 if !c.contains(&prev_point) {
                                     c.push(prev_point);
                                 }
-                                contour_acc.push(Bezier::new(false, c));
+                                super_.push_curve(Bezier::new(
+                                    false,
+                                    c.into_iter().map(Into::into).collect(),
+                                ));
                             }
                             break;
                         }
                     }
                 }
-                let super_ = super::Contour::new();
-                *super_.imp().open.borrow_mut() = open;
-                *super_.imp().curves.borrow_mut() = contour_acc;
                 ret.contours.push(super_);
             }
         }
@@ -474,4 +483,85 @@ const _UPPERCASE_A_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 	<anchor name="aboveUC" x="271" y="678"/>
 	<anchor name="belowLC" x="271" y="-22"/>
 	<anchor name="ogonekUC" x="483" y="0"/>
+</glyph>"##;
+
+const _AE_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
+<glyph name="ae" format="2">
+	<unicode hex="00E6"/>
+	<advance width="778"/>
+	<outline>
+		<contour>
+			<point x="194" y="-12" type="curve" smooth="yes"/>
+			<point x="257" y="-12"/>
+			<point x="327" y="19"/>
+			<point x="392" y="79" type="curve"/>
+			<point x="430" y="30"/>
+			<point x="482" y="-12"/>
+			<point x="564" y="-12" type="curve" smooth="yes"/>
+			<point x="630" y="-12"/>
+			<point x="680" y="8"/>
+			<point x="722" y="38" type="curve"/>
+			<point x="693" y="92" type="line"/>
+			<point x="658" y="68"/>
+			<point x="620" y="55"/>
+			<point x="574" y="55" type="curve" smooth="yes"/>
+			<point x="490" y="55"/>
+			<point x="427" y="121"/>
+			<point x="423" y="221" type="curve"/>
+			<point x="737" y="221" type="line"/>
+			<point x="739" y="234"/>
+			<point x="741" y="251"/>
+			<point x="741" y="269" type="curve" smooth="yes"/>
+			<point x="741" y="408"/>
+			<point x="677" y="498"/>
+			<point x="555" y="498" type="curve" smooth="yes"/>
+			<point x="488" y="498"/>
+			<point x="432" y="458"/>
+			<point x="396" y="395" type="curve"/>
+			<point x="377" y="458"/>
+			<point x="328" y="498"/>
+			<point x="256" y="498" type="curve" smooth="yes"/>
+			<point x="185" y="498"/>
+			<point x="118" y="465"/>
+			<point x="73" y="435" type="curve"/>
+			<point x="105" y="379" type="line"/>
+			<point x="143" y="403"/>
+			<point x="194" y="429"/>
+			<point x="246" y="429" type="curve" smooth="yes"/>
+			<point x="326" y="429"/>
+			<point x="345" y="371"/>
+			<point x="346" y="309" type="curve"/>
+			<point x="145" y="286"/>
+			<point x="51" y="235"/>
+			<point x="51" y="126" type="curve" smooth="yes"/>
+			<point x="51" y="38"/>
+			<point x="113" y="-12"/>
+		</contour>
+		<contour>
+			<point x="217" y="56" type="curve" smooth="yes"/>
+			<point x="170" y="56"/>
+			<point x="134" y="77"/>
+			<point x="134" y="131" type="curve" smooth="yes"/>
+			<point x="134" y="195"/>
+			<point x="191" y="231"/>
+			<point x="345" y="250" type="curve"/>
+			<point x="346" y="228" type="line" smooth="yes"/>
+			<point x="348" y="192"/>
+			<point x="353" y="154"/>
+			<point x="364" y="128" type="curve"/>
+			<point x="320" y="81"/>
+			<point x="263" y="56"/>
+		</contour>
+		<contour>
+			<point x="424" y="284" type="line"/>
+			<point x="434" y="373"/>
+			<point x="487" y="431"/>
+			<point x="553" y="431" type="curve" smooth="yes"/>
+			<point x="623" y="431"/>
+			<point x="666" y="381"/>
+			<point x="666" y="284" type="curve"/>
+		</contour>
+	</outline>
+	<anchor name="aboveLC" x="406" y="509"/>
+	<anchor name="belowLC" x="413" y="-22"/>
 </glyph>"##;

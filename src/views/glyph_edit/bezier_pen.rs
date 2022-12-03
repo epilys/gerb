@@ -20,10 +20,7 @@
  */
 
 use crate::glyphs::{Contour, GlyphDrawingOptions};
-use crate::utils::{
-    curves::{Bezier, Point},
-    distance_between_two_points,
-};
+use crate::utils::{curves::Bezier, distance_between_two_points, Point};
 use gtk::cairo::{Context, Matrix};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,7 +49,7 @@ impl Default for State {
 }
 
 impl State {
-    pub fn insert_point(&mut self, point: (i64, i64)) -> bool {
+    pub fn insert_point(&mut self, point: Point) -> bool {
         match self.inner {
             InnerState::AddControlPoint => {
                 self.inner = InnerState::AddControlHandle;
@@ -100,7 +97,7 @@ impl State {
         ret
     }
 
-    pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions, cursor_position: (i64, i64)) {
+    pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions, cursor_position: Point) {
         let first_point = match self.first_point {
             Some(v) => v,
             None => return,
@@ -130,8 +127,8 @@ impl State {
             cr.line_to(ep.0, ep.1);
             cr.stroke().unwrap();
         };
-        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64, p.1 as f64) };
-        let fp = p_fn(first_point);
+        let p_fn = |p: Point| -> (f64, f64) { (p.x as f64, p.y as f64) };
+        let fp = p_fn(first_point.into());
         draw_endpoint(fp);
         let mut pen_position: Option<(f64, f64)> = Some(fp);
         for curv in self.curves.iter() {

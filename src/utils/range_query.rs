@@ -19,10 +19,11 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::{IPoint, Point};
+
 use generational_arena::{Arena, Index};
 use std::cmp::Ordering;
-
-pub type Point = (i64, i64);
+use uuid::Uuid;
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
@@ -142,8 +143,8 @@ fn test_range_query() {
 macro_rules! contains {
     ($range:expr, $point:expr) => {{
         let (bottom_left, top_right) = $range;
-        let (x, y) = $point;
-        x >= bottom_left.0 && x <= top_right.0 && y >= bottom_left.1 && y <= top_right.1
+        let IPoint { x, y, .. } = $point;
+        x >= bottom_left.x && x <= top_right.x && y >= bottom_left.y && y <= top_right.y
     }};
 }
 
@@ -151,35 +152,41 @@ macro_rules! intersects {
     ($self:expr, $other:expr) => {{
         let (a1, a2) = $self;
         let (b1, b2) = $other;
-        a1.0 <= b2.0 && a2.0 >= b1.0 && a1.1 <= b2.1 && a2.1 >= b1.1
+        a1.x <= b2.x && a2.x >= b1.x && a1.y <= b2.y && a2.y >= b1.y
     }};
 }
 
 #[inline(always)]
-fn max_point((ax, ay): Point, (bx, by): Point) -> Point {
-    (std::cmp::max(ax, bx), std::cmp::max(ay, by))
+fn max_point(a: IPoint, b: IPoint) -> IPoint {
+    IPoint {
+        x: std::cmp::max(a.x, b.x),
+        y: std::cmp::max(a.y, b.y),
+    }
 }
 
 #[inline(always)]
-fn min_point((ax, ay): Point, (bx, by): Point) -> Point {
-    (std::cmp::min(ax, bx), std::cmp::min(ay, by))
+fn min_point(a: IPoint, b: IPoint) -> IPoint {
+    IPoint {
+        x: std::cmp::min(a.x, b.x),
+        y: std::cmp::min(a.y, b.y),
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum KdNode<Identifier: std::fmt::Debug + Copy, const N: usize> {
     Leaf {
         split_at: Coordinate,
-        min: Point,
-        max: Point,
+        min: IPoint,
+        max: IPoint,
         //TODO: use an inline array instead of Vec
-        points: Vec<(Identifier, Point)>,
+        points: Vec<(Identifier, IPoint)>,
         size: usize,
     },
     Division {
         split_value: i64,
         split_at: Coordinate,
-        min: Point,
-        max: Point,
+        min: IPoint,
+        max: IPoint,
         size: usize,
         left: Index,
         right: Index,
@@ -189,9 +196,9 @@ pub enum KdNode<Identifier: std::fmt::Debug + Copy, const N: usize> {
 #[derive(Debug)]
 struct TempLeaf<Identifier: std::fmt::Debug> {
     split_at: Coordinate,
-    min: Point,
-    max: Point,
-    points: Vec<(Identifier, Point)>,
+    min: IPoint,
+    max: IPoint,
+    points: Vec<(Identifier, IPoint)>,
     size: usize,
 }
 
@@ -210,28 +217,28 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
             let next_split = *split_at;
             let split_value = median(points.as_slice(), next_split).unwrap() as i64;
             //let split_value = match next_split {
-            //    Coordinate::X => min.0 + (max.0 - min.0) / 2,
-            //    Coordinate::Y => min.1 + (max.1 - min.1) / 2,
+            //    Coordinate::X => min.x + (max.x - min.x) / 2,
+            //    Coordinate::Y => min.y + (max.y - min.y) / 2,
             //};
             let mut left = TempLeaf {
                 split_at: next_split.next(),
-                min: (i64::MAX, i64::MAX),
-                max: (i64::MIN, i64::MIN),
+                min: MAX_IPOINT,
+                max: MIN_IPOINT,
                 points: vec![],
                 size: 0,
             };
             let mut right = TempLeaf {
                 split_at: next_split.next(),
-                min: (i64::MAX, i64::MAX),
-                max: (i64::MIN, i64::MIN),
+                min: MAX_IPOINT,
+                max: MIN_IPOINT,
                 points: vec![],
                 size: 0,
             };
             while !points.is_empty() {
                 let (i, next_point) = points.swap_remove(0);
                 if match next_split {
-                    Coordinate::X => next_point.0 <= split_value,
-                    Coordinate::Y => next_point.1 <= split_value,
+                    Coordinate::X => next_point.x <= split_value,
+                    Coordinate::Y => next_point.y <= split_value,
                 } {
                     /* belongs to left subtree */
                     left.min = min_point(left.min, next_point);
@@ -282,7 +289,9 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
         }
     }
 
-    fn insert(mut index: Index, point: Point, identifier: I, arena: &mut Arena<Self>) {
+    fn insert(mut index: Index, point: impl Into<IPoint>, identifier: I, arena: &mut Arena<Self>) {
+        let point: IPoint = point.into();
+
         loop {
             match arena.get_mut(index) {
                 Some(KdNode::Leaf {
@@ -314,8 +323,8 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
                     *min = min_point(*min, point);
                     *max = max_point(*max, point);
                     if match split_at {
-                        Coordinate::X => point.0 <= *split_value,
-                        Coordinate::Y => point.1 <= *split_value,
+                        Coordinate::X => point.x <= *split_value,
+                        Coordinate::Y => point.y <= *split_value,
                     } {
                         /* belongs to left subtree */
                         index = *left;
@@ -331,7 +340,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
         }
     }
 
-    fn create(points: &[(I, Point)], depth: usize, arena: &mut Arena<Self>) -> Index {
+    fn create(points: &[(I, IPoint)], depth: usize, arena: &mut Arena<Self>) -> Index {
         let split_at = if depth % 2 == 0 {
             Coordinate::X
         } else {
@@ -353,15 +362,15 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
         let mut left = vec![];
         let mut right = vec![];
 
-        let mut min = (i64::MAX, i64::MAX);
-        let mut max = (i64::MIN, i64::MIN);
+        let mut min = MAX_IPOINT;
+        let mut max = MIN_IPOINT;
 
         for (i, next_point) in points.iter() {
             min = min_point(min, *next_point);
             max = max_point(max, *next_point);
             if match split_at {
-                Coordinate::X => next_point.0 <= split_value,
-                Coordinate::Y => next_point.1 <= split_value,
+                Coordinate::X => next_point.x <= split_value,
+                Coordinate::Y => next_point.y <= split_value,
             } {
                 /* belongs to left subtree */
                 left.push((*i, *next_point));
@@ -395,7 +404,14 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
         })
     }
 
-    fn remove(mut index: Index, point: Point, identifier: I, arena: &mut Arena<Self>) -> bool {
+    fn remove(
+        mut index: Index,
+        point: impl Into<IPoint>,
+        identifier: I,
+        arena: &mut Arena<Self>,
+    ) -> bool {
+        let point: IPoint = point.into();
+
         let mut path = vec![];
         let mut update_path = None;
         let mut ret = false;
@@ -415,8 +431,8 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
                         ret = true;
                     }
                     if !points.is_empty() {
-                        let mut new_min = (i64::MAX, i64::MAX);
-                        let mut new_max = (i64::MIN, i64::MIN);
+                        let mut new_min = MAX_IPOINT;
+                        let mut new_max = MIN_IPOINT;
 
                         for (_, p) in points.iter() {
                             new_min = min_point(new_min, *p);
@@ -442,8 +458,8 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
                     size: _,
                 }) => {
                     if match split_at {
-                        Coordinate::X => point.0 <= *split_value,
-                        Coordinate::Y => point.1 <= *split_value,
+                        Coordinate::X => point.x <= *split_value,
+                        Coordinate::Y => point.y <= *split_value,
                     } {
                         /* belongs to left subtree */
                         index = *left;
@@ -492,49 +508,63 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
     }
 }
 
-type TDArena = Arena<KdNode<usize, 2>>;
+const MAX_IPOINT: IPoint = IPoint {
+    x: i64::MAX,
+    y: i64::MAX,
+};
+const MIN_IPOINT: IPoint = IPoint {
+    x: i64::MIN,
+    y: i64::MIN,
+};
+
+type TDArena = Arena<KdNode<((usize, usize), Uuid), 2>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct KdTree {
     arena: TDArena,
     size: usize,
-    min: Point,
-    max: Point,
+    min: IPoint,
+    max: IPoint,
     root: Option<Index>,
 }
 
 impl KdTree {
-    pub fn new2(points: &[Point]) -> Self {
+    /*pub fn new2(points: &[Point]) -> Self {
         let mut ret = Self {
             arena: Arena::new(),
             size: 0,
-            min: (i64::MAX, i64::MAX),
-            max: (i64::MIN, i64::MIN),
+            min: MAX_IPOINT,
+            max: MIN_IPOINT,
             root: None,
         };
 
-        for (i, p) in points.iter().cloned().enumerate() {
-            ret.add(p, i);
+        for p in points.iter().cloned() {
+            ret.add(p);
         }
 
         ret
     }
+    */
 
-    pub fn new(points: &[Point]) -> Self {
+    pub fn new(points: &[((usize, usize), Point)]) -> Self {
         let mut arena = Arena::new();
-        let mut min = (i64::MAX, i64::MAX);
-        let mut max = (i64::MIN, i64::MIN);
+        let mut min = MAX_IPOINT;
+        let mut max = MIN_IPOINT;
 
-        for p in points.iter() {
-            min = min_point(min, *p);
-            max = max_point(max, *p);
+        for (_, p) in points.iter() {
+            min = min_point(min, p.into());
+            max = max_point(max, p.into());
         }
 
         let root = if points.is_empty() {
             None
         } else {
             Some(KdNode::create(
-                &points.iter().cloned().enumerate().collect::<Vec<_>>(),
+                &points
+                    .iter()
+                    .cloned()
+                    .map(|(i, p)| ((i, p.uuid), p.into()))
+                    .collect::<Vec<_>>(),
                 0,
                 &mut arena,
             ))
@@ -548,7 +578,9 @@ impl KdTree {
         }
     }
 
-    pub fn add(&mut self, point: Point, identifier: usize) {
+    pub fn add(&mut self, identifier: ((usize, usize), Uuid), point: Point) {
+        let point: IPoint = point.into();
+
         self.size += 1;
         self.min = min_point(self.min, point);
         self.max = max_point(self.max, point);
@@ -569,7 +601,9 @@ impl KdTree {
         KdNode::insert(root, point, identifier, &mut self.arena);
     }
 
-    pub fn remove(&mut self, point: Point, identifier: usize) -> bool {
+    pub fn remove(&mut self, identifier: ((usize, usize), Uuid), point: Point) -> bool {
+        let point: IPoint = point.into();
+
         let root = if let Some(root) = self.root {
             root
         } else {
@@ -584,7 +618,13 @@ impl KdTree {
         }
     }
 
-    pub fn query(&self, center: Point, radius: i64) -> Vec<(usize, Point)> {
+    pub fn query(
+        &self,
+        center: impl Into<IPoint>,
+        radius: i64,
+    ) -> Vec<(((usize, usize), Uuid), IPoint)> {
+        let center: IPoint = center.into();
+
         let root = if let Some(root) = self.root {
             root
         } else {
@@ -609,12 +649,22 @@ impl KdTree {
             }};
         }
 
-        let query_region: (Point, Point) = (
-            (o! { center.0, - radius / 2 }, o! { center.1, - radius / 2 }),
-            (o! { center.0, + radius / 2 }, o! { center.1, + radius / 2 }),
+        let query_region: (IPoint, IPoint) = (
+            IPoint {
+                x: o! { center.x, - radius / 2 },
+                y: o! { center.y, - radius / 2 },
+            },
+            IPoint {
+                x: o! { center.x, + radius / 2 },
+                y: o! { center.y, + radius / 2 },
+            },
         );
 
-        fn report_subtree(root: Index, ret: &mut Vec<(usize, Point)>, arena: &TDArena) {
+        fn report_subtree(
+            root: Index,
+            ret: &mut Vec<(((usize, usize), Uuid), IPoint)>,
+            arena: &TDArena,
+        ) {
             let mut queue = vec![root];
             while let Some(v) = queue.pop() {
                 match arena.get(v) {
@@ -663,14 +713,17 @@ impl KdTree {
                     if contains!(query_region, *min) && contains!(query_region, *max) {
                         report_subtree(v, &mut ret, &self.arena);
                     } else {
-                        let (left_split, right_split) = match split_at {
-                            Coordinate::X => {
-                                ((*min, (*split_value, max.1)), ((*split_value, min.1), *max))
-                            }
-                            Coordinate::Y => {
-                                ((*min, (max.0, *split_value)), ((min.0, *split_value), *max))
-                            }
-                        };
+                        let (left_split, right_split): ((IPoint, IPoint), (IPoint, IPoint)) =
+                            match split_at {
+                                Coordinate::X => (
+                                    (*min, (*split_value, max.y).into()),
+                                    ((*split_value, min.y).into(), *max),
+                                ),
+                                Coordinate::Y => (
+                                    (*min, (max.x, *split_value).into()),
+                                    ((min.x, *split_value).into(), *max),
+                                ),
+                            };
 
                         if intersects!(left_split, query_region) {
                             queue.push(*left);
@@ -722,8 +775,8 @@ impl KdTree {
         const WIDTHS: &[f64] = &[1.5, 1., 0.6, 0.3, 0.1, 0.05];
         let stroke_width = WIDTHS.get(depth).unwrap_or_else(|| WIDTHS.last().unwrap());
         *group_ctr += 1;
-        let tx = |x| x - self.min.0;
-        let ty = |y| y - self.min.1;
+        let tx = |x| x - self.min.x;
+        let ty = |y| y - self.min.y;
         queue.push(root);
         let group_id = format!("{counter}-{depth}", counter = group_ctr, depth = depth);
         output.push(format!(
@@ -737,20 +790,20 @@ impl KdTree {
                     min, max, points, ..
                 }) => {
                     if !points.is_empty() {
-                        let rect_width = (max.0 - min.0).abs() + 6;
-                        let rect_height = (max.1 - min.1).abs() + 6;
-                        output.push(format!(r#"<rect id="{desc}" x="{}" y="{}" width="{width}" height="{height}" fill="none" stroke="black" stroke-width="{stroke_width}"><desc>{desc}</desc></rect>"#, tx(min.0-3), ty(min.1-3), desc=format!("min: {:?}\nmax: {:?}\npoints: {:?}", min, max, points), width=rect_width, height=rect_height, stroke_width=stroke_width));
+                        let rect_width = (max.x - min.x).abs() + 6;
+                        let rect_height = (max.y - min.y).abs() + 6;
+                        output.push(format!(r#"<rect id="{desc}" x="{}" y="{}" width="{width}" height="{height}" fill="none" stroke="black" stroke-width="{stroke_width}"><desc>{desc}</desc></rect>"#, tx(min.x-3), ty(min.y-3), desc=format!("min: {:?}\nmax: {:?}\npoints: {:?}", min, max, points), width=rect_width, height=rect_height, stroke_width=stroke_width));
                         for (i, p) in points {
                             //output.push(format!(
                             //        r#" <text x="{}" y="{}">p{}<desc>{desc}</desc></text>"#,
-                            //        tx(p.0 as i64),
-                            //        ty(p.1 as i64 - 5),
+                            //        tx(p.x as i64),
+                            //        ty(p.y as i64 - 5),
                             //        i,
                             //        desc = format!("i {} p {:?}", i, p)
                             //));
                             output.push(format!(
                                         r#"<circle id="{desc}" cx="{}" cy="{}" r="1" fill="none" stroke="black" stroke-width="0.2"><desc>{desc}</desc></circle>"#,
-                                        tx(p.0), ty(p.1), desc=format!("{} : {:?}", i, p),
+                                        tx(p.x), ty(p.y), desc=format!("{} : {:?}", i, p),
                                 ));
                         }
                     }
@@ -766,10 +819,10 @@ impl KdTree {
                 }) => {
                     match split_at {
                         Coordinate::X => {
-                            output.push(format!(r#"<path id="{desc}" d="M {} {} L {} {}" stroke="{color}" fill="none" stroke-width="{width}"><desc>{desc}</desc></path>"#, tx(*split_value), ty(min.1), tx(*split_value), ty(max.1), color="red", desc=format!("split_val {} at {:?} size {}", split_value, split_at, size), width=stroke_width));
+                            output.push(format!(r#"<path id="{desc}" d="M {} {} L {} {}" stroke="{color}" fill="none" stroke-width="{width}"><desc>{desc}</desc></path>"#, tx(*split_value), ty(min.y), tx(*split_value), ty(max.y), color="red", desc=format!("split_val {} at {:?} size {}", split_value, split_at, size), width=stroke_width));
                         }
                         Coordinate::Y => {
-                            output.push(format!(r#"<path id="{desc}" d="M {} {} L {} {}" stroke="{color}" fill="none" stroke-width="{width}"><desc>{desc}</desc></path>"#, tx(min.0), ty(*split_value), tx(max.0), ty(*split_value), color="blue", desc=format!("split_val {} at {:?} size {}", split_value, split_at, size), width=stroke_width));
+                            output.push(format!(r#"<path id="{desc}" d="M {} {} L {} {}" stroke="{color}" fill="none" stroke-width="{width}"><desc>{desc}</desc></path>"#, tx(min.x), ty(*split_value), tx(max.x), ty(*split_value), color="blue", desc=format!("split_val {} at {:?} size {}", split_value, split_at, size), width=stroke_width));
                         }
                     }
 
@@ -808,8 +861,8 @@ impl KdTree {
     fn to_svg(&self) -> String {
         let mut output = vec![];
         let (width, height) = (
-            (self.max.0 - self.min.0).abs(),
-            (self.max.1 - self.min.1).abs(),
+            (self.max.x - self.min.x).abs(),
+            (self.max.y - self.min.y).abs(),
         );
         output.push(format!(
             r#"<svg width="{}" height="{}" xmlns="http://www.w3.org/2000/svg">"#,
@@ -835,16 +888,16 @@ impl KdTree {
         );
         //output.push(format!(
         //    r#"  <path d="M {} {} L {} {}" stroke="{color}" fill="none"/>"#,
-        //    prev_point.0 as i64,
-        //    prev_point.1 as i64,
-        //    new_point.0 as i64,
-        //    new_point.1 as i64,
+        //    prev_point.x as i64,
+        //    prev_point.y as i64,
+        //    new_point.x as i64,
+        //    new_point.y as i64,
         //    color = colors[i % colors.len()]
         //));
         //output.push(format!(
         //    r#" <text x="{}" y="{}">{}</text>"#,
-        //    (prev_point.0 as i64 + new_point.0 as i64) / 2,
-        //    (prev_point.1 as i64 + new_point.1 as i64) / 2,
+        //    (prev_point.x as i64 + new_point.x as i64) / 2,
+        //    (prev_point.y as i64 + new_point.y as i64) / 2,
         //    pp,
         //));
         output.push("</svg>".to_string());
@@ -853,23 +906,23 @@ impl KdTree {
 }
 
 fn partition<I: Copy>(
-    data: &[(I, Point)],
+    data: &[(I, IPoint)],
     c: Coordinate,
-) -> Option<(Vec<(I, Point)>, i64, Vec<(I, Point)>)> {
+) -> Option<(Vec<(I, IPoint)>, i64, Vec<(I, IPoint)>)> {
     match data.len() {
         0 => None,
         _ => {
             let (pivot_slice, tail) = data.split_at(1);
             let pivot = match c {
-                Coordinate::X => pivot_slice[0].1 .0,
-                Coordinate::Y => pivot_slice[0].1 .1,
+                Coordinate::X => pivot_slice[0].1.x,
+                Coordinate::Y => pivot_slice[0].1.y,
             };
             let (left, right) = tail.iter().fold((vec![], vec![]), |mut splits, next| {
                 {
                     let (ref mut left, ref mut right) = &mut splits;
                     if match c {
-                        Coordinate::X => next.1 .0 < pivot,
-                        Coordinate::Y => next.1 .1 < pivot,
+                        Coordinate::X => next.1.x < pivot,
+                        Coordinate::Y => next.1.y < pivot,
                     } {
                         left.push(*next);
                     } else {
@@ -884,7 +937,7 @@ fn partition<I: Copy>(
     }
 }
 
-fn select<I: Copy>(data: &[(I, Point)], k: usize, c: Coordinate) -> Option<i64> {
+fn select<I: Copy>(data: &[(I, IPoint)], k: usize, c: Coordinate) -> Option<i64> {
     let part = partition(data, c);
 
     match part {
@@ -901,7 +954,7 @@ fn select<I: Copy>(data: &[(I, Point)], k: usize, c: Coordinate) -> Option<i64> 
     }
 }
 
-fn median<I: Copy>(data: &[(I, Point)], c: Coordinate) -> Option<f64> {
+fn median<I: Copy>(data: &[(I, IPoint)], c: Coordinate) -> Option<f64> {
     let size = data.len();
 
     match size {

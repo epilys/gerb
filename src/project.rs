@@ -40,7 +40,7 @@ mod imp {
     use super::*;
 
     #[derive(Debug)]
-    pub struct Project {
+    pub struct ProjectInner {
         name: RefCell<String>,
         modified: Cell<bool>,
         pub last_saved: RefCell<Option<u64>>,
@@ -72,9 +72,9 @@ mod imp {
         pub guidelines: RefCell<Vec<Guideline>>,
     }
 
-    impl Default for Project {
+    impl Default for ProjectInner {
         fn default() -> Self {
-            Project {
+            ProjectInner {
                 name: RefCell::new("New project".to_string()),
                 modified: Cell::new(false),
                 last_saved: RefCell::new(None),
@@ -100,7 +100,7 @@ mod imp {
 
     // The central trait for subclassing a GObject
     #[glib::object_subclass]
-    impl ObjectSubclass for Project {
+    impl ObjectSubclass for ProjectInner {
         const NAME: &'static str = "Project";
         type Type = super::Project;
         type ParentType = glib::Object;
@@ -108,92 +108,92 @@ mod imp {
     }
 
     // Trait shared by all GObjects
-    impl ObjectImpl for Project {
+    impl ObjectImpl for ProjectInner {
         fn properties() -> &'static [ParamSpec] {
             static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
                 once_cell::sync::Lazy::new(|| {
                     vec![
                         ParamSpecString::new(
-                            "name",
-                            "name",
-                            "name",
+                            Project::NAME,
+                            Project::NAME,
+                            Project::NAME,
                             Some("New project"),
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecBoolean::new(
-                            "modified",
-                            "modified",
-                            "modified",
+                            Project::MODIFIED,
+                            Project::MODIFIED,
+                            Project::MODIFIED,
                             false,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecInt64::new(
-                            "version-major",
-                            "version-major",
-                            "version-major",
+                            Project::VERSION_MAJOR,
+                            Project::VERSION_MAJOR,
+                            Project::VERSION_MAJOR,
                             0,
                             std::i64::MAX,
                             1,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecUInt64::new(
-                            "version-minor",
-                            "version-minor",
-                            "version-minor",
+                            Project::VERSION_MINOR,
+                            Project::VERSION_MINOR,
+                            Project::VERSION_MINOR,
                             0,
                             std::u64::MAX,
                             1,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecDouble::new(
-                            "units-per-em",
-                            "units-per-em",
-                            "units-per-em",
+                            Project::UNITS_PER_EM,
+                            Project::UNITS_PER_EM,
+                            Project::UNITS_PER_EM,
                             1.0,
                             std::f64::MAX,
                             1000.0,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecDouble::new(
-                            "x-height",
-                            "x-height",
-                            "x-height",
+                            Project::X_HEIGHT,
+                            Project::X_HEIGHT,
+                            Project::X_HEIGHT,
                             1.0,
                             std::f64::MAX,
                             450.0,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecDouble::new(
-                            "ascender",
-                            "ascender",
-                            "ascender",
+                            Project::ASCENDER,
+                            Project::ASCENDER,
+                            Project::ASCENDER,
                             std::f64::MIN,
                             std::f64::MAX,
                             700.0,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecDouble::new(
-                            "descender",
-                            "descender",
-                            "descender",
+                            Project::DESCENDER,
+                            Project::DESCENDER,
+                            Project::DESCENDER,
                             std::f64::MIN,
                             std::f64::MAX,
                             -200.0,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecDouble::new(
-                            "cap-height",
-                            "cap-height",
-                            "cap-height",
+                            Project::CAP_HEIGHT,
+                            Project::CAP_HEIGHT,
+                            Project::CAP_HEIGHT,
                             std::f64::MIN,
                             std::f64::MAX,
                             650.0,
                             ParamFlags::READWRITE,
                         ),
                         ParamSpecDouble::new(
-                            "italic-angle",
-                            "italic-angle",
-                            "italic-angle",
+                            Project::ITALIC_ANGLE,
+                            Project::ITALIC_ANGLE,
+                            Project::ITALIC_ANGLE,
                             0.0,
                             std::f64::MAX,
                             0.0,
@@ -206,50 +206,50 @@ mod imp {
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
             match pspec.name() {
-                "name" => self.name.borrow().to_value(),
-                "modified" => self.modified.get().to_value(),
-                "version-major" => self.version_major.get().to_value(),
-                "version-minor" => self.version_minor.get().to_value(),
-                "units-per-em" => self.units_per_em.get().to_value(),
-                "x-height" => self.x_height.get().to_value(),
-                "ascender" => self.ascender.get().to_value(),
-                "descender" => self.descender.get().to_value(),
-                "cap-height" => self.cap_height.get().to_value(),
-                "italic-angle" => self.italic_angle.get().to_value(),
+                Project::NAME => self.name.borrow().to_value(),
+                Project::MODIFIED => self.modified.get().to_value(),
+                Project::VERSION_MAJOR => self.version_major.get().to_value(),
+                Project::VERSION_MINOR => self.version_minor.get().to_value(),
+                Project::UNITS_PER_EM => self.units_per_em.get().to_value(),
+                Project::X_HEIGHT => self.x_height.get().to_value(),
+                Project::ASCENDER => self.ascender.get().to_value(),
+                Project::DESCENDER => self.descender.get().to_value(),
+                Project::CAP_HEIGHT => self.cap_height.get().to_value(),
+                Project::ITALIC_ANGLE => self.italic_angle.get().to_value(),
                 _ => unimplemented!("{}", pspec.name()),
             }
         }
 
         fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
-                "name" => {
+                Project::NAME => {
                     *self.name.borrow_mut() = value.get().unwrap();
                 }
-                "modified" => {
+                Project::MODIFIED => {
                     self.modified.set(value.get().unwrap());
                 }
-                "version-major" => {
+                Project::VERSION_MAJOR => {
                     self.version_major.set(value.get().unwrap());
                 }
-                "version-minor" => {
+                Project::VERSION_MINOR => {
                     self.version_minor.set(value.get().unwrap());
                 }
-                "units-per-em" => {
+                Project::UNITS_PER_EM => {
                     self.units_per_em.set(value.get().unwrap());
                 }
-                "x-height" => {
+                Project::X_HEIGHT => {
                     self.x_height.set(value.get().unwrap());
                 }
-                "ascender" => {
+                Project::ASCENDER => {
                     self.ascender.set(value.get().unwrap());
                 }
-                "descender" => {
+                Project::DESCENDER => {
                     self.descender.set(value.get().unwrap());
                 }
-                "cap-height" => {
+                Project::CAP_HEIGHT => {
                     self.cap_height.set(value.get().unwrap());
                 }
-                "italic-angle" => {
+                Project::ITALIC_ANGLE => {
                     self.italic_angle.set(value.get().unwrap());
                 }
                 _ => unimplemented!("{}", pspec.name()),
@@ -259,10 +259,21 @@ mod imp {
 }
 
 glib::wrapper! {
-    pub struct Project(ObjectSubclass<imp::Project>);
+    pub struct Project(ObjectSubclass<imp::ProjectInner>);
 }
 
 impl Project {
+    pub const ASCENDER: &str = "ascender";
+    pub const CAP_HEIGHT: &str = "cap-height";
+    pub const DESCENDER: &str = "descender";
+    pub const ITALIC_ANGLE: &str = "italic-angle";
+    pub const MODIFIED: &str = "modified";
+    pub const NAME: &str = "name";
+    pub const UNITS_PER_EM: &str = "units-per-em";
+    pub const VERSION_MAJOR: &str = "version-major";
+    pub const VERSION_MINOR: &str = "version-minor";
+    pub const X_HEIGHT: &str = "x-height";
+
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
@@ -361,23 +372,23 @@ impl Project {
                 0
             };
         let ret: Self = Self::new();
-        ret.set_property("name", family_name.clone());
-        ret.set_property("modified", false);
+        ret.set_property(Project::NAME, family_name.clone());
+        ret.set_property(Project::MODIFIED, false);
         *ret.imp().last_saved.borrow_mut() = None;
         *ret.imp().glyphs.borrow_mut() = glyphs?;
         *ret.imp().path.borrow_mut() = Some(path);
         *ret.imp().family_name.borrow_mut() = family_name;
         *ret.imp().style_name.borrow_mut() = style_name;
-        ret.set_property("version-major", version_major);
-        ret.set_property("version-minor", version_minor);
+        ret.set_property(Project::VERSION_MAJOR, version_major);
+        ret.set_property(Project::VERSION_MINOR, version_minor);
         *ret.imp().copyright.borrow_mut() = copyright;
         *ret.imp().trademark.borrow_mut() = trademark;
-        ret.set_property("units-per-em", units_per_em);
-        ret.set_property("ascender", ascender);
-        ret.set_property("descender", descender);
-        ret.set_property("x-height", x_height);
-        ret.set_property("cap-height", cap_height);
-        ret.set_property("italic-angle", italic_angle);
+        ret.set_property(Project::UNITS_PER_EM, units_per_em);
+        ret.set_property(Project::ASCENDER, ascender);
+        ret.set_property(Project::DESCENDER, descender);
+        ret.set_property(Project::X_HEIGHT, x_height);
+        ret.set_property(Project::CAP_HEIGHT, cap_height);
+        ret.set_property(Project::ITALIC_ANGLE, italic_angle);
         *ret.imp().note.borrow_mut() = String::new();
         *ret.imp().guidelines.borrow_mut() = vec![];
         Ok(ret)

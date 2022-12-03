@@ -22,6 +22,7 @@
 use glib::{
     clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
 };
+use gtk::cairo::Matrix;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -29,69 +30,34 @@ use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
+use uuid::Uuid;
 
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
+use crate::utils::{curves::Bezier, Point};
 
 mod bezier_pen;
 mod viewhide;
 
-use super::Canvas;
+use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
 #[derive(Debug, Clone)]
-enum ControlPointKind {
-    Endpoint { handle: Option<usize> },
-    Handle { end_points: Vec<usize> },
-}
-
-use ControlPointKind::*;
-
-#[derive(Debug, Clone)]
-struct ControlPoint {
-    contour_index: usize,
-    curve_index: usize,
-    point_index: usize,
-    position: (i64, i64),
-    kind: ControlPointKind,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-enum ControlPointMode {
-    None,
-    Drag,
-    DragGuideline(usize),
-}
-
-impl Default for ControlPointMode {
-    fn default() -> ControlPointMode {
-        ControlPointMode::None
-    }
-}
-
-#[derive(Debug, Clone)]
 enum Tool {
     Panning,
-    Manipulate { mode: ControlPointMode },
-    BezierPen { state: bezier_pen::State },
+    Manipulate,
 }
 
 impl Default for Tool {
     fn default() -> Tool {
-        Tool::Manipulate {
-            mode: ControlPointMode::default(),
-        }
+        Tool::Manipulate
     }
 }
 
 impl Tool {
     fn is_manipulate(&self) -> bool {
-        matches!(self, Tool::Manipulate { .. })
-    }
-
-    fn is_bezier_pen(&self) -> bool {
-        matches!(self, Tool::BezierPen { .. })
+        matches!(self, Tool::Manipulate)
     }
 
     fn is_panning(&self) -> bool {
@@ -104,319 +70,18 @@ struct GlyphState {
     app: gtk::Application,
     glyph: Rc<RefCell<Glyph>>,
     reference: Rc<RefCell<Glyph>>,
-    selection: Vec<usize>,
-    tool: Tool,
-    points: Rc<RefCell<Vec<ControlPoint>>>,
-    points_map: Rc<RefCell<HashMap<(i64, i64), Vec<usize>>>>,
-    kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
     drar: Canvas,
+    tool: Tool,
 }
 
 impl GlyphState {
     fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, drar: Canvas) -> Self {
-        let control_points = Rc::new(RefCell::new(vec![]));
-        let points_map: Rc<RefCell<HashMap<(i64, i64), Vec<usize>>>> =
-            Rc::new(RefCell::new(HashMap::default()));
-
-        let mut ret = GlyphState {
-            // FIXME: needs a deep clone (duplicate) here
-            glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
+        Self {
             app,
+            glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
             reference: Rc::clone(glyph),
-            points: control_points,
-            points_map,
-            tool: Tool::default(),
-            selection: vec![],
-            kd_tree: Rc::new(RefCell::new(crate::utils::range_query::KdTree::new(&[]))),
             drar,
-        };
-
-        for (contour_index, contour) in glyph.borrow().contours.iter().enumerate() {
-            ret.add_contour(contour, contour_index);
-        }
-        ret
-    }
-
-    fn add_contour(&mut self, contour: &Contour, contour_index: usize) {
-        let mut points = self.points.borrow_mut();
-        let mut points_map = self.points_map.borrow_mut();
-        let prev_len = points.len();
-        for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
-            match curve.points().borrow().len() {
-                4 => {
-                    for (endpoint, handle) in [(0, 1), (3, 2)] {
-                        let mut point_index = points.len();
-                        points.push(ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: endpoint,
-                            position: curve.points().borrow()[endpoint],
-                            kind: Endpoint {
-                                handle: Some(point_index + 1),
-                            },
-                        });
-                        points_map
-                            .entry(curve.points().borrow()[endpoint])
-                            .or_default()
-                            .push(point_index);
-                        let endpoint_index = point_index;
-                        point_index += 1;
-                        points.push(ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: handle,
-                            position: curve.points().borrow()[handle],
-                            kind: Handle {
-                                end_points: vec![endpoint_index],
-                            },
-                        });
-                        points_map
-                            .entry(curve.points().borrow()[handle])
-                            .or_default()
-                            .push(point_index);
-                    }
-                }
-                3 => {
-                    let mut point_index = points.len();
-                    points.push(ControlPoint {
-                        contour_index,
-                        curve_index,
-                        point_index: 0,
-                        position: curve.points().borrow()[0],
-                        kind: Endpoint {
-                            handle: Some(point_index + 1),
-                        },
-                    });
-                    points_map
-                        .entry(curve.points().borrow()[0])
-                        .or_default()
-                        .push(point_index);
-                    point_index += 1;
-                    points.push(ControlPoint {
-                        contour_index,
-                        curve_index,
-                        point_index: 1,
-                        position: curve.points().borrow()[1],
-                        kind: Handle {
-                            end_points: vec![point_index - 1, point_index + 1],
-                        },
-                    });
-                    points_map
-                        .entry(curve.points().borrow()[1])
-                        .or_default()
-                        .push(point_index);
-                    point_index += 1;
-                    points.push(ControlPoint {
-                        contour_index,
-                        curve_index,
-                        point_index: 2,
-                        position: curve.points().borrow()[2],
-                        kind: Endpoint {
-                            handle: Some(point_index - 1),
-                        },
-                    });
-                    points_map
-                        .entry(curve.points().borrow()[2])
-                        .or_default()
-                        .push(point_index);
-                }
-                2 => {
-                    let mut point_index = points.len();
-                    for endpoint in 0..=1 {
-                        points.push(ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: endpoint,
-                            position: curve.points().borrow()[endpoint],
-                            kind: Endpoint { handle: None },
-                        });
-                        points_map
-                            .entry(curve.points().borrow()[endpoint])
-                            .or_default()
-                            .push(point_index);
-                        point_index += 1;
-                    }
-                }
-                1 => {}
-                0 => {}
-                _ => unreachable!(), //FIXME
-            }
-        }
-        let mut kd_tree = self.kd_tree.borrow_mut();
-        for i in prev_len..points.len() {
-            let pos = points[i].position;
-            kd_tree.add(pos, i);
-        }
-    }
-
-    fn set_selection(&mut self, selection: &[(usize, (i64, i64))]) {
-        self.selection.clear();
-        let points_map = self.points_map.borrow();
-        for (_, pt) in selection {
-            if let Some(indices) = points_map.get(pt) {
-                self.selection.extend(indices.iter().cloned());
-            }
-        }
-    }
-
-    fn update_positions(&mut self, new_pos: (i64, i64)) {
-        let mut action = self.update_point(&self.selection, new_pos);
-        (action.redo)();
-        let app: &crate::Application =
-            crate::Application::from_instance(&self.app.downcast_ref::<crate::GerbApp>().unwrap());
-        let undo_db = app.undo_db.borrow_mut();
-        undo_db.event(action);
-    }
-
-    fn new_guideline(&self, angle: f64, (x, y): (i64, i64)) -> crate::Action {
-        let drar = self.drar.clone();
-        crate::Action {
-            stamp: crate::EventStamp {
-                t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
-                id: Box::new([]),
-            },
-            compress: false,
-            redo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
-                glyph.borrow_mut().guidelines.push(Guideline::builder().angle(angle).x(x).y(y).build());
-                drar.queue_draw();
-            })),
-            undo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
-                glyph.borrow_mut().guidelines.pop();
-                drar.queue_draw();
-            })),
-        }
-    }
-
-    fn update_guideline(&self, idx: usize, position: (i64, i64)) -> crate::Action {
-        let drar = self.drar.clone();
-        let old_position: (i64, i64) = {
-            let g = self.glyph.borrow();
-            let x = g.guidelines[idx].property("x");
-            let y = g.guidelines[idx].property("y");
-            (x, y)
-        };
-        crate::Action {
-            stamp: crate::EventStamp {
-                t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
-                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
-            },
-            compress: true,
-            redo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
-                glyph.borrow().guidelines[idx].set_property("x", position.0);
-                glyph.borrow().guidelines[idx].set_property("y", position.1);
-                drar.queue_draw();
-            })),
-            undo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
-                glyph.borrow().guidelines[idx].set_property("x", old_position.0);
-                glyph.borrow().guidelines[idx].set_property("y", old_position.1);
-                drar.queue_draw();
-            })),
-        }
-    }
-
-    fn delete_guideline(&self, idx: usize) -> crate::Action {
-        let drar = self.drar.clone();
-        let json: serde_json::Value =
-            { serde_json::to_value(&self.glyph.borrow().guidelines[idx].imp()).unwrap() };
-        crate::Action {
-            stamp: crate::EventStamp {
-                t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
-                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
-            },
-            compress: false,
-            redo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
-                glyph.borrow_mut().guidelines.remove(idx);
-                drar.queue_draw();
-            })),
-            undo: Box::new(clone!(@weak self.glyph as glyph, @weak drar => move || {
-                glyph.borrow_mut().guidelines.push(Guideline::try_from(json.clone()).unwrap());
-                drar.queue_draw();
-            })),
-        }
-    }
-
-    fn update_point(&self, idxs: &[usize], new_pos: (i64, i64)) -> crate::Action {
-        let drar = self.drar.clone();
-        let old_positions = {
-            let mut v = Vec::with_capacity(idxs.len());
-            for &idx in idxs {
-                v.push(if let Some(p) = self.points.borrow().get(idx) {
-                    p.position
-                } else {
-                    (0, 0)
-                });
-            }
-            Rc::new(v)
-        };
-        let idxs = Rc::new(idxs.to_vec());
-        crate::Action {
-            stamp: crate::EventStamp {
-                t: std::any::TypeId::of::<Self>(),
-                property: "point",
-                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&idxs).into() },
-            },
-            compress: true,
-            redo: Box::new(
-                clone!(@strong old_positions, @strong idxs, @weak self.points as points, @weak self.points_map as points_map, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak drar => move || {
-                    let mut points = points.borrow_mut();
-                    let mut points_map = points_map.borrow_mut();
-                    let mut kd_tree = kd_tree.borrow_mut();
-                    for &idx in idxs.iter() {
-                        if let Some(p) = points.get_mut(idx) {
-                            /* update points_map */
-                            points_map.entry(p.position).and_modify(|points_vec| {
-                                points_vec.retain(|p| *p != idx);
-                            });
-                            points_map.entry(new_pos).or_default().push(idx);
-                            /* update kd_tree */
-                            assert!(kd_tree.remove(p.position, idx));
-                            kd_tree.add(new_pos, idx);
-
-                            /* finally update actual point */
-                            p.position = new_pos;
-
-                            let glyph = glyph.borrow();
-                            let curves = glyph.contours[p.contour_index].curves().borrow_mut();
-                            curves[p.curve_index]
-                                .points()
-                                .borrow_mut()[p.point_index] = new_pos;
-                        }
-                    }
-                    drar.queue_draw();
-                }),
-            ),
-            undo: Box::new(
-                clone!(@strong old_positions, @strong idxs, @weak self.points as points, @weak self.points_map as points_map, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak drar => move || {
-                    let mut points = points.borrow_mut();
-                    let mut points_map = points_map.borrow_mut();
-                    let mut kd_tree = kd_tree.borrow_mut();
-                    for (&idx, &old_position) in idxs.iter().zip(old_positions.iter()) {
-                        if let Some(ref mut p) = points.get_mut(idx) {
-                            /* update points_map */
-                            points_map.entry(p.position).and_modify(|points_vec| {
-                                points_vec.retain(|p| *p != idx);
-                            });
-                            points_map.entry(old_position).or_default().push(idx);
-                            /* update kd_tree */
-                            assert!(kd_tree.remove(p.position, idx));
-                            kd_tree.add(old_position, idx);
-
-                            /* finally update actual point */
-                            p.position = old_position;
-                            let glyph = glyph.borrow();
-                            let curves = glyph.contours[p.contour_index].curves().borrow_mut();
-                            curves[p.curve_index]
-                                .points()
-                                .borrow_mut()[p.point_index] = old_position;
-                        }
-                    }
-                    drar.queue_draw();
-
-                }),
-            ),
+            tool: Tool::default(),
         }
     }
 }
@@ -426,26 +91,18 @@ pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<RefCell<GlyphState>>,
-    drawing_area: Canvas,
-    hovering: Cell<Option<(usize, usize)>>,
+    viewport: Canvas,
     statusbar_context_id: Cell<Option<u32>>,
     overlay: super::Overlay,
     pub toolbar_box: OnceCell<gtk::Box>,
     pub viewhidebox: OnceCell<viewhide::ViewHideBox>,
     zoom_percent_label: OnceCell<gtk::Label>,
-    resized: Cell<bool>,
-    mouse: Cell<(f64, f64)>,
-    transformed_mouse: Cell<(i64, i64)>,
-    zoom: Cell<f64>,
-    zoom_locus: Cell<Option<(f64, f64)>>,
     units_per_em: Cell<f64>,
     descender: Cell<f64>,
     x_height: Cell<f64>,
     cap_height: Cell<f64>,
     ascender: Cell<f64>,
 }
-
-const RULER_BREADTH: f64 = 13.;
 
 #[glib::object_subclass]
 impl ObjectSubclass for GlyphEditArea {
@@ -460,516 +117,138 @@ impl ObjectImpl for GlyphEditArea {
     // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.hovering.set(None);
-        self.resized.set(true);
         self.statusbar_context_id.set(None);
-        self.mouse.set((0., 0.));
-        self.transformed_mouse.set((0, 0));
-        self.zoom.set(1.);
+        self.viewport.set_mouse(ViewPoint((0.0, 0.0).into()));
 
-        self.drawing_area.connect_button_press_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                obj.imp().mouse.set(event.position());
-                let zoom_factor = obj.imp().zoom_factor();
-                let camera = obj.imp().camera();
-                let event_position = event.position();
-                let units_per_em = obj.property::<f64>("units-per-em");
-                let f = units_per_em / EM_SQUARE_PIXELS;
-                let position = Canvas::calculate_position(zoom_factor, camera, event_position, f, units_per_em);
-                obj.imp().transformed_mouse.set(position);
-                match event.button() {
-                    gtk::gdk::BUTTON_PRIMARY => {
-                        let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                        if event_position.0 < RULER_BREADTH || event_position.1 < RULER_BREADTH {
-                            let angle = if event_position.0 < RULER_BREADTH && event_position.1 < RULER_BREADTH {
-                                -45.
-                            } else if event_position.0 < RULER_BREADTH {
-                                90.
-                            } else {
-                                0.
-                            };
-                            let mut action = glyph_state.new_guideline(angle, position);
-                            (action.redo)();
-                            let app: &crate::Application =
-                                crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
-                            let undo_db = app.undo_db.borrow_mut();
-                            undo_db.event(action);
-                        }
-
-                        if glyph_state.tool.is_manipulate() {
-                            let mut is_guideline: bool = false;
-                            let GlyphState {
-                                ref mut tool,
-                                ref glyph,
-                                ..
-                            } = *glyph_state;
-                            for (i, g) in glyph.borrow().guidelines.iter().enumerate() {
-                                if g.imp().on_line_query(position, None) {
-                                    obj.imp().select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
-                                    *tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
-                                    is_guideline = true;
-                                    break;
-                                }
-                            }
-                            if !is_guideline {
-                                let pts = glyph_state.kd_tree.borrow().query(position, 10);
-                                glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::Drag };
-                                glyph_state.set_selection(&pts);
-                            }
-                        } else if let Tool::BezierPen { ref mut state } = glyph_state.tool {
-                            if !state.insert_point(position) {
-                                let state = std::mem::replace(state, Default::default());
-                                glyph_state.tool = Tool::Manipulate { mode: Default::default() };
-                                let new_contour = state.close(false);
-                                let contour_index = glyph_state.glyph.borrow().contours.len();
-                                glyph_state.add_contour(&new_contour, contour_index);
-                                glyph_state.glyph.borrow_mut().contours.push(new_contour);
-                            }
-                        }
-                    },
-                    gtk::gdk::BUTTON_MIDDLE => {
-                        obj.imp().glyph_state.get().unwrap().borrow_mut().tool = Tool::Panning;
-                    },
-                    gtk::gdk::BUTTON_SECONDARY => {
-                        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-                        if glyph_state.tool.is_manipulate() {
-                            let glyph = glyph_state.glyph.borrow_mut();
-                            for (i, g) in glyph.guidelines.iter().enumerate() {
-                                if g.imp().on_line_query(position, None) {
-                                    let menu = gtk::Menu::builder().attach_widget(_self).take_focus(true).visible(true).build();
-                                    let name = gtk::MenuItem::builder().label(&format!("{} - {}", g.name().as_ref().map(String::as_str).unwrap_or("Anonymous guideline"), g.identifier().as_ref().map(String::as_str).unwrap_or("No identifier"))).sensitive(false).visible(true).build();
-                                    menu.append(&name);
-                                    menu.append(&gtk::SeparatorMenuItem::builder().visible(true).build());
-                                    let delete = gtk::MenuItem::builder().label("Delete").sensitive(true).visible(true).build();
-                                    drop(glyph);
-                                    drop(glyph_state);
-                                    delete.connect_activate(clone!(@weak obj, @weak _self as drar => move |_del_self| {
-                                        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                                        if glyph_state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
-                                            let mut action = glyph_state.delete_guideline(i);
-                                            (action.redo)();
-                                            let app: &crate::Application =
-                                                crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
-                                            let undo_db = app.undo_db.borrow_mut();
-                                            undo_db.event(action);
-                                            drar.queue_draw();
-                                        }
-                                    }));
-                                    menu.append(&delete);
-                                    menu.show_all();
-                                    menu.popup_easy(event.button(), event.time());
-                                    break;
-                                }
-                            }
-                        }
-                        return Inhibit(true);
-                    }
-                    _ => {},
-                }
+        self.viewport.connect_scroll_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |drar, event| {
                 Inhibit(false)
             }),
         );
-        self.drawing_area.connect_button_release_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                //obj.imp().mouse.set((0., 0.));
+
+        self.viewport
+            .connect_size_allocate(clone!(@weak obj => move |_canvas, _rect| {
+            }));
+
+        self.viewport.connect_button_press_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 match glyph_state.tool {
+                    Tool::Manipulate => {
+                        match event.button() {
+                            gtk::gdk::BUTTON_MIDDLE => {
+                                glyph_state.tool = Tool::Panning;
+                            },
+                            _ => {},
+                        }
+                    },
                     Tool::Panning => {
-                        glyph_state.tool = Tool::default();
-                    },
-                    Tool::Manipulate { mode: ControlPointMode::None } => {
-                        let position = Canvas::calculate_position(obj.imp().zoom_factor(), obj.imp().camera(), event.position(), obj.property::<f64>("units-per-em") / EM_SQUARE_PIXELS, obj.property::<f64>("units-per-em"));
-                        let pts = glyph_state.kd_tree.borrow().query(position, 10);
-                        let glyph = glyph_state.glyph.borrow();
-                        if let Some(((_i, _j), _curve)) = glyph.on_curve_query(position, &pts) {
-                            let menu = gtk::Menu::builder().attach_widget(_self).take_focus(true).visible(true).build();
-                            let name = gtk::MenuItem::builder().label("Curve").sensitive(false).visible(true).build();
-                            menu.append(&name);
-                            menu.append(&gtk::SeparatorMenuItem::builder().visible(true).build());
-                            let delete = gtk::MenuItem::builder().label("Delete").sensitive(true).visible(true).build();
-                            let edit = gtk::MenuItem::builder().label("Edit").sensitive(true).visible(true).build();
-                            drop(glyph);
-                            drop(glyph_state);
-                            delete.connect_activate(clone!(@weak obj, @weak _self as drar => move |_del_self| {
-                                //let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                                drar.queue_draw();
-                            }));
-                            menu.append(&delete);
-                            menu.append(&edit);
-                            menu.show_all();
-                            menu.popup_easy(event.button(), event.time());
+                        match event.button() {
+                            gtk::gdk::BUTTON_MIDDLE => {
+                                glyph_state.tool = Tool::Panning;
+                            },
+                            _ => {},
                         }
                     },
-                    Tool::Manipulate { ref mut mode } => {
-                        *mode = ControlPointMode::None;
-                    },
-                    Tool::BezierPen { ref mut state } if event.button() == gtk::gdk::BUTTON_PRIMARY => {
-                        let zoom_factor = obj.imp().zoom_factor();
-                        let camera = obj.imp().camera();
-                        let event_position = event.position();
-                        let units_per_em = obj.property::<f64>("units-per-em");
-                        let f = units_per_em / EM_SQUARE_PIXELS;
-                        let position = Canvas::calculate_position(zoom_factor, camera, event_position, f, units_per_em);
-                        obj.imp().transformed_mouse.set(position);
-                        if !state.insert_point(position) {
-                            let state = std::mem::replace(state, Default::default());
-                            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
-                            let new_contour = state.close(true);
-                            let contour_index = glyph_state.glyph.borrow().contours.len();
-                            glyph_state.add_contour(&new_contour, contour_index);
-                            glyph_state.glyph.borrow_mut().contours.push(new_contour);
-                        }
-                    }
-                    Tool::BezierPen { ref mut state } if event.button() == gtk::gdk::BUTTON_SECONDARY => {
-                        let state = std::mem::replace(state, Default::default());
-                        glyph_state.tool = Tool::Manipulate { mode: Default::default() };
-                        let new_contour = state.close(true);
-                        let contour_index = glyph_state.glyph.borrow().contours.len();
-                        glyph_state.add_contour(&new_contour, contour_index);
-                        glyph_state.glyph.borrow_mut().contours.push(new_contour);
-                    }
-                    Tool::BezierPen { .. } => {},
-                }
-                if let Some(screen) = _self.window() {
-                    let display = screen.display();
-                    screen.set_cursor(Some(
-                            &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
-                    ));
                 }
 
+                viewport.set_mouse(ViewPoint(event.position().into()));
                 Inhibit(false)
             }),
         );
-        self.drawing_area.connect_motion_notify_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+
+        self.viewport.connect_button_release_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
+                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                match glyph_state.tool {
+                    Tool::Manipulate => {
+                    },
+                    Tool::Panning => {
+                        match event.button() {
+                            gtk::gdk::BUTTON_MIDDLE => {
+                                glyph_state.tool = Tool::Manipulate;
+                            },
+                            _ => {},
+                        }
+                    },
+                }
+
+                viewport.set_mouse(ViewPoint(event.position().into()));
+                Inhibit(false)
+            }),
+        );
+
+        self.viewport.connect_motion_notify_event(
+            clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 if glyph_state.tool.is_panning() {
-                    let scale = _self.imp().transformation.scale();
-                    let mouse = obj.imp().mouse.get();
-                    let (width, height) = (_self.allocated_width(), _self.allocated_height());
-                    let warp_cursor = _self.property::<bool>("warp-cursor");
-                    let (x, y) = event.position();
-                    if (x + RULER_BREADTH >= width.into()
-                        || y + RULER_BREADTH >= height.into()
-                            || x <= RULER_BREADTH
-                            || y <= RULER_BREADTH) && warp_cursor
-                    {
-                        if let Some(device) = event.device() {
-                            let (screen, root_x, root_y) = device.position();
-                            let move_: Option<(i32, i32)> = if x + RULER_BREADTH >= width.into() {
-                                obj.imp().mouse.set((mouse.0 - width as f64, mouse.1));
-                                (root_x - width + 3 * RULER_BREADTH as i32, root_y).into()
-                            } else if y + RULER_BREADTH >= height.into() {
-                                obj.imp().mouse.set((mouse.0, mouse.1 - height as f64));
-                                (root_x, root_y - height - RULER_BREADTH as i32).into()
-                            } else if x <= RULER_BREADTH {
-                                obj.imp().mouse.set((mouse.0 + width as f64, mouse.1));
-                                (root_x + width - 3 * RULER_BREADTH as i32, root_y).into()
-                            } else if y <= RULER_BREADTH {
-                                obj.imp().mouse.set((mouse.0, mouse.1 + height as f64));
-                                (root_x, root_y + height - 3 * RULER_BREADTH as i32).into()
-                            } else {
-                                None
-                            };
-                            if let Some((move_x, move_y)) = move_ {
-                                device.warp(&screen, move_x, move_y);
-                            }
-                        }
-                    }
-                    let mouse = obj.imp().mouse.get();
-                    _self.imp().transformation.set_pan(((event.position().0 - mouse.0) * (1.0/scale), (event.position().1 - mouse.1) * (1.0 / scale)));
-                    if let Some(screen) = _self.window() {
-                        let display = screen.display();
-                        screen.set_cursor(Some(
-                                &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
-                        ));
-                    }
-                } else {
-                    let zoom_factor = obj.imp().zoom_factor();
-                    let camera = obj.imp().camera();
-                    let event_position = event.position();
-                    let units_per_em = obj.property::<f64>("units-per-em");
-                    let f = units_per_em / EM_SQUARE_PIXELS;
-                    let position = Canvas::calculate_position(zoom_factor, camera, event_position, f, units_per_em);
-                    obj.imp().transformed_mouse.set(position);
-                    if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
-                        glyph_state.update_positions(position);
-                    } else if let Tool::Manipulate { mode: ControlPointMode::DragGuideline(idx) } = glyph_state.tool {
-                        let mut action = glyph_state.update_guideline(idx, position);
-                        (action.redo)();
-                        let app: &crate::Application =
-                            crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
-                        let undo_db = app.undo_db.borrow_mut();
-                        undo_db.event(action);
-                    }
-
-                    let pts = glyph_state.kd_tree.borrow().query(position, 10);
-                    if pts.is_empty() {
-                        obj.imp().hovering.set(None);
-                        if let Some(screen) = _self.window() {
-                            let display = screen.display();
-                            screen.set_cursor(Some(
-                                    &if glyph_state.tool.is_manipulate() {
-                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
-                                    } else if glyph_state.tool.is_bezier_pen() {
-                                        gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap()
-                                    } else {
-                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
-                                    }
-                            ));
-                        }
-                    } else if let Some(screen) = _self.window() {
-                        let display = screen.display();
-                        screen.set_cursor(Some(
-                                &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
-                        ));
-                    }
-
-                    let glyph = glyph_state.glyph.borrow();
-                    if let Some(((i, j), curve)) = glyph.on_curve_query(position, &pts) {
-                        obj.imp().new_statusbar_message(&format!("{:?}", curve));
-                        obj.imp().hovering.set(Some((i, j)));
-                    }
+                    let mouse: ViewPoint = viewport.get_mouse();
+                    let delta = <_ as Into<Point>>::into(event.position()) - mouse.0;
+                    viewport.imp().transformation.move_camera_by_delta(ViewPoint(delta));
                 }
-                obj.imp().mouse.set(event.position());
-                _self.queue_draw();
-
+                viewport.set_mouse(ViewPoint(event.position().into()));
+                viewport.queue_draw();
                 Inhibit(false)
             }),
         );
 
-        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |drar: &Canvas, cr: &gtk::cairo::Context| {
-            let (show_grid, show_guidelines, show_handles, inner_fill, show_total_area) = {
-                let show_grid = drar.property::<bool>("show-grid");
-                let show_guidelines = drar.property::<bool>("show-guidelines");
-                let show_handles = drar.property::<bool>("show-handles");
-                let inner_fill = drar.property::<bool>("inner-fill");
-                let show_total_area = drar.property::<bool>("show-total-area");
-                (show_grid, show_guidelines, show_handles, inner_fill, show_total_area)
-            };
-            let app: &crate::GerbApp =
-                obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap();
-            let settings = app.imp().settings.clone();
-            let width = drar.allocated_width() as f64;
-            let height = drar.allocated_height() as f64;
-            let units_per_em = obj.property::<f64>("units-per-em");
-            let x_height = obj.property::<f64>("x-height");
-            let cap_height = obj.property::<f64>("cap-height");
-            let _ascender = obj.property::<f64>("ascender");
-            let _descender = obj.property::<f64>("descender");
-            let f = EM_SQUARE_PIXELS / units_per_em;
+        self.viewport.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+            viewport.draw_grid(cr);
+            println!("Drawing. Transformation matrix: {:?}", viewport.imp().transformation.matrix());
+            let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
+            let scale: f64 = viewport.imp().transformation.property::<f64>(Transformation::SCALE);
+            let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
+            let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
+            let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
+            let matrix = viewport.imp().transformation.matrix();
+            let ppu = viewport
+                .imp()
+                .transformation
+                .property::<f64>(Transformation::PIXELS_PER_UNIT);
+
             let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-            let glyph_width = f * glyph_state.glyph.borrow().width.unwrap_or(units_per_em);
-
-            if let Some((_cx, _cy)) = obj.imp().zoom_locus.take() {
-                //obj.imp().camera.set((cx + width / 2.0, cy + height / 2.0));
-                //obj.imp().transformation.pan(cx + width / 2.0, cy + height / 2.0);
-            }
-            if obj.imp().resized.get() {
-                obj.imp().resized.set(false);
-                /* resize and center glyph to view */
-                let target_zoom_factor_x = (2.0 * width) / (3.0 * EM_SQUARE_PIXELS);
-                let target_zoom_factor_y = (2.0 * height) / (3.0 * EM_SQUARE_PIXELS);
-                obj.imp().set_zoom(target_zoom_factor_x.min(target_zoom_factor_y));
-            }
-            let zoom_factor = drar.imp().transformation.scale();
-            let camera = drar.imp().transformation.camera();
-            let mouse = obj.imp().mouse.get();
-
+            let mouse = viewport.get_mouse();
+            let unit_mouse = viewport.view_to_unit_point(mouse);
+            let UnitPoint(camera) = viewport.imp().transformation.camera();
+            let ViewPoint(view_camera) = viewport.unit_to_view_point(UnitPoint(camera));
             cr.save().unwrap();
-            cr.scale(zoom_factor, zoom_factor);
-            cr.set_source_rgb(1., 1., 1.);
-            cr.paint().expect("Invalid cairo surface state");
-
-            cr.set_line_width(0.5);
-
-            let glyph_line_width = settings.borrow().property("line-width");
-
-            if show_grid {
-                for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
-                    cr.set_source_rgb(color, color, color);
-                    let mut y = camera.1 % step;
-                    while y < (height / zoom_factor) {
-                        cr.move_to(0.5, y + 0.5);
-                        cr.line_to(width / zoom_factor + 0.5, y + 0.5);
-                        y += step;
-                    }
-                    cr.stroke().unwrap();
-                    let mut x = camera.0 % step;
-                    while x < (width / zoom_factor) {
-                        cr.move_to(x + 0.5, 0.5);
-                        cr.line_to(x + 0.5, height / zoom_factor + 0.5);
-                        x += step;
-                    }
-                    cr.stroke().unwrap();
-                }
-            }
-            /* Draw em square of units_per_em units: */
-
+            //cr.scale(scale, scale);
+            cr.transform(matrix);
             cr.save().unwrap();
-            cr.translate(camera.0, camera.1);
+            cr.set_line_width(2.5);
 
-            if show_total_area {
+            obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
+
+            let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
+            //dbg!(unit_width, unit_height);
+            cr.restore().unwrap();
+            //cr.transform(matrix);
+
+            if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
+                /* Draw em square of units_per_em units: */
                 cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-                cr.rectangle(0., 0., glyph_width, EM_SQUARE_PIXELS);
+                cr.rectangle(0., 0., dbg!(glyph_state.glyph.borrow().width.unwrap_or(units_per_em)), 1000.0);
                 cr.fill().unwrap();
             }
-
-            if show_guidelines {
-                /* Draw x-height */
-                cr.set_source_rgba(0., 0., 1., 0.6);
-                cr.set_line_width(2.0);
-                cr.move_to(0., (units_per_em - x_height) * f);
-                cr.line_to(glyph_width * 1.2, (units_per_em - x_height) * f);
-                cr.stroke().unwrap();
-                cr.move_to(glyph_width * 1.2, (units_per_em - x_height) * f);
-                cr.show_text("x-height").unwrap();
-
-                /* Draw baseline */
-                cr.move_to(0., units_per_em * f);
-                cr.line_to(glyph_width * 1.2, units_per_em * f);
-                cr.stroke().unwrap();
-                cr.move_to(glyph_width * 1.2, units_per_em * f);
-                cr.show_text("baseline").unwrap();
-
-                /* Draw cap height */
-                cr.move_to(0., EM_SQUARE_PIXELS - cap_height * f);
-                cr.line_to(glyph_width * 1.2, EM_SQUARE_PIXELS - cap_height * f);
-                cr.stroke().unwrap();
-                cr.move_to(glyph_width * 1.2, EM_SQUARE_PIXELS - cap_height * f);
-                cr.show_text("cap height").unwrap();
-            }
-
             /* Draw the glyph */
+            cr.move_to(0.0, 0.0);
 
-            let mut matrix = gtk::cairo::Matrix::identity();
-            matrix.scale(EM_SQUARE_PIXELS / units_per_em, EM_SQUARE_PIXELS / units_per_em);
-            let options = GlyphDrawingOptions {
-                outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
-                inner_fill: if inner_fill {
-                    Some((0., 0., 0., 1.))
-                } else {
-                    None
-                },
-                highlight: obj.imp().hovering.get(),
-                matrix,
-                units_per_em,
-                line_width: glyph_line_width,
-            };
-            glyph_state.glyph.borrow().draw(cr, options);
-
-            if let Tool::BezierPen { ref state } = glyph_state.tool {
-                let position = Canvas::calculate_position(zoom_factor, camera, mouse, f, units_per_em);
-                state.draw(cr, options, position);
-            }
-            cr.save().unwrap();
-
-            cr.set_line_width(1.0 / (2.0 * f));
-            if show_handles {
-                let transformed_mouse = obj.imp().transformed_mouse.get();
-                let handle_size: f64 = settings.borrow().property("handle-size");
-                cr.transform(matrix);
-                cr.transform(gtk::cairo::Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
-                for cp in glyph_state.points.borrow().iter() {
-                    let p = cp.position;
-                    if crate::utils::distance_between_two_points(p, transformed_mouse) <= 10.0 {
-                        cr.set_source_rgba(1., 0., 0., 0.8);
+            if true {
+                let options = GlyphDrawingOptions {
+                    outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
+                    inner_fill: if inner_fill {
+                        Some((0., 0., 0., 1.))
                     } else {
-                        cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
-                    }
-                    match &cp.kind {
-                        Endpoint { .. } => {
-                            cr.rectangle(p.0 as f64 - handle_size / (4.0 * f), p.1 as f64 - handle_size / (4.0 * f), handle_size / (2.0 * f), handle_size / (2.0 * f));
-                            cr.stroke().unwrap();
-                        }
-                        Handle { ref end_points } => {
-                            cr.arc(p.0 as f64, p.1 as f64, handle_size / (2.0 * f), 0., 2.0 * std::f64::consts::PI);
-                            cr.fill().unwrap();
-                            for ep in end_points {
-                                let ep = glyph_state.points.borrow()[*ep].position;
-                                cr.move_to(p.0 as f64, p.1 as f64);
-                                cr.line_to(ep.0 as f64, ep.1 as f64);
-                                cr.stroke().unwrap();
-                            }
-                        }
-                    }
-                }
+                        None
+                    },
+                    highlight: None,
+                    matrix: Matrix::identity(),
+                    units_per_em,
+                    line_width: 2.0,
+                };
+                glyph_state.glyph.borrow().draw(cr, options);
             }
-
             cr.restore().unwrap();
-            cr.restore().unwrap();
-            cr.restore().unwrap();
-
-            if show_guidelines {
-                let mut matrix = gtk::cairo::Matrix::identity();
-                matrix.scale(zoom_factor, zoom_factor);
-                matrix.translate(camera.0, camera.1);
-                matrix.scale(EM_SQUARE_PIXELS / units_per_em, EM_SQUARE_PIXELS / units_per_em);
-                matrix.translate(0., units_per_em.abs());
-                matrix.scale(1.0, -1.0);
-                for g in glyph_state.glyph.borrow().guidelines.iter() {
-                    let highlight = g.imp().on_line_query(obj.imp().transformed_mouse.get(), None);
-                    g.imp().draw(cr, matrix, (width, height), highlight);
-                    if highlight {
-                        cr.move_to(mouse.0, mouse.1);
-                        let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
-                        cr.show_text("Guideline").unwrap();
-                        for (i, line) in [
-                            format!(
-                                "Name: {}",
-                                g.name().as_ref().map(String::as_str).unwrap_or("-")
-                            ),
-                            format!(
-                                "Identifier: {}",
-                                g.identifier().as_ref().map(String::as_str).unwrap_or("-")
-                            ),
-                            format!("Point: ({}, {})", g.x(), g.y()),
-                            format!("Angle: {:02}deg", g.angle()),
-                        ]
-                            .into_iter()
-                            .enumerate()
-                            {
-                                cr.move_to(
-                                    mouse.0,
-                                    mouse.1 + (i + 1) as f64 * line_height,
-                                );
-                                cr.show_text(&line).unwrap();
-                            }
-                    }
-                }
-            }
-
-            /* Draw rulers */
-            cr.rectangle(0., 0., width, RULER_BREADTH);
-            cr.set_source_rgb(1., 1., 1.);
-            cr.fill_preserve().expect("Invalid cairo surface state");
-            cr.set_source_rgb(0., 0., 0.);
-            cr.stroke_preserve().unwrap();
-            cr.set_source_rgb(0., 0., 0.);
-            cr.move_to(mouse.0, 0.);
-            cr.line_to(mouse.0, RULER_BREADTH);
-            cr.stroke().unwrap();
-            cr.move_to(mouse.0+1., 2.*RULER_BREADTH/3.);
-            cr.set_font_size(6.);
-            cr.show_text(&format!("{:.0}", (mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor))).unwrap();
-
-
-            cr.rectangle(0., RULER_BREADTH, RULER_BREADTH, height);
-            cr.set_source_rgb(1., 1., 1.);
-            cr.fill_preserve().expect("Invalid cairo surface state");
-            cr.set_source_rgb(0., 0., 0.);
-            cr.stroke_preserve().unwrap();
-            cr.set_source_rgb(0., 0., 0.);
-            cr.move_to(0., mouse.1);
-            cr.line_to(RULER_BREADTH, mouse.1);
-            cr.stroke().unwrap();
-            cr.move_to(2.*RULER_BREADTH/3., mouse.1-1.);
-            cr.set_font_size(6.);
-            cr.save().expect("Invalid cairo surface state");
-            cr.rotate(-std::f64::consts::FRAC_PI_2);
-            cr.show_text(&format!("{:.0}", units_per_em - (mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor))).unwrap();
-            cr.restore().expect("Invalid cairo surface state");
-
 
            Inhibit(false)
         }));
@@ -1002,14 +281,6 @@ impl ObjectImpl for GlyphEditArea {
         // FIXME: doesn't seem to work?
         panning_button.set_tooltip_text(Some("Pan"));
         panning_button.connect_clicked(clone!(@weak obj => move |_self| {
-            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-            glyph_state.tool = Tool::Panning;
-            if let Some(screen) = _self.window() {
-                let display = screen.display();
-                screen.set_cursor(Some(
-                        &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
-                ));
-            }
         }));
 
         let manipulate_button = gtk::ToolButton::new(
@@ -1022,14 +293,6 @@ impl ObjectImpl for GlyphEditArea {
         // FIXME: doesn't seem to work?
         manipulate_button.set_tooltip_text(Some("Pan"));
         manipulate_button.connect_clicked(clone!(@weak obj => move |_self| {
-            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-            glyph_state.tool = Tool::Manipulate { mode: Default::default() };
-            if let Some(screen) = _self.window() {
-                let display = screen.display();
-                screen.set_cursor(Some(
-                        &gtk::gdk::Cursor::from_name(&display, "default").unwrap(),
-                ));
-            }
         }));
 
         let bezier_button = gtk::ToolButton::new(
@@ -1042,14 +305,6 @@ impl ObjectImpl for GlyphEditArea {
         // FIXME: doesn't seem to work?
         bezier_button.set_tooltip_text(Some("Create Bézier curve"));
         bezier_button.connect_clicked(clone!(@weak obj => move |_self| {
-            let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-            glyph_state.tool = Tool::BezierPen { state: Default::default() };
-            if let Some(screen) = _self.window() {
-                let display = screen.display();
-                screen.set_cursor(Some(
-                        &gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap(),
-                ));
-            }
         }));
 
         let bspline_button = gtk::ToolButton::new(
@@ -1080,9 +335,11 @@ impl ObjectImpl for GlyphEditArea {
         zoom_in_button.set_visible(true);
         zoom_in_button.set_tooltip_text(Some("Zoom in"));
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
-            let imp = obj.imp();
-            let zoom_factor = imp.drawing_area.imp().transformation.scale() + 0.25;
-            imp.set_zoom(zoom_factor);
+            let t = &obj.imp().viewport.imp().transformation;
+            let v = t.property::<f64>(Transformation::SCALE);
+            if v < 5.0 {
+                t.set_property::<f64>(Transformation::SCALE, v + 0.1);
+            }
         }));
         let zoom_out_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -1093,61 +350,12 @@ impl ObjectImpl for GlyphEditArea {
         zoom_out_button.set_visible(true);
         zoom_out_button.set_tooltip_text(Some("Zoom out"));
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
-            let imp = obj.imp();
-            let zoom_factor = imp.drawing_area.imp().transformation.scale() - 0.25;
-            imp.set_zoom(zoom_factor);
-        }));
-
-        self.drawing_area.connect_scroll_event(clone!(@weak obj => @default-return Inhibit(false), move |drar, event| {
-            if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
-                obj.imp().mouse.set(event.position());
-                let (mut dx, mut dy) = event.delta();
-                if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
-                    if dy.abs() > dx.abs() {
-                        dx = dy;
-                    }
-                    dy = 0.0;
-                }
-
-                let dx = dx * EM_SQUARE_PIXELS / 2.0 * obj.imp().zoom_factor();
-                let dy = dy * EM_SQUARE_PIXELS / 2.0 * obj.imp().zoom_factor();
-                let mouse = obj.imp().mouse.get();
-                drar.imp().transformation.pan((event.position().0 - mouse.0 - dx, event.position().1 - mouse.1 - dy));
-                drar.queue_draw();
-                return Inhibit(false);
+            let t = &obj.imp().viewport.imp().transformation;
+            let v = t.property::<f64>(Transformation::SCALE);
+            if v > 0.2 {
+                t.set_property::<f64>(Transformation::SCALE, v - 0.1);
             }
-            match event.direction() {
-                gtk::gdk::ScrollDirection::Up | gtk::gdk::ScrollDirection::Down | gtk::gdk::ScrollDirection::Smooth => {
-                    let zoom_factor = drar.imp().transformation.scale();
-                    let camera = drar.imp().transformation.camera();
-                    let units_per_em = obj.property::<f64>("units-per-em");
-                    let f = EM_SQUARE_PIXELS / units_per_em;
-                    let event_position = event.position();
-                    let (x, y) = ((event_position.0) / (f * zoom_factor),
-                        (event_position.1) / (f * zoom_factor));
-                    std::dbg!(event.position(), event.delta(), camera, (x,y));
-                    /* zoom */
-                    let (_, dy) = event.delta();
-                    let imp = obj.imp();
-                    let zoom_factor = zoom_factor - 0.05 * dy;
-                    if imp.set_zoom_towards_point(zoom_factor, (x, y)) {
-                        //let _mouse = imp.mouse.get();
-                        //imp.mouse.set(event.position());
-                        drar.queue_draw();
-                    }
-                },
-                _ => {
-                    /* ignore */
-                }
-            }
-            Inhibit(false)
         }));
-
-        self.drawing_area.connect_size_allocate(
-            clone!(@weak obj => move |_scrolled_window, _rect| {
-                obj.imp().resized.set(true);
-            }),
-        );
 
         let zoom_percent_label = gtk::Label::new(Some("100%"));
         zoom_percent_label.set_visible(true);
@@ -1158,16 +366,6 @@ impl ObjectImpl for GlyphEditArea {
 
         zoom_percent_label.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                if event.button() == gtk::gdk::BUTTON_PRIMARY &&
-                 event.event_type() == gtk::gdk::EventType::DoubleButtonPress {
-                     let imp = obj.imp();
-                     let zoom_factor = imp.zoom_factor();
-                     if (zoom_factor - 1.0).abs() > f64::EPSILON {
-                         let _ = imp.set_zoom(1.0);
-                     } else if zoom_factor == 1.0 {
-                         imp.resized.set(true);
-                     }
-                }
                 Inhibit(false)
             }),
         );
@@ -1227,12 +425,12 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
         toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
-        let viewhidebox = viewhide::ViewHideBox::new(&self.drawing_area);
-        self.overlay.set_child(&self.drawing_area);
+        let viewhidebox = viewhide::ViewHideBox::new(&self.viewport);
+        self.overlay.set_child(&self.viewport);
         self.overlay.add_overlay(
             &gtk::Expander::builder()
                 .child(&viewhidebox)
-                .expanded(true)
+                .expanded(false)
                 .visible(true)
                 .can_focus(true)
                 .tooltip_text("Toggle overlay visibilities")
@@ -1263,59 +461,59 @@ impl ObjectImpl for GlyphEditArea {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecString::new(
-                        "title",
-                        "title",
-                        "title",
+                        GlyphEditView::TITLE,
+                        GlyphEditView::TITLE,
+                        GlyphEditView::TITLE,
                         Some("edit glyph"),
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoolean::new(
-                        "closeable",
-                        "closeable",
-                        "closeable",
+                        GlyphEditView::CLOSEABLE,
+                        GlyphEditView::CLOSEABLE,
+                        GlyphEditView::CLOSEABLE,
                         true,
                         ParamFlags::READABLE,
                     ),
                     ParamSpecDouble::new(
-                        "units-per-em",
-                        "units-per-em",
-                        "units-per-em",
+                        GlyphEditView::UNITS_PER_EM,
+                        GlyphEditView::UNITS_PER_EM,
+                        GlyphEditView::UNITS_PER_EM,
                         1.0,
                         std::f64::MAX,
                         1000.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        "x-height",
-                        "x-height",
-                        "x-height",
+                        GlyphEditView::X_HEIGHT,
+                        GlyphEditView::X_HEIGHT,
+                        GlyphEditView::X_HEIGHT,
                         1.0,
                         std::f64::MAX,
                         1000.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        "ascender",
-                        "ascender",
-                        "ascender",
+                        GlyphEditView::ASCENDER,
+                        GlyphEditView::ASCENDER,
+                        GlyphEditView::ASCENDER,
                         std::f64::MIN,
                         std::f64::MAX,
                         700.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        "descender",
-                        "descender",
-                        "descender",
+                        GlyphEditView::DESCENDER,
+                        GlyphEditView::DESCENDER,
+                        GlyphEditView::DESCENDER,
                         std::f64::MIN,
                         std::f64::MAX,
                         -200.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        "cap-height",
-                        "cap-height",
-                        "cap-height",
+                        GlyphEditView::CAP_HEIGHT,
+                        GlyphEditView::CAP_HEIGHT,
+                        GlyphEditView::CAP_HEIGHT,
                         std::f64::MIN,
                         std::f64::MAX,
                         650.0,
@@ -1328,7 +526,7 @@ impl ObjectImpl for GlyphEditArea {
 
     fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            "title" => {
+            GlyphEditView::TITLE => {
                 if let Some(name) = obj
                     .imp()
                     .glyph_state
@@ -1340,31 +538,31 @@ impl ObjectImpl for GlyphEditArea {
                     "edit glyph".to_value()
                 }
             }
-            "closeable" => true.to_value(),
-            "units-per-em" => self.units_per_em.get().to_value(),
-            "x-height" => self.x_height.get().to_value(),
-            "ascender" => self.ascender.get().to_value(),
-            "descender" => self.descender.get().to_value(),
-            "cap-height" => self.cap_height.get().to_value(),
+            GlyphEditView::CLOSEABLE => true.to_value(),
+            GlyphEditView::UNITS_PER_EM => self.units_per_em.get().to_value(),
+            GlyphEditView::X_HEIGHT => self.x_height.get().to_value(),
+            GlyphEditView::ASCENDER => self.ascender.get().to_value(),
+            GlyphEditView::DESCENDER => self.descender.get().to_value(),
+            GlyphEditView::CAP_HEIGHT => self.cap_height.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         match pspec.name() {
-            "units-per-em" => {
+            GlyphEditView::UNITS_PER_EM => {
                 self.units_per_em.set(value.get().unwrap());
             }
-            "x-height" => {
+            GlyphEditView::X_HEIGHT => {
                 self.x_height.set(value.get().unwrap());
             }
-            "ascender" => {
+            GlyphEditView::ASCENDER => {
                 self.ascender.set(value.get().unwrap());
             }
-            "descender" => {
+            GlyphEditView::DESCENDER => {
                 self.descender.set(value.get().unwrap());
             }
-            "cap-height" => {
+            GlyphEditView::CAP_HEIGHT => {
                 self.cap_height.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
@@ -1377,48 +575,6 @@ impl ContainerImpl for GlyphEditArea {}
 impl BinImpl for GlyphEditArea {}
 
 impl GlyphEditArea {
-    fn camera(&self) -> (f64, f64) {
-        self.drawing_area.imp().transformation.camera()
-    }
-
-    fn zoom_factor(&self) -> f64 {
-        self.drawing_area.imp().transformation.scale()
-    }
-
-    fn set_zoom_towards_point(&self, new_val: f64, p: (f64, f64)) -> bool {
-        if new_val > 0.09 && new_val < 15.26 {
-            self.drawing_area
-                .imp()
-                .transformation
-                .scale_towards_point(new_val, p);
-            self.zoom.set(new_val);
-            self.zoom_percent_label
-                .get()
-                .unwrap()
-                .set_text(&format!("{:.0}%", new_val * 100.));
-            self.overlay.queue_draw();
-            true
-        } else {
-            false
-        }
-    }
-
-    #[must_use]
-    fn set_zoom(&self, new_val: f64) -> bool {
-        if new_val > 0.09 && new_val < 15.26 {
-            self.drawing_area.imp().transformation.apply_scale(new_val);
-            self.zoom.set(new_val);
-            self.zoom_percent_label
-                .get()
-                .unwrap()
-                .set_text(&format!("{:.0}%", new_val * 100.));
-            self.overlay.queue_draw();
-            true
-        } else {
-            false
-        }
-    }
-
     fn new_statusbar_message(&self, msg: &str) {
         if let Some(app) = self
             .app
@@ -1439,10 +595,8 @@ impl GlyphEditArea {
     }
 
     fn select_object(&self, new_obj: Option<glib::Object>) {
-        if let Some(app) = self
-            .app
-            .get()
-            .and_then(|app| app.downcast_ref::<crate::GerbApp>())
+        std::dbg!("select_object", &new_obj);
+        if let Some(app) = dbg!(self.app.get()).and_then(|app| app.downcast_ref::<crate::GerbApp>())
         {
             let tabinfo = app.tabinfo();
             tabinfo.set_object(new_obj);
@@ -1456,28 +610,66 @@ glib::wrapper! {
 }
 
 impl GlyphEditView {
+    pub const ASCENDER: &str = Project::ASCENDER;
+    pub const CAP_HEIGHT: &str = Project::CAP_HEIGHT;
+    pub const CLOSEABLE: &str = "closeable";
+    pub const DESCENDER: &str = Project::DESCENDER;
+    pub const TITLE: &str = "title";
+    pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
+    pub const X_HEIGHT: &str = Project::X_HEIGHT;
+
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().glyph.set(glyph.clone()).unwrap();
         ret.imp().app.set(app.clone()).unwrap();
         for property in [
-            "units-per-em",
-            "x-height",
-            "ascender",
-            "descender",
-            "cap-height",
+            GlyphEditView::ASCENDER,
+            GlyphEditView::CAP_HEIGHT,
+            GlyphEditView::DESCENDER,
+            GlyphEditView::UNITS_PER_EM,
+            GlyphEditView::X_HEIGHT,
         ] {
             project
                 .bind_property(property, &ret, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
+        ret.imp().viewport.imp().transformation.set_property::<f64>(
+            Transformation::PIXELS_PER_UNIT,
+            {
+                let val = EM_SQUARE_PIXELS / dbg!(project.property::<f64>(Project::UNITS_PER_EM));
+                println!("initializing PIXELS_PER_UNIT to {:?}", val);
+                val
+            },
+        );
+        ret.imp()
+            .viewport
+            .imp()
+            .transformation
+            .bind_property(
+                Transformation::PIXELS_PER_UNIT,
+                &project,
+                Project::UNITS_PER_EM,
+            )
+            .transform_from(|_, units_per_em: &Value| {
+                let units_per_em: f64 = units_per_em.get().ok()?;
+                println!(
+                    "project UNITS_PER_EM updated, transforming PIXELS_PER_UNIT to {:?}",
+                    EM_SQUARE_PIXELS / units_per_em
+                );
+                Some((EM_SQUARE_PIXELS / units_per_em).to_value())
+            })
+            .build();
         app.downcast_ref::<crate::GerbApp>()
             .unwrap()
             .imp()
             .settings
             .borrow()
-            .bind_property("warp-cursor", &ret.imp().drawing_area, "warp-cursor")
+            .bind_property(
+                Canvas::WARP_CURSOR,
+                &ret.imp().viewport,
+                Canvas::WARP_CURSOR,
+            )
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
         ret.imp()
@@ -1485,7 +677,7 @@ impl GlyphEditView {
             .set(RefCell::new(GlyphState::new(
                 &glyph,
                 app,
-                ret.imp().drawing_area.clone(),
+                ret.imp().viewport.clone(),
             )))
             .expect("Failed to create glyph state");
         ret

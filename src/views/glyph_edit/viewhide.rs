@@ -112,7 +112,7 @@ impl ObjectImpl for ViewHideBoxInner {
                         "show-handles",
                         "show-handles",
                         "show-handles",
-                        true,
+                        false,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(

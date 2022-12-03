@@ -36,8 +36,8 @@ mod imp {
         pub identifier: RefCell<Option<String>>,
         pub color: RefCell<Option<String>>,
         pub angle: RefCell<f64>,
-        pub x: RefCell<i64>,
-        pub y: RefCell<i64>,
+        pub x: RefCell<f64>,
+        pub y: RefCell<f64>,
     }
 
     // The central trait for subclassing a GObject
@@ -72,22 +72,22 @@ mod imp {
                             0.,
                             ParamFlags::READWRITE,
                         ),
-                        ParamSpecInt64::new(
+                        ParamSpecDouble::new(
                             "x",
                             "x",
                             "x",
-                            std::i64::MIN,
-                            std::i64::MAX,
-                            0,
+                            std::f64::MIN,
+                            std::f64::MAX,
+                            0.0,
                             ParamFlags::READWRITE,
                         ),
-                        ParamSpecInt64::new(
+                        ParamSpecDouble::new(
                             "y",
                             "y",
                             "y",
-                            std::i64::MIN,
-                            std::i64::MAX,
-                            0,
+                            std::f64::MIN,
+                            std::f64::MAX,
+                            0.0,
                             ParamFlags::READWRITE,
                         ),
                     ]
@@ -148,7 +148,7 @@ mod imp {
                 cr.set_source_rgba(0., 0., 1., 0.8);
                 cr.set_line_width(1.5);
             }
-            let p = matrix.transform_point(*self.x.borrow() as f64, *self.y.borrow() as f64);
+            let p = matrix.transform_point(*self.x.borrow(), *self.y.borrow());
             let r = *self.angle.borrow() * 0.01745;
             if let Some(ref name) = self.name.borrow().as_ref() {
                 cr.save().unwrap();
@@ -165,13 +165,14 @@ mod imp {
             cr.restore().unwrap();
         }
 
-        pub fn distance_from_point(&self, (xp, yp): Point) -> f64 {
+        pub fn distance_from_point(&self, p: Point) -> f64 {
+            let (xp, yp) = (p.x, p.y);
             // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
             //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
             let r = -*self.angle.borrow() * 0.01745;
             let sin = f64::sin(r);
             let cos = f64::cos(r);
-            (cos * (*self.y.borrow() - yp) as f64 - sin * (*self.x.borrow() - xp) as f64).abs()
+            (cos * (*self.y.borrow() - yp) - sin * (*self.x.borrow() - xp)).abs()
         }
 
         pub fn on_line_query(&self, point: Point, error: Option<f64>) -> bool {
@@ -217,10 +218,10 @@ impl Guideline {
     pub fn angle(&self) -> f64 {
         self.property("angle")
     }
-    pub fn x(&self) -> i64 {
+    pub fn x(&self) -> f64 {
         self.property("x")
     }
-    pub fn y(&self) -> i64 {
+    pub fn y(&self) -> f64 {
         self.property("y")
     }
 
@@ -256,12 +257,12 @@ impl GuidelineBuilder {
         self
     }
 
-    pub fn x(self, x: i64) -> Self {
+    pub fn x(self, x: f64) -> Self {
         *self.0.imp().x.borrow_mut() = x;
         self
     }
 
-    pub fn y(self, y: i64) -> Self {
+    pub fn y(self, y: f64) -> Self {
         *self.0.imp().y.borrow_mut() = y;
         self
     }

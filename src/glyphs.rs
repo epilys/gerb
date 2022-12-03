@@ -26,7 +26,7 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
 use crate::unicode::names::CharName;
-use crate::utils::curves::*;
+use crate::utils::{curves::*, *};
 
 use gtk::cairo::{Context, Matrix};
 
@@ -227,10 +227,9 @@ impl Glyph {
         cr.save().expect("Invalid cairo surface state");
         cr.set_line_width(line_width);
         cr.transform(matrix);
-        cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
+        //cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
-        let p_fn = |p: (i64, i64)| -> (f64, f64) { (p.0 as f64, p.1 as f64) };
-        let mut pen_position: Option<(f64, f64)> = None;
+        let mut pen_position: Option<Point> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
             let curves = contour.imp().curves.borrow();
             if !*contour.imp().open.borrow() {
@@ -238,16 +237,14 @@ impl Glyph {
                     .last()
                     .and_then(|b| b.points().borrow().last().copied())
                 {
-                    let point = p_fn(point);
-                    cr.move_to(point.0, point.1);
+                    cr.move_to(point.x, point.y);
                     pen_position = Some(point);
                 }
             } else if let Some(point) = curves
                 .first()
                 .and_then(|b| b.points().borrow().first().copied())
             {
-                let point = p_fn(point);
-                cr.move_to(point.0, point.1);
+                cr.move_to(point.x, point.y);
             }
 
             for (_jc, curv) in curves.iter().enumerate() {
@@ -263,8 +260,8 @@ impl Glyph {
                 match degree {
                     1 => {
                         /* Line. */
-                        let new_point = p_fn(curv.points().borrow()[1]);
-                        cr.line_to(new_point.0, new_point.1);
+                        let new_point = curv.points().borrow()[1];
+                        cr.line_to(new_point.x, new_point.y);
                         pen_position = Some(new_point);
                     }
                     2 => {
@@ -272,17 +269,17 @@ impl Glyph {
                         let a = if let Some(v) = pen_position.take() {
                             v
                         } else {
-                            p_fn(curv.points().borrow()[0])
+                            curv.points().borrow()[0]
                         };
-                        let b = p_fn(curv.points().borrow()[1]);
-                        let c = p_fn(curv.points().borrow()[2]);
+                        let b = curv.points().borrow()[1];
+                        let c = curv.points().borrow()[2];
                         cr.curve_to(
-                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
-                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
-                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
-                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
-                            c.0,
-                            c.1,
+                            2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
+                            2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
+                            2.0 / 3.0 * b.x + 1.0 / 3.0 * c.x,
+                            2.0 / 3.0 * b.y + 1.0 / 3.0 * c.y,
+                            c.x,
+                            c.y,
                         );
                         pen_position = Some(c);
                     }
@@ -291,17 +288,17 @@ impl Glyph {
                         let _a = if let Some(v) = pen_position.take() {
                             v
                         } else {
-                            p_fn(curv.points().borrow()[0])
+                            curv.points().borrow()[0]
                         };
-                        let b = p_fn(curv.points().borrow()[1]);
-                        let c = p_fn(curv.points().borrow()[2]);
-                        let d = p_fn(curv.points().borrow()[3]);
-                        cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
+                        let b = curv.points().borrow()[1];
+                        let c = curv.points().borrow()[2];
+                        let d = curv.points().borrow()[3];
+                        cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
                         pen_position = Some(d);
                     }
                     d => {
                         eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
-                        pen_position = Some(p_fn(*curv.points().borrow().last().unwrap()));
+                        pen_position = Some(*curv.points().borrow().last().unwrap());
                         continue;
                     }
                 }
@@ -333,13 +330,13 @@ impl Glyph {
             } else {
                 continue;
             };
-            let point = p_fn(curv.points().borrow()[0]);
-            cr.move_to(point.0, point.1);
+            let point = curv.points().borrow()[0];
+            cr.move_to(point.x, point.y);
             match degree {
                 1 => {
                     /* Line. */
-                    let new_point = p_fn(curv.points().borrow()[1]);
-                    cr.line_to(new_point.0, new_point.1);
+                    let new_point = curv.points().borrow()[1];
+                    cr.line_to(new_point.x, new_point.y);
                     pen_position = Some(new_point);
                 }
                 2 => {
@@ -347,36 +344,33 @@ impl Glyph {
                     let a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        p_fn(curv.points().borrow()[0])
+                        curv.points().borrow()[0]
                     };
-                    let b = p_fn(curv.points().borrow()[1]);
-                    let c = p_fn(curv.points().borrow()[2]);
+                    let b = curv.points().borrow()[1];
+                    let c = curv.points().borrow()[2];
                     cr.curve_to(
-                        2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
-                        2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
-                        2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
-                        2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
-                        c.0,
-                        c.1,
+                        2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
+                        2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
+                        2.0 / 3.0 * b.x + 1.0 / 3.0 * c.x,
+                        2.0 / 3.0 * b.y + 1.0 / 3.0 * c.y,
+                        c.x,
+                        c.y,
                     );
                     pen_position = Some(c);
                 }
                 3 => {
                     /* Cubic */
-                    let _a = if let Some(v) = pen_position.take() {
-                        v
-                    } else {
-                        p_fn(curv.points().borrow()[0])
-                    };
-                    let b = p_fn(curv.points().borrow()[1]);
-                    let c = p_fn(curv.points().borrow()[2]);
-                    let d = p_fn(curv.points().borrow()[3]);
-                    cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
+                    let _a = { curv.points().borrow()[0] };
+                    cr.move_to(_a.x, _a.y);
+                    let b = curv.points().borrow()[1];
+                    let c = curv.points().borrow()[2];
+                    let d = curv.points().borrow()[3];
+                    cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
                     pen_position = Some(d);
                 }
                 d => {
                     eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
-                    pen_position = Some(p_fn(*curv.points().borrow().last().unwrap()));
+                    pen_position = Some(*curv.points().borrow().last().unwrap());
                     continue;
                 }
             }
@@ -406,17 +400,16 @@ impl Glyph {
         if self.is_empty() {
             return;
         }
-        let f_fn = |(x, y): (i64, i64)| -> (f64, f64) { (x as f64, y as f64) };
         let i_fn = |(x, y): (f64, f64)| -> (i64, i64) { (x as i64, y as i64) };
         for contour in self.contours.iter_mut() {
-            let mut pen_position: Option<(f64, f64)> = None;
+            let mut pen_position: Option<Point> = None;
             let mut curves = contour.imp().curves.borrow_mut();
             if !*contour.imp().open.borrow() {
                 if let Some(point) = curves
                     .last()
                     .and_then(|b| b.points().borrow().last().copied())
                 {
-                    pen_position = Some(f_fn(point));
+                    pen_position = Some(point);
                 }
             }
 
@@ -425,28 +418,30 @@ impl Glyph {
                     let a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        f_fn(curv.points().borrow()[0])
+                        curv.points().borrow()[0]
                     };
-                    let b = f_fn(curv.points().borrow()[1]);
-                    let c = f_fn(curv.points().borrow()[2]);
+                    let b = curv.points().borrow()[1];
+                    let c = curv.points().borrow()[2];
                     let new_points = vec![
-                        i_fn(a),
-                        i_fn((
-                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
-                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
-                        )),
-                        i_fn((
-                            2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
-                            2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
-                        )),
-                        i_fn((c.0, c.1)),
+                        a,
+                        (
+                            2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
+                            2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
+                        )
+                            .into(),
+                        (
+                            2.0 / 3.0 * b.x + 1.0 / 3.0 * c.x,
+                            2.0 / 3.0 * b.y + 1.0 / 3.0 * c.y,
+                        )
+                            .into(),
+                        c,
                     ];
                     let smooth = *curv.smooth().borrow();
                     *curv = Bezier::new(smooth, new_points);
                     pen_position = Some(c);
                 } else {
                     if let Some(last_p) = curv.points().borrow().last() {
-                        pen_position = Some(f_fn(*last_p));
+                        pen_position = Some(*last_p);
                     }
                 }
             }
@@ -508,15 +503,18 @@ impl Glyph {
     pub fn on_curve_query(
         &self,
         position: Point,
-        pts: &[(usize, Point)],
+        pts: &[(((usize, usize), uuid::Uuid), IPoint)],
     ) -> Option<((usize, usize), Bezier)> {
         for (ic, contour) in self.contours.iter().enumerate() {
             for (jc, curve) in contour.curves().borrow().iter().enumerate() {
                 if curve.on_curve_query(position, None) {
                     return Some((((ic, jc)), curve.clone()));
                 }
-                for p in pts {
-                    if curve.points().borrow().contains(&p.1) {
+                for ((idxs, uuid), p) in pts {
+                    if *idxs != (ic, jc) {
+                        continue;
+                    }
+                    if curve.points().borrow().iter().any(|cp| cp.uuid == *uuid) {
                         return Some((((ic, jc)), curve.clone()));
                     }
                 }

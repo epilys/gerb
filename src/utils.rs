@@ -24,19 +24,20 @@ use std::f64::consts::PI;
 
 pub mod curves;
 pub mod menu;
+pub mod points;
 pub mod range_query;
+pub use points::{IPoint, Point};
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
 
-pub type Point = (f64, f64);
-
 pub fn draw_round_rectangle(
     cr: &Context,
-    (x, y): (f64, f64),
+    p: Point,
     (width, height): (f64, f64),
     aspect_ratio: f64,
     line_width: f64,
-) -> (Point, Point) {
+) -> (Point, (f64, f64)) {
+    let (x, y) = (p.x, p.y);
     /*
        double x         = 25.6,        /* parameters like cairo_rectangle */
     y         = 25.6,
@@ -82,7 +83,7 @@ pub fn draw_round_rectangle(
     cr.close_path();
 
     (
-        (x + line_width, y + line_width),
+        (x + line_width, y + line_width).into(),
         (width - 2. * line_width, height - 2. * line_width),
     )
 }
@@ -115,15 +116,10 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
     }
 }
 
-pub fn distance_between_two_points<K: Into<(i64, i64)>, L: Into<(i64, i64)>>(
-    p_k: K,
-    p_l: L,
-) -> f64 {
-    let p_k = p_k.into();
-    let p_l = p_l.into();
-    let (x_k, y_k) = p_k;
-    let (x_l, y_l) = p_l;
-    let xlk = x_l - x_k;
-    let ylk = y_l - y_k;
+pub fn distance_between_two_points<K: Into<Point>, L: Into<Point>>(p_k: K, p_l: L) -> f64 {
+    let p_k: Point = p_k.into();
+    let p_l: Point = p_l.into();
+    let xlk = p_l.x - p_k.x;
+    let ylk = p_l.y - p_k.y;
     f64::sqrt((xlk * xlk + ylk * ylk) as f64) // FIXME overflow check
 }

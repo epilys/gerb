@@ -19,12 +19,11 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::{IPoint, Point};
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use std::cell::Ref;
 use std::cell::RefCell;
-
-pub type Point = (i64, i64);
 
 glib::wrapper! {
     pub struct Bezier(ObjectSubclass<imp::Bezier>);
@@ -40,8 +39,35 @@ impl Bezier {
     }
 }
 
+pub use imp::Continuity;
+
 mod imp {
     use super::*;
+    use gtk::prelude::ToValue;
+
+    use glib;
+    use glib::prelude::*;
+    use glib::subclass::prelude::*;
+
+    /// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
+    /// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
+    #[derive(Clone, Debug, Default, Copy, glib::Boxed)]
+    #[boxed_type(name = "Continuity", nullable)]
+    pub enum Continuity {
+        /// C0 / G0 (positional continuity) requires that they meet at the same point, which all
+        /// Bézier splines do by definition. In this example, the shared point is P3
+        #[default]
+        Positional,
+        /// C1 (velocity continuity) requires the neighboring control points around the join to be
+        /// mirrors of each other. In other words, they must follow the constraint of P4 = 2P3 − P2
+        Velocity,
+        /// G1 (tangent continuity) requires the neighboring control points to be collinear with
+        /// the join. This is less strict than C1 continuity, leaving an extra degree of freedom
+        /// which can be parameterized using a scalar β. The constraint can then be expressed by P4
+        /// = P3 + (P3 − P2)β
+        Tangent { beta: f64 },
+    }
+
     #[derive(Debug, Default)]
     pub struct Bezier {
         pub smooth: RefCell<bool>,
@@ -57,7 +83,74 @@ mod imp {
         type Interfaces = ();
     }
 
-    impl ObjectImpl for Bezier {}
+    impl ObjectImpl for Bezier {
+        fn properties() -> &'static [glib::ParamSpec] {
+            static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+                once_cell::sync::Lazy::new(|| {
+                    vec![
+                        glib::ParamSpecBoolean::new(
+                            "smooth",
+                            "smooth",
+                            "smooth",
+                            true,
+                            glib::ParamFlags::READWRITE,
+                        ),
+                        glib::ParamSpecValueArray::new(
+                            "points",
+                            "points",
+                            "points",
+                            &glib::ParamSpecBoxed::new(
+                                "point",
+                                "point",
+                                "point",
+                                Point::static_type(),
+                                glib::ParamFlags::READWRITE,
+                            ),
+                            glib::ParamFlags::READWRITE,
+                        ),
+                    ]
+                });
+            PROPERTIES.as_ref()
+        }
+
+        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+            match pspec.name() {
+                "smooth" => self.smooth.borrow().to_value(),
+                "points" => {
+                    let points = self.points.borrow();
+                    let mut ret = glib::ValueArray::new(points.len() as u32);
+                    for p in points.iter() {
+                        ret.append(&p.to_value());
+                    }
+                    ret.to_value()
+                }
+                _ => unimplemented!("{}", pspec.name()),
+            }
+        }
+
+        fn set_property(
+            &self,
+            _obj: &Self::Type,
+            _id: usize,
+            value: &glib::Value,
+            pspec: &glib::ParamSpec,
+        ) {
+            match pspec.name() {
+                "smooth" => {
+                    *self.smooth.borrow_mut() = value.get().unwrap();
+                }
+                "points" => {
+                    let arr: glib::ValueArray = value.get().unwrap();
+                    let mut points = self.points.borrow_mut();
+                    points.clear();
+                    for p in arr.iter() {
+                        points.push(p.get().unwrap());
+                    }
+                }
+                _ => unimplemented!("{}", pspec.name()),
+            }
+        }
+    }
 }
 
 impl Bezier {
@@ -66,11 +159,6 @@ impl Bezier {
         *ret.imp().smooth.borrow_mut() = smooth;
         *ret.imp().points.borrow_mut() = points;
         ret
-    }
-
-    pub fn get_point(&self, t: f64) -> Option<Point> {
-        let points = self.points().borrow();
-        draw_curve_point(&points, t)
     }
 
     pub fn degree(&self) -> Option<usize> {
@@ -129,16 +217,13 @@ impl Bezier {
 
         // linear?
         if order == 1 {
-            let ret = (
-                (mt * p[0].0 as f64 + t * p[1].0 as f64) as i64,
-                (mt * p[0].1 as f64 + t * p[1].1 as f64) as i64,
-            );
-            return ret;
+            let ret = ((mt * p[0].x + t * p[1].x), (mt * p[0].y + t * p[1].y));
+            return ret.into();
         }
 
         // quadratic/cubic curve?
         if order < 4 {
-            let p2 = &[p[0], p[1], p[2], (0, 0)];
+            let p2 = &[p[0], p[1], p[2], (0.0, 0.0).into()];
             let mt2 = mt * mt;
             let t2 = t * t;
             let mut a = 0.0;
@@ -157,11 +242,10 @@ impl Bezier {
                 d = t * t2;
             }
             let ret = (
-                (a * p[0].0 as f64 + b * p[1].0 as f64 + c * p[2].0 as f64 + d * p[3].0 as f64)
-                    as i64,
-                (a * p[0].1 as f64 + b * p[1].1 as f64 + c * p[2].1 as f64 + d * p[3].1 as f64)
-                    as i64,
-            );
+                (a * p[0].x + b * p[1].x + c * p[2].x + d * p[3].x),
+                (a * p[0].y + b * p[1].y + c * p[2].y + d * p[3].y),
+            )
+                .into();
             return ret;
         }
         todo!()
@@ -204,24 +288,4 @@ impl Bezier {
         }
         (t / hits.len() as f64) != 0.0
     }
-}
-
-fn draw_curve_point(points: &[Point], t: f64) -> Option<Point> {
-    if points.is_empty() {
-        return None;
-    }
-    if points.len() == 1 {
-        //std::dbg!(points[0]);
-        return Some(points[0]);
-    }
-    let mut new_points = Vec::with_capacity(points.len() - 1);
-    for chunk in points.windows(2) {
-        let p1 = chunk[0];
-        let p2 = chunk[1];
-        let x = (1. - t) * (p1.0 as f64) + t * (p2.0 as f64);
-        let y = (1. - t) * (p1.1 as f64) + t * (p2.1 as f64);
-        new_points.push((x as i64, y as i64));
-    }
-    assert_eq!(new_points.len(), points.len() - 1);
-    draw_curve_point(&new_points, t)
 }
