@@ -390,6 +390,7 @@ impl GlyphsOverview {
     pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         let grid = ret.imp().grid.get().unwrap();
+        let mut to_open = None;
         let mut widgets = vec![];
         {
             let glyphs_b = project.imp().glyphs.borrow();
@@ -397,6 +398,9 @@ impl GlyphsOverview {
             glyphs.sort();
             for glyph in glyphs {
                 let glyph_box = GlyphBoxItem::new(app.clone(), project.clone(), glyph.clone());
+                if glyph.borrow().name == "ampersand" {
+                    to_open = Some(glyph_box.clone());
+                }
                 grid.add(&glyph_box);
                 widgets.push(glyph_box);
             }
@@ -406,6 +410,7 @@ impl GlyphsOverview {
         ret.imp().project.set(project).unwrap();
         ret.update_grid();
         ret.update_tree_store();
+        to_open.unwrap().emit_open_glyph_edit();
         ret
     }
 

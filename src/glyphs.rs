@@ -504,4 +504,24 @@ impl Glyph {
             .collect::<Vec<Point>>()
     }
     */
+
+    pub fn on_curve_query(
+        &self,
+        position: Point,
+        pts: &[(usize, Point)],
+    ) -> Option<((usize, usize), Bezier)> {
+        for (ic, contour) in self.contours.iter().enumerate() {
+            for (jc, curve) in contour.curves().borrow().iter().enumerate() {
+                if curve.on_curve_query(position, None) {
+                    return Some((((ic, jc)), curve.clone()));
+                }
+                for p in pts {
+                    if curve.points().borrow().contains(&p.1) {
+                        return Some((((ic, jc)), curve.clone()));
+                    }
+                }
+            }
+        }
+        None
+    }
 }

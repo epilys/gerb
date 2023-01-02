@@ -475,7 +475,7 @@ impl ObjectImpl for GlyphEditArea {
                 let event_position = event.position();
                 let units_per_em = obj.property::<f64>("units-per-em");
                 let f = units_per_em / EM_SQUARE_PIXELS;
-                let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
+                let position = Canvas::calculate_position(zoom_factor, camera, event_position, f, units_per_em);
                 obj.imp().transformed_mouse.set(position);
                 match event.button() {
                     gtk::gdk::BUTTON_PRIMARY => {
@@ -577,16 +577,39 @@ impl ObjectImpl for GlyphEditArea {
                     Tool::Panning => {
                         glyph_state.tool = Tool::default();
                     },
+                    Tool::Manipulate { mode: ControlPointMode::None } => {
+                        let position = Canvas::calculate_position(obj.imp().zoom_factor(), obj.imp().camera(), event.position(), obj.property::<f64>("units-per-em") / EM_SQUARE_PIXELS, obj.property::<f64>("units-per-em"));
+                        let pts = glyph_state.kd_tree.borrow().query(position, 10);
+                        let glyph = glyph_state.glyph.borrow();
+                        if let Some(((_i, _j), _curve)) = glyph.on_curve_query(position, &pts) {
+                            let menu = gtk::Menu::builder().attach_widget(_self).take_focus(true).visible(true).build();
+                            let name = gtk::MenuItem::builder().label("Curve").sensitive(false).visible(true).build();
+                            menu.append(&name);
+                            menu.append(&gtk::SeparatorMenuItem::builder().visible(true).build());
+                            let delete = gtk::MenuItem::builder().label("Delete").sensitive(true).visible(true).build();
+                            let edit = gtk::MenuItem::builder().label("Edit").sensitive(true).visible(true).build();
+                            drop(glyph);
+                            drop(glyph_state);
+                            delete.connect_activate(clone!(@weak obj, @weak _self as drar => move |_del_self| {
+                                //let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                                drar.queue_draw();
+                            }));
+                            menu.append(&delete);
+                            menu.append(&edit);
+                            menu.show_all();
+                            menu.popup_easy(event.button(), event.time());
+                        }
+                    },
                     Tool::Manipulate { ref mut mode } => {
                         *mode = ControlPointMode::None;
                     },
                     Tool::BezierPen { ref mut state } if event.button() == gtk::gdk::BUTTON_PRIMARY => {
                         let zoom_factor = obj.imp().zoom_factor();
                         let camera = obj.imp().camera();
-                        let position = event.position();
+                        let event_position = event.position();
                         let units_per_em = obj.property::<f64>("units-per-em");
                         let f = units_per_em / EM_SQUARE_PIXELS;
-                        let position = (((position.0*f - camera.0*f * zoom_factor)/zoom_factor) as i64, (units_per_em - ((position.1*f-camera.1*f * zoom_factor)/zoom_factor)) as i64);
+                        let position = Canvas::calculate_position(zoom_factor, camera, event_position, f, units_per_em);
                         obj.imp().transformed_mouse.set(position);
                         if !state.insert_point(position) {
                             let state = std::mem::replace(state, Default::default());
@@ -667,7 +690,7 @@ impl ObjectImpl for GlyphEditArea {
                     let event_position = event.position();
                     let units_per_em = obj.property::<f64>("units-per-em");
                     let f = units_per_em / EM_SQUARE_PIXELS;
-                    let position = (((event_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64, (units_per_em - ((event_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor)) as i64);
+                    let position = Canvas::calculate_position(zoom_factor, camera, event_position, f, units_per_em);
                     obj.imp().transformed_mouse.set(position);
                     if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
                         glyph_state.update_positions(position);
@@ -703,21 +726,9 @@ impl ObjectImpl for GlyphEditArea {
                     }
 
                     let glyph = glyph_state.glyph.borrow();
-                    'hover: for (ic, contour) in glyph.contours.iter().enumerate() {
-                        for (jc, curve) in contour.curves().borrow().iter().enumerate() {
-                            if curve.on_curve_query(position, None) {
-                                obj.imp().new_statusbar_message(&format!("{:?}", curve));
-                                obj.imp().hovering.set(Some((ic, jc)));
-                                break 'hover;
-                            }
-                            for p in &pts {
-                                if curve.points().borrow().contains(&p.1) {
-                                    obj.imp().new_statusbar_message(&format!("{:?}", curve));
-                                    obj.imp().hovering.set(Some((ic, jc)));
-                                    break 'hover;
-                                }
-                            }
-                        }
+                    if let Some(((i, j), curve)) = glyph.on_curve_query(position, &pts) {
+                        obj.imp().new_statusbar_message(&format!("{:?}", curve));
+                        obj.imp().hovering.set(Some((i, j)));
                     }
                 }
                 obj.imp().mouse.set(event.position());
@@ -760,7 +771,6 @@ impl ObjectImpl for GlyphEditArea {
                 let target_zoom_factor_x = (2.0 * width) / (3.0 * EM_SQUARE_PIXELS);
                 let target_zoom_factor_y = (2.0 * height) / (3.0 * EM_SQUARE_PIXELS);
                 obj.imp().set_zoom(target_zoom_factor_x.min(target_zoom_factor_y));
-                drar.imp().transformation.set_pan(((2.0 * EM_SQUARE_PIXELS) / 3.0, 0.0));
             }
             let zoom_factor = drar.imp().transformation.scale();
             let camera = drar.imp().transformation.camera();
@@ -849,7 +859,7 @@ impl ObjectImpl for GlyphEditArea {
             glyph_state.glyph.borrow().draw(cr, options);
 
             if let Tool::BezierPen { ref state } = glyph_state.tool {
-                let position = (((mouse.0 - camera.0 * zoom_factor) / (f * zoom_factor)) as i64, (units_per_em - ((mouse.1 - camera.1 * zoom_factor) / (f * zoom_factor))) as i64);
+                let position = Canvas::calculate_position(zoom_factor, camera, mouse, f, units_per_em);
                 state.draw(cr, options, position);
             }
             cr.save().unwrap();
@@ -1120,9 +1130,9 @@ impl ObjectImpl for GlyphEditArea {
                     let (_, dy) = event.delta();
                     let imp = obj.imp();
                     let zoom_factor = zoom_factor - 0.05 * dy;
-                    if imp.set_zoom_towards_point(zoom_factor, event_position) {
-                        let _mouse = imp.mouse.get();
-                        imp.mouse.set(event.position());
+                    if imp.set_zoom_towards_point(zoom_factor, (x, y)) {
+                        //let _mouse = imp.mouse.get();
+                        //imp.mouse.set(event.position());
                         drar.queue_draw();
                     }
                 },

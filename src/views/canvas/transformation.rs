@@ -68,22 +68,15 @@ impl Transformation {
 
     pub fn scale_towards_point(&self, factor: f64, (x, y): (f64, f64)) {
         let mut m = self.imp().matrix.get();
-        let m_ = m;
         let scale = m.xx;
         eprintln!("scale_towards_point {factor:?} ({x:?}, {y:?})");
-        let mut to_pt_mx = Matrix::identity();
-        to_pt_mx.translate(-x, -y);
-        let mut scale_mx = Matrix::identity();
-        scale_mx.scale(factor / scale, factor / scale);
-        let mut from_pt_mx = Matrix::identity();
-        from_pt_mx.translate(x, y);
-        m = Matrix::multiply(&m, &to_pt_mx);
-        m = Matrix::multiply(&m, &scale_mx);
-        m = Matrix::multiply(&m, &from_pt_mx);
+        m.translate(x, y);
+        m.xx = factor;
+        m.yy = factor;
+        m.translate(-x, -y);
         //m.translate(-x, -y);
         //m.scale(factor, factor);
         //m.translate(x, y);
-        std::dbg!(m_, m);
         //  let mut ident = Matrix::identity();
         //  let scale = m.xx;
         //  let m_ = m;

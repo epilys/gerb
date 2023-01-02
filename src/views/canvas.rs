@@ -20,6 +20,7 @@
  */
 
 mod transformation;
+use crate::utils::Point;
 use transformation::*;
 
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecObject, Value};
@@ -185,6 +186,20 @@ impl Canvas {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
         ret
+    }
+
+    pub fn calculate_position(
+        zoom_factor: f64,
+        camera: Point,
+        relative_position: Point,
+        f: f64,
+        units_per_em: f64,
+    ) -> (i64, i64) {
+        (
+            ((relative_position.0 * f - camera.0 * f * zoom_factor) / zoom_factor) as i64,
+            (units_per_em - ((relative_position.1 * f - camera.1 * f * zoom_factor) / zoom_factor))
+                as i64,
+        )
     }
 }
 
