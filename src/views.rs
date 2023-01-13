@@ -20,11 +20,11 @@
  */
 
 mod canvas;
+mod collection;
 mod glyph_edit;
-mod glyphs_overview;
 mod overlay;
 
 pub use canvas::{Canvas, Transformation, UnitPoint, ViewPoint};
+pub use collection::*;
 pub use glyph_edit::*;
-pub use glyphs_overview::*;
 pub use overlay::Overlay;

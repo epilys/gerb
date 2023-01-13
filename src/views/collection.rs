@@ -37,7 +37,7 @@ const GLYPH_BOX_WIDTH: f64 = 110.;
 const GLYPH_BOX_HEIGHT: f64 = 140.;
 
 #[derive(Debug, Default)]
-pub struct GlyphsArea {
+pub struct CollectionInner {
     app: OnceCell<gtk::Application>,
     project: OnceCell<Project>,
     grid: OnceCell<gtk::FlowBox>,
@@ -51,13 +51,13 @@ pub struct GlyphsArea {
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for GlyphsArea {
-    const NAME: &'static str = "GlyphsArea";
-    type Type = GlyphsOverview;
+impl ObjectSubclass for CollectionInner {
+    const NAME: &'static str = "CollectionInner";
+    type Type = Collection;
     type ParentType = gtk::EventBox;
 }
 
-impl ObjectImpl for GlyphsArea {
+impl ObjectImpl for CollectionInner {
     // Here we are overriding the glib::Object::contructed
     // method. Its what gets called when we create our Object
     // and where we can initialize things.
@@ -352,7 +352,7 @@ impl ObjectImpl for GlyphsArea {
                         "title",
                         "title",
                         "title",
-                        Some("overview"),
+                        Some("collection"),
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoolean::new(
@@ -369,24 +369,24 @@ impl ObjectImpl for GlyphsArea {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            "title" => "overview".to_value(),
+            "title" => "collection".to_value(),
             "closeable" => false.to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
 
-impl WidgetImpl for GlyphsArea {}
-impl ContainerImpl for GlyphsArea {}
-impl BinImpl for GlyphsArea {}
-impl EventBoxImpl for GlyphsArea {}
+impl WidgetImpl for CollectionInner {}
+impl ContainerImpl for CollectionInner {}
+impl BinImpl for CollectionInner {}
+impl EventBoxImpl for CollectionInner {}
 
 glib::wrapper! {
-    pub struct GlyphsOverview(ObjectSubclass<GlyphsArea>)
+    pub struct Collection(ObjectSubclass<CollectionInner>)
         @extends gtk::Widget, gtk::Container, gtk::EventBox;
 }
 
-impl GlyphsOverview {
+impl Collection {
     pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         let grid = ret.imp().grid.get().unwrap();

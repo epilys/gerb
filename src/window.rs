@@ -284,10 +284,10 @@ impl ObjectImpl for Window {
 
 fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, closeable: bool) {
     notebook.add(widget);
-    let tab_label = gtk::Label::builder()
-        .label(&widget.property::<String>("title"))
-        .visible(true)
-        .use_markup(true)
+    let tab_label = gtk::Label::builder().visible(true).use_markup(true).build();
+    widget
+        .bind_property("title", &tab_label, "label")
+        .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
         .build();
     if closeable {
         let hbox = gtk::Box::builder()
@@ -367,11 +367,11 @@ impl Window {
             *self.project.borrow_mut() = project.clone();
         }
 
-        let glyphs_view =
-            crate::views::GlyphsOverview::new(self.app.get().unwrap().clone(), project.clone());
+        let collection =
+            crate::views::Collection::new(self.app.get().unwrap().clone(), project.clone());
         add_tab(
             &widgets.notebook,
-            Workspace::new(glyphs_view.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
+            Workspace::new(collection.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
             false,
             false,
         );
