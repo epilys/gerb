@@ -35,6 +35,7 @@ use uuid::Uuid;
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
 use crate::utils::{curves::Bezier, Point};
+use crate::views::canvas::LayerBuilder;
 
 mod bezier_pen;
 mod viewhide;
@@ -126,10 +127,6 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
 
-        self.viewport
-            .connect_size_allocate(clone!(@weak obj => move |_canvas, _rect| {
-            }));
-
         self.viewport.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
@@ -192,9 +189,12 @@ impl ObjectImpl for GlyphEditArea {
             }),
         );
 
-        self.viewport.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-            viewport.draw_grid(cr);
-            println!("Drawing. Transformation matrix: {:?}", viewport.imp().transformation.matrix());
+        self.viewport.add_layer(
+            LayerBuilder::new()
+                .set_name(Some("glyph"))
+                .set_active(true)
+                .set_hidden(false)
+                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
             let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
             let scale: f64 = viewport.imp().transformation.property::<f64>(Transformation::SCALE);
             let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
@@ -220,14 +220,13 @@ impl ObjectImpl for GlyphEditArea {
             obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
 
             let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
-            //dbg!(unit_width, unit_height);
             cr.restore().unwrap();
             //cr.transform(matrix);
 
             if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
                 /* Draw em square of units_per_em units: */
                 cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-                cr.rectangle(0., 0., dbg!(glyph_state.glyph.borrow().width.unwrap_or(units_per_em)), 1000.0);
+                cr.rectangle(0., 0., glyph_state.glyph.borrow().width.unwrap_or(units_per_em), 1000.0);
                 cr.fill().unwrap();
             }
             /* Draw the glyph */
@@ -251,7 +250,17 @@ impl ObjectImpl for GlyphEditArea {
             cr.restore().unwrap();
 
            Inhibit(false)
-        }));
+        }))))
+                .build(),
+        );
+        self.viewport.add_layer(
+            LayerBuilder::new()
+                .set_name(Some("rules"))
+                .set_active(true)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(Canvas::draw_rulers)))
+                .build(),
+        );
         let toolbar_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .expand(false)
@@ -369,6 +378,15 @@ impl ObjectImpl for GlyphEditArea {
                 Inhibit(false)
             }),
         );
+        self.viewport
+            .imp()
+            .transformation
+            .bind_property(Transformation::SCALE, &zoom_percent_label, "label")
+            .transform_to(|_, scale: &Value| {
+                let scale: f64 = scale.get().ok()?;
+                Some(format!("{:.0}%", scale * 100.).to_value())
+            })
+            .build();
         let debug_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Debug info"));
         debug_button.set_visible(true);
         debug_button.set_tooltip_text(Some("Debug info"));
@@ -595,8 +613,10 @@ impl GlyphEditArea {
     }
 
     fn select_object(&self, new_obj: Option<glib::Object>) {
-        std::dbg!("select_object", &new_obj);
-        if let Some(app) = dbg!(self.app.get()).and_then(|app| app.downcast_ref::<crate::GerbApp>())
+        if let Some(app) = self
+            .app
+            .get()
+            .and_then(|app| app.downcast_ref::<crate::GerbApp>())
         {
             let tabinfo = app.tabinfo();
             tabinfo.set_object(new_obj);
@@ -637,8 +657,7 @@ impl GlyphEditView {
         ret.imp().viewport.imp().transformation.set_property::<f64>(
             Transformation::PIXELS_PER_UNIT,
             {
-                let val = EM_SQUARE_PIXELS / dbg!(project.property::<f64>(Project::UNITS_PER_EM));
-                println!("initializing PIXELS_PER_UNIT to {:?}", val);
+                let val = EM_SQUARE_PIXELS / project.property::<f64>(Project::UNITS_PER_EM);
                 val
             },
         );
@@ -653,10 +672,6 @@ impl GlyphEditView {
             )
             .transform_from(|_, units_per_em: &Value| {
                 let units_per_em: f64 = units_per_em.get().ok()?;
-                println!(
-                    "project UNITS_PER_EM updated, transforming PIXELS_PER_UNIT to {:?}",
-                    EM_SQUARE_PIXELS / units_per_em
-                );
                 Some((EM_SQUARE_PIXELS / units_per_em).to_value())
             })
             .build();

@@ -388,7 +388,7 @@ impl Glyph {
                     component.yx_scale,
                     component.y_scale,
                     component.x_offset,
-                    -component.y_offset,
+                    component.y_offset,
                 );
                 glyph.draw(cr, GlyphDrawingOptions { matrix, ..options });
                 cr.restore().expect("Invalid cairo surface state");

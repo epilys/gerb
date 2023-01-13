@@ -19,8 +19,10 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+mod layers;
 mod transformation;
 use crate::utils::Point;
+pub use layers::*;
 pub use transformation::*;
 
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecObject, Value};
@@ -28,7 +30,8 @@ use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecOb
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 const RULER_BREADTH: f64 = 13.;
 #[derive(Debug, Copy, Clone, Default)]
@@ -51,6 +54,7 @@ pub struct CanvasInner {
     view_height: Cell<f64>,
     view_width: Cell<f64>,
     mouse: Cell<ViewPoint>,
+    layers: Rc<RefCell<Vec<Layer>>>,
 }
 
 #[glib::object_subclass]
@@ -68,6 +72,14 @@ impl ObjectImpl for CanvasInner {
         self.show_handles.set(true);
         self.inner_fill.set(false);
         self.show_total_area.set(true);
+        self.layers.borrow_mut().push(
+            LayerBuilder::new()
+                .set_name(Some("grid"))
+                .set_active(true)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(Canvas::draw_grid)))
+                .build(),
+        );
         obj.set_tooltip_text(None);
         obj.set_visible(true);
         obj.set_expand(true);
@@ -83,6 +95,15 @@ impl ObjectImpl for CanvasInner {
             self_.set_property::<f64>(Canvas::VIEW_HEIGHT, self_.allocated_height() as f64);
             self_.set_property::<f64>(Canvas::VIEW_WIDTH, self_.allocated_width() as f64);
         });
+        obj.connect_draw(
+            move |viewport: &Canvas, cr: &gtk::cairo::Context| -> Inhibit {
+                let mut retval = Inhibit(false);
+                for layer in viewport.imp().layers.borrow().iter() {
+                    retval = (layer.get_callback())(viewport, cr);
+                }
+                retval
+            },
+        );
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -240,8 +261,11 @@ impl Canvas {
         ret
     }
 
+    pub fn add_layer(&self, new_layer: Layer) {
+        self.imp().layers.borrow_mut().push(new_layer);
+    }
+
     pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        dbg!("graw_grid");
         let show_grid: bool = self.property::<bool>(Canvas::SHOW_GRID);
         let inner_fill = self.property::<bool>(Canvas::INNER_FILL);
         let scale: f64 = self
@@ -269,10 +293,8 @@ impl Canvas {
         cr.set_line_width(0.5);
 
         let (unit_width, unit_height) = (cw / (scale * ppu), ch / (scale * ppu));
-        dbg!(unit_width, unit_height);
 
         if show_grid {
-            //dbg!(view_camera);
             for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
                 cr.set_source_rgb(color, color, color);
                 let mut y = -camera.y % step + 0.5;
@@ -291,6 +313,37 @@ impl Canvas {
                 cr.stroke().unwrap();
             }
         }
+        cr.restore().unwrap();
+        Inhibit(false)
+    }
+
+    pub fn draw_rulers(&self, cr: &gtk::cairo::Context) -> Inhibit {
+        let show_grid: bool = self.property::<bool>(Canvas::SHOW_GRID);
+        let inner_fill = self.property::<bool>(Canvas::INNER_FILL);
+        let scale: f64 = self
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let cw: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
+        let ch: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
+        let matrix = self.imp().transformation.matrix();
+        let ppu = self
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
+
+        let UnitPoint(camera) = self.imp().transformation.camera();
+        let ViewPoint(view_camera) = self.unit_to_view_point(UnitPoint(camera));
+        cr.save().unwrap();
+        //cr.scale(scale, scale);
+        let mut matrix = cairo::Matrix::identity();
+        //matrix.translate(cw / 2.0, ch / 2.0);
+        matrix.scale(ppu * scale, ppu * scale);
+        cr.transform(matrix);
+        cr.set_line_width(0.5);
+
+        let (unit_width, unit_height) = (cw / (scale * ppu), ch / (scale * ppu));
+
         let ruler_breadth = RULER_BREADTH / (scale * ppu);
         let font_size = 6.0 / (scale * ppu);
         let UnitPoint(mouse) = self.view_to_unit_point(self.get_mouse());

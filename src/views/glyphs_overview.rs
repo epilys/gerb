@@ -649,6 +649,8 @@ impl ObjectImpl for GlyphBox {
             cr.clip();
             cr.new_path();
             cr.set_source_rgba(0., 0., 0., 0.4);
+            // View height.
+            let vh = _drar.allocated_height() as f64;
             cr.set_font_size(zoom_factor * 62.);
             let sextents = cr
                 .text_extents(&label)
@@ -658,8 +660,8 @@ impl ObjectImpl for GlyphBox {
                 cr.show_text(&label).expect("Invalid cairo surface state");
             } else {
                 let mut matrix = gtk::cairo::Matrix::identity();
-                matrix.translate((width - glyph_width) / 2., 0.);
-                matrix.scale((width * 0.8) / units_per_em, (width * 0.8) / units_per_em);
+                matrix.translate((width - glyph_width) / 2., vh / 2.0);
+                matrix.scale((width * 0.8) / units_per_em, -(width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
                     outline: (0., 0., 0., 0.),
                     inner_fill: Some((0.35, 0.35, 0.35, 1.)),
