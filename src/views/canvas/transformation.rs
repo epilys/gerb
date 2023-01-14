@@ -50,7 +50,7 @@ impl TransformationInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for TransformationInner {
-    const NAME: &'static str = "TransformationInner";
+    const NAME: &'static str = "Transformation";
     type Type = Transformation;
     type ParentType = glib::Object;
     type Interfaces = ();

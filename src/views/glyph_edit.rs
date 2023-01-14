@@ -708,6 +708,18 @@ impl GlyphEditView {
             )
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
+        let action_map = gtk::gio::SimpleActionGroup::new();
+        for prop in [
+            Canvas::SHOW_GRID,
+            Canvas::SHOW_GUIDELINES,
+            Canvas::SHOW_HANDLES,
+            Canvas::INNER_FILL,
+            Canvas::SHOW_TOTAL_AREA,
+        ] {
+            let prop_action = gtk::gio::PropertyAction::new(prop, &ret.imp().viewport, prop);
+            action_map.add_action(&prop_action);
+        }
+        ret.insert_action_group("edit", Some(&action_map));
         ret.imp()
             .glyph_state
             .set(Rc::new(RefCell::new(GlyphState::new(

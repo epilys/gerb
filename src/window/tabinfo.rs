@@ -36,7 +36,7 @@ pub struct TabInfoInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for TabInfoInner {
-    const NAME: &'static str = "TabInfoInner";
+    const NAME: &'static str = "TabInfo";
     type Type = TabInfo;
     type ParentType = gtk::Box;
 }

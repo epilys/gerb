@@ -134,6 +134,11 @@ impl GerbApp {
         application.set_accels_for_action("app.about", &["question", "F1"]);
         application.set_accels_for_action("app.undo", &["<Primary>Z"]);
         application.set_accels_for_action("app.redo", &["<Primary>R"]);
+        application.set_accels_for_action("edit.show-grid", &["<Primary>G"]);
+        application.set_accels_for_action("edit.show-guidelines", &["<Primary><Shift>G"]);
+        application.set_accels_for_action("edit.show-handles", &["<Primary><Shift>H"]);
+        application.set_accels_for_action("edit.inner-fill", &["<Primary><Shift>I"]);
+        application.set_accels_for_action("edit.show-total-area", &["<Primary><Shift>T"]);
         let window = self.imp().window.get().unwrap().upcast_ref::<gtk::Window>();
         let quit = gtk::gio::SimpleAction::new("quit", None);
         quit.connect_activate(glib::clone!(@weak window => move |_, _| {

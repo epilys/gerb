@@ -61,7 +61,7 @@ pub struct CanvasInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for CanvasInner {
-    const NAME: &'static str = "CanvasInner";
+    const NAME: &'static str = "Canvas";
     type Type = Canvas;
     type ParentType = gtk::DrawingArea;
 }

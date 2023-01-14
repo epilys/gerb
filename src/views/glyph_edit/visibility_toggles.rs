@@ -42,7 +42,7 @@ pub struct ViewHideBoxInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for ViewHideBoxInner {
-    const NAME: &'static str = "ViewHideBoxInner";
+    const NAME: &'static str = "ViewHideBox";
     type Type = ViewHideBox;
     type ParentType = gtk::Box;
 }
@@ -184,12 +184,6 @@ glib::wrapper! {
 impl ViewHideBox {
     pub fn new(canvas: &super::Canvas) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create ViewHideBox");
-        ret.connect_notify_local(
-            Some("show-grid"),
-            clone!(@weak canvas => move |_self, _| {
-                canvas.queue_draw();
-            }),
-        );
         for property in [
             "show-grid",
             "show-guidelines",
@@ -200,6 +194,12 @@ impl ViewHideBox {
             ret.bind_property(property, canvas, property)
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
                 .build();
+            ret.connect_notify_local(
+                Some(property),
+                clone!(@weak canvas => move |_self, _| {
+                    canvas.queue_draw();
+                }),
+            );
         }
         ret
     }

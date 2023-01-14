@@ -44,7 +44,7 @@ pub struct WorkspaceInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for WorkspaceInner {
-    const NAME: &'static str = "WorkspaceInner";
+    const NAME: &'static str = "Workspace";
     type Type = Workspace;
     type ParentType = gtk::Box;
 }
@@ -72,6 +72,7 @@ impl ObjectImpl for WorkspaceInner {
         obj.pack_start(&scrolled_window, true, true, 0);
         obj.set_visible(true);
         obj.set_expand(true);
+        obj.set_can_focus(true);
         self.scrolled_window.set(scrolled_window).unwrap();
         self.grid.set(grid).unwrap();
     }
@@ -143,6 +144,8 @@ impl Workspace {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
+        ret.bind_property("is-focus", main_widget, "is-focus")
+            .build();
         ret.imp().main_widget.set(main_widget.clone()).unwrap();
         ret.imp()
             .grid

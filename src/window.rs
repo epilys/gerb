@@ -328,6 +328,7 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
         children_no += 1;
     });
     notebook.set_page(children_no - 1);
+    widget.grab_focus();
     notebook.queue_draw();
     widget.queue_draw();
 }

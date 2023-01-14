@@ -52,7 +52,7 @@ pub struct CollectionInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for CollectionInner {
-    const NAME: &'static str = "CollectionInner";
+    const NAME: &'static str = "Collection";
     type Type = Collection;
     type ParentType = gtk::EventBox;
 }

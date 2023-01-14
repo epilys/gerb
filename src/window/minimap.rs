@@ -29,7 +29,7 @@ pub struct MinimapInner {}
 
 #[glib::object_subclass]
 impl ObjectSubclass for MinimapInner {
-    const NAME: &'static str = "MinimapInner";
+    const NAME: &'static str = "Minimap";
     type Type = Minimap;
     type ParentType = gtk::DrawingArea;
 }

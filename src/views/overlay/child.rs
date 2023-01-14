@@ -44,7 +44,7 @@ impl Default for ChildInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for ChildInner {
-    const NAME: &'static str = "ChildInner";
+    const NAME: &'static str = "Child";
     type Type = Child;
     type ParentType = glib::Object;
     type Interfaces = ();

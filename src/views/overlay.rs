@@ -42,7 +42,7 @@ pub struct OverlayInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for OverlayInner {
-    const NAME: &'static str = "OverlayInner";
+    const NAME: &'static str = "Overlay";
     type Type = Overlay;
     type ParentType = gtk::Box;
 }
