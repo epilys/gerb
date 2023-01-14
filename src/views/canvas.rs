@@ -54,7 +54,9 @@ pub struct CanvasInner {
     view_height: Cell<f64>,
     view_width: Cell<f64>,
     mouse: Cell<ViewPoint>,
+    pre_layers: Rc<RefCell<Vec<Layer>>>,
     layers: Rc<RefCell<Vec<Layer>>>,
+    post_layers: Rc<RefCell<Vec<Layer>>>,
 }
 
 #[glib::object_subclass]
@@ -72,7 +74,7 @@ impl ObjectImpl for CanvasInner {
         self.show_handles.set(true);
         self.inner_fill.set(false);
         self.show_total_area.set(true);
-        self.layers.borrow_mut().push(
+        self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))
                 .set_active(true)
@@ -98,7 +100,14 @@ impl ObjectImpl for CanvasInner {
         obj.connect_draw(
             move |viewport: &Canvas, cr: &gtk::cairo::Context| -> Inhibit {
                 let mut retval = Inhibit(false);
-                for layer in viewport.imp().layers.borrow().iter() {
+                for layer in viewport
+                    .imp()
+                    .pre_layers
+                    .borrow()
+                    .iter()
+                    .chain(viewport.imp().layers.borrow().iter())
+                    .chain(viewport.imp().post_layers.borrow().iter())
+                {
                     retval = (layer.get_callback())(viewport, cr);
                 }
                 retval
@@ -261,8 +270,16 @@ impl Canvas {
         ret
     }
 
+    pub fn add_pre_layer(&self, new_layer: Layer) {
+        self.imp().pre_layers.borrow_mut().push(new_layer);
+    }
+
     pub fn add_layer(&self, new_layer: Layer) {
         self.imp().layers.borrow_mut().push(new_layer);
+    }
+
+    pub fn add_post_layer(&self, new_layer: Layer) {
+        self.imp().post_layers.borrow_mut().push(new_layer);
     }
 
     pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {

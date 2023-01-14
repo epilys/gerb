@@ -38,6 +38,7 @@ use crate::utils::{curves::Bezier, Point};
 use crate::views::{canvas::LayerBuilder, overlay::Child};
 
 mod bezier_pen;
+mod guidelines;
 mod viewhide;
 
 use super::{Canvas, Transformation, UnitPoint, ViewPoint};
@@ -45,7 +46,7 @@ use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
 #[derive(Debug, Clone)]
-enum Tool {
+pub enum Tool {
     Panning,
     Manipulate,
 }
@@ -57,22 +58,22 @@ impl Default for Tool {
 }
 
 impl Tool {
-    fn is_manipulate(&self) -> bool {
+    pub fn is_manipulate(&self) -> bool {
         matches!(self, Tool::Manipulate)
     }
 
-    fn is_panning(&self) -> bool {
+    pub fn is_panning(&self) -> bool {
         matches!(self, Tool::Panning)
     }
 }
 
 #[derive(Debug, Clone)]
-struct GlyphState {
-    app: gtk::Application,
-    glyph: Rc<RefCell<Glyph>>,
-    reference: Rc<RefCell<Glyph>>,
-    drar: Canvas,
-    tool: Tool,
+pub struct GlyphState {
+    pub app: gtk::Application,
+    pub glyph: Rc<RefCell<Glyph>>,
+    pub reference: Rc<RefCell<Glyph>>,
+    pub drar: Canvas,
+    pub tool: Tool,
 }
 
 impl GlyphState {
@@ -91,7 +92,7 @@ impl GlyphState {
 pub struct GlyphEditArea {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
-    glyph_state: OnceCell<RefCell<GlyphState>>,
+    glyph_state: OnceCell<Rc<RefCell<GlyphState>>>,
     viewport: Canvas,
     statusbar_context_id: Cell<Option<u32>>,
     overlay: super::Overlay,
@@ -195,65 +196,75 @@ impl ObjectImpl for GlyphEditArea {
                 .set_active(true)
                 .set_hidden(false)
                 .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-            let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
-            let scale: f64 = viewport.imp().transformation.property::<f64>(Transformation::SCALE);
-            let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
-            let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
-            let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
-            let matrix = viewport.imp().transformation.matrix();
-            let ppu = viewport
-                .imp()
-                .transformation
-                .property::<f64>(Transformation::PIXELS_PER_UNIT);
+                    let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
+                    let scale: f64 = viewport.imp().transformation.property::<f64>(Transformation::SCALE);
+                    let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
+                    let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
+                    let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
+                    let matrix = viewport.imp().transformation.matrix();
+                    let ppu = viewport
+                        .imp()
+                        .transformation
+                        .property::<f64>(Transformation::PIXELS_PER_UNIT);
 
-            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-            let mouse = viewport.get_mouse();
-            let unit_mouse = viewport.view_to_unit_point(mouse);
-            let UnitPoint(camera) = viewport.imp().transformation.camera();
-            let ViewPoint(view_camera) = viewport.unit_to_view_point(UnitPoint(camera));
-            cr.save().unwrap();
-            //cr.scale(scale, scale);
-            cr.transform(matrix);
-            cr.save().unwrap();
-            cr.set_line_width(2.5);
+                    let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+                    let mouse = viewport.get_mouse();
+                    let unit_mouse = viewport.view_to_unit_point(mouse);
+                    let UnitPoint(camera) = viewport.imp().transformation.camera();
+                    let ViewPoint(view_camera) = viewport.unit_to_view_point(UnitPoint(camera));
+                    cr.save().unwrap();
+                    //cr.scale(scale, scale);
+                    cr.transform(matrix);
+                    cr.save().unwrap();
+                    cr.set_line_width(2.5);
 
-            obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
+                    obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
 
-            let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
-            cr.restore().unwrap();
-            //cr.transform(matrix);
+                    let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
+                    cr.restore().unwrap();
+                    //cr.transform(matrix);
 
-            if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
-                /* Draw em square of units_per_em units: */
-                cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-                cr.rectangle(0., 0., glyph_state.glyph.borrow().width.unwrap_or(units_per_em), 1000.0);
-                cr.fill().unwrap();
-            }
-            /* Draw the glyph */
-            cr.move_to(0.0, 0.0);
+                    if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
+                        /* Draw em square of units_per_em units: */
+                        cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
+                        cr.rectangle(0., 0., glyph_state.glyph.borrow().width.unwrap_or(units_per_em), 1000.0);
+                        cr.fill().unwrap();
+                    }
+                    /* Draw the glyph */
+                    cr.move_to(0.0, 0.0);
 
-            if true {
-                let options = GlyphDrawingOptions {
-                    outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
-                    inner_fill: if inner_fill {
-                        Some((0., 0., 0., 1.))
-                    } else {
-                        None
-                    },
-                    highlight: None,
-                    matrix: Matrix::identity(),
-                    units_per_em,
-                    line_width: 2.0,
-                };
-                glyph_state.glyph.borrow().draw(cr, options);
-            }
-            cr.restore().unwrap();
+                    if true {
+                        let options = GlyphDrawingOptions {
+                            outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
+                            inner_fill: if inner_fill {
+                                Some((0., 0., 0., 1.))
+                            } else {
+                                None
+                            },
+                            highlight: None,
+                            matrix: Matrix::identity(),
+                            units_per_em,
+                            line_width: 2.0,
+                        };
+                        glyph_state.glyph.borrow().draw(cr, options);
+                    }
+                    cr.restore().unwrap();
 
-           Inhibit(false)
-        }))))
+                    Inhibit(false)
+                }))))
                 .build(),
         );
-        self.viewport.add_layer(
+        self.viewport.add_post_layer(
+            LayerBuilder::new()
+                .set_name(Some("guidelines"))
+                .set_active(true)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(clone!(@strong obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+                    guidelines::draw_guidelines(viewport, cr, obj.imp().glyph_state.get().unwrap())
+                }))))
+                .build(),
+        );
+        self.viewport.add_post_layer(
             LayerBuilder::new()
                 .set_name(Some("rules"))
                 .set_active(true)
@@ -690,11 +701,11 @@ impl GlyphEditView {
             .build();
         ret.imp()
             .glyph_state
-            .set(RefCell::new(GlyphState::new(
+            .set(Rc::new(RefCell::new(GlyphState::new(
                 &glyph,
                 app,
                 ret.imp().viewport.clone(),
-            )))
+            ))))
             .expect("Failed to create glyph state");
         ret
     }
