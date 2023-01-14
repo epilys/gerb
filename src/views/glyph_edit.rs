@@ -28,9 +28,12 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::glyphs::{Glyph, GlyphDrawingOptions};
+use uuid::Uuid;
+
+use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
 use crate::utils::Point;
 use crate::views::{canvas::LayerBuilder, overlay::Child};
@@ -45,20 +48,56 @@ use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
 #[derive(Debug, Clone)]
+pub enum ControlPointKind {
+    Endpoint {
+        handle: Option<((usize, usize), Uuid)>,
+    },
+    Handle {
+        end_points: Vec<((usize, usize), Uuid)>,
+    },
+}
+
+use ControlPointKind::*;
+
+#[derive(Debug, Clone)]
+pub struct ControlPoint {
+    contour_index: usize,
+    curve_index: usize,
+    point_index: usize,
+    position: Point,
+    kind: ControlPointKind,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ControlPointMode {
+    None,
+    Drag,
+    DragGuideline(usize),
+}
+
+impl Default for ControlPointMode {
+    fn default() -> ControlPointMode {
+        ControlPointMode::None
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum Tool {
     Panning,
-    Manipulate,
+    Manipulate { mode: ControlPointMode },
 }
 
 impl Default for Tool {
     fn default() -> Tool {
-        Tool::Manipulate
+        Tool::Manipulate {
+            mode: ControlPointMode::default(),
+        }
     }
 }
 
 impl Tool {
     pub fn is_manipulate(&self) -> bool {
-        matches!(self, Tool::Manipulate)
+        matches!(self, Tool::Manipulate { .. })
     }
 
     pub fn is_panning(&self) -> bool {
@@ -73,16 +112,286 @@ pub struct GlyphState {
     pub reference: Rc<RefCell<Glyph>>,
     pub viewport: Canvas,
     pub tool: Tool,
+    pub points: Rc<RefCell<HashMap<((usize, usize), Uuid), ControlPoint>>>,
+    pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
 }
 
 impl GlyphState {
     fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, viewport: Canvas) -> Self {
-        Self {
+        let mut ret = Self {
             app,
             glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
             reference: Rc::clone(glyph),
             viewport,
             tool: Tool::default(),
+            points: Rc::new(RefCell::new(HashMap::default())),
+            kd_tree: Rc::new(RefCell::new(crate::utils::range_query::KdTree::new(&[]))),
+        };
+
+        for (contour_index, contour) in glyph.borrow().contours.iter().enumerate() {
+            ret.add_contour(contour, contour_index);
+        }
+        ret
+    }
+
+    fn add_contour(&mut self, contour: &Contour, contour_index: usize) {
+        let mut points = self.points.borrow_mut();
+        let mut kd_tree = self.kd_tree.borrow_mut();
+        for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
+            match curve.points().borrow().len() {
+                4 => {
+                    for (endpoint, handle) in [(0, 1), (3, 2)] {
+                        let end_p = &curve.points().borrow()[endpoint];
+                        let handle_p = &curve.points().borrow()[handle];
+                        points.insert(
+                            ((contour_index, curve_index), end_p.uuid),
+                            ControlPoint {
+                                contour_index,
+                                curve_index,
+                                point_index: endpoint,
+                                position: *end_p,
+                                kind: Endpoint {
+                                    handle: Some(((contour_index, curve_index), handle_p.uuid)),
+                                },
+                            },
+                        );
+                        kd_tree.add(((contour_index, curve_index), end_p.uuid), *end_p);
+                        points.insert(
+                            ((contour_index, curve_index), handle_p.uuid),
+                            ControlPoint {
+                                contour_index,
+                                curve_index,
+                                point_index: handle,
+                                position: *handle_p,
+                                kind: Handle {
+                                    end_points: vec![((contour_index, curve_index), end_p.uuid)],
+                                },
+                            },
+                        );
+                        kd_tree.add(((contour_index, curve_index), handle_p.uuid), *handle_p);
+                    }
+                }
+                3 => {
+                    let p0 = &curve.points().borrow()[0];
+                    let p1 = &curve.points().borrow()[1];
+                    let p2 = &curve.points().borrow()[2];
+                    points.insert(
+                        ((contour_index, curve_index), p0.uuid),
+                        ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: 0,
+                            position: *p0,
+                            kind: Endpoint {
+                                handle: Some(((contour_index, curve_index), p1.uuid)),
+                            },
+                        },
+                    );
+                    points.insert(
+                        ((contour_index, curve_index), p1.uuid),
+                        ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: 1,
+                            position: *p1,
+                            kind: Handle {
+                                end_points: vec![
+                                    ((contour_index, curve_index), p0.uuid),
+                                    ((contour_index, curve_index), p2.uuid),
+                                ],
+                            },
+                        },
+                    );
+                    points.insert(
+                        ((contour_index, curve_index), p2.uuid),
+                        ControlPoint {
+                            contour_index,
+                            curve_index,
+                            point_index: 2,
+                            position: *p2,
+                            kind: Endpoint {
+                                handle: Some(((contour_index, curve_index), p1.uuid)),
+                            },
+                        },
+                    );
+                    for p in [p0, p1, p2] {
+                        kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                    }
+                }
+                2 => {
+                    for endpoint in 0..=1 {
+                        let p = &curve.points().borrow()[endpoint];
+                        points.insert(
+                            ((contour_index, curve_index), p.uuid),
+                            ControlPoint {
+                                contour_index,
+                                curve_index,
+                                point_index: endpoint,
+                                position: *p,
+                                kind: Endpoint { handle: None },
+                            },
+                        );
+                        kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                    }
+                }
+                1 => {}
+                0 => {}
+                _ => unreachable!(), //FIXME
+            }
+        }
+    }
+
+    fn new_guideline(&self, angle: f64, p: Point) -> crate::Action {
+        let (x, y) = (p.x, p.y);
+        let viewport = self.viewport.clone();
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: Box::new([]),
+            },
+            compress: false,
+            redo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    glyph.borrow_mut().guidelines.push(Guideline::builder().angle(angle).x(x).y(y).build());
+                    viewport.queue_draw();
+                }),
+            ),
+            undo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    glyph.borrow_mut().guidelines.pop();
+                    viewport.queue_draw();
+                }),
+            ),
+        }
+    }
+
+    fn update_guideline(&self, idx: usize, position: Point) -> crate::Action {
+        let viewport = self.viewport.clone();
+        let old_position: Point = {
+            let g = self.glyph.borrow();
+            let x = g.guidelines[idx].property("x");
+            let y = g.guidelines[idx].property("y");
+            (x, y).into()
+        };
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
+            },
+            compress: true,
+            redo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    glyph.borrow().guidelines[idx].set_property("x", position.x);
+                    glyph.borrow().guidelines[idx].set_property("y", position.y);
+                    viewport.queue_draw();
+                }),
+            ),
+            undo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    glyph.borrow().guidelines[idx].set_property("x", old_position.x);
+                    glyph.borrow().guidelines[idx].set_property("y", old_position.y);
+                    viewport.queue_draw();
+                }),
+            ),
+        }
+    }
+
+    fn delete_guideline(&self, idx: usize) -> crate::Action {
+        let viewport = self.viewport.clone();
+        let json: serde_json::Value =
+            { serde_json::to_value(&self.glyph.borrow().guidelines[idx].imp()).unwrap() };
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
+            },
+            compress: false,
+            redo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    glyph.borrow_mut().guidelines.remove(idx);
+                    viewport.queue_draw();
+                }),
+            ),
+            undo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    glyph.borrow_mut().guidelines.push(Guideline::try_from(json.clone()).unwrap());
+                    viewport.queue_draw();
+                }),
+            ),
+        }
+    }
+
+    fn update_point(&self, idxs: &[((usize, usize), Uuid)], new_pos: Point) -> crate::Action {
+        let viewport = self.viewport.clone();
+        let old_positions = {
+            let mut v = Vec::with_capacity(idxs.len());
+            for idx in idxs {
+                v.push(if let Some(p) = self.points.borrow().get(idx) {
+                    (*idx, p.position)
+                } else {
+                    (*idx, Point::from((0.0, 0.0)))
+                });
+            }
+            Rc::new(v)
+        };
+        let idxs = Rc::new(idxs.to_vec());
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "point",
+                id: unsafe {
+                    std::mem::transmute::<&[((usize, usize), Uuid)], &[u8]>(&idxs).into()
+                },
+            },
+            compress: true,
+            redo: Box::new(
+                clone!(@strong old_positions, @strong idxs, @weak self.points as points, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
+                    let mut points = points.borrow_mut();
+                    let mut kd_tree = kd_tree.borrow_mut();
+                    for idx in idxs.iter() {
+                        if let Some(p) = points.get_mut(idx) {
+                            /* update kd_tree */
+                            assert!(kd_tree.remove(*idx, p.position));
+                            kd_tree.add(*idx, new_pos);
+
+                            /* finally update actual point */
+                            p.position = new_pos;
+
+                            let glyph = glyph.borrow();
+                            let curves = glyph.contours[p.contour_index].curves().borrow_mut();
+                            curves[p.curve_index]
+                                .points()
+                                .borrow_mut()[p.point_index] = new_pos;
+                        }
+                    }
+                    viewport.queue_draw();
+                }),
+            ),
+            undo: Box::new(
+                clone!(@strong old_positions, @strong idxs, @weak self.points as points, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
+                    let mut points = points.borrow_mut();
+                    let mut kd_tree = kd_tree.borrow_mut();
+                    for (&idx, &old_position) in idxs.iter().zip(old_positions.iter()) {
+                        if let Some(ref mut p) = points.get_mut(&old_position.0) {
+                            /* update kd_tree */
+                            assert!(kd_tree.remove(idx, new_pos));
+                            kd_tree.add(idx, old_position.1);
+
+                            /* finally update actual point */
+                            p.position = old_position.1;
+                            let glyph = glyph.borrow();
+                            let curves = glyph.contours[p.contour_index].curves().borrow_mut();
+                            curves[p.curve_index]
+                                .points()
+                                .borrow_mut()[p.point_index] = old_position.1;
+                        }
+                    }
+                    viewport.queue_draw();
+                }),
+            ),
         }
     }
 }
@@ -145,7 +454,7 @@ impl ObjectImpl for GlyphEditArea {
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 match glyph_state.tool {
-                    Tool::Manipulate => {
+                    Tool::Manipulate { .. } => {
                         match event.button() {
                             gtk::gdk::BUTTON_MIDDLE => {
                                 glyph_state.tool = Tool::Panning;
@@ -172,12 +481,13 @@ impl ObjectImpl for GlyphEditArea {
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 match glyph_state.tool {
-                    Tool::Manipulate => {
+                    Tool::Manipulate { ref mut mode } => {
+                        *mode = ControlPointMode::None;
                     },
                     Tool::Panning => {
                         match event.button() {
                             gtk::gdk::BUTTON_MIDDLE => {
-                                glyph_state.tool = Tool::Manipulate;
+                                glyph_state.tool = Tool::default();
                             },
                             _ => {},
                         }
@@ -211,6 +521,7 @@ impl ObjectImpl for GlyphEditArea {
                 .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
                     let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
                     let scale: f64 = viewport.imp().transformation.property::<f64>(Transformation::SCALE);
+                    let ppu: f64 = viewport.imp().transformation.property::<f64>(Transformation::PIXELS_PER_UNIT);
                     let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
                     let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
                     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
@@ -240,7 +551,7 @@ impl ObjectImpl for GlyphEditArea {
                     /* Draw the glyph */
                     cr.move_to(0.0, 0.0);
 
-                    if true {
+                    {
                         let options = GlyphDrawingOptions {
                             outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
                             inner_fill: if inner_fill {
@@ -251,9 +562,47 @@ impl ObjectImpl for GlyphEditArea {
                             highlight: None,
                             matrix: Matrix::identity(),
                             units_per_em,
-                            line_width: obj.imp().settings.get().unwrap().property("line-width"),
+                            line_width: obj.imp().settings.get().unwrap().property(Settings::LINE_WIDTH),
                         };
                         glyph_state.glyph.borrow().draw(cr, options);
+                    }
+
+                    if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
+                        let handle_size: f64 = obj.imp().settings.get().unwrap().property(Settings::HANDLE_SIZE);
+                        for cp in glyph_state.points.borrow().values() {
+                            let p = cp.position;
+                            if crate::utils::distance_between_two_points(p, mouse.0) <= 10.0 {
+                                cr.set_source_rgba(1., 0., 0., 0.8);
+                            } else {
+                                if inner_fill {
+                                    cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
+                                } else {
+                                    cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                                }
+                            }
+                            match &cp.kind {
+                                Endpoint { .. } => {
+                                    cr.rectangle(p.x - handle_size / (4.0 * ppu), p.y - handle_size / (4.0 * ppu), handle_size / (2.0 * ppu), handle_size / (2.0 * ppu));
+                                    cr.stroke().unwrap();
+                                    cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
+                                    cr.rectangle(p.x - handle_size / (4.0 * ppu), p.y - handle_size / (4.0 * ppu), handle_size / (2.0 * ppu), handle_size / (2.0 * ppu) + 1.0);
+                                    cr.stroke().unwrap();
+                                }
+                                Handle { ref end_points } => {
+                                    cr.arc(p.x, p.y, handle_size / (2.0 * ppu), 0., 2.0 * std::f64::consts::PI);
+                                    cr.fill().unwrap();
+                                    for ep in end_points {
+                                        let ep = glyph_state.points.borrow()[ep].position;
+                                        cr.move_to(p.x, p.y);
+                                        cr.line_to(ep.x, ep.y);
+                                        cr.stroke().unwrap();
+                                    }
+                                    cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
+                                    cr.arc(p.x, p.y, handle_size / (2.0 * ppu) + 1.0, 0., 2.0 * std::f64::consts::PI);
+                                    cr.stroke().unwrap();
+                                }
+                            }
+                        }
                     }
                     cr.restore().unwrap();
 
@@ -670,13 +1019,13 @@ impl GlyphEditView {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
-        ret.imp().viewport.imp().transformation.set_property::<f64>(
-            Transformation::PIXELS_PER_UNIT,
-            {
-                
+        ret.imp()
+            .viewport
+            .imp()
+            .transformation
+            .set_property::<f64>(Transformation::PIXELS_PER_UNIT, {
                 EM_SQUARE_PIXELS / project.property::<f64>(Project::UNITS_PER_EM)
-            },
-        );
+            });
         ret.imp()
             .viewport
             .imp()
