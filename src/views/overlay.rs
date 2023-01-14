@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamSpec, ParamSpecParam, Value};
+use glib::{ParamSpec, Value};
 
 use gtk::glib;
 use gtk::prelude::*;
@@ -31,7 +31,6 @@ use std::rc::Rc;
 mod child;
 
 pub use child::Child;
-use child::*;
 
 #[derive(Debug, Default)]
 pub struct OverlayInner {
@@ -61,7 +60,7 @@ impl ObjectImpl for OverlayInner {
 
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-            once_cell::sync::Lazy::new(|| vec![]);
+            once_cell::sync::Lazy::new(std::vec::Vec::new);
         PROPERTIES.as_ref()
     }
 

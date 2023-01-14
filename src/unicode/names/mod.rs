@@ -264,7 +264,7 @@ impl<'a> Iterator for NameIter<'a> {
             NameInner::Generated(s) => match self.state {
                 NameIterState::Initial => {
                     self.state = NameIterState::Finished;
-                    Some(&s)
+                    Some(s)
                 }
                 NameIterState::Finished => None,
                 _ => unreachable!(),

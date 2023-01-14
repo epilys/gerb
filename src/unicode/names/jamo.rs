@@ -21,17 +21,17 @@ const T_COUNT: u32 = 28;
 const N_COUNT: u32 = V_COUNT * T_COUNT; // 588
 const S_COUNT: u32 = L_COUNT * N_COUNT; // 11172
 
-const JAMO_L_TABLE: &[&'static str] = &[
+const JAMO_L_TABLE: &[&str] = &[
     "G", "GG", "N", "D", "DD", "R", "M", "B", "BB", "S", "SS", "", "J", "JJ", "C", "K", "T", "P",
     "H",
 ];
 
-const JAMO_V_TABLE: &[&'static str] = &[
+const JAMO_V_TABLE: &[&str] = &[
     "A", "AE", "YA", "YAE", "EO", "E", "YEO", "YE", "O", "WA", "WAE", "OE", "YO", "U", "WEO", "WE",
     "WI", "YU", "EU", "YI", "I",
 ];
 
-const JAMO_T_TABLE: &[&'static str] = &[
+const JAMO_T_TABLE: &[&str] = &[
     "", "G", "GG", "GS", "N", "NJ", "NH", "D", "L", "LG", "LM", "LB", "LS", "LT", "LP", "LH", "M",
     "B", "BS", "S", "SS", "NG", "J", "C", "K", "T", "P", "H",
 ];

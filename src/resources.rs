@@ -45,6 +45,6 @@ pub fn svg_to_image_widget(svg: &'static str) -> gtk::Image {
         image
     } else {
         println!("Failed to load SVG as pixbuf.");
-        return gtk::Image::default();
+        gtk::Image::default()
     }
 }

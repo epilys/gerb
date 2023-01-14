@@ -20,11 +20,7 @@
  */
 
 use super::*;
-use crate::views::{UnitPoint, ViewPoint};
-use glib::{
-    clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
-};
-use gtk::cairo::Matrix;
+use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -64,7 +60,7 @@ impl ObjectSubclass for LayerInner {
 }
 
 impl ObjectImpl for LayerInner {
-    fn constructed(&self, obj: &Self::Type) {}
+    fn constructed(&self, _obj: &Self::Type) {}
 
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
@@ -96,7 +92,7 @@ impl ObjectImpl for LayerInner {
         PROPERTIES.as_ref()
     }
 
-    fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             Layer::ACTIVE => self.active.get().to_value(),
             Layer::HIDDEN => self.hidden.get().to_value(),

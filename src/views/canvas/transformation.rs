@@ -20,9 +20,7 @@
  */
 
 use crate::views::{UnitPoint, ViewPoint};
-use glib::{
-    clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
-};
+use glib::{ParamFlags, ParamSpec, ParamSpecDouble, Value};
 use gtk::cairo::Matrix;
 use gtk::glib;
 use gtk::prelude::*;
@@ -57,7 +55,7 @@ impl ObjectSubclass for TransformationInner {
 }
 
 impl ObjectImpl for TransformationInner {
-    fn constructed(&self, obj: &Self::Type) {
+    fn constructed(&self, _obj: &Self::Type) {
         self.scale.set(TransformationInner::INIT_SCALE_VAL);
         self.camera_x.set(TransformationInner::INIT_CAMERA_X_VAL);
         self.camera_y.set(TransformationInner::INIT_CAMERA_Y_VAL);
@@ -126,7 +124,7 @@ impl ObjectImpl for TransformationInner {
         PROPERTIES.as_ref()
     }
 
-    fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
             Transformation::SCALE => self.scale.get().to_value(),
             Transformation::CAMERA_X => self.camera_x.get().to_value(),
@@ -216,9 +214,7 @@ impl Transformation {
         let scale = self.imp().scale.get();
         let ppu = self.imp().pixels_per_unit.get();
         //delta.0 = delta.0 / (scale * ppu);
-        let ch = self.property::<f64>(Self::VIEW_HEIGHT);
-        let cw = self.property::<f64>(Self::VIEW_WIDTH);
-        delta.0 /= (scale * ppu);
+        delta.0 /= scale * ppu;
         delta.0.y *= -1.0;
 
         camera.0 = camera.0 + delta.0;
@@ -226,7 +222,7 @@ impl Transformation {
     }
 
     pub fn set_zoom(&self, new_value: f64) -> bool {
-        if new_value < 0.2 || new_value > 5.0 {
+        if !(0.2..=5.0).contains(&new_value) {
             return false;
         }
         self.set_property::<f64>(Self::SCALE, new_value);
@@ -245,11 +241,14 @@ impl Transformation {
     pub fn reset_zoom(&self) {
         let previous_value = self.imp().previous_scale.get();
         let current_value = self.property::<f64>(Transformation::SCALE);
-        if let (Some(v), 1.0) = (previous_value, current_value) {
-            self.set_zoom(v);
-        } else {
-            self.set_zoom(1.0);
-            self.imp().previous_scale.set(Some(current_value));
+        match previous_value {
+            Some(v) if current_value == 1.0 => {
+                self.set_zoom(v);
+            }
+            _ => {
+                self.set_zoom(1.0);
+                self.imp().previous_scale.set(Some(current_value));
+            }
         }
     }
 }

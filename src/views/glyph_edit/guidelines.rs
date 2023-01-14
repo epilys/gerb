@@ -34,7 +34,6 @@ pub fn draw_guidelines(
             .property::<f64>(Transformation::SCALE);
         let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
         let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
-        let matrix = viewport.imp().transformation.matrix();
         let ppu = viewport
             .imp()
             .transformation
@@ -51,14 +50,8 @@ pub fn draw_guidelines(
                 let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
                 cr.show_text("Guideline").unwrap();
                 for (i, line) in [
-                    format!(
-                        "Name: {}",
-                        g.name().as_ref().map(String::as_str).unwrap_or("-")
-                    ),
-                    format!(
-                        "Identifier: {}",
-                        g.identifier().as_ref().map(String::as_str).unwrap_or("-")
-                    ),
+                    format!("Name: {}", g.name().as_deref().unwrap_or("-")),
+                    format!("Identifier: {}", g.identifier().as_deref().unwrap_or("-")),
                     format!("Point: ({}, {})", g.x(), g.y()),
                     format!("Angle: {:02}deg", g.angle()),
                 ]

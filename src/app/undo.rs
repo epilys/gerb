@@ -87,7 +87,7 @@ mod imp {
                 "can-redo" => {
                     let db = self.database.borrow();
                     let cursor = self.cursor.borrow();
-                    (!(*cursor >= db.len())).to_value()
+                    (*cursor < db.len()).to_value()
                 }
                 _ => unimplemented!("{}", pspec.name()),
             }

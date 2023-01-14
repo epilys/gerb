@@ -26,17 +26,11 @@ use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
 
-#[derive(Debug)]
-struct TabInfoWidgets {
-    grid: gtk::Grid,
-}
-
 #[derive(Debug, Default)]
 pub struct WorkspaceInner {
     scrolled_window: OnceCell<gtk::ScrolledWindow>,
     grid: OnceCell<gtk::Grid>,
     main_widget: OnceCell<gtk::Widget>,
-    other_widgets: RefCell<Vec<gtk::Widget>>,
     reorderable: Cell<bool>,
     closeable: Cell<bool>,
     title: RefCell<String>,

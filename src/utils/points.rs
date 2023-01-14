@@ -21,7 +21,6 @@
 
 mod points {
     use gtk::glib;
-    use gtk::subclass::prelude::*;
     use std::cmp::Ordering;
     use std::hash::{Hash, Hasher};
     use std::ops::{Add, Div, Mul, Sub};

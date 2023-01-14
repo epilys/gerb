@@ -52,7 +52,7 @@ pub struct Component {
     y_scale: f64,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlyphKind {
     Char(char),
     Component,
@@ -400,7 +400,6 @@ impl Glyph {
         if self.is_empty() {
             return;
         }
-        let i_fn = |(x, y): (f64, f64)| -> (i64, i64) { (x as i64, y as i64) };
         for contour in self.contours.iter_mut() {
             let mut pen_position: Option<Point> = None;
             let mut curves = contour.imp().curves.borrow_mut();
@@ -439,10 +438,8 @@ impl Glyph {
                     let smooth = *curv.smooth().borrow();
                     *curv = Bezier::new(smooth, new_points);
                     pen_position = Some(c);
-                } else {
-                    if let Some(last_p) = curv.points().borrow().last() {
-                        pen_position = Some(*last_p);
-                    }
+                } else if let Some(last_p) = curv.points().borrow().last() {
+                    pen_position = Some(*last_p);
                 }
             }
         }
@@ -508,14 +505,14 @@ impl Glyph {
         for (ic, contour) in self.contours.iter().enumerate() {
             for (jc, curve) in contour.curves().borrow().iter().enumerate() {
                 if curve.on_curve_query(position, None) {
-                    return Some((((ic, jc)), curve.clone()));
+                    return Some(((ic, jc), curve.clone()));
                 }
-                for ((idxs, uuid), p) in pts {
+                for ((idxs, uuid), _p) in pts {
                     if *idxs != (ic, jc) {
                         continue;
                     }
                     if curve.points().borrow().iter().any(|cp| cp.uuid == *uuid) {
-                        return Some((((ic, jc)), curve.clone()));
+                        return Some(((ic, jc), curve.clone()));
                     }
                 }
             }

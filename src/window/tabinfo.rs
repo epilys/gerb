@@ -204,7 +204,7 @@ impl TabInfo {
                 1,
                 1,
             );
-            for (row, prop) in obj.list_properties().as_slice().into_iter().enumerate() {
+            for (row, prop) in obj.list_properties().as_slice().iter().enumerate() {
                 grid.attach(
                     &gtk::Label::builder()
                         .label(prop.name())

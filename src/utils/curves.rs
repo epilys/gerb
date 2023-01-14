@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{IPoint, Point};
+use super::Point;
 use gtk::glib;
 use gtk::subclass::prelude::*;
 use std::cell::Ref;
@@ -47,7 +47,6 @@ mod imp {
 
     use glib;
     use glib::prelude::*;
-    use glib::subclass::prelude::*;
 
     /// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
     /// respectively, the constraints for ensuring continuity at P3 can be defined as follows:

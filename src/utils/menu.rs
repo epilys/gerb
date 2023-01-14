@@ -40,7 +40,7 @@ impl Menu {
     }
 
     pub fn add_button(mut self, label: &str) -> Self {
-        let mut button: gtk::MenuItem = gtk::MenuItem::with_label(label);
+        let button: gtk::MenuItem = gtk::MenuItem::with_label(label);
         self.inner.append(&button);
         self.buttons.push(button);
         self
@@ -50,7 +50,7 @@ impl Menu {
     where
         F: Fn(&gtk::MenuItem, &EventButton) -> Inhibit + 'static,
     {
-        let mut button: gtk::MenuItem = gtk::MenuItem::with_label(label);
+        let button: gtk::MenuItem = gtk::MenuItem::with_label(label);
         button.connect_button_press_event(callback);
         self.inner.append(&button);
         self.buttons.push(button);

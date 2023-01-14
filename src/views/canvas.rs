@@ -284,21 +284,18 @@ impl Canvas {
 
     pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {
         let show_grid: bool = self.property::<bool>(Canvas::SHOW_GRID);
-        let inner_fill = self.property::<bool>(Canvas::INNER_FILL);
         let scale: f64 = self
             .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let cw: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
         let ch: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
-        let matrix = self.imp().transformation.matrix();
         let ppu = self
             .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
 
         let UnitPoint(camera) = self.imp().transformation.camera();
-        let ViewPoint(view_camera) = self.unit_to_view_point(UnitPoint(camera));
         cr.save().unwrap();
         //cr.scale(scale, scale);
         let mut matrix = cairo::Matrix::identity();
@@ -317,7 +314,7 @@ impl Canvas {
                 let mut y = -camera.y % step + 0.5;
                 while y < (unit_height) {
                     cr.move_to(0.5, y);
-                    cr.line_to((unit_width + 0.5), y);
+                    cr.line_to(unit_width + 0.5, y);
                     y += step;
                 }
                 cr.stroke().unwrap();
@@ -335,22 +332,18 @@ impl Canvas {
     }
 
     pub fn draw_rulers(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        let show_grid: bool = self.property::<bool>(Canvas::SHOW_GRID);
-        let inner_fill = self.property::<bool>(Canvas::INNER_FILL);
         let scale: f64 = self
             .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let cw: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
         let ch: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
-        let matrix = self.imp().transformation.matrix();
         let ppu = self
             .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
 
         let UnitPoint(camera) = self.imp().transformation.camera();
-        let ViewPoint(view_camera) = self.unit_to_view_point(UnitPoint(camera));
         cr.save().unwrap();
         //cr.scale(scale, scale);
         let mut matrix = cairo::Matrix::identity();
@@ -416,10 +409,9 @@ impl Canvas {
         retval.y *= -1.0;
         retval.x -= cw / 2.0;
         retval.y += ch / 2.0;
-        retval /= (scale * ppu);
+        retval /= scale * ppu;
         retval = retval - camera;
 
-        //println!("view_to_unit_point: {scale:?}, {ppu:?}, {view_height:?}, {retval:?}");
         UnitPoint(retval)
     }
 
@@ -436,14 +428,13 @@ impl Canvas {
         let ch = self.property::<f64>(Self::VIEW_HEIGHT);
         let cw = self.property::<f64>(Self::VIEW_WIDTH);
         let UnitPoint(unitpoint) = unitpoint;
-        let mut retval: Point = (unitpoint + camera);
-        retval = retval * ppu;
-        retval = retval * scale;
+        let mut retval: Point = unitpoint + camera;
+        retval *= ppu;
+        retval *= scale;
         retval.y *= -1.0;
         retval.x += cw / 2.0;
         retval.y += ch / 2.0;
 
-        //println!("view_to_unit_point: {scale:?}, {ppu:?}, {view_height:?}, {retval:?}");
         ViewPoint(retval)
     }
 

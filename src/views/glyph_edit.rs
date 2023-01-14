@@ -28,17 +28,15 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
 use std::rc::Rc;
-use uuid::Uuid;
 
-use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
+use crate::glyphs::{Glyph, GlyphDrawingOptions};
 use crate::project::Project;
-use crate::utils::{curves::Bezier, Point};
+use crate::utils::Point;
 use crate::views::{canvas::LayerBuilder, overlay::Child};
 use crate::Settings;
 
-mod bezier_pen;
+//mod bezier_pen;
 mod guidelines;
 mod visibility_toggles;
 
@@ -193,7 +191,7 @@ impl ObjectImpl for GlyphEditArea {
 
         self.viewport.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
-                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
                 if glyph_state.tool.is_panning() {
                     let mouse: ViewPoint = viewport.get_mouse();
                     let delta = <_ as Into<Point>>::into(event.position()) - mouse.0;
@@ -217,16 +215,11 @@ impl ObjectImpl for GlyphEditArea {
                     let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
                     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
                     let matrix = viewport.imp().transformation.matrix();
-                    let ppu = viewport
-                        .imp()
-                        .transformation
-                        .property::<f64>(Transformation::PIXELS_PER_UNIT);
 
                     let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
                     let mouse = viewport.get_mouse();
                     let unit_mouse = viewport.view_to_unit_point(mouse);
                     let UnitPoint(camera) = viewport.imp().transformation.camera();
-                    let ViewPoint(view_camera) = viewport.unit_to_view_point(UnitPoint(camera));
                     cr.save().unwrap();
                     //cr.scale(scale, scale);
                     cr.transform(matrix);
@@ -235,7 +228,6 @@ impl ObjectImpl for GlyphEditArea {
 
                     obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
 
-                    let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
                     cr.restore().unwrap();
                     //cr.transform(matrix);
 
@@ -394,7 +386,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_percent_label.set_tooltip_text(Some("Interface zoom percentage"));
 
         zoom_percent_label.connect_button_press_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+            clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
                 let t = &obj.imp().viewport.imp().transformation;
                 t.reset_zoom();
                 Inhibit(false)
@@ -635,6 +627,7 @@ impl GlyphEditArea {
         }
     }
 
+    #[allow(dead_code)]
     fn select_object(&self, new_obj: Option<glib::Object>) {
         if let Some(app) = self
             .app
@@ -680,8 +673,8 @@ impl GlyphEditView {
         ret.imp().viewport.imp().transformation.set_property::<f64>(
             Transformation::PIXELS_PER_UNIT,
             {
-                let val = EM_SQUARE_PIXELS / project.property::<f64>(Project::UNITS_PER_EM);
-                val
+                
+                EM_SQUARE_PIXELS / project.property::<f64>(Project::UNITS_PER_EM)
             },
         );
         ret.imp()

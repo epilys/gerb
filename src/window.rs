@@ -99,6 +99,7 @@ impl WindowSidebar {
         self.minimap.queue_draw();
     }
 
+    #[allow(dead_code)]
     fn unload_project(&self) {
         self.project_label.set_markup("No project loaded.");
         self.project_label.queue_draw();
@@ -368,8 +369,7 @@ impl Window {
             *self.project.borrow_mut() = project.clone();
         }
 
-        let collection =
-            crate::views::Collection::new(self.app.get().unwrap().clone(), project.clone());
+        let collection = crate::views::Collection::new(self.app.get().unwrap().clone(), project);
         add_tab(
             &widgets.notebook,
             Workspace::new(collection.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),

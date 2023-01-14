@@ -487,19 +487,19 @@ mod fontinfo {
                     },
                     (State::Key(keyval), Ok(Event::Start(ref e))) => match e.name() {
                         b"integer" => {
-                            let keyval = std::mem::replace(keyval, String::new());
+                            let keyval = std::mem::take(keyval);
                             state = State::Integer(keyval);
                         }
                         b"array" => {
-                            let keyval = std::mem::replace(keyval, String::new());
+                            let keyval = std::mem::take(keyval);
                             state = State::Array(keyval, vec![], ArrayType::Integer);
                         }
                         b"real" => {
-                            let keyval = std::mem::replace(keyval, String::new());
+                            let keyval = std::mem::take(keyval);
                             state = State::Real(keyval);
                         }
                         b"string" => {
-                            let keyval = std::mem::replace(keyval, String::new());
+                            let keyval = std::mem::take(keyval);
                             state = State::String(keyval);
                         }
                         _ => (),
@@ -514,8 +514,8 @@ mod fontinfo {
                     (State::Array(keyval, values, _array_type), Ok(Event::End(ref e))) => {
                         match e.name() {
                             b"array" => {
-                                let keyval = std::mem::replace(keyval, String::new());
-                                let values = std::mem::replace(values, vec![]);
+                                let keyval = std::mem::take(keyval);
+                                let values = std::mem::take(values);
                                 ret.dict.insert(keyval, DictValue::Array(values));
                                 state = State::InDict;
                             }
@@ -554,7 +554,7 @@ mod fontinfo {
                         state = State::Key(e.unescape_and_decode(&mut reader)?);
                     }
                     (State::String(keyval), Ok(Event::Text(e))) => {
-                        let keyval = std::mem::replace(keyval, String::new());
+                        let keyval = std::mem::take(keyval);
                         state = State::InDict;
                         ret.dict.insert(
                             keyval,
@@ -562,7 +562,7 @@ mod fontinfo {
                         );
                     }
                     (State::Integer(keyval), Ok(Event::Text(e))) => {
-                        let keyval = std::mem::replace(keyval, String::new());
+                        let keyval = std::mem::take(keyval);
                         state = State::InDict;
                         ret.dict.insert(
                             keyval,
@@ -570,7 +570,7 @@ mod fontinfo {
                         );
                     }
                     (State::Real(keyval), Ok(Event::Text(e))) => {
-                        let keyval = std::mem::replace(keyval, String::new());
+                        let keyval = std::mem::take(keyval);
                         state = State::InDict;
                         ret.dict.insert(
                             keyval,
