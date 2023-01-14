@@ -32,6 +32,7 @@ use std::cell::Cell;
 #[derive(Debug, Default)]
 pub struct TransformationInner {
     scale: Cell<f64>,
+    previous_scale: Cell<Option<f64>>,
     /// In units (not scaled).
     camera_x: Cell<f64>,
     /// In units (not scaled).
@@ -141,6 +142,7 @@ impl ObjectImpl for TransformationInner {
         match pspec.name() {
             Transformation::SCALE => {
                 self.scale.set(value.get().unwrap());
+                self.previous_scale.set(None);
             }
             Transformation::CAMERA_X => {
                 self.camera_x.set(value.get().unwrap());
@@ -221,6 +223,34 @@ impl Transformation {
 
         camera.0 = camera.0 + delta.0;
         self.set_camera(camera)
+    }
+
+    pub fn set_zoom(&self, new_value: f64) -> bool {
+        if new_value < 0.2 || new_value > 5.0 {
+            return false;
+        }
+        self.set_property::<f64>(Self::SCALE, new_value);
+
+        true
+    }
+
+    pub fn zoom_in(&self) -> bool {
+        self.set_zoom(self.property::<f64>(Transformation::SCALE) + 0.05)
+    }
+
+    pub fn zoom_out(&self) -> bool {
+        self.set_zoom(self.property::<f64>(Transformation::SCALE) - 0.05)
+    }
+
+    pub fn reset_zoom(&self) {
+        let previous_value = self.imp().previous_scale.get();
+        let current_value = self.property::<f64>(Transformation::SCALE);
+        if let (Some(v), 1.0) = (previous_value, current_value) {
+            self.set_zoom(v);
+        } else {
+            self.set_zoom(1.0);
+            self.imp().previous_scale.set(Some(current_value));
+        }
     }
 }
 

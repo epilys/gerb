@@ -356,10 +356,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_in_button.set_tooltip_text(Some("Zoom in"));
         zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
             let t = &obj.imp().viewport.imp().transformation;
-            let v = t.property::<f64>(Transformation::SCALE);
-            if v < 5.0 {
-                t.set_property::<f64>(Transformation::SCALE, v + 0.1);
-            }
+            t.zoom_in();
         }));
         let zoom_out_button = gtk::ToolButton::new(
             Some(&crate::resources::svg_to_image_widget(
@@ -371,10 +368,7 @@ impl ObjectImpl for GlyphEditArea {
         zoom_out_button.set_tooltip_text(Some("Zoom out"));
         zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
             let t = &obj.imp().viewport.imp().transformation;
-            let v = t.property::<f64>(Transformation::SCALE);
-            if v > 0.2 {
-                t.set_property::<f64>(Transformation::SCALE, v - 0.1);
-            }
+            t.zoom_out();
         }));
 
         let zoom_percent_label = gtk::Label::new(Some("100%"));
@@ -386,6 +380,8 @@ impl ObjectImpl for GlyphEditArea {
 
         zoom_percent_label.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
+                let t = &obj.imp().viewport.imp().transformation;
+                t.reset_zoom();
                 Inhibit(false)
             }),
         );
