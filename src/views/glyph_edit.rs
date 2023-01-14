@@ -36,6 +36,7 @@ use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
 use crate::utils::{curves::Bezier, Point};
 use crate::views::{canvas::LayerBuilder, overlay::Child};
+use crate::Settings;
 
 mod bezier_pen;
 mod guidelines;
@@ -104,6 +105,7 @@ pub struct GlyphEditArea {
     x_height: Cell<f64>,
     cap_height: Cell<f64>,
     ascender: Cell<f64>,
+    settings: OnceCell<Settings>,
 }
 
 #[glib::object_subclass]
@@ -257,7 +259,7 @@ impl ObjectImpl for GlyphEditArea {
                             highlight: None,
                             matrix: Matrix::identity(),
                             units_per_em,
-                            line_width: 2.0,
+                            line_width: obj.imp().settings.get().unwrap().property("line-width"),
                         };
                         glyph_state.glyph.borrow().draw(cr, options);
                     }
@@ -696,11 +698,14 @@ impl GlyphEditView {
                 Some((EM_SQUARE_PIXELS / units_per_em).to_value())
             })
             .build();
-        app.downcast_ref::<crate::GerbApp>()
+        let settings = app
+            .downcast_ref::<crate::GerbApp>()
             .unwrap()
             .imp()
             .settings
             .borrow()
+            .clone();
+        settings
             .bind_property(
                 Canvas::WARP_CURSOR,
                 &ret.imp().viewport,
@@ -708,6 +713,15 @@ impl GlyphEditView {
             )
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
+        for prop in [Settings::HANDLE_SIZE, Settings::LINE_WIDTH] {
+            settings.connect_notify_local(
+                Some(prop),
+                clone!(@strong ret => move |_self, _| {
+                    ret.imp().viewport.queue_draw();
+                }),
+            );
+        }
+        ret.imp().settings.set(settings).unwrap();
         let action_map = gtk::gio::SimpleActionGroup::new();
         for prop in [
             Canvas::SHOW_GRID,

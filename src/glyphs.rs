@@ -220,7 +220,7 @@ impl Glyph {
             inner_fill,
             highlight,
             matrix,
-            units_per_em,
+            units_per_em: _,
             line_width,
         } = options;
 

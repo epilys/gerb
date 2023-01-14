@@ -26,90 +26,80 @@ use gtk::subclass::prelude::*;
 use std::cell::Cell;
 
 glib::wrapper! {
-    pub struct Settings(ObjectSubclass<imp::Settings>);
+    pub struct Settings(ObjectSubclass<SettingsInner>);
 }
 
-mod imp {
-    use super::*;
+#[derive(Debug, Default)]
+pub struct SettingsInner {
+    pub handle_size: Cell<f64>,
+    pub line_width: Cell<f64>,
+    pub warp_cursor: Cell<bool>,
+}
 
-    #[derive(Debug, Default)]
-    pub struct Settings {
-        pub handle_size: Cell<f64>,
-        pub line_width: Cell<f64>,
-        pub warp_cursor: Cell<bool>,
+#[glib::object_subclass]
+impl ObjectSubclass for SettingsInner {
+    const NAME: &'static str = "Settings";
+    type Type = Settings;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+impl ObjectImpl for SettingsInner {
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    ParamSpecDouble::new(
+                        Settings::HANDLE_SIZE,
+                        Settings::HANDLE_SIZE,
+                        Settings::HANDLE_SIZE,
+                        2.0,
+                        10.0,
+                        5.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        Settings::LINE_WIDTH,
+                        Settings::LINE_WIDTH,
+                        Settings::LINE_WIDTH,
+                        2.0,
+                        10.0,
+                        2.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoolean::new(
+                        Settings::WARP_CURSOR,
+                        Settings::WARP_CURSOR,
+                        Settings::WARP_CURSOR,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
     }
 
-    #[glib::object_subclass]
-    impl ObjectSubclass for Settings {
-        const NAME: &'static str = "Settings";
-        type Type = super::Settings;
-        type ParentType = glib::Object;
-        type Interfaces = ();
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+        match pspec.name() {
+            Settings::HANDLE_SIZE => self.handle_size.get().to_value(),
+            Settings::LINE_WIDTH => self.line_width.get().to_value(),
+            Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
     }
 
-    impl ObjectImpl for Settings {
-        fn properties() -> &'static [ParamSpec] {
-            static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-                once_cell::sync::Lazy::new(|| {
-                    vec![
-                        ParamSpecDouble::new(
-                            "handle-size",
-                            "handle-size",
-                            "handle-size",
-                            2.0,
-                            10.0,
-                            5.0,
-                            ParamFlags::READWRITE,
-                        ),
-                        ParamSpecDouble::new(
-                            "line-width",
-                            "line-width",
-                            "line-width",
-                            2.0,
-                            10.0,
-                            2.0,
-                            ParamFlags::READWRITE,
-                        ),
-                        ParamSpecBoolean::new(
-                            "warp-cursor",
-                            "warp-cursor",
-                            "warp-cursor",
-                            true,
-                            ParamFlags::READWRITE,
-                        ),
-                    ]
-                });
-            PROPERTIES.as_ref()
-        }
-
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
-            match pspec.name() {
-                "handle-size" => self.handle_size.get().to_value(),
-                "line-width" => self.line_width.get().to_value(),
-                "warp-cursor" => self.warp_cursor.get().to_value(),
-                _ => unimplemented!("{}", pspec.name()),
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &glib::Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            Settings::HANDLE_SIZE => {
+                self.handle_size.set(value.get().unwrap());
             }
-        }
-
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            value: &glib::Value,
-            pspec: &ParamSpec,
-        ) {
-            match pspec.name() {
-                "handle-size" => {
-                    self.handle_size.set(value.get().unwrap());
-                }
-                "line-width" => {
-                    self.line_width.set(value.get().unwrap());
-                }
-                "warp-cursor" => {
-                    self.warp_cursor.set(value.get().unwrap());
-                }
-                _ => unimplemented!("{}", pspec.name()),
+            Settings::LINE_WIDTH => {
+                self.line_width.set(value.get().unwrap());
             }
+            Settings::WARP_CURSOR => {
+                self.warp_cursor.set(value.get().unwrap());
+            }
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
@@ -121,6 +111,10 @@ impl Default for Settings {
 }
 
 impl Settings {
+    pub const HANDLE_SIZE: &str = "handle-size";
+    pub const LINE_WIDTH: &str = "line-width";
+    pub const WARP_CURSOR: &str = "warp-cursor";
+
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret.imp().handle_size.set(5.0);
