@@ -39,7 +39,7 @@ use crate::views::{canvas::LayerBuilder, overlay::Child};
 
 mod bezier_pen;
 mod guidelines;
-mod viewhide;
+mod visibility_toggles;
 
 use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 
@@ -72,17 +72,17 @@ pub struct GlyphState {
     pub app: gtk::Application,
     pub glyph: Rc<RefCell<Glyph>>,
     pub reference: Rc<RefCell<Glyph>>,
-    pub drar: Canvas,
+    pub viewport: Canvas,
     pub tool: Tool,
 }
 
 impl GlyphState {
-    fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, drar: Canvas) -> Self {
+    fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, viewport: Canvas) -> Self {
         Self {
             app,
             glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
             reference: Rc::clone(glyph),
-            drar,
+            viewport,
             tool: Tool::default(),
         }
     }
@@ -97,7 +97,7 @@ pub struct GlyphEditArea {
     statusbar_context_id: Cell<Option<u32>>,
     overlay: super::Overlay,
     pub toolbar_box: OnceCell<gtk::Box>,
-    pub viewhidebox: OnceCell<viewhide::ViewHideBox>,
+    pub viewhidebox: OnceCell<visibility_toggles::ViewHideBox>,
     zoom_percent_label: OnceCell<gtk::Label>,
     units_per_em: Cell<f64>,
     descender: Cell<f64>,
@@ -123,7 +123,20 @@ impl ObjectImpl for GlyphEditArea {
         self.viewport.set_mouse(ViewPoint((0.0, 0.0).into()));
 
         self.viewport.connect_scroll_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |drar, event| {
+            clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
+                if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+                    let (mut dx, mut dy) = event.delta();
+                    dbg!(event.delta());
+                    if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                        if dy.abs() > dx.abs() {
+                            dx = dy;
+                        }
+                        dy = 0.0;
+                    }
+                    viewport.imp().transformation.move_camera_by_delta(ViewPoint(<_ as Into<Point>>::into((5.0 * dx, 5.0 * dy))));
+                    viewport.queue_draw();
+                    return Inhibit(false);
+                }
                 Inhibit(false)
             }),
         );
@@ -450,7 +463,7 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
         toolbar_box.pack_start(&debug_button, false, false, 0);
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
-        let viewhidebox = viewhide::ViewHideBox::new(&self.viewport);
+        let viewhidebox = visibility_toggles::ViewHideBox::new(&self.viewport);
         self.overlay.set_child(&self.viewport);
         self.overlay.add_overlay(Child::new(
             gtk::Expander::builder()
