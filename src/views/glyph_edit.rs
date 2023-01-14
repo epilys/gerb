@@ -35,7 +35,7 @@ use uuid::Uuid;
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
 use crate::utils::{curves::Bezier, Point};
-use crate::views::canvas::LayerBuilder;
+use crate::views::{canvas::LayerBuilder, overlay::Child};
 
 mod bezier_pen;
 mod viewhide;
@@ -445,8 +445,8 @@ impl ObjectImpl for GlyphEditArea {
         toolbar_box.style_context().add_class("glyph-edit-toolbox");
         let viewhidebox = viewhide::ViewHideBox::new(&self.viewport);
         self.overlay.set_child(&self.viewport);
-        self.overlay.add_overlay(
-            &gtk::Expander::builder()
+        self.overlay.add_overlay(Child::new(
+            gtk::Expander::builder()
                 .child(&viewhidebox)
                 .expanded(false)
                 .visible(true)
@@ -456,8 +456,9 @@ impl ObjectImpl for GlyphEditArea {
                 .valign(gtk::Align::End)
                 .build(),
             true,
-        );
-        self.overlay.add_overlay(&toolbar_box, true);
+        ));
+        self.overlay
+            .add_overlay(Child::new(toolbar_box.clone(), true));
         obj.add(&self.overlay);
         obj.set_visible(true);
         obj.set_expand(true);

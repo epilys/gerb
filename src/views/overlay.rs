@@ -19,25 +19,25 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamSpec, Value};
+use glib::{ParamSpec, ParamSpecParam, Value};
 
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
+use std::rc::Rc;
 
-#[derive(Debug)]
-struct OverlayChild {
-    _widget: gtk::Widget,
-    _moveable: bool,
-}
+mod child;
+
+pub use child::Child;
+use child::*;
 
 #[derive(Debug, Default)]
 pub struct OverlayInner {
     overlay: gtk::Overlay,
     main_child: OnceCell<gtk::Widget>,
-    widgets: RefCell<Vec<OverlayChild>>,
+    widgets: Rc<RefCell<Vec<Child>>>,
 }
 
 #[glib::object_subclass]
@@ -103,12 +103,11 @@ impl Overlay {
             .unwrap();
     }
 
-    pub fn add_overlay<P: IsA<gtk::Widget>>(&self, child: &P, _moveable: bool) {
-        self.imp().overlay.add_overlay(child);
-        self.imp().widgets.borrow_mut().push(OverlayChild {
-            _widget: child.upcast_ref::<gtk::Widget>().clone(),
-            _moveable,
-        });
+    pub fn add_overlay(&self, child: Child) {
+        self.imp()
+            .overlay
+            .add_overlay(&child.property::<gtk::Widget>(Child::WIDGET));
+        self.imp().widgets.borrow_mut().push(child);
     }
 }
 
