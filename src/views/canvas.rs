@@ -186,6 +186,15 @@ impl ObjectImpl for CanvasInner {
                         1000.0,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecDouble::new(
+                        Canvas::RULER_BREADTH_PIXELS,
+                        Canvas::RULER_BREADTH_PIXELS,
+                        Canvas::RULER_BREADTH_PIXELS,
+                        0.0,
+                        std::f64::MAX,
+                        0.0,
+                        ParamFlags::READABLE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -202,6 +211,13 @@ impl ObjectImpl for CanvasInner {
             Canvas::WARP_CURSOR => self.warp_cursor.get().to_value(),
             Canvas::VIEW_HEIGHT => (self.instance().allocated_height() as f64).to_value(),
             Canvas::VIEW_WIDTH => (self.instance().allocated_width() as f64).to_value(),
+            Canvas::RULER_BREADTH_PIXELS => {
+                let ppu = self
+                    .transformation
+                    .property::<f64>(Transformation::PIXELS_PER_UNIT);
+                let scale: f64 = self.transformation.property::<f64>(Transformation::SCALE);
+                (RULER_BREADTH / (scale * ppu)).to_value()
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -259,6 +275,7 @@ impl Canvas {
     pub const TRANSFORMATION: &str = "transformation";
     pub const WARP_CURSOR: &str = "warp-cursor";
     pub const MOUSE: &str = "mouse";
+    pub const RULER_BREADTH_PIXELS: &str = "ruler-breadth-pixels";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
