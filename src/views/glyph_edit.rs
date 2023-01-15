@@ -40,10 +40,12 @@ use crate::views::{canvas::LayerBuilder, overlay::Child};
 use crate::Settings;
 
 //mod bezier_pen;
-mod guidelines;
+mod layers;
+mod tools;
 mod visibility_toggles;
 
 use super::{Canvas, Transformation, UnitPoint, ViewPoint};
+use tools::Tool;
 
 const EM_SQUARE_PIXELS: f64 = 200.0;
 
@@ -66,52 +68,6 @@ pub struct ControlPoint {
     point_index: usize,
     position: Point,
     kind: ControlPointKind,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum ControlPointMode {
-    None,
-    Drag,
-    DragGuideline(usize),
-}
-
-impl Default for ControlPointMode {
-    fn default() -> ControlPointMode {
-        ControlPointMode::None
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Tool {
-    Panning,
-    Manipulate { mode: ControlPointMode },
-}
-
-impl Default for Tool {
-    fn default() -> Tool {
-        Tool::Manipulate {
-            mode: ControlPointMode::default(),
-        }
-    }
-}
-
-impl Tool {
-    pub fn is_manipulate(&self) -> bool {
-        matches!(self, Tool::Manipulate { .. })
-    }
-
-    pub fn is_panning(&self) -> bool {
-        matches!(self, Tool::Panning)
-    }
-
-    pub fn can_highlight(&self) -> bool {
-        !matches!(
-            self,
-            Tool::Manipulate {
-                mode: ControlPointMode::Drag
-            }
-        )
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -423,7 +379,7 @@ impl GlyphState {
 }
 
 #[derive(Debug, Default)]
-pub struct GlyphEditArea {
+pub struct GlyphEditViewInner {
     app: OnceCell<gtk::Application>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<Rc<RefCell<GlyphState>>>,
@@ -431,9 +387,9 @@ pub struct GlyphEditArea {
     statusbar_context_id: Cell<Option<u32>>,
     overlay: super::Overlay,
     hovering: Cell<Option<(usize, usize)>>,
-    pub toolbar_box: OnceCell<gtk::Box>,
+    pub toolbar_box: gtk::Box,
     pub viewhidebox: OnceCell<visibility_toggles::ViewHideBox>,
-    zoom_percent_label: OnceCell<gtk::Label>,
+    zoom_percent_label: gtk::Label,
     units_per_em: Cell<f64>,
     descender: Cell<f64>,
     x_height: Cell<f64>,
@@ -443,13 +399,13 @@ pub struct GlyphEditArea {
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for GlyphEditArea {
-    const NAME: &'static str = "GlyphEditArea";
+impl ObjectSubclass for GlyphEditViewInner {
+    const NAME: &'static str = "GlyphEditView";
     type Type = GlyphEditView;
     type ParentType = gtk::Bin;
 }
 
-impl ObjectImpl for GlyphEditArea {
+impl ObjectImpl for GlyphEditViewInner {
     // Here we are overriding the glib::Object::contructed
     // method. Its what gets called when we create our Object
     // and where we can initialize things.
@@ -479,68 +435,7 @@ impl ObjectImpl for GlyphEditArea {
 
         self.viewport.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
-                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                let mut retval = Inhibit(false);
-                match glyph_state.tool {
-                    Tool::Manipulate { .. } => {
-                        match event.button() {
-                            gtk::gdk::BUTTON_MIDDLE => {
-                                glyph_state.tool = Tool::Panning;
-                            },
-                            gtk::gdk::BUTTON_PRIMARY => {
-                                let event_position = event.position();
-                                let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                                let ruler_breadth = viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
-                                if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth {
-                                    let angle = if event_position.0 < ruler_breadth && event_position.1 < ruler_breadth {
-                                        -45.
-                                    } else if event_position.0 < ruler_breadth {
-                                        90.
-                                    } else {
-                                        0.
-                                    };
-                                    let mut action = glyph_state.new_guideline(angle, position);
-                                    (action.redo)();
-                                    let app: &crate::Application =
-                                        crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
-                                    let undo_db = app.undo_db.borrow_mut();
-                                    undo_db.event(action);
-                                }
-                                let mut is_guideline: bool = false;
-                                let GlyphState {
-                                    ref mut tool,
-                                    ref glyph,
-                                    ..
-                                } = *glyph_state;
-                                for (i, g) in glyph.borrow().guidelines.iter().enumerate() {
-                                    if g.imp().on_line_query(position, None) {
-                                        obj.imp().select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
-                                        *tool = Tool::Manipulate { mode: ControlPointMode::DragGuideline(i) };
-                                        is_guideline = true;
-                                        break;
-                                    }
-                                }
-                                if !is_guideline {
-                                    let pts = glyph_state.kd_tree.borrow().query(position, 10);
-                                    glyph_state.tool = Tool::Manipulate { mode: ControlPointMode::Drag };
-                                    glyph_state.set_selection(&pts);
-                                }
-                                retval = Inhibit(true);
-                            },
-                            _ => {},
-                        }
-                    },
-                    Tool::Panning => {
-                        match event.button() {
-                            gtk::gdk::BUTTON_MIDDLE => {
-                                glyph_state.tool = Tool::Panning;
-                                retval = Inhibit(true);
-                            },
-                            _ => {},
-                        }
-                    },
-                }
-
+                let retval = Tool::on_button_press_event(obj, viewport, event);
                 viewport.set_mouse(ViewPoint(event.position().into()));
                 retval
             }),
@@ -548,76 +443,20 @@ impl ObjectImpl for GlyphEditArea {
 
         self.viewport.connect_button_release_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
-                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                match glyph_state.tool {
-                    Tool::Manipulate { ref mut mode } => {
-                        *mode = ControlPointMode::None;
-                    },
-                    Tool::Panning => {
-                        match event.button() {
-                            gtk::gdk::BUTTON_MIDDLE => {
-                                glyph_state.tool = Tool::default();
-                            },
-                            _ => {},
-                        }
-                    },
-                }
-
+                let retval = Tool::on_button_release_event(obj, viewport, event);
                 viewport.set_mouse(ViewPoint(event.position().into()));
-                Inhibit(false)
+                retval
             }),
         );
 
         self.viewport.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
-                let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                if glyph_state.tool.is_panning() {
-                    let mouse: ViewPoint = viewport.get_mouse();
-                    let delta = <_ as Into<Point>>::into(event.position()) - mouse.0;
-                    viewport.imp().transformation.move_camera_by_delta(ViewPoint(delta));
-                } else {
-                    let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
-                    if let Tool::Manipulate { mode: ControlPointMode::Drag } = glyph_state.tool {
-                        glyph_state.update_positions(position);
-                    } else if let Tool::Manipulate { mode: ControlPointMode::DragGuideline(idx) } = glyph_state.tool {
-                        let mut action = glyph_state.update_guideline(idx, position);
-                        (action.redo)();
-                        let app: &crate::Application =
-                            crate::Application::from_instance(&obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap());
-                        let undo_db = app.undo_db.borrow_mut();
-                        undo_db.event(action);
-                    }
-                    let pts = glyph_state.kd_tree.borrow().query(position, 10);
-                    if pts.is_empty() {
-                        obj.imp().hovering.set(None);
-                        if let Some(screen) = viewport.window() {
-                            let display = screen.display();
-                            screen.set_cursor(Some(
-                                    &//if glyph_state.tool.is_manipulate() {
-                                        gtk::gdk::Cursor::from_name(&display, "default").unwrap()
-                                    //} else if glyph_state.tool.is_bezier_pen() {
-                                    //    gtk::gdk::Cursor::from_name(&display, "crosshair").unwrap()
-                                    //} else {
-                                    //    gtk::gdk::Cursor::from_name(&display, "default").unwrap()
-                                    //}
-                            ));
-                        }
-                    } else if let Some(screen) = viewport.window() {
-                        let display = screen.display();
-                        screen.set_cursor(Some(
-                                &gtk::gdk::Cursor::from_name(&display, "grab").unwrap(),
-                        ));
-                    }
-
-                    let glyph = glyph_state.glyph.borrow();
-                    if let Some(((i, j), curve)) = glyph.on_curve_query(position, &pts) {
-                        obj.imp().new_statusbar_message(&format!("{:?}", curve));
-                        obj.imp().hovering.set(Some((i, j)));
-                    }
-                }
+                let retval = Tool::on_motion_notify_event(obj, viewport, event);
                 viewport.set_mouse(ViewPoint(event.position().into()));
-                viewport.queue_draw();
-                Inhibit(false)
+                if let Inhibit(true) = retval {
+                    viewport.queue_draw();
+                }
+                retval
             }),
         );
 
@@ -627,98 +466,7 @@ impl ObjectImpl for GlyphEditArea {
                 .set_active(true)
                 .set_hidden(false)
                 .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-                    let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
-                    let scale: f64 = viewport.imp().transformation.property::<f64>(Transformation::SCALE);
-                    let ppu: f64 = viewport.imp().transformation.property::<f64>(Transformation::PIXELS_PER_UNIT);
-                    let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
-                    let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
-                    let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
-                    let matrix = viewport.imp().transformation.matrix();
-
-                    let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-                    let mouse = viewport.get_mouse();
-                    let unit_mouse = viewport.view_to_unit_point(mouse);
-                    let UnitPoint(camera) = viewport.imp().transformation.camera();
-                    cr.save().unwrap();
-                    //cr.scale(scale, scale);
-                    cr.transform(matrix);
-                    cr.save().unwrap();
-                    cr.set_line_width(2.5);
-
-                    obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
-
-                    cr.restore().unwrap();
-                    //cr.transform(matrix);
-
-                    if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
-                        /* Draw em square of units_per_em units: */
-                        cr.set_source_rgba(210./255., 227./255., 252./255., 0.6);
-                        cr.rectangle(0., 0., glyph_state.glyph.borrow().width.unwrap_or(units_per_em), 1000.0);
-                        cr.fill().unwrap();
-                    }
-                    /* Draw the glyph */
-                    cr.move_to(0.0, 0.0);
-
-                    {
-                        let options = GlyphDrawingOptions {
-                            outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
-                            inner_fill: if inner_fill {
-                                Some((0., 0., 0., 1.))
-                            } else {
-                                None
-                            },
-                            highlight: if glyph_state.tool.can_highlight() {
-                                obj.imp().hovering.get()
-                            } else {
-                                None
-                            },
-                            matrix: Matrix::identity(),
-                            units_per_em,
-                            line_width: obj.imp().settings.get().unwrap().property(Settings::LINE_WIDTH),
-                        };
-                        glyph_state.glyph.borrow().draw(cr, options);
-                    }
-
-                    if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
-                        let handle_size: f64 = obj.imp().settings.get().unwrap().property(Settings::HANDLE_SIZE);
-                        for cp in glyph_state.points.borrow().values() {
-                            let p = cp.position;
-                            if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0 {
-                                cr.set_source_rgba(1., 0., 0., 0.8);
-                            } else {
-                                if inner_fill {
-                                    cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
-                                } else {
-                                    cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
-                                }
-                            }
-                            match &cp.kind {
-                                Endpoint { .. } => {
-                                    cr.rectangle(p.x - handle_size / (4.0 * ppu), p.y - handle_size / (4.0 * ppu), handle_size / (2.0 * ppu), handle_size / (2.0 * ppu));
-                                    cr.stroke().unwrap();
-                                    cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
-                                    cr.rectangle(p.x - handle_size / (4.0 * ppu), p.y - handle_size / (4.0 * ppu), handle_size / (2.0 * ppu), handle_size / (2.0 * ppu) + 1.0);
-                                    cr.stroke().unwrap();
-                                }
-                                Handle { ref end_points } => {
-                                    cr.arc(p.x, p.y, handle_size / (2.0 * ppu), 0., 2.0 * std::f64::consts::PI);
-                                    cr.fill().unwrap();
-                                    for ep in end_points {
-                                        let ep = glyph_state.points.borrow()[ep].position;
-                                        cr.move_to(p.x, p.y);
-                                        cr.line_to(ep.x, ep.y);
-                                        cr.stroke().unwrap();
-                                    }
-                                    cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-                                    cr.arc(p.x, p.y, handle_size / (2.0 * ppu) + 1.0, 0., 2.0 * std::f64::consts::PI);
-                                    cr.stroke().unwrap();
-                                }
-                            }
-                        }
-                    }
-                    cr.restore().unwrap();
-
-                    Inhibit(false)
+                    layers::draw_glyph_layer(viewport, cr, obj)
                 }))))
                 .build(),
         );
@@ -727,8 +475,8 @@ impl ObjectImpl for GlyphEditArea {
                 .set_name(Some("guidelines"))
                 .set_active(true)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@strong obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-                    guidelines::draw_guidelines(viewport, cr, obj.imp().glyph_state.get().unwrap())
+                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+                    layers::draw_guidelines(viewport, cr, obj)
                 }))))
                 .build(),
         );
@@ -740,15 +488,14 @@ impl ObjectImpl for GlyphEditArea {
                 .set_callback(Some(Box::new(Canvas::draw_rulers)))
                 .build(),
         );
-        let toolbar_box = gtk::Box::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .expand(false)
-            .halign(gtk::Align::Center)
-            .valign(gtk::Align::Start)
-            .spacing(5)
-            .visible(true)
-            .can_focus(true)
-            .build();
+        self.toolbar_box
+            .set_orientation(gtk::Orientation::Horizontal);
+        self.toolbar_box.set_expand(false);
+        self.toolbar_box.set_halign(gtk::Align::Center);
+        self.toolbar_box.set_valign(gtk::Align::Start);
+        self.toolbar_box.set_spacing(5);
+        self.toolbar_box.set_visible(true);
+        self.toolbar_box.set_can_focus(true);
         let toolbar = gtk::Toolbar::builder()
             .orientation(gtk::Orientation::Horizontal)
             .expand(false)
@@ -839,14 +586,16 @@ impl ObjectImpl for GlyphEditArea {
             t.zoom_out();
         }));
 
-        let zoom_percent_label = gtk::Label::new(Some("100%"));
-        zoom_percent_label.set_visible(true);
-        zoom_percent_label.set_selectable(true); // So that the widget can receive the button-press event
-        zoom_percent_label.set_width_chars(5); // So that if 2 digit zoom (<100%) has the same length as a widget with a three digit zoom value. For example 75% and 125% should result in the same width
-        zoom_percent_label.set_events(gtk::gdk::EventMask::BUTTON_PRESS_MASK);
-        zoom_percent_label.set_tooltip_text(Some("Interface zoom percentage"));
+        self.zoom_percent_label.set_label("100%");
+        self.zoom_percent_label.set_visible(true);
+        self.zoom_percent_label.set_selectable(true); // So that the widget can receive the button-press event
+        self.zoom_percent_label.set_width_chars(5); // So that if 2 digit zoom (<100%) has the same length as a widget with a three digit zoom value. For example 75% and 125% should result in the same width
+        self.zoom_percent_label
+            .set_events(gtk::gdk::EventMask::BUTTON_PRESS_MASK);
+        self.zoom_percent_label
+            .set_tooltip_text(Some("Interface zoom percentage"));
 
-        zoom_percent_label.connect_button_press_event(
+        self.zoom_percent_label.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
                 let t = &obj.imp().viewport.imp().transformation;
                 t.reset_zoom();
@@ -856,7 +605,7 @@ impl ObjectImpl for GlyphEditArea {
         self.viewport
             .imp()
             .transformation
-            .bind_property(Transformation::SCALE, &zoom_percent_label, "label")
+            .bind_property(Transformation::SCALE, &self.zoom_percent_label, "label")
             .transform_to(|_, scale: &Value| {
                 let scale: f64 = scale.get().ok()?;
                 Some(format!("{:.0}%", scale * 100.).to_value())
@@ -914,10 +663,13 @@ impl ObjectImpl for GlyphEditArea {
         toolbar.set_item_homogeneous(&zoom_in_button, false);
         toolbar.add(&zoom_out_button);
         toolbar.set_item_homogeneous(&zoom_out_button, false);
-        toolbar_box.pack_start(&toolbar, false, false, 0);
-        toolbar_box.pack_start(&zoom_percent_label, false, false, 0);
-        toolbar_box.pack_start(&debug_button, false, false, 0);
-        toolbar_box.style_context().add_class("glyph-edit-toolbox");
+        self.toolbar_box.pack_start(&toolbar, false, false, 0);
+        self.toolbar_box
+            .pack_start(&self.zoom_percent_label, false, false, 0);
+        self.toolbar_box.pack_start(&debug_button, false, false, 0);
+        self.toolbar_box
+            .style_context()
+            .add_class("glyph-edit-toolbox");
         let viewhidebox = visibility_toggles::ViewHideBox::new(&self.viewport);
         self.overlay.set_child(&self.viewport);
         self.overlay.add_overlay(Child::new(
@@ -933,18 +685,12 @@ impl ObjectImpl for GlyphEditArea {
             true,
         ));
         self.overlay
-            .add_overlay(Child::new(toolbar_box.clone(), true));
+            .add_overlay(Child::new(self.toolbar_box.clone(), true));
         obj.add(&self.overlay);
         obj.set_visible(true);
         obj.set_expand(true);
         obj.set_can_focus(true);
 
-        self.zoom_percent_label
-            .set(zoom_percent_label)
-            .expect("Failed to initialize window state");
-        self.toolbar_box
-            .set(toolbar_box)
-            .expect("Failed to initialize window state");
         self.viewhidebox
             .set(viewhidebox)
             .expect("Failed to initialize window state");
@@ -1064,11 +810,11 @@ impl ObjectImpl for GlyphEditArea {
     }
 }
 
-impl WidgetImpl for GlyphEditArea {}
-impl ContainerImpl for GlyphEditArea {}
-impl BinImpl for GlyphEditArea {}
+impl WidgetImpl for GlyphEditViewInner {}
+impl ContainerImpl for GlyphEditViewInner {}
+impl BinImpl for GlyphEditViewInner {}
 
-impl GlyphEditArea {
+impl GlyphEditViewInner {
     fn new_statusbar_message(&self, msg: &str) {
         if let Some(app) = self
             .app
@@ -1079,7 +825,7 @@ impl GlyphEditArea {
             if self.statusbar_context_id.get().is_none() {
                 self.statusbar_context_id.set(Some(
                     statusbar
-                        .context_id(&format!("GlyphEditArea-{:?}", &self.glyph.get().unwrap())),
+                        .context_id(&format!("GlyphEditView-{:?}", &self.glyph.get().unwrap())),
                 ));
             }
             if let Some(cid) = self.statusbar_context_id.get().as_ref() {
@@ -1101,7 +847,7 @@ impl GlyphEditArea {
 }
 
 glib::wrapper! {
-    pub struct GlyphEditView(ObjectSubclass<GlyphEditArea>)
+    pub struct GlyphEditView(ObjectSubclass<GlyphEditViewInner>)
         @extends gtk::Widget, gtk::Container, gtk::Bin;
 }
 

@@ -391,19 +391,6 @@ impl Window {
             true,
             true,
         );
-
-        let close_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Close glyph"));
-        close_button.set_visible(true);
-        let toolbar = edit_view.imp().toolbar_box.get().unwrap();
-        toolbar.add(&close_button);
-        toolbar.queue_draw();
-        let obj = self.super_.get().unwrap().clone();
-        close_button.connect_clicked(clone!(@strong obj, @strong toolbar => move |_self| {
-            let widgets = obj.imp().widgets.get().unwrap();
-            widgets.notebook.remove(&edit_view);
-            widgets.notebook.queue_draw();
-            toolbar.remove(_self);
-        }));
     }
 
     pub fn unload_project(&self) {
