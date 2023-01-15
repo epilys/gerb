@@ -195,7 +195,7 @@ impl ObjectImpl for Window {
 
         obj.connect_local("open-glyph-edit", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
             println!("open-glyph-edit received!");
-            let glyph_box = v[1].get::<crate::views::GlyphBoxItem>().unwrap();
+            let glyph_box = v[1].get::<crate::views::GlyphBox>().unwrap();
             obj.imp().edit_glyph(glyph_box.imp().glyph.get().unwrap());
 
             None
@@ -263,7 +263,7 @@ impl ObjectImpl for Window {
                     // Signal name
                     "open-glyph-edit",
                     // Types of the values which will be sent to the signal handler
-                    &[crate::views::GlyphBoxItem::static_type().into()],
+                    &[crate::views::GlyphBox::static_type().into()],
                     // Type of the value the signal handler sends back
                     <()>::static_type().into(),
                 )

@@ -618,47 +618,16 @@ impl KdTree {
         }
     }
 
-    pub fn query(
+    pub fn query_region(
         &self,
-        center: impl Into<IPoint>,
-        radius: i64,
+        (u, l): (impl Into<IPoint>, impl Into<IPoint>),
     ) -> Vec<(((usize, usize), Uuid), IPoint)> {
-        let center: IPoint = center.into();
-
+        let query_region = (u.into(), l.into());
         let root = if let Some(root) = self.root {
             root
         } else {
             return vec![];
         };
-
-        /// Overflow guard
-        macro_rules! o {
-            ($left:expr, - $right:expr) => {{
-                let (result, overflow_flag) = $left.overflowing_sub($right);
-                if overflow_flag {
-                    return vec![];
-                }
-                result
-            }};
-            ($left:expr, + $right:expr) => {{
-                let (result, overflow_flag) = $left.overflowing_add($right);
-                if overflow_flag {
-                    return vec![];
-                }
-                result
-            }};
-        }
-
-        let query_region: (IPoint, IPoint) = (
-            IPoint {
-                x: o! { center.x, - radius / 2 },
-                y: o! { center.y, - radius / 2 },
-            },
-            IPoint {
-                x: o! { center.x, + radius / 2 },
-                y: o! { center.y, + radius / 2 },
-            },
-        );
 
         fn report_subtree(
             root: Index,
@@ -737,6 +706,45 @@ impl KdTree {
             }
         }
         ret
+    }
+
+    pub fn query_point(
+        &self,
+        center: impl Into<IPoint>,
+        radius: i64,
+    ) -> Vec<(((usize, usize), Uuid), IPoint)> {
+        let center: IPoint = center.into();
+
+        /// Overflow guard
+        macro_rules! o {
+            ($left:expr, - $right:expr) => {{
+                let (result, overflow_flag) = $left.overflowing_sub($right);
+                if overflow_flag {
+                    return vec![];
+                }
+                result
+            }};
+            ($left:expr, + $right:expr) => {{
+                let (result, overflow_flag) = $left.overflowing_add($right);
+                if overflow_flag {
+                    return vec![];
+                }
+                result
+            }};
+        }
+
+        let query_region: (IPoint, IPoint) = (
+            IPoint {
+                x: o! { center.x, - radius / 2 },
+                y: o! { center.y, - radius / 2 },
+            },
+            IPoint {
+                x: o! { center.x, + radius / 2 },
+                y: o! { center.y, + radius / 2 },
+            },
+        );
+
+        self.query_region(query_region)
     }
 
     #[cfg(test)]

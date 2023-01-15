@@ -101,9 +101,11 @@ pub fn draw_glyph_layer(
             .get()
             .unwrap()
             .property(Settings::HANDLE_SIZE);
-        for cp in glyph_state.points.borrow().values() {
+        for (key, cp) in glyph_state.points.borrow().iter() {
             let p = cp.position;
-            if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0 {
+            if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0
+                || glyph_state.selection.contains(key)
+            {
                 cr.set_source_rgba(1., 0., 0., 0.8);
             } else {
                 if inner_fill {
@@ -208,5 +210,84 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
             }
         }
     }
+    Inhibit(false)
+}
+
+pub fn draw_selection(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
+    let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+    if let Tool::Select {
+        upper_left: UnitPoint(upper_left),
+        bottom_right: UnitPoint(bottom_right),
+    }
+    | Tool::SelectInactive {
+        upper_left: UnitPoint(upper_left),
+        bottom_right: UnitPoint(bottom_right),
+    } = glyph_state.tool
+    {
+        let scale: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
+
+        /* Calculate how much we need to multiply a pixel value to scale it back after performing
+         * the matrix transformation */
+        let f = 1.0 / (scale * ppu);
+
+        let active = matches!(glyph_state.tool, Tool::Select { .. });
+        let line_width = if active { 2.0 } else { 1.5 } * f;
+
+        let matrix = viewport.imp().transformation.matrix();
+        let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
+
+        cr.save().unwrap();
+
+        cr.set_line_width(line_width);
+        cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
+        cr.transform(matrix);
+
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+        cr.rectangle(upper_left.x, upper_left.y, width, height);
+        if active {
+            cr.stroke_preserve().unwrap();
+            // turqoise, #278cac
+            cr.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
+            cr.fill().unwrap();
+        } else {
+            cr.stroke().unwrap();
+        }
+        cr.restore().unwrap();
+
+        if !active {
+            let rectangle_dim = 5.0 * f;
+
+            cr.save().unwrap();
+            cr.set_line_width(line_width);
+            cr.transform(matrix);
+            for p in [
+                upper_left,
+                bottom_right,
+                upper_left + (width, 0.0).into(),
+                upper_left + (0.0, height).into(),
+            ] {
+                cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+                cr.rectangle(
+                    p.x - rectangle_dim / 2.0,
+                    p.y - rectangle_dim / 2.0,
+                    rectangle_dim,
+                    rectangle_dim,
+                );
+                cr.stroke_preserve().unwrap();
+                cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
+                cr.fill().unwrap();
+            }
+
+            cr.restore().unwrap();
+        }
+    }
+
     Inhibit(false)
 }

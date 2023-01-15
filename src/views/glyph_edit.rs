@@ -418,7 +418,6 @@ impl ObjectImpl for GlyphEditViewInner {
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
                     let (mut dx, mut dy) = event.delta();
-                    dbg!(event.delta());
                     if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
                         if dy.abs() > dx.abs() {
                             dx = dy;
@@ -482,6 +481,16 @@ impl ObjectImpl for GlyphEditViewInner {
         );
         self.viewport.add_post_layer(
             LayerBuilder::new()
+                .set_name(Some("selection"))
+                .set_active(true)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+                    layers::draw_selection(viewport, cr, obj)
+                }))))
+                .build(),
+        );
+        self.viewport.add_post_layer(
+            LayerBuilder::new()
                 .set_name(Some("rules"))
                 .set_active(true)
                 .set_hidden(true)
@@ -526,8 +535,22 @@ impl ObjectImpl for GlyphEditViewInner {
         );
         manipulate_button.set_visible(true);
         // FIXME: doesn't seem to work?
-        manipulate_button.set_tooltip_text(Some("Pan"));
+        manipulate_button.set_tooltip_text(Some("Manipulate"));
         manipulate_button.connect_clicked(clone!(@weak obj => move |_self| {
+        }));
+
+        let select_button = gtk::ToolButton::new(
+            Some(&crate::resources::svg_to_image_widget(
+                crate::resources::SELECT_ICON_SVG,
+            )),
+            Some("Select"),
+        );
+        select_button.set_visible(true);
+        // FIXME: doesn't seem to work?
+        select_button.set_tooltip_text(Some("Select"));
+        select_button.connect_clicked(clone!(@weak obj => move |_self| {
+            obj.imp().glyph_state.get().unwrap().borrow_mut().tool = Tool::SelectEmpty;
+            obj.imp().viewport.queue_draw();
         }));
 
         let bezier_button = gtk::ToolButton::new(
@@ -655,6 +678,8 @@ impl ObjectImpl for GlyphEditViewInner {
         toolbar.set_item_homogeneous(&panning_button, false);
         toolbar.add(&manipulate_button);
         toolbar.set_item_homogeneous(&manipulate_button, false);
+        toolbar.add(&select_button);
+        toolbar.set_item_homogeneous(&select_button, false);
         toolbar.add(&bezier_button);
         toolbar.set_item_homogeneous(&bezier_button, false);
         toolbar.add(&bspline_button);

@@ -37,7 +37,18 @@ impl Default for ControlPointMode {
 #[derive(Debug, Clone)]
 pub enum Tool {
     Panning,
-    Manipulate { mode: ControlPointMode },
+    Manipulate {
+        mode: ControlPointMode,
+    },
+    SelectEmpty,
+    Select {
+        upper_left: UnitPoint,
+        bottom_right: UnitPoint,
+    },
+    SelectInactive {
+        upper_left: UnitPoint,
+        bottom_right: UnitPoint,
+    },
 }
 
 impl Default for Tool {
@@ -63,6 +74,13 @@ impl Tool {
             Tool::Manipulate {
                 mode: ControlPointMode::Drag
             }
+        ) && !self.is_select()
+    }
+
+    pub fn is_select(&self) -> bool {
+        matches!(
+            self,
+            Tool::Select { .. } | Tool::SelectInactive { .. } | Tool::SelectEmpty
         )
     }
 
@@ -123,7 +141,7 @@ impl Tool {
                         }
                     }
                     if !is_guideline {
-                        let pts = glyph_state.kd_tree.borrow().query(position, 10);
+                        let pts = glyph_state.kd_tree.borrow().query_point(position, 10);
                         glyph_state.tool = Tool::Manipulate {
                             mode: ControlPointMode::Drag,
                         };
@@ -133,6 +151,28 @@ impl Tool {
                 }
                 _ => {}
             },
+            Tool::SelectEmpty => {
+                let event_position = event.position();
+                let position = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                glyph_state.tool = Tool::Select {
+                    upper_left: position,
+                    bottom_right: position,
+                };
+
+                return Inhibit(true);
+            }
+            Tool::Select {
+                upper_left: _,
+                bottom_right: _,
+            } => {
+                /* ignore */
+                return Inhibit(true);
+            }
+            Tool::SelectInactive { .. } => {
+                glyph_state.tool = Tool::SelectEmpty;
+                glyph_state.set_selection(&[]);
+                return Inhibit(true);
+            }
             Tool::Panning => match event.button() {
                 gtk::gdk::BUTTON_MIDDLE => {
                     glyph_state.tool = Tool::Panning;
@@ -147,7 +187,7 @@ impl Tool {
 
     pub fn on_button_release_event(
         obj: GlyphEditView,
-        _viewport: &Canvas,
+        viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
@@ -163,6 +203,26 @@ impl Tool {
                 }
                 _ => {}
             },
+            Tool::SelectEmpty => return Inhibit(true),
+            Tool::Select {
+                upper_left,
+                bottom_right: _,
+            } => {
+                let event_position = event.position();
+                let bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                glyph_state.tool = Tool::SelectInactive {
+                    upper_left,
+                    bottom_right,
+                };
+                let pts = glyph_state
+                    .kd_tree
+                    .borrow()
+                    .query_region((upper_left.0, bottom_right.0));
+                glyph_state.set_selection(&pts);
+
+                return Inhibit(true);
+            }
+            Tool::SelectInactive { .. } => return Inhibit(true),
         }
 
         Inhibit(false)
@@ -184,29 +244,45 @@ impl Tool {
         } else {
             let UnitPoint(position) =
                 viewport.view_to_unit_point(ViewPoint(event.position().into()));
-            if let Tool::Manipulate {
-                mode: ControlPointMode::Drag,
-            } = glyph_state.tool
-            {
-                glyph_state.update_positions(position);
-            } else if let Tool::Manipulate {
-                mode: ControlPointMode::DragGuideline(idx),
-            } = glyph_state.tool
-            {
-                let mut action = glyph_state.update_guideline(idx, position);
-                (action.redo)();
-                let app: &crate::Application = crate::Application::from_instance(
-                    &obj.imp()
-                        .app
-                        .get()
-                        .unwrap()
-                        .downcast_ref::<crate::GerbApp>()
-                        .unwrap(),
-                );
-                let undo_db = app.undo_db.borrow_mut();
-                undo_db.event(action);
+            match glyph_state.tool {
+                Tool::Panning => unreachable!(),
+                Tool::Manipulate {
+                    mode: ControlPointMode::Drag,
+                } => {
+                    glyph_state.update_positions(position);
+                }
+                Tool::Manipulate {
+                    mode: ControlPointMode::DragGuideline(idx),
+                } => {
+                    let mut action = glyph_state.update_guideline(idx, position);
+                    (action.redo)();
+                    let app: &crate::Application = crate::Application::from_instance(
+                        &obj.imp()
+                            .app
+                            .get()
+                            .unwrap()
+                            .downcast_ref::<crate::GerbApp>()
+                            .unwrap(),
+                    );
+                    let undo_db = app.undo_db.borrow_mut();
+                    undo_db.event(action);
+                }
+                Tool::Manipulate {
+                    mode: ControlPointMode::None,
+                } => {}
+                Tool::SelectEmpty => return Inhibit(true),
+                Tool::Select {
+                    upper_left: _,
+                    ref mut bottom_right,
+                } => {
+                    let event_position = event.position();
+                    *bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    return Inhibit(true);
+                }
+                Tool::SelectInactive { .. } => return Inhibit(true),
             }
-            let pts = glyph_state.kd_tree.borrow().query(position, 10);
+
+            let pts = glyph_state.kd_tree.borrow().query_point(position, 10);
             if pts.is_empty() {
                 obj.imp().hovering.set(None);
                 if let Some(screen) = viewport.window() {

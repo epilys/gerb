@@ -19,7 +19,9 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
+use glib::{
+    clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
+};
 use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib;
 use gtk::prelude::*;
@@ -47,7 +49,7 @@ pub struct CollectionInner {
     hide_empty: Cell<bool>,
     zoom_factor: Cell<f64>,
     filter_input: RefCell<Option<String>>,
-    widgets: OnceCell<Vec<GlyphBoxItem>>,
+    widgets: OnceCell<Vec<GlyphBox>>,
 }
 
 #[glib::object_subclass]
@@ -105,8 +107,7 @@ impl ObjectImpl for CollectionInner {
         zoom_scale.set_value(1.0);
         zoom_scale.connect_value_changed(clone!(@weak obj => move |_self| {
             let value = _self.value();
-            let imp = obj.imp();
-            imp.zoom_factor.set(value);
+            obj.set_property(Collection::ZOOM_FACTOR, value);
             obj.update_grid();
         }));
 
@@ -335,7 +336,7 @@ impl ObjectImpl for CollectionInner {
         );
         obj.set_child(Some(&overlay));
         self.hide_empty.set(false);
-        self.zoom_factor.set(1.0);
+        obj.set_property(Collection::ZOOM_FACTOR, 1.0);
         self.tree.set(tree).unwrap();
         self.tree_store.set(store).unwrap();
 
@@ -362,6 +363,15 @@ impl ObjectImpl for CollectionInner {
                         false,
                         ParamFlags::READABLE,
                     ),
+                    ParamSpecDouble::new(
+                        Collection::ZOOM_FACTOR,
+                        Collection::ZOOM_FACTOR,
+                        Collection::ZOOM_FACTOR,
+                        0.0,
+                        std::f64::MAX,
+                        1.0,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -371,6 +381,14 @@ impl ObjectImpl for CollectionInner {
         match pspec.name() {
             "title" => "collection".to_value(),
             "closeable" => false.to_value(),
+            Collection::ZOOM_FACTOR => self.zoom_factor.get().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            Collection::ZOOM_FACTOR => self.zoom_factor.set(value.get().unwrap()),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -387,6 +405,7 @@ glib::wrapper! {
 }
 
 impl Collection {
+    pub const ZOOM_FACTOR: &str = "zoom-factor";
     pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         let grid = ret.imp().grid.get().unwrap();
@@ -396,7 +415,10 @@ impl Collection {
             let mut glyphs = glyphs_b.values().collect::<Vec<&Rc<RefCell<Glyph>>>>();
             glyphs.sort();
             for glyph in glyphs {
-                let glyph_box = GlyphBoxItem::new(app.clone(), project.clone(), glyph.clone());
+                let glyph_box = GlyphBox::new(app.clone(), project.clone(), glyph.clone());
+                ret.bind_property(Self::ZOOM_FACTOR, &glyph_box, GlyphBox::ZOOM_FACTOR)
+                    .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
+                    .build();
                 grid.add(&glyph_box);
                 widgets.push(glyph_box);
             }
@@ -483,12 +505,11 @@ impl Collection {
                 let child = flowbox.child();
                 if let Some(c) = child
                     .as_ref()
-                    .and_then(|w| w.downcast_ref::<GlyphBoxItem>())
+                    .and_then(|w| w.downcast_ref::<GlyphBox>())
                 {
                     c.set_height_request((zoom_factor * GLYPH_BOX_HEIGHT) as i32);
                     c.set_width_request((zoom_factor * GLYPH_BOX_WIDTH) as i32);
                     c.queue_draw();
-                    c.imp().zoom_factor.set(zoom_factor);
                     let show_blocks = show_blocks.borrow();
                     let filter_input = filter_input.borrow();
                     let glyph = c.imp().glyph.get().unwrap().borrow();
@@ -536,29 +557,30 @@ impl Collection {
 }
 
 #[derive(Debug, Default)]
-pub struct GlyphBox {
+pub struct GlyphBoxInner {
     pub app: OnceCell<gtk::Application>,
     pub project: OnceCell<Project>,
     pub glyph: OnceCell<Rc<RefCell<Glyph>>>,
     pub focused: Cell<bool>,
     pub zoom_factor: Cell<f64>,
+    pub show_details: Cell<bool>,
     pub drawing_area: OnceCell<gtk::DrawingArea>,
 }
+
+unsafe impl Send for GlyphBoxInner {}
+unsafe impl Sync for GlyphBoxInner {}
 
 unsafe impl Send for GlyphBox {}
 unsafe impl Sync for GlyphBox {}
 
-unsafe impl Send for GlyphBoxItem {}
-unsafe impl Sync for GlyphBoxItem {}
-
 #[glib::object_subclass]
-impl ObjectSubclass for GlyphBox {
+impl ObjectSubclass for GlyphBoxInner {
     const NAME: &'static str = "GlyphBox";
-    type Type = GlyphBoxItem;
+    type Type = GlyphBox;
     type ParentType = gtk::EventBox;
 }
 
-impl ObjectImpl for GlyphBox {
+impl ObjectImpl for GlyphBoxInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         obj.set_height_request(GLYPH_BOX_HEIGHT as _);
@@ -572,7 +594,7 @@ impl ObjectImpl for GlyphBox {
                     gtk::gdk::BUTTON_SECONDARY => {
                         println!("context-menu");
                         let context_menu = crate::utils::menu::Menu::new()
-                            .add_button_cb("Edit in canvas", clone!(@weak obj => @default-return Inhibit(false), move |_, _| {
+                            .add_button_cb("Edit in canvas", clone!(@strong obj => @default-return Inhibit(false), move |_, _| {
                                 obj.emit_open_glyph_edit();
                                 Inhibit(true)
                             })).add_button("Edit properties")
@@ -615,10 +637,8 @@ impl ObjectImpl for GlyphBox {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
-            let units_per_em = obj.imp().project.get().unwrap().property("units-per-em");
-            //cr.scale(500f64, 500f64);
-            //let (r, g, b) = crate::utils::hex_color_to_rgb("#c4c4c4").unwrap();
-            //cr.set_source_rgb(r, g, b);
+            let units_per_em = obj.imp().project.get().unwrap().property(Project::UNITS_PER_EM);
+
             cr.set_source_rgb(1., 1., 1.);
             cr.paint().expect("Invalid cairo surface state");
 
@@ -743,14 +763,68 @@ impl ObjectImpl for GlyphBox {
         self.focused.set(false);
         self.zoom_factor.set(1.0);
     }
+
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    ParamSpecBoolean::new(
+                        GlyphBox::SHOW_DETAILS,
+                        GlyphBox::SHOW_DETAILS,
+                        GlyphBox::SHOW_DETAILS,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        GlyphBox::ZOOM_FACTOR,
+                        GlyphBox::ZOOM_FACTOR,
+                        GlyphBox::ZOOM_FACTOR,
+                        0.0,
+                        std::f64::MAX,
+                        1.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoolean::new(
+                        GlyphBox::FOCUSED,
+                        GlyphBox::FOCUSED,
+                        GlyphBox::FOCUSED,
+                        false,
+                        ParamFlags::READABLE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+        match pspec.name() {
+            GlyphBox::SHOW_DETAILS => self.show_details.get().to_value(),
+            GlyphBox::ZOOM_FACTOR => self.zoom_factor.get().to_value(),
+            GlyphBox::FOCUSED => self.focused.get().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            GlyphBox::SHOW_DETAILS => self.show_details.set(value.get().unwrap()),
+            GlyphBox::ZOOM_FACTOR => self.zoom_factor.set(value.get().unwrap()),
+            GlyphBox::FOCUSED => self.focused.set(value.get().unwrap()),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
 }
 
-impl WidgetImpl for GlyphBox {}
-impl ContainerImpl for GlyphBox {}
-impl BinImpl for GlyphBox {}
-impl EventBoxImpl for GlyphBox {}
+impl WidgetImpl for GlyphBoxInner {}
+impl ContainerImpl for GlyphBoxInner {}
+impl BinImpl for GlyphBoxInner {}
+impl EventBoxImpl for GlyphBoxInner {}
 
-impl GlyphBoxItem {
+impl GlyphBox {
+    pub const SHOW_DETAILS: &str = "show-details";
+    pub const ZOOM_FACTOR: &str = Collection::ZOOM_FACTOR;
+    pub const FOCUSED: &str = "focused";
+
     fn emit_open_glyph_edit(&self) {
         self.imp()
             .app
@@ -767,11 +841,11 @@ impl GlyphBoxItem {
 }
 
 glib::wrapper! {
-    pub struct GlyphBoxItem(ObjectSubclass<GlyphBox>)
+    pub struct GlyphBox(ObjectSubclass<GlyphBoxInner>)
         @extends gtk::Widget, gtk::Container, gtk::Bin, gtk::EventBox;
 }
 
-impl GlyphBoxItem {
+impl GlyphBox {
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().app.set(app).unwrap();
