@@ -33,7 +33,7 @@ use gtk::subclass::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-const RULER_BREADTH: f64 = 13.;
+const RULER_BREADTH: f64 = 13.0;
 #[derive(Debug, Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct UnitPoint(pub Point);
@@ -50,6 +50,7 @@ pub struct CanvasInner {
     pub inner_fill: Cell<bool>,
     pub transformation: Transformation,
     pub show_total_area: Cell<bool>,
+    pub show_rulers: Cell<bool>,
     pub warp_cursor: Cell<bool>,
     view_height: Cell<f64>,
     view_width: Cell<f64>,
@@ -74,6 +75,7 @@ impl ObjectImpl for CanvasInner {
         self.show_handles.set(true);
         self.inner_fill.set(false);
         self.show_total_area.set(true);
+        self.show_rulers.set(true);
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))
@@ -107,6 +109,7 @@ impl ObjectImpl for CanvasInner {
                     .iter()
                     .chain(viewport.imp().layers.borrow().iter())
                     .chain(viewport.imp().post_layers.borrow().iter())
+                    .filter(Layer::is_active)
                 {
                     retval = (layer.get_callback())(viewport, cr);
                 }
@@ -162,6 +165,13 @@ impl ObjectImpl for CanvasInner {
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
+                        Canvas::SHOW_RULERS,
+                        Canvas::SHOW_RULERS,
+                        Canvas::SHOW_RULERS,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoolean::new(
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
@@ -208,16 +218,18 @@ impl ObjectImpl for CanvasInner {
             Canvas::INNER_FILL => self.inner_fill.get().to_value(),
             Canvas::TRANSFORMATION => self.transformation.to_value(),
             Canvas::SHOW_TOTAL_AREA => self.show_total_area.get().to_value(),
+            Canvas::SHOW_RULERS => self.show_rulers.get().to_value(),
             Canvas::WARP_CURSOR => self.warp_cursor.get().to_value(),
             Canvas::VIEW_HEIGHT => (self.instance().allocated_height() as f64).to_value(),
             Canvas::VIEW_WIDTH => (self.instance().allocated_width() as f64).to_value(),
-            Canvas::RULER_BREADTH_PIXELS => {
+            Canvas::RULER_BREADTH_PIXELS => RULER_BREADTH.to_value(),
+            /*Canvas::RULER_BREADTH_UNITS => {
                 let ppu = self
                     .transformation
                     .property::<f64>(Transformation::PIXELS_PER_UNIT);
                 let scale: f64 = self.transformation.property::<f64>(Transformation::SCALE);
                 (RULER_BREADTH / (scale * ppu)).to_value()
-            }
+            }*/
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -239,6 +251,9 @@ impl ObjectImpl for CanvasInner {
             Canvas::TRANSFORMATION => {}
             Canvas::SHOW_TOTAL_AREA => {
                 self.show_total_area.set(value.get().unwrap());
+            }
+            Canvas::SHOW_RULERS => {
+                self.show_rulers.set(value.get().unwrap());
             }
             Canvas::WARP_CURSOR => {
                 self.warp_cursor.set(value.get().unwrap());
@@ -272,6 +287,7 @@ impl Canvas {
     pub const SHOW_GUIDELINES: &str = "show-guidelines";
     pub const SHOW_HANDLES: &str = "show-handles";
     pub const SHOW_TOTAL_AREA: &str = "show-total-area";
+    pub const SHOW_RULERS: &str = "show-rules";
     pub const TRANSFORMATION: &str = "transformation";
     pub const WARP_CURSOR: &str = "warp-cursor";
     pub const MOUSE: &str = "mouse";
@@ -300,159 +316,147 @@ impl Canvas {
     }
 
     pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        let show_grid: bool = self.property::<bool>(Canvas::SHOW_GRID);
+        if !self.property::<bool>(Canvas::SHOW_GRID) {
+            return Inhibit(false);
+        }
+
         let scale: f64 = self
             .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
-        let cw: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
-        let ch: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
         let ppu = self
             .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
+        let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
+        let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
+        let ViewPoint(camera) = self.imp().transformation.camera();
 
-        let UnitPoint(camera) = self.imp().transformation.camera();
         cr.save().unwrap();
-        //cr.scale(scale, scale);
-        let mut matrix = cairo::Matrix::identity();
-        //matrix.translate(cw / 2.0, ch / 2.0);
-        matrix.scale(ppu * scale, ppu * scale);
-        cr.transform(matrix);
+
         cr.set_source_rgb(1.0, 1.0, 1.0);
         cr.paint().unwrap();
-        cr.set_line_width(0.5);
+        cr.set_line_width(1.5);
 
-        let (unit_width, unit_height) = (cw / (scale * ppu), ch / (scale * ppu));
-
-        if show_grid {
-            for &(color, step) in &[(0.9, 5.0), (0.8, 100.0)] {
-                cr.set_source_rgb(color, color, color);
-                let mut y = -camera.y % step + 0.5;
-                while y < (unit_height) {
-                    cr.move_to(0.5, y);
-                    cr.line_to(unit_width + 0.5, y);
-                    y += step;
-                }
-                cr.stroke().unwrap();
-                let mut x = camera.x % step + 0.5;
-                while x < (unit_width) {
-                    cr.move_to(x, 0.5);
-                    cr.line_to(x, unit_height + 0.5);
-                    x += step;
-                }
-                cr.stroke().unwrap();
+        for &(color, step) in &[(0.9, 50.0 * scale * ppu), (0.8, 200.0 * scale * ppu)] {
+            cr.set_source_rgb(color, color, color);
+            let mut y = camera.y.rem_euclid(step).floor() + 0.5;
+            while y < height {
+                cr.move_to(0.0, y);
+                cr.line_to(width, y);
+                y += step;
             }
+            cr.stroke().unwrap();
+            let mut x = camera.x.rem_euclid(step).floor() + 0.5;
+            while x < width {
+                cr.move_to(x, 0.0);
+                cr.line_to(x, height);
+                x += step;
+            }
+            cr.stroke().unwrap();
         }
         cr.restore().unwrap();
         Inhibit(false)
     }
 
     pub fn draw_rulers(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        let scale: f64 = self
+        if !self.imp().show_rulers.get() {
+            return Inhibit(false);
+        }
+        let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
+        let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
+        let ruler_breadth: f64 = self.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
+        let scale = self
             .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
-        let cw: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
-        let ch: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
         let ppu = self
             .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
+        let ViewPoint(camera) = self.imp().transformation.camera();
 
-        let UnitPoint(camera) = self.imp().transformation.camera();
         cr.save().unwrap();
-        //cr.scale(scale, scale);
-        let mut matrix = cairo::Matrix::identity();
-        //matrix.translate(cw / 2.0, ch / 2.0);
-        matrix.scale(ppu * scale, ppu * scale);
-        cr.transform(matrix);
-        cr.set_line_width(0.5);
+        cr.set_line_width(1.0);
 
-        let (unit_width, unit_height) = (cw / (scale * ppu), ch / (scale * ppu));
+        let font_size = 6.0;
+        let v @ ViewPoint(view_mouse) = self.get_mouse();
+        let UnitPoint(mouse) = self.view_to_unit_point(v);
 
-        let ruler_breadth = RULER_BREADTH / (scale * ppu);
-        let font_size = 6.0 / (scale * ppu);
-        let UnitPoint(mouse) = self.view_to_unit_point(self.get_mouse());
         /* Draw rulers */
-        cr.rectangle(0., 0., unit_width, ruler_breadth);
-        cr.set_source_rgb(1., 1., 1.);
-        cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_rgb(0., 0., 0.);
-        cr.stroke_preserve().unwrap();
-        cr.set_source_rgb(0., 0., 0.);
-        cr.move_to(mouse.x - camera.x, 0.);
-        cr.line_to(mouse.x - camera.x, ruler_breadth);
-        cr.stroke().unwrap();
-        cr.move_to(mouse.x - camera.x + 1., 2. * ruler_breadth / 3.);
-        cr.set_font_size(font_size);
-        cr.show_text(&format!("{:.0}", (mouse.x - camera.x)))
-            .unwrap();
 
-        cr.rectangle(0., ruler_breadth, ruler_breadth, unit_height);
-        cr.set_source_rgb(1., 1., 1.);
+        cr.save().unwrap();
+        cr.rectangle(0.0, ruler_breadth, ruler_breadth, height);
+        cr.set_source_rgb(1.0, 1.0, 1.0);
         cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_rgb(0., 0., 0.);
+        cr.set_source_rgb(0.0, 0.0, 0.0);
         cr.stroke_preserve().unwrap();
-        cr.set_source_rgb(0., 0., 0.);
-        cr.move_to(0., mouse.y);
-        cr.line_to(ruler_breadth, mouse.y);
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.move_to(0.0, view_mouse.y);
+        cr.line_to(ruler_breadth, view_mouse.y);
         cr.stroke().unwrap();
-        cr.move_to(2. * ruler_breadth / 3., mouse.y - 1.);
+        cr.move_to(2.0 * ruler_breadth / 3.0, view_mouse.y - 1.0);
         cr.set_font_size(font_size);
-        cr.save().expect("Invalid cairo surface state");
         cr.rotate(-std::f64::consts::FRAC_PI_2);
-        //cr.show_text(&format!("{:.0}", units_per_em - (mouse.y - camera.y * zoom_factor) / (f * zoom_factor))).unwrap();
+        cr.show_text(&format!("{:.0}", mouse.y)).unwrap();
         cr.restore().expect("Invalid cairo surface state");
+
+        cr.save().unwrap();
+        cr.rectangle(0.0, 0.0, width, ruler_breadth);
+        cr.set_source_rgb(1.0, 1.0, 1.0);
+        cr.fill_preserve().expect("Invalid cairo surface state");
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.stroke_preserve().unwrap();
+        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.stroke().unwrap();
+        cr.arc(
+            camera.x,
+            camera.y,
+            5.0 + 1.0,
+            0.,
+            2.0 * std::f64::consts::PI,
+        );
+        cr.stroke().unwrap();
+        let step: f64 = 200.0 * (scale * ppu);
+        let mut x = camera.x.rem_euclid(step).floor() + 0.5;
+        while x < width {
+            cr.move_to(x, 0.0);
+            cr.line_to(x, ruler_breadth);
+            cr.stroke().unwrap();
+            for i in 1..10 {
+                cr.move_to(x + i as f64 * step / 10.0, ruler_breadth / 2.0);
+                cr.line_to(x + i as f64 * step / 10.0, ruler_breadth);
+                cr.stroke().unwrap();
+            }
+            x += step;
+        }
+        cr.move_to(view_mouse.x, 0.0);
+        cr.line_to(view_mouse.x, ruler_breadth);
+        cr.stroke().unwrap();
+        cr.move_to(view_mouse.x + 1.0, 2.0 * ruler_breadth / 3.0);
+        cr.set_font_size(font_size);
+        cr.show_text(&format!("{:.0}", mouse.x)).unwrap();
+        cr.restore().expect("Invalid cairo surface state");
+
         cr.restore().unwrap();
 
         Inhibit(false)
     }
 
-    pub fn view_to_unit_point(&self, viewpoint: ViewPoint) -> UnitPoint {
-        let UnitPoint(camera) = self.imp().transformation.camera();
-        let scale = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::SCALE);
-        let ppu = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::PIXELS_PER_UNIT);
-        let ch = self.property::<f64>(Self::VIEW_HEIGHT);
-        let cw = self.property::<f64>(Self::VIEW_WIDTH);
-        let ViewPoint(viewpoint) = viewpoint;
-        let mut retval: Point = viewpoint;
-        retval.y *= -1.0;
-        retval.x -= cw / 2.0;
-        retval.y += ch / 2.0;
-        retval /= scale * ppu;
-        retval = retval - camera;
-
-        UnitPoint(retval)
+    pub fn view_to_unit_point(&self, ViewPoint(viewpoint): ViewPoint) -> UnitPoint {
+        let mut matrix = self.imp().transformation.matrix();
+        matrix.invert();
+        UnitPoint(matrix.transform_point(viewpoint.x, viewpoint.y).into())
     }
 
-    pub fn unit_to_view_point(&self, unitpoint: UnitPoint) -> ViewPoint {
-        let UnitPoint(camera) = self.imp().transformation.camera();
-        let scale = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::SCALE);
-        let ppu = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::PIXELS_PER_UNIT);
-        let ch = self.property::<f64>(Self::VIEW_HEIGHT);
-        let cw = self.property::<f64>(Self::VIEW_WIDTH);
-        let UnitPoint(unitpoint) = unitpoint;
-        let mut retval: Point = unitpoint + camera;
-        retval *= ppu;
-        retval *= scale;
-        retval.y *= -1.0;
-        retval.x += cw / 2.0;
-        retval.y += ch / 2.0;
-
-        ViewPoint(retval)
+    pub fn unit_to_view_point(&self, UnitPoint(unitpoint): UnitPoint) -> ViewPoint {
+        ViewPoint(
+            self.imp()
+                .transformation
+                .matrix()
+                .transform_point(unitpoint.x, unitpoint.y)
+                .into(),
+        )
     }
 
     pub fn set_mouse(&self, new_value: ViewPoint) {
@@ -461,6 +465,13 @@ impl Canvas {
 
     pub fn get_mouse(&self) -> ViewPoint {
         self.imp().mouse.get()
+    }
+
+    pub fn set_cursor(&self, name: &str) {
+        if let Some(screen) = self.window() {
+            let display = screen.display();
+            screen.set_cursor(Some(&gtk::gdk::Cursor::from_name(&display, name).unwrap()));
+        }
     }
 }
 

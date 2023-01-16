@@ -45,9 +45,7 @@ mod tools;
 mod visibility_toggles;
 
 use super::{Canvas, Transformation, UnitPoint, ViewPoint};
-use tools::Tool;
-
-const EM_SQUARE_PIXELS: f64 = 200.0;
+use tools::{PanningTool, Tool, ToolImpl};
 
 #[derive(Debug, Clone)]
 pub enum ControlPointKind {
@@ -76,7 +74,9 @@ pub struct GlyphState {
     pub glyph: Rc<RefCell<Glyph>>,
     pub reference: Rc<RefCell<Glyph>>,
     pub viewport: Canvas,
-    pub tool: Tool,
+    pub tools: HashMap<glib::types::Type, ToolImpl>,
+    pub active_tool: glib::types::Type,
+    pub default_tool: glib::types::Type,
     selection: Vec<((usize, usize), Uuid)>,
     pub points: Rc<RefCell<HashMap<((usize, usize), Uuid), ControlPoint>>>,
     pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
@@ -89,7 +89,9 @@ impl GlyphState {
             glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
             reference: Rc::clone(glyph),
             viewport,
-            tool: Tool::default(),
+            tools: HashMap::default(),
+            active_tool: glib::types::Type::INVALID,
+            default_tool: PanningTool::static_type(),
             selection: vec![],
             points: Rc::new(RefCell::new(HashMap::default())),
             kd_tree: Rc::new(RefCell::new(crate::utils::range_query::KdTree::new(&[]))),
@@ -212,7 +214,7 @@ impl GlyphState {
         let mut action = self.update_point(&self.selection, new_pos);
         (action.redo)();
         let app: &crate::Application =
-            crate::Application::from_instance(&self.app.downcast_ref::<crate::GerbApp>().unwrap());
+            crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
         let undo_db = app.undo_db.borrow_mut();
         undo_db.event(action);
     }
@@ -278,7 +280,7 @@ impl GlyphState {
     fn delete_guideline(&self, idx: usize) -> crate::Action {
         let viewport = self.viewport.clone();
         let json: serde_json::Value =
-            { serde_json::to_value(&self.glyph.borrow().guidelines[idx].imp()).unwrap() };
+            { serde_json::to_value(self.glyph.borrow().guidelines[idx].imp()).unwrap() };
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
@@ -389,7 +391,6 @@ pub struct GlyphEditViewInner {
     hovering: Cell<Option<(usize, usize)>>,
     pub toolbar_box: gtk::Box,
     pub viewhidebox: OnceCell<visibility_toggles::ViewHideBox>,
-    zoom_percent_label: gtk::Label,
     units_per_em: Cell<f64>,
     descender: Cell<f64>,
     x_height: Cell<f64>,
@@ -435,6 +436,9 @@ impl ObjectImpl for GlyphEditViewInner {
         self.viewport.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let retval = Tool::on_button_press_event(obj, viewport, event);
+                if retval == Inhibit(true) {
+                    viewport.queue_draw();
+                }
                 viewport.set_mouse(ViewPoint(event.position().into()));
                 retval
             }),
@@ -443,6 +447,9 @@ impl ObjectImpl for GlyphEditViewInner {
         self.viewport.connect_button_release_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let retval = Tool::on_button_release_event(obj, viewport, event);
+                if retval == Inhibit(true) {
+                    viewport.queue_draw();
+                }
                 viewport.set_mouse(ViewPoint(event.position().into()));
                 retval
             }),
@@ -497,204 +504,6 @@ impl ObjectImpl for GlyphEditViewInner {
                 .set_callback(Some(Box::new(Canvas::draw_rulers)))
                 .build(),
         );
-        self.toolbar_box
-            .set_orientation(gtk::Orientation::Horizontal);
-        self.toolbar_box.set_expand(false);
-        self.toolbar_box.set_halign(gtk::Align::Center);
-        self.toolbar_box.set_valign(gtk::Align::Start);
-        self.toolbar_box.set_spacing(5);
-        self.toolbar_box.set_visible(true);
-        self.toolbar_box.set_can_focus(true);
-        let toolbar = gtk::Toolbar::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .expand(false)
-            .halign(gtk::Align::Center)
-            .valign(gtk::Align::Start)
-            //.toolbar_style(gtk::ToolbarStyle::Both)
-            .visible(true)
-            .can_focus(true)
-            .build();
-
-        let panning_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::GRAB_ICON_SVG,
-            )),
-            Some("panning"),
-        );
-        panning_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        panning_button.set_tooltip_text(Some("Pan"));
-        panning_button.connect_clicked(clone!(@weak obj => move |_self| {
-        }));
-
-        let manipulate_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::SELECT_ICON_SVG,
-            )),
-            Some("Manipulate"),
-        );
-        manipulate_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        manipulate_button.set_tooltip_text(Some("Manipulate"));
-        manipulate_button.connect_clicked(clone!(@weak obj => move |_self| {
-        }));
-
-        let select_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::SELECT_ICON_SVG,
-            )),
-            Some("Select"),
-        );
-        select_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        select_button.set_tooltip_text(Some("Select"));
-        select_button.connect_clicked(clone!(@weak obj => move |_self| {
-            obj.imp().glyph_state.get().unwrap().borrow_mut().tool = Tool::SelectEmpty;
-            obj.imp().viewport.queue_draw();
-        }));
-
-        let bezier_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::BEZIER_ICON_SVG,
-            )),
-            Some("Create Bézier curve"),
-        );
-        bezier_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        bezier_button.set_tooltip_text(Some("Create Bézier curve"));
-        bezier_button.connect_clicked(clone!(@weak obj => move |_self| {
-        }));
-
-        let bspline_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::BSPLINE_ICON_SVG,
-            )),
-            Some("Create b-spline curve"),
-        );
-        bspline_button.set_visible(true);
-        // FIXME: doesn't seem to work?
-        bspline_button.set_tooltip_text(Some("Create b-spline curve"));
-
-        /*let pen_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::PEN_ICON_SVG,
-            )),
-            Some("Pen"),
-        );
-        pen_button.set_visible(true);
-        pen_button.set_tooltip_text(Some("Pen"));*/
-
-        let zoom_in_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::ZOOM_IN_ICON_SVG,
-            )),
-            Some("Zoom in"),
-        );
-        zoom_in_button.set_visible(true);
-        zoom_in_button.set_tooltip_text(Some("Zoom in"));
-        zoom_in_button.connect_clicked(clone!(@weak obj => move |_| {
-            let t = &obj.imp().viewport.imp().transformation;
-            t.zoom_in();
-        }));
-        let zoom_out_button = gtk::ToolButton::new(
-            Some(&crate::resources::svg_to_image_widget(
-                crate::resources::ZOOM_OUT_ICON_SVG,
-            )),
-            Some("Zoom out"),
-        );
-        zoom_out_button.set_visible(true);
-        zoom_out_button.set_tooltip_text(Some("Zoom out"));
-        zoom_out_button.connect_clicked(clone!(@weak obj => move |_| {
-            let t = &obj.imp().viewport.imp().transformation;
-            t.zoom_out();
-        }));
-
-        self.zoom_percent_label.set_label("100%");
-        self.zoom_percent_label.set_visible(true);
-        self.zoom_percent_label.set_selectable(true); // So that the widget can receive the button-press event
-        self.zoom_percent_label.set_width_chars(5); // So that if 2 digit zoom (<100%) has the same length as a widget with a three digit zoom value. For example 75% and 125% should result in the same width
-        self.zoom_percent_label
-            .set_events(gtk::gdk::EventMask::BUTTON_PRESS_MASK);
-        self.zoom_percent_label
-            .set_tooltip_text(Some("Interface zoom percentage"));
-
-        self.zoom_percent_label.connect_button_press_event(
-            clone!(@weak obj => @default-return Inhibit(false), move |_self, _event| {
-                let t = &obj.imp().viewport.imp().transformation;
-                t.reset_zoom();
-                Inhibit(false)
-            }),
-        );
-        self.viewport
-            .imp()
-            .transformation
-            .bind_property(Transformation::SCALE, &self.zoom_percent_label, "label")
-            .transform_to(|_, scale: &Value| {
-                let scale: f64 = scale.get().ok()?;
-                Some(format!("{:.0}%", scale * 100.).to_value())
-            })
-            .build();
-        let debug_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Debug info"));
-        debug_button.set_visible(true);
-        debug_button.set_tooltip_text(Some("Debug info"));
-        debug_button.connect_clicked(clone!(@weak obj => move |_| {
-            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-            let glyph = glyph_state.glyph.borrow();
-            let window = gtk::Window::new(gtk::WindowType::Toplevel);
-            window.set_default_size(640, 480);
-            let hbox = gtk::Box::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .valign(gtk::Align::Fill)
-                .expand(false)
-                .spacing(5)
-                .visible(true)
-                .can_focus(true)
-                .build();
-            let glyph_info = gtk::Label::new(Some(&format!("{:#?}", glyph.contours)));
-            glyph_info.set_halign(gtk::Align::Start);
-            let scrolled_window = gtk::ScrolledWindow::builder()
-                .expand(true)
-                .visible(true)
-                .can_focus(true)
-                .margin_start(5)
-                .build();
-            scrolled_window.set_child(Some(&glyph_info));
-            hbox.pack_start(&scrolled_window, true, true, 0);
-            hbox.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, true, 0);
-            let scrolled_window = gtk::ScrolledWindow::builder()
-                .expand(true)
-                .visible(true)
-                .can_focus(true)
-                .margin_start(5)
-                .build();
-            let glif_info = gtk::Label::new(Some(&glyph.glif_source));
-            glif_info.set_halign(gtk::Align::Start);
-            scrolled_window.set_child(Some(&glif_info));
-            hbox.pack_start(&scrolled_window, true, true, 0);
-            window.add(&hbox);
-            window.show_all();
-        }));
-        toolbar.add(&panning_button);
-        toolbar.set_item_homogeneous(&panning_button, false);
-        toolbar.add(&manipulate_button);
-        toolbar.set_item_homogeneous(&manipulate_button, false);
-        toolbar.add(&select_button);
-        toolbar.set_item_homogeneous(&select_button, false);
-        toolbar.add(&bezier_button);
-        toolbar.set_item_homogeneous(&bezier_button, false);
-        toolbar.add(&bspline_button);
-        toolbar.set_item_homogeneous(&bspline_button, false);
-        toolbar.add(&zoom_in_button);
-        toolbar.set_item_homogeneous(&zoom_in_button, false);
-        toolbar.add(&zoom_out_button);
-        toolbar.set_item_homogeneous(&zoom_out_button, false);
-        self.toolbar_box.pack_start(&toolbar, false, false, 0);
-        self.toolbar_box
-            .pack_start(&self.zoom_percent_label, false, false, 0);
-        self.toolbar_box.pack_start(&debug_button, false, false, 0);
-        self.toolbar_box
-            .style_context()
-            .add_class("glyph-edit-toolbox");
         let viewhidebox = visibility_toggles::ViewHideBox::new(&self.viewport);
         self.overlay.set_child(&self.viewport);
         self.overlay.add_overlay(Child::new(
@@ -859,14 +668,14 @@ impl GlyphEditViewInner {
         }
     }
 
-    fn select_object(&self, new_obj: Option<glib::Object>) {
-        if let Some(app) = self
+    fn select_object(&self, _new_obj: Option<glib::Object>) {
+        if let Some(_app) = self
             .app
             .get()
             .and_then(|app| app.downcast_ref::<crate::GerbApp>())
         {
-            let tabinfo = app.tabinfo();
-            tabinfo.set_object(new_obj);
+            //let tabinfo = app.tabinfo();
+            //tabinfo.set_object(new_obj);
         }
     }
 }
@@ -889,6 +698,12 @@ impl GlyphEditView {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().glyph.set(glyph.clone()).unwrap();
         ret.imp().app.set(app.clone()).unwrap();
+        {
+            let property = GlyphEditView::UNITS_PER_EM;
+            ret.bind_property(property, &ret.imp().viewport.imp().transformation, property)
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
         for property in [
             GlyphEditView::ASCENDER,
             GlyphEditView::CAP_HEIGHT,
@@ -901,27 +716,6 @@ impl GlyphEditView {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
-        ret.imp()
-            .viewport
-            .imp()
-            .transformation
-            .set_property::<f64>(Transformation::PIXELS_PER_UNIT, {
-                EM_SQUARE_PIXELS / project.property::<f64>(Project::UNITS_PER_EM)
-            });
-        ret.imp()
-            .viewport
-            .imp()
-            .transformation
-            .bind_property(
-                Transformation::PIXELS_PER_UNIT,
-                &project,
-                Project::UNITS_PER_EM,
-            )
-            .transform_from(|_, units_per_em: &Value| {
-                let units_per_em: f64 = units_per_em.get().ok()?;
-                Some((EM_SQUARE_PIXELS / units_per_em).to_value())
-            })
-            .build();
         let settings = app
             .downcast_ref::<crate::GerbApp>()
             .unwrap()
@@ -966,6 +760,7 @@ impl GlyphEditView {
                 ret.imp().viewport.clone(),
             ))))
             .expect("Failed to create glyph state");
+        Tool::setup_toolbox(&ret);
         ret
     }
 }

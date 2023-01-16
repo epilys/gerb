@@ -19,8 +19,8 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::views::{UnitPoint, ViewPoint};
-use glib::{ParamFlags, ParamSpec, ParamSpecDouble, Value};
+use crate::views::ViewPoint;
+use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, Value};
 use gtk::cairo::Matrix;
 use gtk::glib;
 use gtk::prelude::*;
@@ -36,14 +36,21 @@ pub struct TransformationInner {
     /// In units (not scaled).
     camera_y: Cell<f64>,
     pixels_per_unit: Cell<f64>,
+    units_per_em: Cell<f64>,
     view_height: Cell<f64>,
     view_width: Cell<f64>,
+    centered: Cell<bool>,
 }
 
 impl TransformationInner {
     const INIT_SCALE_VAL: f64 = 1.0;
     const INIT_CAMERA_X_VAL: f64 = 0.0;
     const INIT_CAMERA_Y_VAL: f64 = 0.0;
+    const INIT_UNITS_PER_EM_VAL: f64 = 1000.0;
+    const INIT_PIXELS_PER_UNIT_VAL: f64 = 200.0 / Self::INIT_UNITS_PER_EM_VAL;
+    const INIT_VIEW_WIDTH_VAL: f64 = 800.0;
+    const INIT_VIEW_HEIGHT_VAL: f64 = 600.0;
+    const EM_SQUARE_PIXELS: f64 = 200.0;
 }
 
 #[glib::object_subclass]
@@ -56,9 +63,14 @@ impl ObjectSubclass for TransformationInner {
 
 impl ObjectImpl for TransformationInner {
     fn constructed(&self, _obj: &Self::Type) {
-        self.scale.set(TransformationInner::INIT_SCALE_VAL);
-        self.camera_x.set(TransformationInner::INIT_CAMERA_X_VAL);
-        self.camera_y.set(TransformationInner::INIT_CAMERA_Y_VAL);
+        self.scale.set(Self::INIT_SCALE_VAL);
+        self.camera_x.set(Self::INIT_CAMERA_X_VAL);
+        self.camera_y.set(Self::INIT_CAMERA_Y_VAL);
+        self.centered.set(true);
+        self.units_per_em.set(Self::INIT_UNITS_PER_EM_VAL);
+        self.pixels_per_unit.set(Self::INIT_PIXELS_PER_UNIT_VAL);
+        self.view_width.set(Self::INIT_VIEW_WIDTH_VAL);
+        self.view_height.set(Self::INIT_VIEW_HEIGHT_VAL);
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -98,7 +110,16 @@ impl ObjectImpl for TransformationInner {
                         Transformation::PIXELS_PER_UNIT,
                         std::f64::MIN,
                         std::f64::MAX,
-                        200.0 / 1000.0,
+                        TransformationInner::INIT_PIXELS_PER_UNIT_VAL,
+                        ParamFlags::READABLE,
+                    ),
+                    ParamSpecDouble::new(
+                        Transformation::UNITS_PER_EM,
+                        Transformation::UNITS_PER_EM,
+                        Transformation::UNITS_PER_EM,
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        TransformationInner::INIT_UNITS_PER_EM_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
@@ -107,7 +128,7 @@ impl ObjectImpl for TransformationInner {
                         Transformation::VIEW_HEIGHT,
                         std::f64::MIN,
                         std::f64::MAX,
-                        600.0,
+                        TransformationInner::INIT_VIEW_HEIGHT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
@@ -116,7 +137,14 @@ impl ObjectImpl for TransformationInner {
                         Transformation::VIEW_WIDTH,
                         std::f64::MIN,
                         std::f64::MAX,
-                        800.0,
+                        TransformationInner::INIT_VIEW_WIDTH_VAL,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoolean::new(
+                        Transformation::CENTERED,
+                        Transformation::CENTERED,
+                        Transformation::CENTERED,
+                        true,
                         ParamFlags::READWRITE,
                     ),
                 ]
@@ -132,6 +160,8 @@ impl ObjectImpl for TransformationInner {
             Transformation::PIXELS_PER_UNIT => self.pixels_per_unit.get().to_value(),
             Transformation::VIEW_HEIGHT => self.view_height.get().to_value(),
             Transformation::VIEW_WIDTH => self.view_width.get().to_value(),
+            Transformation::UNITS_PER_EM => self.units_per_em.get().to_value(),
+            Transformation::CENTERED => self.centered.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -149,11 +179,33 @@ impl ObjectImpl for TransformationInner {
                 self.camera_y.set(value.get().unwrap());
             }
             Transformation::PIXELS_PER_UNIT => self.pixels_per_unit.set(value.get().unwrap()),
+            Transformation::UNITS_PER_EM => {
+                let units_per_em: f64 = value.get().unwrap();
+                self.pixels_per_unit
+                    .set(Self::EM_SQUARE_PIXELS / units_per_em);
+                self.units_per_em.set(units_per_em);
+                if self.centered.get() {
+                    self.instance().center_camera();
+                }
+            }
             Transformation::VIEW_HEIGHT => {
                 self.view_height.set(value.get().unwrap());
+                if self.centered.get() {
+                    self.instance().center_camera();
+                }
             }
             Transformation::VIEW_WIDTH => {
                 self.view_width.set(value.get().unwrap());
+                if self.centered.get() {
+                    self.instance().center_camera();
+                }
+            }
+            Transformation::CENTERED => {
+                let val = value.get().unwrap();
+                if val {
+                    self.instance().center_camera();
+                }
+                self.centered.set(val);
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -165,35 +217,50 @@ glib::wrapper! {
 }
 
 impl Transformation {
+    pub const CENTERED: &str = "centered";
     pub const VIEW_HEIGHT: &str = super::Canvas::VIEW_HEIGHT;
     pub const VIEW_WIDTH: &str = super::Canvas::VIEW_WIDTH;
     pub const SCALE: &str = "scale";
     pub const CAMERA_X: &str = "camera-x";
     pub const CAMERA_Y: &str = "camera-y";
     pub const PIXELS_PER_UNIT: &str = "pixels-per-unit";
+    pub const UNITS_PER_EM: &str = crate::project::Project::UNITS_PER_EM;
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Transformation");
         ret
     }
 
+    pub fn center_camera(&self) {
+        let width: f64 = self.property::<f64>(Self::VIEW_WIDTH);
+        let height: f64 = self.property::<f64>(Self::VIEW_HEIGHT);
+        let units_per_em = self.property::<f64>(Self::UNITS_PER_EM);
+        let ppu = self.property::<f64>(Self::PIXELS_PER_UNIT);
+        let half_unit = (ppu * units_per_em / 4.0, ppu * units_per_em / 4.0);
+        let (x, y) = (width / 2.0 - half_unit.0, height / 2.0 + half_unit.1);
+        if !x.is_finite() || !y.is_finite() {
+            return;
+        }
+        self.set_property::<f64>(Self::CAMERA_X, x);
+        self.set_property::<f64>(Self::CAMERA_Y, y);
+    }
+
     pub fn matrix(&self) -> Matrix {
         let mut retval = Matrix::identity();
-        let scale = self.imp().scale.get();
-        let ppu = self.imp().pixels_per_unit.get();
-        let ch = self.property::<f64>(Self::VIEW_HEIGHT);
-        let cw = self.property::<f64>(Self::VIEW_WIDTH);
-        retval.translate(cw / 2.0, ch / 2.0);
-        retval.scale(ppu * scale, -ppu * scale);
+        let factor = self.imp().pixels_per_unit.get() * self.imp().scale.get();
         retval.translate(
             self.property::<f64>(Self::CAMERA_X),
             self.property::<f64>(Self::CAMERA_Y),
         );
+        if factor.is_finite() {
+            retval.scale(factor, factor);
+        }
+        retval.scale(1.0, -1.0);
         retval
     }
 
-    pub fn camera(&self) -> UnitPoint {
-        UnitPoint(
+    pub fn camera(&self) -> ViewPoint {
+        ViewPoint(
             (
                 self.property::<f64>(Self::CAMERA_X),
                 self.property::<f64>(Self::CAMERA_Y),
@@ -202,21 +269,17 @@ impl Transformation {
         )
     }
 
-    pub fn set_camera(&self, UnitPoint(new_value): UnitPoint) -> UnitPoint {
+    pub fn set_camera(&self, ViewPoint(new_value): ViewPoint) -> ViewPoint {
+        self.set_property::<bool>(Self::CENTERED, false);
         let oldval = self.camera();
         self.set_property::<f64>(Self::CAMERA_X, new_value.x);
         self.set_property::<f64>(Self::CAMERA_Y, new_value.y);
         oldval
     }
 
-    pub fn move_camera_by_delta(&self, mut delta: ViewPoint) -> UnitPoint {
+    pub fn move_camera_by_delta(&self, delta: ViewPoint) -> ViewPoint {
+        self.set_property::<bool>(Self::CENTERED, false);
         let mut camera = self.camera();
-        let scale = self.imp().scale.get();
-        let ppu = self.imp().pixels_per_unit.get();
-        //delta.0 = delta.0 / (scale * ppu);
-        delta.0 /= scale * ppu;
-        delta.0.y *= -1.0;
-
         camera.0 = camera.0 + delta.0;
         self.set_camera(camera)
     }
@@ -242,6 +305,7 @@ impl Transformation {
         let previous_value = self.imp().previous_scale.get();
         let current_value = self.property::<f64>(Transformation::SCALE);
         match previous_value {
+            None if current_value == 1.0 => {}
             Some(v) if current_value == 1.0 => {
                 self.set_zoom(v);
             }

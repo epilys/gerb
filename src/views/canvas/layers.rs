@@ -125,6 +125,11 @@ impl Layer {
         ret
     }
 
+    #[inline]
+    pub fn is_active(l: &&Self) -> bool {
+        l.property::<bool>(Self::ACTIVE)
+    }
+
     pub fn set_callback(&self, callback: Box<dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit>) {
         *self.imp().callback.borrow_mut() = callback.into();
     }

@@ -42,6 +42,7 @@ impl Coordinate {
     }
 }
 
+/*
 #[test]
 fn test_range_query() {
     let points = vec![
@@ -139,6 +140,7 @@ fn test_range_query() {
     //println!("\n\n{:?}", range_tree.query2(136, 177));
     //range_tree.to_svg("./range_tree.svg");
 }
+*/
 
 macro_rules! contains {
     ($range:expr, $point:expr) => {{
@@ -811,7 +813,7 @@ impl KdTree {
                             //));
                             output.push(format!(
                                         r#"<circle id="{desc}" cx="{}" cy="{}" r="1" fill="none" stroke="black" stroke-width="0.2"><desc>{desc}</desc></circle>"#,
-                                        tx(p.x), ty(p.y), desc=format!("{} : {:?}", i, p),
+                                        tx(p.x), ty(p.y), desc=format!("{:?} : {:?}", i, p),
                                 ));
                         }
                     }

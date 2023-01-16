@@ -278,6 +278,7 @@ dependencies = [
  "futures",
  "futures-util",
  "generational-arena",
+ "glib",
  "gtk",
  "once_cell",
  "quick-xml",

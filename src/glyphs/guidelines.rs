@@ -189,14 +189,14 @@ glib::wrapper! {
 impl TryFrom<serde_json::Value> for Guideline {
     type Error = serde_json::Error;
     fn try_from(v: serde_json::Value) -> Result<Guideline, Self::Error> {
-        let mut inner: imp::Guideline = serde_json::from_value(v)?;
+        let inner: imp::Guideline = serde_json::from_value(v)?;
         let ret = Self::new();
-        ret.imp().name.swap(&mut inner.name);
-        ret.imp().identifier.swap(&mut inner.identifier);
-        ret.imp().color.swap(&mut inner.color);
-        ret.imp().angle.swap(&mut inner.angle);
-        ret.imp().x.swap(&mut inner.x);
-        ret.imp().y.swap(&mut inner.y);
+        ret.imp().name.swap(&inner.name);
+        ret.imp().identifier.swap(&inner.identifier);
+        ret.imp().color.swap(&inner.color);
+        ret.imp().angle.swap(&inner.angle);
+        ret.imp().x.swap(&inner.x);
+        ret.imp().y.swap(&inner.y);
         Ok(ret)
     }
 }

@@ -19,6 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::tools::PanningTool;
 use super::*;
 
 pub fn draw_glyph_layer(
@@ -43,14 +44,23 @@ pub fn draw_glyph_layer(
     let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
     let mouse = viewport.get_mouse();
     let unit_mouse = viewport.view_to_unit_point(mouse);
-    let UnitPoint(camera) = viewport.imp().transformation.camera();
+    let ViewPoint(view_camera) = viewport.imp().transformation.camera();
+    let UnitPoint(camera) = viewport.view_to_unit_point(viewport.imp().transformation.camera());
     cr.save().unwrap();
     //cr.scale(scale, scale);
     cr.transform(matrix);
     cr.save().unwrap();
     cr.set_line_width(2.5);
+    cr.arc(
+        camera.x,
+        camera.y,
+        5.0 + 1.0,
+        0.,
+        2.0 * std::f64::consts::PI,
+    );
+    cr.stroke().unwrap();
 
-    obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, camera.x, camera.y));
+    obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
 
     cr.restore().unwrap();
     //cr.transform(matrix);
@@ -59,15 +69,14 @@ pub fn draw_glyph_layer(
         /* Draw em square of units_per_em units: */
         cr.set_source_rgba(210. / 255., 227. / 255., 252. / 255., 0.6);
         cr.rectangle(
-            0.,
-            0.,
+            0.0,
+            0.0,
             glyph_state.glyph.borrow().width.unwrap_or(units_per_em),
             1000.0,
         );
         cr.fill().unwrap();
     }
     /* Draw the glyph */
-    cr.move_to(0.0, 0.0);
 
     {
         let options = GlyphDrawingOptions {
@@ -77,11 +86,7 @@ pub fn draw_glyph_layer(
             } else {
                 None
             },
-            highlight: if glyph_state.tool.can_highlight() {
-                obj.imp().hovering.get()
-            } else {
-                None
-            },
+            highlight: obj.imp().hovering.get(),
             matrix: Matrix::identity(),
             units_per_em,
             line_width: obj
@@ -107,12 +112,10 @@ pub fn draw_glyph_layer(
                 || glyph_state.selection.contains(key)
             {
                 cr.set_source_rgba(1., 0., 0., 0.8);
+            } else if inner_fill {
+                cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
             } else {
-                if inner_fill {
-                    cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
-                } else {
-                    cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
-                }
+                cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
             }
             match &cp.kind {
                 Endpoint { .. } => {
@@ -181,15 +184,12 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
+        cr.save().unwrap();
         cr.set_line_width(2.5);
         let (width, height) = ((width * scale) * ppu, (height * scale) * ppu);
         let glyph_state_ref = glyph_state.borrow();
         for g in glyph_state_ref.glyph.borrow().guidelines.iter() {
-            let highlight = if glyph_state_ref.tool.can_highlight() {
-                g.imp().on_line_query(unit_mouse, None)
-            } else {
-                false
-            };
+            let highlight = g.imp().on_line_query(unit_mouse, None);
             g.imp().draw(cr, matrix, (width, height), highlight);
             if highlight {
                 cr.move_to(mouse.0.x, mouse.0.y);
@@ -209,84 +209,92 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 }
             }
         }
+        cr.restore().unwrap();
     }
     Inhibit(false)
 }
 
 pub fn draw_selection(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
     let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-    if let Tool::Select {
-        upper_left: UnitPoint(upper_left),
-        bottom_right: UnitPoint(bottom_right),
+    if PanningTool::static_type() != glyph_state.active_tool {
+        return Inhibit(false);
     }
-    | Tool::SelectInactive {
-        upper_left: UnitPoint(upper_left),
-        bottom_right: UnitPoint(bottom_right),
-    } = glyph_state.tool
-    {
-        let scale: f64 = viewport
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::SCALE);
-        let ppu = viewport
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::PIXELS_PER_UNIT);
+    let t = glyph_state.tools[&glyph_state.active_tool]
+        .clone()
+        .downcast::<PanningTool>()
+        .unwrap();
+    let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
+    let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
+    let active = t.imp().is_selection_active.get();
+    let empty = t.imp().is_selection_empty.get();
+    if !active && empty {
+        return Inhibit(false);
+    }
 
-        /* Calculate how much we need to multiply a pixel value to scale it back after performing
-         * the matrix transformation */
-        let f = 1.0 / (scale * ppu);
+    let scale: f64 = viewport
+        .imp()
+        .transformation
+        .property::<f64>(Transformation::SCALE);
+    let ppu = viewport
+        .imp()
+        .transformation
+        .property::<f64>(Transformation::PIXELS_PER_UNIT);
 
-        let active = matches!(glyph_state.tool, Tool::Select { .. });
-        let line_width = if active { 2.0 } else { 1.5 } * f;
+    /* Calculate how much we need to multiply a pixel value to scale it back after performing
+     * the matrix transformation */
+    let f = 1.0 / (scale * ppu);
 
-        let matrix = viewport.imp().transformation.matrix();
-        let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
+    let line_width = if active { 2.0 } else { 1.5 } * f;
+
+    let matrix = viewport.imp().transformation.matrix();
+    let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
+    if width == 0.0 || height == 0.0 {
+        return Inhibit(false);
+    }
+
+    cr.save().unwrap();
+
+    cr.set_line_width(line_width);
+    cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
+    cr.transform(matrix);
+
+    cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+    cr.rectangle(upper_left.x, upper_left.y, width, height);
+    if active {
+        cr.stroke_preserve().unwrap();
+        // turqoise, #278cac
+        cr.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
+        cr.fill().unwrap();
+    } else {
+        cr.stroke().unwrap();
+    }
+    cr.restore().unwrap();
+
+    if !active {
+        let rectangle_dim = 5.0 * f;
 
         cr.save().unwrap();
-
         cr.set_line_width(line_width);
-        cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
         cr.transform(matrix);
-
-        cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
-        cr.rectangle(upper_left.x, upper_left.y, width, height);
-        if active {
+        for p in [
+            upper_left,
+            bottom_right,
+            upper_left + (width, 0.0).into(),
+            upper_left + (0.0, height).into(),
+        ] {
+            cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+            cr.rectangle(
+                p.x - rectangle_dim / 2.0,
+                p.y - rectangle_dim / 2.0,
+                rectangle_dim,
+                rectangle_dim,
+            );
             cr.stroke_preserve().unwrap();
-            // turqoise, #278cac
-            cr.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
+            cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
             cr.fill().unwrap();
-        } else {
-            cr.stroke().unwrap();
         }
+
         cr.restore().unwrap();
-
-        if !active {
-            let rectangle_dim = 5.0 * f;
-
-            cr.save().unwrap();
-            cr.set_line_width(line_width);
-            cr.transform(matrix);
-            for p in [
-                upper_left,
-                bottom_right,
-                upper_left + (width, 0.0).into(),
-                upper_left + (0.0, height).into(),
-            ] {
-                cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
-                cr.rectangle(
-                    p.x - rectangle_dim / 2.0,
-                    p.y - rectangle_dim / 2.0,
-                    rectangle_dim,
-                    rectangle_dim,
-                );
-                cr.stroke_preserve().unwrap();
-                cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
-                cr.fill().unwrap();
-            }
-
-            cr.restore().unwrap();
-        }
     }
 
     Inhibit(false)

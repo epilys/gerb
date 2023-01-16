@@ -137,6 +137,10 @@ button.image-button > box {
   margin: 2px;
 }
 
+toolbutton.active button:checked {
+  background: lightgrey;
+}
+
 notebook header {
   box-shadow: 0px 1px #a9a9a9;
 }

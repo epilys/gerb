@@ -49,6 +49,7 @@ pub struct WindowSidebar {
 
 impl WindowSidebar {
     #[inline(always)]
+    #[allow(dead_code)]
     fn new(main: gtk::Paned, _obj: &<Window as ObjectSubclass>::Type) -> Self {
         let ret = Self {
             tabinfo: TabInfo::new(),
@@ -91,6 +92,7 @@ impl WindowSidebar {
         ret
     }
 
+    #[allow(dead_code)]
     fn load_project(&self, project: &Project) {
         self.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.property::<String>("name").as_str(), version_major=project.property::<i64>("version-major"), version_minor=project.property::<u64>("version-minor"), units_per_em=project.property::<f64>("units-per-em"), descender=project.property::<f64>("descender"), x_height=project.property::<f64>("x-height"), cap_height=project.property::<f64>("cap-height"), ascender=project.property::<f64>("ascender"), italic_angle=project.property::<f64>("italic-angle")));
         self.project_label.set_single_line_mode(false);
@@ -110,11 +112,8 @@ impl WindowSidebar {
 #[derive(Debug)]
 pub struct WindowWidgets {
     headerbar: gtk::HeaderBar,
-    pub sidebar: WindowSidebar,
+    //pub sidebar: WindowSidebar,
     pub statusbar: gtk::Statusbar,
-    //tool_palette: gtk::ToolPalette,
-    //create_item_group: gtk::ToolItemGroup,
-    //project_item_group: gtk::ToolItemGroup,
     notebook: gtk::Notebook,
 }
 
@@ -156,15 +155,6 @@ impl ObjectImpl for Window {
             .enable_popup(true)
             .show_border(true)
             .build();
-        let paned = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Horizontal)
-            .expand(true)
-            .visible(true)
-            .wide_handle(true)
-            .position(130)
-            .name("main-window-paned")
-            .build();
-        paned.pack2(&notebook, true, false);
 
         let vbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -173,7 +163,7 @@ impl ObjectImpl for Window {
             .visible(true)
             .can_focus(true)
             .build();
-        vbox.pack_start(&paned, true, true, 0);
+        vbox.pack_start(&notebook, true, true, 0);
 
         let statusbar = gtk::Statusbar::builder()
             .vexpand(false)
@@ -225,32 +215,11 @@ impl ObjectImpl for Window {
             None
         }));
 
-        /*
-        let tool_palette = gtk::ToolPalette::builder()
-            .border_width(2)
-            .hexpand(false)
-            .vexpand(true)
-            .build();
-        let create_item_group = gtk::ToolItemGroup::new("Create/load project");
-        let new_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Create"));
-        let load_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Load..."));
-        create_item_group.add(&new_button);
-        create_item_group.add(&load_button);
-        tool_palette.add(&create_item_group);
-        */
-        //let project_item_group = gtk::ToolItemGroup::new("Edit");
-        //let new_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("New glyph"));
-        //project_item_group.add(&new_button);
-
         self.widgets
             .set(WindowWidgets {
                 headerbar,
-                sidebar: WindowSidebar::new(paned, obj),
                 statusbar,
                 notebook,
-                //tool_palette,
-                //create_item_group,
-                //project_item_group,
             })
             .expect("Failed to initialize window state");
         *self.project.borrow_mut() = Project::new();
@@ -364,7 +333,7 @@ impl Window {
             widgets.project_item_group.set_visible(true);
         }
         */
-        widgets.sidebar.load_project(&project);
+        //widgets.sidebar.load_project(&project);
         {
             *self.project.borrow_mut() = project.clone();
         }

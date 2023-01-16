@@ -154,13 +154,9 @@ impl UndoDatabase {
         {
             let mut cursor = self.imp().cursor.borrow_mut();
             let mut db = self.imp().database.borrow_mut();
-            loop {
-                if let Some(last) = db[..*cursor].last_mut() {
-                    (last.action.undo)();
-                    did_undo |= true;
-                } else {
-                    break;
-                }
+            while let Some(last) = db[..*cursor].last_mut() {
+                (last.action.undo)();
+                did_undo |= true;
                 if *cursor == 0 {
                     break;
                 }
@@ -185,13 +181,9 @@ impl UndoDatabase {
         {
             let mut cursor = self.imp().cursor.borrow_mut();
             let mut db = self.imp().database.borrow_mut();
-            loop {
-                if let Some(last) = db.get_mut(*cursor) {
-                    (last.action.redo)();
-                    did_redo |= true;
-                } else {
-                    break;
-                }
+            while let Some(last) = db.get_mut(*cursor) {
+                (last.action.redo)();
+                did_redo |= true;
                 *cursor += 1;
                 if *cursor >= db.len() {
                     *cursor = std::cmp::min(db.len(), *cursor);

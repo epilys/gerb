@@ -19,6 +19,9 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#[macro_use]
+extern crate glib;
+
 use gtk::prelude::*;
 
 mod app;

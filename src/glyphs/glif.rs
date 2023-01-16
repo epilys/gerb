@@ -401,7 +401,7 @@ impl Default for Glif {
 fn test_glif_parse() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
     println!("{:#?}", g);
-    let g: super::Glyph = g.into();
+    let g: super::Glyph = g.into_iter().next().unwrap();
     println!("\n\n{:#?}", g);
 }
 
