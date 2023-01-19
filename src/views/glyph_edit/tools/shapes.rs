@@ -414,6 +414,19 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
         c.push(matrix * <_ as Into<Point>>::into((B * radius, C * radius)));
         c.push(matrix * <_ as Into<Point>>::into((0.0, A * radius)));
     }
+    /* ensure continuities after rotation */
+    let mut last_point = curves[3].points().borrow()[3];
+    let mut pts = curves[0].points().borrow_mut();
+    pts[0] = last_point;
+    last_point = pts[3];
+    let mut pts = curves[1].points().borrow_mut();
+    pts[0] = last_point;
+    last_point = pts[3];
+    let mut pts = curves[2].points().borrow_mut();
+    pts[0] = last_point;
+    last_point = pts[3];
+    let mut pts = curves[3].points().borrow_mut();
+    pts[0] = last_point;
 }
 
 impl ToolImplImpl for EllipseToolInner {

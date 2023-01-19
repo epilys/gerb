@@ -307,10 +307,6 @@ impl ToolImplImpl for PanningToolInner {
                 (false, _) => Inhibit(false),
             };
         }
-        let active = self.instance().property::<bool>(PanningTool::ACTIVE);
-        if !active {
-            return Inhibit(false);
-        }
         match event.button() {
             gtk::gdk::BUTTON_PRIMARY => {
                 if mode == ControlPointMode::None {
@@ -336,6 +332,26 @@ impl ToolImplImpl for PanningToolInner {
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.set_cursor("default");
+            }
+            gtk::gdk::BUTTON_SECONDARY => {
+                let glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                viewport.set_cursor("default");
+                let glyph = glyph_state.glyph.borrow();
+                let UnitPoint(position) =
+                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                if let Some(((i, _), _curve)) = glyph.on_curve_query(position, &[]) {
+                    crate::utils::menu::Menu::new()
+                            .add_button_cb(
+                                "reverse",
+                                clone!(@strong view => @default-return Inhibit(false), move |_, _| {
+                                    let glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                                    glyph_state.glyph.borrow().contours[i].reverse_direction();
+                                    Inhibit(true)
+                                }),
+                            ).popup();
+                    return Inhibit(true);
+                }
+                return Inhibit(false);
             }
             _ => return Inhibit(false),
         }

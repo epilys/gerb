@@ -92,6 +92,16 @@ impl Contour {
         drop(prev);
         curves.push(curve);
     }
+
+    pub fn reverse_direction(&self) {
+        let mut curves = self.imp().curves.borrow_mut();
+        curves.reverse();
+        let mut continuities = self.imp().continuities.borrow_mut();
+        continuities.reverse();
+        for c in curves.iter_mut() {
+            c.points().borrow_mut().reverse();
+        }
+    }
 }
 
 mod imp {
