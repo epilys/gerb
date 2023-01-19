@@ -481,6 +481,12 @@ glib::wrapper! {
         @extends ToolImpl;
 }
 
+impl Default for PanningTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PanningTool {
     pub const ACTIVE: &str = "active";
 

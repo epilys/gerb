@@ -28,6 +28,12 @@ glib::wrapper! {
     pub struct Contour(ObjectSubclass<imp::Contour>);
 }
 
+impl Default for Contour {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Contour {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

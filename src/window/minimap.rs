@@ -91,6 +91,12 @@ glib::wrapper! {
         @extends gtk::DrawingArea, gtk::Widget;
 }
 
+impl Default for Minimap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Minimap {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Minimap");

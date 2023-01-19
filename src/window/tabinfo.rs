@@ -89,6 +89,12 @@ glib::wrapper! {
         @extends gtk::Widget, gtk::Container, gtk::Box;
 }
 
+impl Default for TabInfo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TabInfo {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create TabInfo");

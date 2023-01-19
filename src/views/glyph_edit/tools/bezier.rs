@@ -186,8 +186,15 @@ glib::wrapper! {
         @extends ToolImpl;
 }
 
+impl Default for BezierTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BezierTool {
     pub const ACTIVE: &str = "active";
+
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
     }

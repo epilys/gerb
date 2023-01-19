@@ -542,7 +542,7 @@ mod fontinfo {
                             ));
                         }
                         ArrayType::String => {
-                            values.push(DictValue::String(e.unescape_and_decode(&mut reader)?));
+                            values.push(DictValue::String(e.unescape_and_decode(&reader)?));
                         }
                         ArrayType::Real => {
                             values.push(DictValue::Real(
@@ -551,15 +551,13 @@ mod fontinfo {
                         }
                     },
                     (State::InKey, Ok(Event::Text(e))) => {
-                        state = State::Key(e.unescape_and_decode(&mut reader)?);
+                        state = State::Key(e.unescape_and_decode(&reader)?);
                     }
                     (State::String(keyval), Ok(Event::Text(e))) => {
                         let keyval = std::mem::take(keyval);
                         state = State::InDict;
-                        ret.dict.insert(
-                            keyval,
-                            DictValue::String(e.unescape_and_decode(&mut reader)?),
-                        );
+                        ret.dict
+                            .insert(keyval, DictValue::String(e.unescape_and_decode(&reader)?));
                     }
                     (State::Integer(keyval), Ok(Event::Text(e))) => {
                         let keyval = std::mem::take(keyval);

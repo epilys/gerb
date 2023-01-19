@@ -89,6 +89,12 @@ glib::wrapper! {
         @extends ToolImpl;
 }
 
+impl Default for BSplineTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BSplineTool {
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()

@@ -274,8 +274,15 @@ glib::wrapper! {
         @extends ToolImpl;
 }
 
+impl Default for QuadrilateralTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl QuadrilateralTool {
     pub const ACTIVE: &str = "active";
+
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
     }

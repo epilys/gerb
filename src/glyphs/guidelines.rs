@@ -186,6 +186,12 @@ glib::wrapper! {
     pub struct Guideline(ObjectSubclass<imp::Guideline>);
 }
 
+impl Default for Guideline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TryFrom<serde_json::Value> for Guideline {
     type Error = serde_json::Error;
     fn try_from(v: serde_json::Value) -> Result<Guideline, Self::Error> {
@@ -231,6 +237,12 @@ impl Guideline {
 }
 
 pub struct GuidelineBuilder(Guideline);
+
+impl Default for GuidelineBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl GuidelineBuilder {
     pub fn new() -> Self {

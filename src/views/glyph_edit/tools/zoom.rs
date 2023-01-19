@@ -112,6 +112,12 @@ glib::wrapper! {
         @extends ToolImpl;
 }
 
+impl Default for ZoomInTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ZoomInTool {
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
@@ -199,6 +205,12 @@ impl ZoomOutToolInner {}
 glib::wrapper! {
     pub struct ZoomOutTool(ObjectSubclass<ZoomOutToolInner>)
         @extends ToolImpl;
+}
+
+impl Default for ZoomOutTool {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ZoomOutTool {
