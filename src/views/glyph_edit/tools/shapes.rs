@@ -327,3 +327,280 @@ impl QuadrilateralTool {
         Inhibit(true)
     }
 }
+
+#[derive(Default)]
+pub struct EllipseToolInner {
+    layer: OnceCell<Layer>,
+    curves: Rc<RefCell<[Bezier; 4]>>,
+    active: Cell<bool>,
+    center: Cell<Option<UnitPoint>>,
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for EllipseToolInner {
+    const NAME: &'static str = "EllipseTool";
+    type ParentType = ToolImpl;
+    type Type = EllipseTool;
+}
+
+impl ObjectImpl for EllipseToolInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        obj.set_property::<bool>(EllipseTool::ACTIVE, false);
+        obj.set_property::<String>(ToolImpl::NAME, "ellipse".to_string());
+        obj.set_property::<String>(
+            ToolImpl::DESCRIPTION,
+            "Create ellipses path shapes".to_string(),
+        );
+        obj.set_property::<gtk::Image>(
+            ToolImpl::ICON,
+            crate::resources::svg_to_image_widget(crate::resources::ELLIPSE_ICON_SVG),
+        );
+    }
+
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![glib::ParamSpecBoolean::new(
+                    EllipseTool::ACTIVE,
+                    EllipseTool::ACTIVE,
+                    EllipseTool::ACTIVE,
+                    true,
+                    glib::ParamFlags::READWRITE,
+                )]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        match pspec.name() {
+            EllipseTool::ACTIVE => self.active.get().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        match pspec.name() {
+            EllipseTool::ACTIVE => self.active.set(value.get().unwrap()),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+}
+
+fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point, f64)) {
+    /*
+     * Source: https://spencermortensen.com/articles/bezier-circle/
+     */
+    const A: f64 = 1.00005519;
+    const B: f64 = 0.55342686;
+    const C: f64 = 0.99873585;
+    for c in curves.iter_mut() {
+        c.points().borrow_mut().clear();
+    }
+    for (i, c) in curves.iter_mut().enumerate() {
+        let mut c = c.points().borrow_mut();
+        c.clear();
+        let mut matrix = gtk::cairo::Matrix::identity();
+        matrix.translate(center.x, center.y);
+        matrix.rotate(i as f64 * std::f64::consts::FRAC_PI_2);
+        c.push(matrix * <_ as Into<Point>>::into((A * radius, 0.0)));
+        c.push(matrix * <_ as Into<Point>>::into((C * radius, B * radius)));
+        c.push(matrix * <_ as Into<Point>>::into((B * radius, C * radius)));
+        c.push(matrix * <_ as Into<Point>>::into((0.0, A * radius)));
+    }
+}
+
+impl ToolImplImpl for EllipseToolInner {
+    fn on_button_press_event(
+        &self,
+        _obj: &ToolImpl,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventButton,
+    ) -> Inhibit {
+        if !self.active.get() {
+            return Inhibit(false);
+        }
+        match self.center.get() {
+            Some(UnitPoint(center)) => match event.button() {
+                gtk::gdk::BUTTON_PRIMARY => {
+                    self.center.set(None);
+                    let event_position = event.position();
+                    let UnitPoint(r) =
+                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    let mut curves = self.curves.borrow_mut();
+                    let radius: f64 = crate::utils::distance_between_two_points(center, r);
+                    make_circle_bezier_curves(&mut curves, (center, radius));
+                    let contour = Contour::new();
+                    *contour.open().borrow_mut() = false;
+                    let curves = std::mem::take(&mut *curves);
+                    for c in curves {
+                        contour.push_curve(c);
+                    }
+                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    let contour_index = glyph_state.glyph.borrow().contours.len();
+                    glyph_state.add_contour(&contour, contour_index);
+                    glyph_state.glyph.borrow_mut().contours.push(contour);
+                    viewport.queue_draw();
+                    self.instance()
+                        .set_property::<bool>(EllipseTool::ACTIVE, false);
+                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    viewport.set_cursor("default");
+                }
+                gtk::gdk::BUTTON_SECONDARY => {
+                    self.center.set(None);
+                }
+                _ => return Inhibit(false),
+            },
+            None => match event.button() {
+                gtk::gdk::BUTTON_PRIMARY => {
+                    let event_position = event.position();
+                    let center = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    self.center.set(Some(center));
+                    let mut curves = self.curves.borrow_mut();
+                    make_circle_bezier_curves(&mut curves, (center.0, 0.0));
+                }
+                _ => return Inhibit(false),
+            },
+        }
+        Inhibit(true)
+    }
+
+    fn on_button_release_event(
+        &self,
+        _obj: &ToolImpl,
+        _view: GlyphEditView,
+        _viewport: &Canvas,
+        _event: &gtk::gdk::EventButton,
+    ) -> Inhibit {
+        Inhibit(false)
+    }
+
+    fn on_motion_notify_event(
+        &self,
+        _obj: &ToolImpl,
+        _view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventMotion,
+    ) -> Inhibit {
+        if !self.active.get() {
+            return Inhibit(false);
+        }
+        match self.center.get() {
+            Some(UnitPoint(center)) => {
+                let event_position = event.position();
+                let UnitPoint(r) = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                let mut curve = self.curves.borrow_mut();
+                let radius: f64 = crate::utils::distance_between_two_points(center, r);
+                make_circle_bezier_curves(&mut curve, (center, radius));
+                viewport.queue_draw();
+            }
+            None => return Inhibit(false),
+        }
+        Inhibit(true)
+    }
+
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+        let layer =
+            LayerBuilder::new()
+                .set_name(Some("ellipse"))
+                .set_active(false)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &Context| {
+                    EllipseTool::draw_layer(viewport, cr, view)
+                }))))
+                .build();
+        self.instance()
+            .bind_property(EllipseTool::ACTIVE, &layer, Layer::ACTIVE)
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
+        self.layer.set(layer.clone()).unwrap();
+        view.imp().viewport.add_post_layer(layer);
+
+        self.parent_setup_toolbox(obj, toolbar, view)
+    }
+
+    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+        self.instance()
+            .set_property::<bool>(EllipseTool::ACTIVE, true);
+        view.imp().viewport.set_cursor("grab");
+        self.parent_on_activate(obj, view)
+    }
+
+    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+        self.instance()
+            .set_property::<bool>(EllipseTool::ACTIVE, false);
+        view.imp().viewport.set_cursor("default");
+        self.parent_on_deactivate(obj, view)
+    }
+}
+
+impl EllipseToolInner {}
+
+glib::wrapper! {
+    pub struct EllipseTool(ObjectSubclass<EllipseToolInner>)
+        @extends ToolImpl;
+}
+
+impl Default for EllipseTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EllipseTool {
+    pub const ACTIVE: &str = "active";
+
+    pub fn new() -> Self {
+        glib::Object::new(&[]).unwrap()
+    }
+
+    pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
+        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        if EllipseTool::static_type() != glyph_state.active_tool {
+            return Inhibit(false);
+        }
+        let t = glyph_state.tools[&glyph_state.active_tool]
+            .clone()
+            .downcast::<EllipseTool>()
+            .unwrap();
+        if !t.imp().active.get() {
+            return Inhibit(false);
+        }
+        if t.imp().center.get().is_none() {
+            return Inhibit(false);
+        }
+        let curves = t.imp().curves.borrow();
+        let line_width = obj
+            .imp()
+            .settings
+            .get()
+            .unwrap()
+            .property::<f64>(crate::Settings::LINE_WIDTH);
+        cr.save().expect("Invalid cairo surface state");
+        cr.transform(viewport.imp().transformation.matrix());
+        cr.set_line_width(line_width);
+        let outline = (0.2, 0.2, 0.2, 0.6);
+        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
+
+        for curv in curves.iter() {
+            let points = curv.points().borrow();
+            if points.len() != 4 {
+                continue;
+            }
+            let (a, b, c, d) = (points[0], points[1], points[2], points[3]);
+            cr.move_to(a.x, a.y);
+            cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
+        }
+        cr.stroke().expect("Invalid cairo surface state");
+        cr.restore().expect("Invalid cairo surface state");
+
+        Inhibit(true)
+    }
+}

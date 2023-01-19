@@ -145,6 +145,15 @@ mod points {
         }
     }
 
+    impl Mul<Point> for gtk::cairo::Matrix {
+        type Output = Point;
+
+        fn mul(self, point: Point) -> Self::Output {
+            let (x, y) = self.transform_point(point.x, point.y);
+            (x, y).into()
+        }
+    }
+
     #[derive(Clone, PartialEq, Debug, Default, Copy)]
     pub struct IPoint {
         pub x: i64,

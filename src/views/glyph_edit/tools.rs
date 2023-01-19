@@ -143,6 +143,7 @@ impl Tool {
             BezierTool::new().upcast::<ToolImpl>(),
             BSplineTool::new().upcast::<ToolImpl>(),
             QuadrilateralTool::new().upcast::<ToolImpl>(),
+            EllipseTool::new().upcast::<ToolImpl>(),
             ZoomInTool::new().upcast::<ToolImpl>(),
             ZoomOutTool::new().upcast::<ToolImpl>(),
         ] {

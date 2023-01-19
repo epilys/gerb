@@ -86,7 +86,7 @@ impl Contour {
             (&[_p0, p1_1], &[p1_2, _p2, _p3, _p4]) if p1_1 == p1_2 => {
                 continuities.push(Continuity::Positional);
             }
-            _ => panic!("prev {:?} curr {:?}", prev, curr),
+            _ => panic!("prev {:#?} curr {:#?}", prev, curr),
         }
         drop(curr);
         drop(prev);
