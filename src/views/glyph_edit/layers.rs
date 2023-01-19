@@ -108,7 +108,7 @@ pub fn draw_glyph_layer(
             .property(Settings::HANDLE_SIZE);
         for (key, cp) in glyph_state.points.borrow().iter() {
             let p = cp.position;
-            if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0
+            if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0 / (scale * ppu)
                 || glyph_state.selection.contains(key)
             {
                 cr.set_source_rgba(1., 0., 0., 0.8);

@@ -36,7 +36,10 @@ use uuid::Uuid;
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
 use crate::project::Project;
 use crate::utils::Point;
-use crate::views::{canvas::LayerBuilder, overlay::Child};
+use crate::views::{
+    canvas::{Layer, LayerBuilder},
+    overlay::Child,
+};
 use crate::Settings;
 
 //mod bezier_pen;
@@ -407,9 +410,6 @@ impl ObjectSubclass for GlyphEditViewInner {
 }
 
 impl ObjectImpl for GlyphEditViewInner {
-    // Here we are overriding the glib::Object::contructed
-    // method. Its what gets called when we create our Object
-    // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         self.statusbar_context_id.set(None);
@@ -520,6 +520,50 @@ impl ObjectImpl for GlyphEditViewInner {
         ));
         self.overlay
             .add_overlay(Child::new(self.toolbar_box.clone(), true));
+        let listbox = gtk::ListBox::builder()
+            .name("layers")
+            .expand(false)
+            .visible(true)
+            .can_focus(true)
+            .tooltip_text("layers")
+            .halign(gtk::Align::Start)
+            .valign(gtk::Align::End)
+            .build();
+        let label = gtk::Label::new(Some("layers"));
+        label.set_visible(true);
+        listbox.add(&label);
+        for layer in self
+            .viewport
+            .imp()
+            .pre_layers
+            .borrow()
+            .iter()
+            .chain(self.viewport.imp().layers.borrow().iter())
+            .chain(self.viewport.imp().post_layers.borrow().iter())
+        {
+            let label = gtk::Label::new(Some(&layer.property::<String>(Layer::NAME)));
+            label.set_visible(true);
+            let button = gtk::ToggleButton::builder()
+                .child(&label)
+                .visible(true)
+                .active(true)
+                .build();
+            layer
+                .bind_property(Layer::ACTIVE, &button, "active")
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build();
+            button.connect_toggled(clone!(@strong self.viewport as viewport => move |button| {
+                if button.is_active() {
+                    button.style_context().add_class("active");
+                } else {
+                    button.style_context().remove_class("active");
+                }
+                viewport.queue_draw();
+            }));
+            button.toggled();
+            listbox.add(&button);
+        }
+        self.overlay.add_overlay(Child::new(listbox, true));
         obj.add(&self.overlay);
         obj.set_visible(true);
         obj.set_expand(true);

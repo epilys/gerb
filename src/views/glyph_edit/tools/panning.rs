@@ -23,7 +23,7 @@ use super::tool_impl::*;
 
 use crate::{
     utils::points::Point,
-    views::{Canvas, GlyphEditView, UnitPoint, ViewPoint},
+    views::{Canvas, GlyphEditView, Transformation, UnitPoint, ViewPoint},
 };
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::Inhibit;
@@ -121,6 +121,14 @@ impl ToolImplImpl for PanningToolInner {
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
+        let scale: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
         match event.button() {
             gtk::gdk::BUTTON_MIDDLE => {
@@ -188,7 +196,10 @@ impl ToolImplImpl for PanningToolInner {
                             }
                         }
                         if !is_guideline {
-                            let pts = glyph_state.kd_tree.borrow().query_point(position, 10);
+                            let pts = glyph_state
+                                .kd_tree
+                                .borrow()
+                                .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
                             glyph_state.set_selection(&pts);
                             if pts.is_empty() {
                                 view.imp().hovering.set(None);
@@ -338,11 +349,23 @@ impl ToolImplImpl for PanningToolInner {
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
+        let scale: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
+        let warp_cursor = viewport.property::<bool>(Canvas::WARP_CURSOR);
         let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
         let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
         if !self.instance().property::<bool>(PanningTool::ACTIVE) {
             let glyph = glyph_state.glyph.borrow();
-            let pts = glyph_state.kd_tree.borrow().query_point(position, 10);
+            let pts = glyph_state
+                .kd_tree
+                .borrow()
+                .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
             if pts.is_empty() {
                 view.imp().hovering.set(None);
                 viewport.queue_draw();
@@ -355,6 +378,7 @@ impl ToolImplImpl for PanningToolInner {
             }
             return Inhibit(false);
         }
+
         match self.mode.get() {
             ControlPointMode::Drag => {
                 glyph_state.update_positions(position);
@@ -374,6 +398,42 @@ impl ToolImplImpl for PanningToolInner {
                 undo_db.event(action);
             }
             ControlPointMode::None => {
+                if warp_cursor {
+                    let (width, height) = (
+                        viewport.allocated_width() as f64,
+                        viewport.allocated_height() as f64,
+                    );
+                    let ruler_breadth = viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
+                    let (x, y) = event.position();
+                    if x + ruler_breadth >= width
+                        || y + ruler_breadth >= height
+                        || x <= ruler_breadth
+                        || y <= ruler_breadth
+                    {
+                        let ViewPoint(mouse) = viewport.get_mouse();
+                        if let Some(device) = event.device() {
+                            let (screen, root_x, root_y) = device.position();
+                            let move_: Option<(i32, i32)> = if x + ruler_breadth >= width {
+                                viewport.set_mouse(ViewPoint(mouse - (width, 0.0).into()));
+                                (root_x - width as i32 + 3 * ruler_breadth as i32, root_y).into()
+                            } else if y + ruler_breadth >= height {
+                                viewport.set_mouse(ViewPoint(mouse - (0.0, height).into()));
+                                (root_x, root_y - height as i32 - ruler_breadth as i32).into()
+                            } else if x <= ruler_breadth {
+                                viewport.set_mouse(ViewPoint(mouse + (width, 0.0).into()));
+                                (root_x + width as i32 - 3 * ruler_breadth as i32, root_y).into()
+                            } else if y <= ruler_breadth {
+                                viewport.set_mouse(ViewPoint(mouse + (0.0, height).into()));
+                                (root_x, root_y + height as i32 - 3 * ruler_breadth as i32).into()
+                            } else {
+                                None
+                            };
+                            if let Some((move_x, move_y)) = move_ {
+                                device.warp(&screen, move_x, move_y);
+                            }
+                        }
+                    }
+                }
                 let mouse: ViewPoint = viewport.get_mouse();
                 let delta = <_ as Into<Point>>::into(event.position()) - mouse.0;
                 viewport

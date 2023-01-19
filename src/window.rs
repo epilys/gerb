@@ -133,9 +133,6 @@ impl ObjectSubclass for Window {
 }
 
 impl ObjectImpl for Window {
-    // Here we are overriding the glib::Object::contructed
-    // method. Its what gets called when we create our Object
-    // and where we can initialize things.
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         self.super_.set(obj.clone()).unwrap();

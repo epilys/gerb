@@ -55,9 +55,9 @@ pub struct CanvasInner {
     view_height: Cell<f64>,
     view_width: Cell<f64>,
     mouse: Cell<ViewPoint>,
-    pre_layers: Rc<RefCell<Vec<Layer>>>,
-    layers: Rc<RefCell<Vec<Layer>>>,
-    post_layers: Rc<RefCell<Vec<Layer>>>,
+    pub pre_layers: Rc<RefCell<Vec<Layer>>>,
+    pub layers: Rc<RefCell<Vec<Layer>>>,
+    pub post_layers: Rc<RefCell<Vec<Layer>>>,
 }
 
 #[glib::object_subclass]
@@ -76,6 +76,7 @@ impl ObjectImpl for CanvasInner {
         self.inner_fill.set(false);
         self.show_total_area.set(true);
         self.show_rulers.set(true);
+        self.warp_cursor.set(true);
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))
