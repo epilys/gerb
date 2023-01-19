@@ -35,6 +35,10 @@ pub const BEZIER_ICON_SVG: &str = include_str!("./resources/bezier-icon.svg");
 
 pub const BSPLINE_ICON_SVG: &str = include_str!("./resources/b-spline-icon.svg");
 
+pub const RECTANGLE_ICON_SVG: &str = include_str!("./resources/rectangle-icon.svg");
+
+pub const ELLIPSE_ICON_SVG: &str = include_str!("./resources/ellipse-icon.svg");
+
 pub fn svg_to_image_widget(svg: &'static str) -> gtk::Image {
     if let Ok(pixbuf) = gtk::gdk_pixbuf::Pixbuf::from_read(svg.as_bytes()) {
         let pixbuf = pixbuf

@@ -24,11 +24,13 @@ use super::*;
 mod bezier;
 mod bspline;
 mod panning;
+mod shapes;
 mod tool_impl;
 mod zoom;
 pub use bezier::*;
 pub use bspline::*;
 pub use panning::*;
+pub use shapes::*;
 pub use tool_impl::*;
 pub use zoom::*;
 
@@ -140,6 +142,7 @@ impl Tool {
             PanningTool::new().upcast::<ToolImpl>(),
             BezierTool::new().upcast::<ToolImpl>(),
             BSplineTool::new().upcast::<ToolImpl>(),
+            QuadrilateralTool::new().upcast::<ToolImpl>(),
             ZoomInTool::new().upcast::<ToolImpl>(),
             ZoomOutTool::new().upcast::<ToolImpl>(),
         ] {

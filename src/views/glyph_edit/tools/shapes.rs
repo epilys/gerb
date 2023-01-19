@@ -1,0 +1,322 @@
+/*
+ * gerb
+ *
+ * Copyright 2022 - Manos Pitsidianakis
+ *
+ * This file is part of gerb.
+ *
+ * gerb is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * gerb is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with gerb. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+use super::tool_impl::*;
+use crate::glyphs::Contour;
+use crate::utils::{curves::Bezier, Point};
+use crate::views::{
+    canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
+    Canvas, GlyphEditView,
+};
+use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
+use gtk::cairo::Context;
+use gtk::Inhibit;
+use gtk::{
+    glib::{self},
+    prelude::*,
+    subclass::prelude::*,
+};
+use once_cell::sync::OnceCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+#[derive(Default)]
+pub struct QuadrilateralToolInner {
+    layer: OnceCell<Layer>,
+    curves: Rc<RefCell<[Bezier; 4]>>,
+    active: Cell<bool>,
+    upper_left: Cell<Option<UnitPoint>>,
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for QuadrilateralToolInner {
+    const NAME: &'static str = "QuadrilateralTool";
+    type ParentType = ToolImpl;
+    type Type = QuadrilateralTool;
+}
+
+impl ObjectImpl for QuadrilateralToolInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        obj.set_property::<bool>(QuadrilateralTool::ACTIVE, false);
+        obj.set_property::<String>(ToolImpl::NAME, "quadrilateral".to_string());
+        obj.set_property::<String>(
+            ToolImpl::DESCRIPTION,
+            "Create quadrilateral path shape".to_string(),
+        );
+        obj.set_property::<gtk::Image>(
+            ToolImpl::ICON,
+            crate::resources::svg_to_image_widget(crate::resources::RECTANGLE_ICON_SVG),
+        );
+    }
+
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![glib::ParamSpecBoolean::new(
+                    QuadrilateralTool::ACTIVE,
+                    QuadrilateralTool::ACTIVE,
+                    QuadrilateralTool::ACTIVE,
+                    true,
+                    glib::ParamFlags::READWRITE,
+                )]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        match pspec.name() {
+            QuadrilateralTool::ACTIVE => self.active.get().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        match pspec.name() {
+            QuadrilateralTool::ACTIVE => self.active.set(value.get().unwrap()),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+}
+
+fn make_quadrilateral_bezier_curves(
+    curves: &mut [Bezier; 4],
+    (a, b, c, d): (Point, Point, Point, Point),
+) {
+    for c in curves.iter_mut() {
+        c.points().borrow_mut().clear();
+    }
+    {
+        let mut c0 = curves[0].points().borrow_mut();
+        c0.push(a);
+        c0.push(b);
+    }
+    {
+        let mut c1 = curves[1].points().borrow_mut();
+        c1.push(b);
+        c1.push(c);
+    }
+    {
+        let mut c2 = curves[2].points().borrow_mut();
+        c2.push(c);
+        c2.push(d);
+    }
+    {
+        let mut c3 = curves[3].points().borrow_mut();
+        c3.push(d);
+        c3.push(a);
+    }
+}
+
+impl ToolImplImpl for QuadrilateralToolInner {
+    fn on_button_press_event(
+        &self,
+        _obj: &ToolImpl,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventButton,
+    ) -> Inhibit {
+        if !self.active.get() {
+            return Inhibit(false);
+        }
+        match self.upper_left.get() {
+            Some(UnitPoint(upper_left)) => match event.button() {
+                gtk::gdk::BUTTON_PRIMARY => {
+                    self.upper_left.set(None);
+                    let event_position = event.position();
+                    let UnitPoint(bottom_right) =
+                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    let mut curves = self.curves.borrow_mut();
+                    let Point { x: width, y: _, .. }: Point = bottom_right - upper_left;
+                    let a: Point = upper_left;
+                    let b: Point = upper_left + (width, 0.0).into();
+                    let c: Point = bottom_right;
+                    let d: Point = bottom_right - (width, 0.0).into();
+                    make_quadrilateral_bezier_curves(&mut curves, (a, b, c, d));
+                    let contour = Contour::new();
+                    *contour.open().borrow_mut() = false;
+                    *contour.curves().borrow_mut() = std::mem::take(&mut *curves).to_vec();
+                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    let contour_index = glyph_state.glyph.borrow().contours.len();
+                    glyph_state.add_contour(&contour, contour_index);
+                    glyph_state.glyph.borrow_mut().contours.push(contour);
+                    viewport.queue_draw();
+                    self.instance()
+                        .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
+                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    viewport.set_cursor("default");
+                }
+                gtk::gdk::BUTTON_SECONDARY => {
+                    self.upper_left.set(None);
+                }
+                _ => return Inhibit(false),
+            },
+            None => match event.button() {
+                gtk::gdk::BUTTON_PRIMARY => {
+                    let event_position = event.position();
+                    let upper_left = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    self.upper_left.set(Some(upper_left));
+                    let mut curves = self.curves.borrow_mut();
+                    let a: Point = upper_left.0;
+                    let b: Point = upper_left.0;
+                    let c: Point = upper_left.0;
+                    let d: Point = upper_left.0;
+                    make_quadrilateral_bezier_curves(&mut curves, (a, b, c, d));
+                }
+                _ => return Inhibit(false),
+            },
+        }
+        Inhibit(true)
+    }
+
+    fn on_button_release_event(
+        &self,
+        _obj: &ToolImpl,
+        _view: GlyphEditView,
+        _viewport: &Canvas,
+        _event: &gtk::gdk::EventButton,
+    ) -> Inhibit {
+        Inhibit(false)
+    }
+
+    fn on_motion_notify_event(
+        &self,
+        _obj: &ToolImpl,
+        _view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventMotion,
+    ) -> Inhibit {
+        if !self.active.get() {
+            return Inhibit(false);
+        }
+        match self.upper_left.get() {
+            Some(UnitPoint(upper_left)) => {
+                let event_position = event.position();
+                let UnitPoint(bottom_right) =
+                    viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                let mut curves = self.curves.borrow_mut();
+                let Point { x: width, y: _, .. }: Point = bottom_right - upper_left;
+                let a: Point = upper_left;
+                let b: Point = upper_left + (width, 0.0).into();
+                let c: Point = bottom_right;
+                let d: Point = bottom_right - (width, 0.0).into();
+                make_quadrilateral_bezier_curves(&mut curves, (a, b, c, d));
+                viewport.queue_draw();
+            }
+            None => return Inhibit(false),
+        }
+        Inhibit(true)
+    }
+
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+        let layer =
+            LayerBuilder::new()
+                .set_name(Some("quadrilateral"))
+                .set_active(false)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &Context| {
+                    QuadrilateralTool::draw_layer(viewport, cr, view)
+                }))))
+                .build();
+        self.instance()
+            .bind_property(QuadrilateralTool::ACTIVE, &layer, Layer::ACTIVE)
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
+        self.layer.set(layer.clone()).unwrap();
+        view.imp().viewport.add_post_layer(layer);
+
+        self.parent_setup_toolbox(obj, toolbar, view)
+    }
+
+    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+        self.instance()
+            .set_property::<bool>(QuadrilateralTool::ACTIVE, true);
+        view.imp().viewport.set_cursor("grab");
+        self.parent_on_activate(obj, view)
+    }
+
+    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+        self.instance()
+            .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
+        view.imp().viewport.set_cursor("default");
+        self.parent_on_deactivate(obj, view)
+    }
+}
+
+impl QuadrilateralToolInner {}
+
+glib::wrapper! {
+    pub struct QuadrilateralTool(ObjectSubclass<QuadrilateralToolInner>)
+        @extends ToolImpl;
+}
+
+impl QuadrilateralTool {
+    pub const ACTIVE: &str = "active";
+    pub fn new() -> Self {
+        glib::Object::new(&[]).unwrap()
+    }
+
+    pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
+        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        if QuadrilateralTool::static_type() != glyph_state.active_tool {
+            return Inhibit(false);
+        }
+        let t = glyph_state.tools[&glyph_state.active_tool]
+            .clone()
+            .downcast::<QuadrilateralTool>()
+            .unwrap();
+        if !t.imp().active.get() {
+            return Inhibit(false);
+        }
+        if t.imp().upper_left.get().is_none() {
+            return Inhibit(false);
+        }
+        let curves = t.imp().curves.borrow();
+        let line_width = obj
+            .imp()
+            .settings
+            .get()
+            .unwrap()
+            .property::<f64>(crate::Settings::LINE_WIDTH);
+        cr.save().expect("Invalid cairo surface state");
+        cr.transform(viewport.imp().transformation.matrix());
+        cr.set_line_width(line_width);
+        let outline = (0.2, 0.2, 0.2, 0.6);
+        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
+
+        for curv in curves.iter() {
+            let points = curv.points().borrow();
+            let (a, b) = (points[0], points[1]);
+            cr.move_to(a.x, a.y);
+            cr.line_to(b.x, b.y);
+        }
+        cr.stroke().expect("Invalid cairo surface state");
+        cr.restore().expect("Invalid cairo surface state");
+
+        Inhibit(true)
+    }
+}

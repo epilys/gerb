@@ -152,6 +152,12 @@ mod imp {
     }
 }
 
+impl Default for Bezier {
+    fn default() -> Self {
+        Bezier::new(true, vec![])
+    }
+}
+
 impl Bezier {
     pub fn new(smooth: bool, points: Vec<Point>) -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

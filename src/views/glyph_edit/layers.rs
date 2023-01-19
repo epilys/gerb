@@ -46,8 +46,9 @@ pub fn draw_glyph_layer(
     let unit_mouse = viewport.view_to_unit_point(mouse);
     let ViewPoint(view_camera) = viewport.imp().transformation.camera();
     let UnitPoint(camera) = viewport.view_to_unit_point(viewport.imp().transformation.camera());
+
     cr.save().unwrap();
-    //cr.scale(scale, scale);
+
     cr.transform(matrix);
     cr.save().unwrap();
     cr.set_line_width(2.5);
@@ -63,11 +64,10 @@ pub fn draw_glyph_layer(
     obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
 
     cr.restore().unwrap();
-    //cr.transform(matrix);
 
     if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
         /* Draw em square of units_per_em units: */
-        cr.set_source_rgba(210. / 255., 227. / 255., 252. / 255., 0.6);
+        cr.set_source_rgba(210.0 / 255.0, 227.0 / 255.0, 252.0 / 255.0, 0.6);
         cr.rectangle(
             0.0,
             0.0,
@@ -80,9 +80,9 @@ pub fn draw_glyph_layer(
 
     {
         let options = GlyphDrawingOptions {
-            outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
+            outline: (0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 }),
             inner_fill: if inner_fill {
-                Some((0., 0., 0., 1.))
+                Some((0.0, 0.0, 0.0, 1.))
             } else {
                 None
             },
@@ -105,13 +105,14 @@ pub fn draw_glyph_layer(
             .settings
             .get()
             .unwrap()
-            .property(Settings::HANDLE_SIZE);
+            .property::<f64>(Settings::HANDLE_SIZE)
+            / (scale * ppu);
         for (key, cp) in glyph_state.points.borrow().iter() {
             let p = cp.position;
             if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0 / (scale * ppu)
                 || glyph_state.selection.contains(key)
             {
-                cr.set_source_rgba(1., 0., 0., 0.8);
+                cr.set_source_rgba(1.0, 0.0, 0.0, 0.8);
             } else if inner_fill {
                 cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
             } else {
@@ -120,29 +121,23 @@ pub fn draw_glyph_layer(
             match &cp.kind {
                 Endpoint { .. } => {
                     cr.rectangle(
-                        p.x - handle_size / (4.0 * ppu),
-                        p.y - handle_size / (4.0 * ppu),
-                        handle_size / (2.0 * ppu),
-                        handle_size / (2.0 * ppu),
+                        p.x - handle_size / 2.0,
+                        p.y - handle_size / 2.0,
+                        handle_size,
+                        handle_size,
                     );
                     cr.stroke().unwrap();
                     cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
                     cr.rectangle(
-                        p.x - handle_size / (4.0 * ppu),
-                        p.y - handle_size / (4.0 * ppu),
-                        handle_size / (2.0 * ppu),
-                        handle_size / (2.0 * ppu) + 1.0,
+                        p.x - handle_size / 2.0,
+                        p.y - handle_size / 2.0,
+                        handle_size,
+                        handle_size + 1.0,
                     );
                     cr.stroke().unwrap();
                 }
                 Handle { ref end_points } => {
-                    cr.arc(
-                        p.x,
-                        p.y,
-                        handle_size / (2.0 * ppu),
-                        0.,
-                        2.0 * std::f64::consts::PI,
-                    );
+                    cr.arc(p.x, p.y, handle_size / 2.0, 0.0, 2.0 * std::f64::consts::PI);
                     cr.fill().unwrap();
                     for ep in end_points {
                         let ep = glyph_state.points.borrow()[ep].position;
@@ -154,8 +149,8 @@ pub fn draw_glyph_layer(
                     cr.arc(
                         p.x,
                         p.y,
-                        handle_size / (2.0 * ppu) + 1.0,
-                        0.,
+                        handle_size / 2.0 + 1.0,
+                        0.0,
                         2.0 * std::f64::consts::PI,
                     );
                     cr.stroke().unwrap();
