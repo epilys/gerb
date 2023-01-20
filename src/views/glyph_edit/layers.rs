@@ -19,7 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::tools::PanningTool;
 use super::*;
 
 pub fn draw_glyph_layer(
@@ -206,91 +205,5 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         }
         cr.restore().unwrap();
     }
-    Inhibit(false)
-}
-
-pub fn draw_selection(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
-    let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-    if PanningTool::static_type() != glyph_state.active_tool {
-        return Inhibit(false);
-    }
-    let t = glyph_state.tools[&glyph_state.active_tool]
-        .clone()
-        .downcast::<PanningTool>()
-        .unwrap();
-    let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
-    let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
-    let active = t.imp().is_selection_active.get();
-    let empty = t.imp().is_selection_empty.get();
-    if !active && empty {
-        return Inhibit(false);
-    }
-
-    let scale: f64 = viewport
-        .imp()
-        .transformation
-        .property::<f64>(Transformation::SCALE);
-    let ppu = viewport
-        .imp()
-        .transformation
-        .property::<f64>(Transformation::PIXELS_PER_UNIT);
-
-    /* Calculate how much we need to multiply a pixel value to scale it back after performing
-     * the matrix transformation */
-    let f = 1.0 / (scale * ppu);
-
-    let line_width = if active { 2.0 } else { 1.5 } * f;
-
-    let matrix = viewport.imp().transformation.matrix();
-    let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
-    if width == 0.0 || height == 0.0 {
-        return Inhibit(false);
-    }
-
-    cr.save().unwrap();
-
-    cr.set_line_width(line_width);
-    cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
-    cr.transform(matrix);
-
-    cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
-    cr.rectangle(upper_left.x, upper_left.y, width, height);
-    if active {
-        cr.stroke_preserve().unwrap();
-        // turqoise, #278cac
-        cr.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
-        cr.fill().unwrap();
-    } else {
-        cr.stroke().unwrap();
-    }
-    cr.restore().unwrap();
-
-    if !active {
-        let rectangle_dim = 5.0 * f;
-
-        cr.save().unwrap();
-        cr.set_line_width(line_width);
-        cr.transform(matrix);
-        for p in [
-            upper_left,
-            bottom_right,
-            upper_left + (width, 0.0).into(),
-            upper_left + (0.0, height).into(),
-        ] {
-            cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
-            cr.rectangle(
-                p.x - rectangle_dim / 2.0,
-                p.y - rectangle_dim / 2.0,
-                rectangle_dim,
-                rectangle_dim,
-            );
-            cr.stroke_preserve().unwrap();
-            cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
-            cr.fill().unwrap();
-        }
-
-        cr.restore().unwrap();
-    }
-
     Inhibit(false)
 }

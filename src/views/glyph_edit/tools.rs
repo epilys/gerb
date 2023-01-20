@@ -51,7 +51,7 @@ impl Tool {
             .chain(
                 glyph_state
                     .tools
-                    .get(&glyph_state.default_tool)
+                    .get(&glyph_state.panning_tool)
                     .map(Clone::clone)
                     .into_iter(),
             );
@@ -78,7 +78,7 @@ impl Tool {
             .chain(
                 glyph_state
                     .tools
-                    .get(&glyph_state.default_tool)
+                    .get(&glyph_state.panning_tool)
                     .map(Clone::clone)
                     .into_iter(),
             );
@@ -105,7 +105,7 @@ impl Tool {
             .chain(
                 glyph_state
                     .tools
-                    .get(&glyph_state.default_tool)
+                    .get(&glyph_state.panning_tool)
                     .map(Clone::clone)
                     .into_iter(),
             );

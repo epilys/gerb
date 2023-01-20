@@ -79,7 +79,7 @@ pub struct GlyphState {
     pub viewport: Canvas,
     pub tools: HashMap<glib::types::Type, ToolImpl>,
     pub active_tool: glib::types::Type,
-    pub default_tool: glib::types::Type,
+    pub panning_tool: glib::types::Type,
     selection: Vec<((usize, usize), Uuid)>,
     pub points: Rc<RefCell<HashMap<((usize, usize), Uuid), ControlPoint>>>,
     pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
@@ -94,7 +94,7 @@ impl GlyphState {
             viewport,
             tools: HashMap::default(),
             active_tool: glib::types::Type::INVALID,
-            default_tool: PanningTool::static_type(),
+            panning_tool: PanningTool::static_type(),
             selection: vec![],
             points: Rc::new(RefCell::new(HashMap::default())),
             kd_tree: Rc::new(RefCell::new(crate::utils::range_query::KdTree::new(&[]))),
@@ -478,16 +478,6 @@ impl ObjectImpl for GlyphEditViewInner {
                 .set_hidden(true)
                 .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
                     layers::draw_guidelines(viewport, cr, obj)
-                }))))
-                .build(),
-        );
-        self.viewport.add_post_layer(
-            LayerBuilder::new()
-                .set_name(Some("selection"))
-                .set_active(true)
-                .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-                    layers::draw_selection(viewport, cr, obj)
                 }))))
                 .build(),
         );

@@ -23,7 +23,10 @@ use super::tool_impl::*;
 
 use crate::{
     utils::points::Point,
-    views::{Canvas, GlyphEditView, Transformation, UnitPoint, ViewPoint},
+    views::{
+        canvas::{Layer, LayerBuilder},
+        Canvas, GlyphEditView, Transformation, UnitPoint, ViewPoint,
+    },
 };
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::Inhibit;
@@ -32,6 +35,7 @@ use gtk::{
     prelude::*,
     subclass::prelude::*,
 };
+use once_cell::sync::OnceCell;
 use std::cell::Cell;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -48,7 +52,7 @@ impl Default for ControlPointMode {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PanningToolInner {
     pub active: Cell<bool>,
     pub mode: Cell<ControlPointMode>,
@@ -56,6 +60,7 @@ pub struct PanningToolInner {
     pub is_selection_active: Cell<bool>,
     pub selection_upper_left: Cell<UnitPoint>,
     pub selection_bottom_right: Cell<UnitPoint>,
+    layer: OnceCell<Layer>,
 }
 
 #[glib::object_subclass]
@@ -133,7 +138,6 @@ impl ToolImplImpl for PanningToolInner {
         match event.button() {
             gtk::gdk::BUTTON_MIDDLE => {
                 self.mode.set(ControlPointMode::None);
-                glyph_state.active_tool = PanningTool::static_type();
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, true);
                 viewport.set_cursor("crosshair");
@@ -145,7 +149,6 @@ impl ToolImplImpl for PanningToolInner {
                         self.mode.set(ControlPointMode::None);
                         view.imp().hovering.set(None);
                         viewport.queue_draw();
-                        glyph_state.active_tool = glib::types::Type::INVALID;
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, false);
                         viewport.set_cursor("default");
@@ -204,14 +207,12 @@ impl ToolImplImpl for PanningToolInner {
                             if pts.is_empty() {
                                 view.imp().hovering.set(None);
                                 viewport.queue_draw();
-                                glyph_state.active_tool = glib::types::Type::INVALID;
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, false);
                                 viewport.set_cursor("default");
                             } else {
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
-                                glyph_state.active_tool = PanningTool::static_type();
                                 self.mode.set(ControlPointMode::Drag);
                                 viewport.set_cursor("grab");
                             }
@@ -220,7 +221,6 @@ impl ToolImplImpl for PanningToolInner {
                         if !self.instance().property::<bool>(PanningTool::ACTIVE) {
                             self.instance()
                                 .set_property::<bool>(PanningTool::ACTIVE, true);
-                            glyph_state.active_tool = PanningTool::static_type();
                             self.mode.set(ControlPointMode::Select);
                             viewport.set_cursor("default");
                         }
@@ -238,6 +238,8 @@ impl ToolImplImpl for PanningToolInner {
                                 self.selection_bottom_right.set(position);
                                 self.is_selection_empty.set(false);
                                 self.is_selection_active.set(true);
+                                self.instance()
+                                    .set_property::<bool>(PanningTool::ACTIVE, true);
                                 glyph_state.set_selection(&[]);
                             }
                             (true, false) => {
@@ -254,7 +256,6 @@ impl ToolImplImpl for PanningToolInner {
                         .set_property::<bool>(PanningTool::ACTIVE, false);
                     viewport.queue_draw();
                     viewport.set_cursor("default");
-                    glyph_state.active_tool = glib::types::Type::INVALID;
                     Inhibit(true)
                 } else if self.mode.get() == ControlPointMode::Select {
                     self.is_selection_empty.set(true);
@@ -265,7 +266,6 @@ impl ToolImplImpl for PanningToolInner {
                     viewport.queue_draw();
                     viewport.set_cursor("default");
                     self.mode.set(ControlPointMode::None);
-                    glyph_state.active_tool = glib::types::Type::INVALID;
                     Inhibit(true)
                 } else {
                     Inhibit(false)
@@ -295,6 +295,8 @@ impl ToolImplImpl for PanningToolInner {
                     let bottom_right =
                         viewport.view_to_unit_point(ViewPoint(event_position.into()));
                     self.is_selection_active.set(false);
+                    self.instance()
+                        .set_property::<bool>(PanningTool::ACTIVE, false);
                     self.selection_bottom_right.set(bottom_right);
                     let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                     let pts = glyph_state
@@ -307,28 +309,17 @@ impl ToolImplImpl for PanningToolInner {
                 (false, _) => Inhibit(false),
             };
         }
+        self.is_selection_active.set(false);
         match event.button() {
             gtk::gdk::BUTTON_PRIMARY => {
                 if mode == ControlPointMode::None {
                     return Inhibit(false);
                 }
-                view.imp()
-                    .glyph_state
-                    .get()
-                    .unwrap()
-                    .borrow_mut()
-                    .active_tool = glib::types::Type::INVALID;
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.set_cursor("default");
             }
             gtk::gdk::BUTTON_MIDDLE => {
-                view.imp()
-                    .glyph_state
-                    .get()
-                    .unwrap()
-                    .borrow_mut()
-                    .active_tool = glib::types::Type::INVALID;
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.set_cursor("default");
@@ -483,6 +474,26 @@ impl ToolImplImpl for PanningToolInner {
         Inhibit(true)
     }
 
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+        let layer =
+            LayerBuilder::new()
+                .set_name(Some("selection box"))
+                .set_active(false)
+                .set_hidden(true)
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+                    PanningTool::draw_select_box(viewport, cr, view)
+                }))))
+                .build();
+        self.instance()
+            .bind_property(PanningTool::ACTIVE, &layer, Layer::ACTIVE)
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
+        self.layer.set(layer.clone()).unwrap();
+        view.imp().viewport.add_post_layer(layer);
+
+        self.parent_setup_toolbox(obj, toolbar, view)
+    }
+
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         obj.set_property::<bool>(PanningTool::ACTIVE, true);
         view.imp().viewport.set_cursor("grab");
@@ -514,5 +525,91 @@ impl PanningTool {
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
+    }
+
+    pub fn draw_select_box(
+        viewport: &Canvas,
+        cr: &gtk::cairo::Context,
+        obj: GlyphEditView,
+    ) -> Inhibit {
+        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let t = glyph_state.tools[&Self::static_type()]
+            .clone()
+            .downcast::<PanningTool>()
+            .unwrap();
+        if !t.imp().active.get() || t.imp().mode.get() != ControlPointMode::Select {
+            return Inhibit(false);
+        }
+        let active = t.imp().is_selection_active.get();
+        let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
+        let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
+
+        let scale: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
+
+        /* Calculate how much we need to multiply a pixel value to scale it back after performing
+         * the matrix transformation */
+        let f = 1.0 / (scale * ppu);
+
+        let line_width = if active { 2.0 } else { 1.5 } * f;
+
+        let matrix = viewport.imp().transformation.matrix();
+        let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
+        if width == 0.0 || height == 0.0 {
+            return Inhibit(false);
+        }
+
+        cr.save().unwrap();
+
+        cr.set_line_width(line_width);
+        cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
+        cr.transform(matrix);
+
+        cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+        cr.rectangle(upper_left.x, upper_left.y, width, height);
+        if active {
+            cr.stroke_preserve().unwrap();
+            // turqoise, #278cac
+            cr.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
+            cr.fill().unwrap();
+        } else {
+            cr.stroke().unwrap();
+        }
+        cr.restore().unwrap();
+
+        if !active {
+            let rectangle_dim = 5.0 * f;
+
+            cr.save().unwrap();
+            cr.set_line_width(line_width);
+            cr.transform(matrix);
+            for p in [
+                upper_left,
+                bottom_right,
+                upper_left + (width, 0.0).into(),
+                upper_left + (0.0, height).into(),
+            ] {
+                cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+                cr.rectangle(
+                    p.x - rectangle_dim / 2.0,
+                    p.y - rectangle_dim / 2.0,
+                    rectangle_dim,
+                    rectangle_dim,
+                );
+                cr.stroke_preserve().unwrap();
+                cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
+                cr.fill().unwrap();
+            }
+
+            cr.restore().unwrap();
+        }
+
+        Inhibit(true)
     }
 }
