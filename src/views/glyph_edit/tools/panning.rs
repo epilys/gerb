@@ -374,7 +374,7 @@ impl ToolImplImpl for PanningToolInner {
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let warp_cursor = viewport.property::<bool>(Canvas::WARP_CURSOR);
-        let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+        let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
         let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
         if !self.instance().property::<bool>(PanningTool::ACTIVE) {
             let glyph = glyph_state.glyph.borrow();
@@ -397,7 +397,13 @@ impl ToolImplImpl for PanningToolInner {
 
         match self.mode.get() {
             ControlPointMode::Drag => {
-                glyph_state.update_positions(position);
+                let mouse: ViewPoint = viewport.get_mouse();
+                let mut delta =
+                    (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
+                delta.y *= -1.0;
+                let mut m = gtk::cairo::Matrix::identity();
+                m.translate(delta.x, delta.y);
+                glyph_state.transform_selection(m);
             }
             ControlPointMode::DragGuideline(idx) => {
                 let mut action = glyph_state.update_guideline(idx, position);

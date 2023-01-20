@@ -213,15 +213,6 @@ impl GlyphState {
         }
     }
 
-    fn update_positions(&mut self, new_pos: Point) {
-        let mut action = self.update_point(&self.selection, new_pos);
-        (action.redo)();
-        let app: &crate::Application =
-            crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
-        let undo_db = app.undo_db.borrow_mut();
-        undo_db.event(action);
-    }
-
     fn new_guideline(&self, angle: f64, p: Point) -> crate::Action {
         let (x, y) = (p.x, p.y);
         let viewport = self.viewport.clone();
@@ -306,19 +297,17 @@ impl GlyphState {
         }
     }
 
-    fn update_point(&self, idxs: &[((usize, usize), Uuid)], new_pos: Point) -> crate::Action {
+    fn transform_selection(&self, m: Matrix) {
+        let mut action = self.transform_points(&self.selection, m);
+        (action.redo)();
+        let app: &crate::Application =
+            crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
+        let undo_db = app.undo_db.borrow_mut();
+        undo_db.event(action);
+    }
+
+    fn transform_points(&self, idxs: &[((usize, usize), Uuid)], m: Matrix) -> crate::Action {
         let viewport = self.viewport.clone();
-        let old_positions = {
-            let mut v = Vec::with_capacity(idxs.len());
-            for idx in idxs {
-                v.push(if let Some(p) = self.points.borrow().get(idx) {
-                    (*idx, p.position)
-                } else {
-                    (*idx, Point::from((0.0, 0.0)))
-                });
-            }
-            Rc::new(v)
-        };
         let idxs = Rc::new(idxs.to_vec());
         crate::Action {
             stamp: crate::EventStamp {
@@ -330,11 +319,13 @@ impl GlyphState {
             },
             compress: true,
             redo: Box::new(
-                clone!(@strong old_positions, @strong idxs, @weak self.points as points, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
+                clone!(@strong idxs, @weak self.points as points, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
                     let mut points = points.borrow_mut();
                     let mut kd_tree = kd_tree.borrow_mut();
                     for idx in idxs.iter() {
                         if let Some(p) = points.get_mut(idx) {
+                            let old_pos = p.position;
+                            let new_pos = m * old_pos;
                             /* update kd_tree */
                             assert!(kd_tree.remove(*idx, p.position));
                             kd_tree.add(*idx, new_pos);
@@ -353,22 +344,26 @@ impl GlyphState {
                 }),
             ),
             undo: Box::new(
-                clone!(@strong old_positions, @strong idxs, @weak self.points as points, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
+                clone!(@strong idxs, @weak self.points as points, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
+                    let m = if let Ok(m) = m.try_invert() {m} else {return;};
+
                     let mut points = points.borrow_mut();
                     let mut kd_tree = kd_tree.borrow_mut();
-                    for (&idx, &old_position) in idxs.iter().zip(old_positions.iter()) {
-                        if let Some(ref mut p) = points.get_mut(&old_position.0) {
+                    for idx in idxs.iter() {
+                        if let Some(ref mut p) = points.get_mut(idx) {
+                            let old_pos = p.position;
+                            let new_pos = m * old_pos;
                             /* update kd_tree */
-                            assert!(kd_tree.remove(idx, new_pos));
-                            kd_tree.add(idx, old_position.1);
+                            assert!(kd_tree.remove(*idx, old_pos));
+                            kd_tree.add(*idx, new_pos);
 
                             /* finally update actual point */
-                            p.position = old_position.1;
+                            p.position = new_pos;
                             let glyph = glyph.borrow();
                             let curves = glyph.contours[p.contour_index].curves().borrow_mut();
                             curves[p.curve_index]
                                 .points()
-                                .borrow_mut()[p.point_index] = old_position.1;
+                                .borrow_mut()[p.point_index] = new_pos;
                         }
                     }
                     viewport.queue_draw();
