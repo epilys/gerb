@@ -44,6 +44,7 @@ pub struct QuadrilateralToolInner {
     curves: Rc<RefCell<[Bezier; 4]>>,
     active: Cell<bool>,
     upper_left: Cell<Option<UnitPoint>>,
+    cursor: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
 }
 
 #[glib::object_subclass]
@@ -66,6 +67,11 @@ impl ObjectImpl for QuadrilateralToolInner {
             ToolImpl::ICON,
             crate::resources::svg_to_image_widget(crate::resources::RECTANGLE_ICON_SVG),
         );
+        self.cursor
+            .set(crate::resources::svg_to_pixbuf(
+                crate::resources::RECTANGLE_CURSOR_SVG,
+            ))
+            .unwrap();
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
@@ -255,7 +261,11 @@ impl ToolImplImpl for QuadrilateralToolInner {
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, true);
-        view.imp().viewport.set_cursor("grab");
+        if let Some(pixbuf) = self.cursor.get().unwrap().as_ref() {
+            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+        } else {
+            view.imp().viewport.set_cursor("grab");
+        }
         self.parent_on_activate(obj, view)
     }
 
@@ -334,6 +344,7 @@ pub struct EllipseToolInner {
     curves: Rc<RefCell<[Bezier; 4]>>,
     active: Cell<bool>,
     center: Cell<Option<UnitPoint>>,
+    cursor: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
 }
 
 #[glib::object_subclass]
@@ -356,6 +367,11 @@ impl ObjectImpl for EllipseToolInner {
             ToolImpl::ICON,
             crate::resources::svg_to_image_widget(crate::resources::ELLIPSE_ICON_SVG),
         );
+        self.cursor
+            .set(crate::resources::svg_to_pixbuf(
+                crate::resources::CIRCLE_CURSOR_SVG,
+            ))
+            .unwrap();
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
@@ -400,9 +416,6 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
     const A: f64 = 1.00005519;
     const B: f64 = 0.55342686;
     const C: f64 = 0.99873585;
-    for c in curves.iter_mut() {
-        c.points().borrow_mut().clear();
-    }
     for (i, c) in curves.iter_mut().enumerate() {
         let mut c = c.points().borrow_mut();
         c.clear();
@@ -542,7 +555,11 @@ impl ToolImplImpl for EllipseToolInner {
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, true);
-        view.imp().viewport.set_cursor("grab");
+        if let Some(pixbuf) = self.cursor.get().unwrap().as_ref() {
+            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+        } else {
+            view.imp().viewport.set_cursor("grab");
+        }
         self.parent_on_activate(obj, view)
     }
 

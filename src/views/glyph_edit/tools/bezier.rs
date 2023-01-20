@@ -127,8 +127,6 @@ impl ToolImplImpl for BezierToolInner {
 
             return Inhibit(true);
         } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
-            let event_position = event.position();
-            let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event_position.into()));
             let mut state = self.state.borrow_mut();
             let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
             let new_contour = state.close(false);
@@ -235,14 +233,6 @@ impl BezierTool {
         }
         {
             let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
-            let scale: f64 = viewport
-                .imp()
-                .transformation
-                .property::<f64>(Transformation::SCALE);
-            let ppu: f64 = viewport
-                .imp()
-                .transformation
-                .property::<f64>(Transformation::PIXELS_PER_UNIT);
             let units_per_em = viewport
                 .imp()
                 .transformation
