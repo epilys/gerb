@@ -39,6 +39,8 @@ pub const RECTANGLE_ICON_SVG: &str = include_str!("./resources/rectangle-icon.sv
 
 pub const ELLIPSE_ICON_SVG: &str = include_str!("./resources/ellipse-icon.svg");
 
+pub const PEN_CURSOR_SVG: &str = include_str!("./resources/pen-cursor.svg");
+
 pub fn svg_to_image_widget(svg: &'static str) -> gtk::Image {
     if let Ok(pixbuf) = gtk::gdk_pixbuf::Pixbuf::from_read(svg.as_bytes()) {
         let pixbuf = pixbuf
@@ -50,5 +52,14 @@ pub fn svg_to_image_widget(svg: &'static str) -> gtk::Image {
     } else {
         println!("Failed to load SVG as pixbuf.");
         gtk::Image::default()
+    }
+}
+
+pub fn svg_to_pixbuf(svg: &'static str) -> Option<gtk::gdk_pixbuf::Pixbuf> {
+    if let Ok(pixbuf) = gtk::gdk_pixbuf::Pixbuf::from_read(svg.as_bytes()) {
+        Some(pixbuf)
+    } else {
+        println!("Failed to load SVG as pixbuf.");
+        None
     }
 }

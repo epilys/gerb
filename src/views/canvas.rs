@@ -474,6 +474,13 @@ impl Canvas {
             screen.set_cursor(Some(&gtk::gdk::Cursor::from_name(&display, name).unwrap()));
         }
     }
+
+    pub fn set_cursor_from_pixbuf(&self, pixbuf: &gtk::gdk_pixbuf::Pixbuf) {
+        if let Some(screen) = self.window() {
+            let display = screen.display();
+            screen.set_cursor(Some(&gtk::gdk::Cursor::from_pixbuf(&display, pixbuf, 0, 0)));
+        }
+    }
 }
 
 impl Default for Canvas {

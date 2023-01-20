@@ -43,6 +43,7 @@ pub struct BezierToolInner {
     layer: OnceCell<Layer>,
     state: Rc<RefCell<State>>,
     active: Cell<bool>,
+    cursor: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
 }
 
 #[glib::object_subclass]
@@ -61,6 +62,11 @@ impl ObjectImpl for BezierToolInner {
             ToolImpl::ICON,
             crate::resources::svg_to_image_widget(crate::resources::BEZIER_ICON_SVG),
         );
+        self.cursor
+            .set(crate::resources::svg_to_pixbuf(
+                crate::resources::PEN_CURSOR_SVG,
+            ))
+            .unwrap();
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
@@ -120,6 +126,18 @@ impl ToolImplImpl for BezierToolInner {
             }
 
             return Inhibit(true);
+        } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
+            let event_position = event.position();
+            let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+            let mut state = self.state.borrow_mut();
+            let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+            let new_contour = state.close(false);
+            let contour_index = glyph_state.glyph.borrow().contours.len();
+            glyph_state.add_contour(&new_contour, contour_index);
+            glyph_state.glyph.borrow_mut().contours.push(new_contour);
+            viewport.queue_draw();
+
+            return Inhibit(true);
         }
         Inhibit(false)
     }
@@ -167,7 +185,11 @@ impl ToolImplImpl for BezierToolInner {
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(BezierTool::ACTIVE, true);
-        view.imp().viewport.set_cursor("grab");
+        if let Some(pixbuf) = self.cursor.get().unwrap().as_ref() {
+            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+        } else {
+            view.imp().viewport.set_cursor("grab");
+        }
         self.parent_on_activate(obj, view)
     }
 
@@ -240,8 +262,7 @@ impl BezierTool {
                     .settings
                     .get()
                     .unwrap()
-                    .property::<f64>(crate::Settings::LINE_WIDTH)
-                    / (ppu * scale),
+                    .property::<f64>(crate::Settings::LINE_WIDTH),
             };
             t.imp().state.borrow().draw(
                 cr,
@@ -324,7 +345,9 @@ impl State {
 
         let ret = Contour::new();
         *ret.open().borrow_mut() = open;
-        *ret.curves().borrow_mut() = curves;
+        for c in curves {
+            ret.push_curve(c);
+        }
         ret
     }
 
