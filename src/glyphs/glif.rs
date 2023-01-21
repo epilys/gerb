@@ -22,8 +22,8 @@
 extern crate quick_xml;
 extern crate serde;
 
+use crate::glib::ObjectExt;
 use crate::unicode::names::CharName;
-use gtk::subclass::prelude::ObjectSubclassIsExt;
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -300,7 +300,7 @@ impl Iterator for GlifIterator {
                     prev_point = (p.x, p.y);
                 }
                 let super_ = super::Contour::new();
-                *super_.imp().open.borrow_mut() = open;
+                super_.set_property::<bool>(super::Contour::OPEN, open);
                 loop {
                     match points.pop_front() {
                         Some(Point {

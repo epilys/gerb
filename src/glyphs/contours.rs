@@ -22,7 +22,7 @@
 use super::*;
 use glib::{ParamSpec, Value};
 use gtk::glib;
-use gtk::prelude::*;
+use std::cell::Cell;
 
 glib::wrapper! {
     pub struct Contour(ObjectSubclass<imp::Contour>);
@@ -35,13 +35,13 @@ impl Default for Contour {
 }
 
 impl Contour {
+    pub const OPEN: &str = "open";
+    pub const CONTINUITIES: &str = "continuities";
+    pub const CONTINUITY: &str = "continuity";
+
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
-    }
-
-    pub fn open(&self) -> &RefCell<bool> {
-        &self.imp().open
     }
 
     pub fn curves(&self) -> &RefCell<Vec<Bezier>> {
@@ -51,6 +51,9 @@ impl Contour {
     pub fn push_curve(&self, curve: Bezier) {
         let mut curves = self.imp().curves.borrow_mut();
         let mut continuities = self.imp().continuities.borrow_mut();
+        if curve.points().borrow().is_empty() {
+            return;
+        }
         if curves.is_empty() {
             curves.push(curve);
             return;
@@ -61,29 +64,28 @@ impl Contour {
             <Vec<Point> as AsRef<[Point]>>::as_ref(&prev),
             <Vec<Point> as AsRef<[Point]>>::as_ref(&curr),
         ) {
-            (&[_p0, _p1, p2, p3_1], &[p3_2, p4, _p5, _p6])
-                if p3_1 == p3_2 && p2.collinear(&p3_1, &p4) =>
-            {
+            (&[_, _, p2, p3_1], &[p3_2, p4, _, _]) if p3_1 == p3_2 && p2.collinear(&p3_1, &p4) => {
                 let beta = (p4 - p3_1) / (p3_1 - p2);
                 //assert_eq!(beta.x, beta.y);
                 let beta = beta.y;
                 continuities.push(Continuity::Tangent { beta });
             }
-            (&[_p0, _p1, p2, p3_1], &[p3_2, p4, _p5, _p6])
-                if p3_1 == p3_2 && p4 == 2.0 * p3_1 - p2 =>
-            {
+            (&[_, _, p2, p3_1], &[p3_2, p4, _, _]) if p3_1 == p3_2 && p4 == 2.0 * p3_1 - p2 => {
                 continuities.push(Continuity::Velocity);
             }
-            (&[_p0, _p1, _p2, p3_1], &[p3_2, _p4, _p5, _p6]) if p3_1 == p3_2 => {
+            (&[_, _, _, p1], &[p2, _, _, _]) if p1 == p2 => {
                 continuities.push(Continuity::Positional);
             }
-            (&[_p0, p1_1], &[p1_2, _p_3]) if p1_1 == p1_2 => {
+            (&[_, p1], &[p2, _]) if p1 == p2 => {
                 continuities.push(Continuity::Positional);
             }
-            (&[_p0, _p1, _p2, p3_1], &[p3_2, _p_4]) if p3_1 == p3_2 => {
+            (&[_, p1], &[p2, _, _]) if p1 == p2 => {
                 continuities.push(Continuity::Positional);
             }
-            (&[_p0, p1_1], &[p1_2, _p2, _p3, _p4]) if p1_1 == p1_2 => {
+            (&[_, _, _, p1], &[p2, _]) if p1 == p2 => {
+                continuities.push(Continuity::Positional);
+            }
+            (&[_, p1], &[p2, _, _, _]) if p1 == p2 => {
                 continuities.push(Continuity::Positional);
             }
             _ => panic!("prev {:#?} curr {:#?}", prev, curr),
@@ -108,7 +110,7 @@ mod imp {
     use super::*;
     #[derive(Debug, Default)]
     pub struct Contour {
-        pub open: RefCell<bool>,
+        pub open: Cell<bool>,
         pub curves: RefCell<Vec<Bezier>>,
         pub continuities: RefCell<Vec<Continuity>>,
     }
@@ -125,26 +127,35 @@ mod imp {
         fn properties() -> &'static [ParamSpec] {
             static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
                 once_cell::sync::Lazy::new(|| {
-                    vec![glib::ParamSpecValueArray::new(
-                        "continuities",
-                        "continuities",
-                        "continuities",
-                        &glib::ParamSpecBoxed::new(
-                            "continuities",
-                            "continuities",
-                            "continuities",
-                            Continuity::static_type(),
+                    vec![
+                        glib::ParamSpecValueArray::new(
+                            super::Contour::CONTINUITIES,
+                            super::Contour::CONTINUITIES,
+                            super::Contour::CONTINUITIES,
+                            &glib::ParamSpecBoxed::new(
+                                super::Contour::CONTINUITY,
+                                super::Contour::CONTINUITY,
+                                super::Contour::CONTINUITY,
+                                Continuity::static_type(),
+                                glib::ParamFlags::READWRITE,
+                            ),
                             glib::ParamFlags::READWRITE,
                         ),
-                        glib::ParamFlags::READWRITE,
-                    )]
+                        glib::ParamSpecBoolean::new(
+                            super::Contour::OPEN,
+                            super::Contour::OPEN,
+                            super::Contour::OPEN,
+                            true,
+                            glib::ParamFlags::READWRITE,
+                        ),
+                    ]
                 });
             PROPERTIES.as_ref()
         }
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
             match pspec.name() {
-                "continuities" => {
+                super::Contour::CONTINUITIES => {
                     let continuities = self.continuities.borrow();
                     let mut ret = glib::ValueArray::new(continuities.len() as u32);
                     for c in continuities.iter() {
@@ -152,19 +163,23 @@ mod imp {
                     }
                     ret.to_value()
                 }
+                super::Contour::OPEN => self.open.get().to_value(),
                 _ => unimplemented!("{}", pspec.name()),
             }
         }
 
         fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
             match pspec.name() {
-                "continuities" => {
+                super::Contour::CONTINUITIES => {
                     let arr: glib::ValueArray = value.get().unwrap();
                     let mut continuities = self.continuities.borrow_mut();
                     continuities.clear();
                     for c in arr.iter() {
                         continuities.push(c.get().unwrap());
                     }
+                }
+                super::Contour::OPEN => {
+                    self.open.set(value.get().unwrap());
                 }
                 _ => unimplemented!("{}", pspec.name()),
             }

@@ -22,7 +22,6 @@
 use super::*;
 use glib::{ParamFlags, ParamSpec, ParamSpecDouble, ParamSpecString, Value};
 use gtk::glib;
-use gtk::prelude::*;
 
 use std::cell::RefCell;
 

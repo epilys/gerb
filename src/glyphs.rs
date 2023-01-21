@@ -29,8 +29,7 @@ use crate::unicode::names::CharName;
 use crate::utils::{curves::*, *};
 
 use gtk::cairo::{Context, Matrix};
-
-use gtk::subclass::prelude::*;
+use gtk::{glib::prelude::*, subclass::prelude::*};
 
 mod guidelines;
 pub use guidelines::*;
@@ -232,7 +231,7 @@ impl Glyph {
         let mut pen_position: Option<Point> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
             let curves = contour.imp().curves.borrow();
-            if !*contour.imp().open.borrow() {
+            if !contour.property::<bool>(Contour::OPEN) {
                 if let Some(point) = curves
                     .last()
                     .and_then(|b| b.points().borrow().last().copied())
@@ -248,7 +247,7 @@ impl Glyph {
             }
 
             for (_jc, curv) in curves.iter().enumerate() {
-                if !*curv.smooth().borrow() {
+                if !curv.property::<bool>(Bezier::SMOOTH) {
                     //cr.stroke().expect("Invalid cairo surface state");
                 }
                 let degree = curv.degree();
@@ -403,7 +402,7 @@ impl Glyph {
         for contour in self.contours.iter_mut() {
             let mut pen_position: Option<Point> = None;
             let mut curves = contour.imp().curves.borrow_mut();
-            if !*contour.imp().open.borrow() {
+            if !contour.property::<bool>(Contour::OPEN) {
                 if let Some(point) = curves
                     .last()
                     .and_then(|b| b.points().borrow().last().copied())
@@ -435,8 +434,7 @@ impl Glyph {
                             .into(),
                         c,
                     ];
-                    let smooth = *curv.smooth().borrow();
-                    *curv = Bezier::new(smooth, new_points);
+                    *curv = Bezier::new(curv.property::<bool>(Bezier::SMOOTH), new_points);
                     pen_position = Some(c);
                 } else if let Some(last_p) = curv.points().borrow().last() {
                     pen_position = Some(*last_p);

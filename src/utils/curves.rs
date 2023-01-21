@@ -22,18 +22,15 @@
 use super::Point;
 use gtk::glib;
 use gtk::subclass::prelude::*;
-use std::cell::Ref;
 use std::cell::RefCell;
+use std::cell::{Cell, Ref};
+use std::rc::Rc;
 
 glib::wrapper! {
     pub struct Bezier(ObjectSubclass<imp::Bezier>);
 }
 
 impl Bezier {
-    pub fn smooth(&self) -> &RefCell<bool> {
-        &self.imp().smooth
-    }
-
     pub fn points(&self) -> &RefCell<Vec<Point>> {
         &self.imp().points
     }
@@ -69,9 +66,9 @@ mod imp {
 
     #[derive(Debug, Default)]
     pub struct Bezier {
-        pub smooth: RefCell<bool>,
-        pub points: RefCell<Vec<Point>>,
-        pub lut: RefCell<Vec<Point>>,
+        pub smooth: Cell<bool>,
+        pub points: Rc<RefCell<Vec<Point>>>,
+        pub lut: Rc<RefCell<Vec<Point>>>,
     }
 
     #[glib::object_subclass]
@@ -83,25 +80,30 @@ mod imp {
     }
 
     impl ObjectImpl for Bezier {
+        fn constructed(&self, obj: &Self::Type) {
+            self.parent_constructed(obj);
+            self.smooth.set(true);
+        }
+
         fn properties() -> &'static [glib::ParamSpec] {
             static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
                 once_cell::sync::Lazy::new(|| {
                     vec![
                         glib::ParamSpecBoolean::new(
-                            "smooth",
-                            "smooth",
-                            "smooth",
+                            super::Bezier::SMOOTH,
+                            super::Bezier::SMOOTH,
+                            super::Bezier::SMOOTH,
                             true,
                             glib::ParamFlags::READWRITE,
                         ),
                         glib::ParamSpecValueArray::new(
-                            "points",
-                            "points",
-                            "points",
+                            super::Bezier::POINTS,
+                            super::Bezier::POINTS,
+                            super::Bezier::POINTS,
                             &glib::ParamSpecBoxed::new(
-                                "point",
-                                "point",
-                                "point",
+                                super::Bezier::POINT,
+                                super::Bezier::POINT,
+                                super::Bezier::POINT,
                                 Point::static_type(),
                                 glib::ParamFlags::READWRITE,
                             ),
@@ -114,8 +116,8 @@ mod imp {
 
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
             match pspec.name() {
-                "smooth" => self.smooth.borrow().to_value(),
-                "points" => {
+                super::Bezier::SMOOTH => self.smooth.get().to_value(),
+                super::Bezier::POINTS => {
                     let points = self.points.borrow();
                     let mut ret = glib::ValueArray::new(points.len() as u32);
                     for p in points.iter() {
@@ -135,10 +137,10 @@ mod imp {
             pspec: &glib::ParamSpec,
         ) {
             match pspec.name() {
-                "smooth" => {
-                    *self.smooth.borrow_mut() = value.get().unwrap();
+                super::Bezier::SMOOTH => {
+                    self.smooth.set(value.get().unwrap());
                 }
-                "points" => {
+                super::Bezier::POINTS => {
                     let arr: glib::ValueArray = value.get().unwrap();
                     let mut points = self.points.borrow_mut();
                     points.clear();
@@ -159,9 +161,13 @@ impl Default for Bezier {
 }
 
 impl Bezier {
+    pub const SMOOTH: &str = "smooth";
+    pub const POINTS: &str = "points";
+    pub const POINT: &str = "point";
+
     pub fn new(smooth: bool, points: Vec<Point>) -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        *ret.imp().smooth.borrow_mut() = smooth;
+        ret.imp().smooth.set(smooth);
         *ret.imp().points.borrow_mut() = points;
         ret
     }
