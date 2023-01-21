@@ -154,7 +154,7 @@ mod points {
         }
     }
 
-    #[derive(Clone, PartialEq, Debug, Default, Copy)]
+    #[derive(Clone, Hash, PartialEq, Debug, Default, Copy)]
     pub struct IPoint {
         pub x: i64,
         pub y: i64,

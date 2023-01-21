@@ -42,6 +42,222 @@ impl Coordinate {
     }
 }
 
+#[test]
+fn test_range_query_region() {
+    let entries = &[
+        (
+            (
+                (0, 0),
+                Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
+                x: 83.0,
+                y: 598.0,
+            },
+        ),
+        (
+            (
+                (0, 0),
+                Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
+                x: 99.0,
+                y: 431.0,
+            },
+        ),
+        (
+            (
+                (0, 1),
+                Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
+                x: 99.0,
+                y: 431.0,
+            },
+        ),
+        (
+            (
+                (0, 1),
+                Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
+                x: 149.0,
+                y: 431.0,
+            },
+        ),
+        (
+            (
+                (0, 2),
+                Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
+                x: 149.0,
+                y: 431.0,
+            },
+        ),
+        (
+            (
+                (0, 2),
+                Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
+                x: 165.0,
+                y: 598.0,
+            },
+        ),
+        (
+            (
+                (0, 3),
+                Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
+                x: 165.0,
+                y: 598.0,
+            },
+        ),
+        (
+            (
+                (0, 3),
+                Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
+                x: 168.0,
+                y: 690.0,
+            },
+        ),
+        (
+            (
+                (0, 4),
+                Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
+                x: 168.0,
+                y: 690.0,
+            },
+        ),
+        (
+            (
+                (0, 4),
+                Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
+                x: 80.0,
+                y: 690.0,
+            },
+        ),
+        (
+            (
+                (0, 5),
+                Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
+                x: 80.0,
+                y: 690.0,
+            },
+        ),
+        (
+            (
+                (0, 5),
+                Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
+            ),
+            Point {
+                uuid: Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
+                x: 83.0,
+                y: 598.0,
+            },
+        ),
+    ];
+    let mut kd_tree = KdTree::new(&[]);
+    for &(i, p) in entries {
+        kd_tree.add(i, p);
+    }
+
+    let upbot = |(c1, c2): (Point, Point)| -> (Point, Point) {
+        let u = (c1.x.min(c2.x), c1.y.max(c2.y)).into();
+        let b = (c1.x.max(c2.x), c1.y.min(c2.y)).into();
+        (u, b)
+    };
+    let linear_search = |(u, b): (Point, Point), p: Point| -> bool {
+        u.x <= p.x && b.x >= p.x && u.y >= p.y && b.y <= p.y
+    };
+
+    for region in [
+        (
+            Point {
+                uuid: Uuid::parse_str("4076239c-c000-0000-407f-28db00000000").unwrap(),
+                x: 354.22576904296875,
+                y: 498.553466796875,
+            },
+            Point {
+                uuid: Uuid::parse_str("c0212858-0000-0000-4078-886a40000000").unwrap(),
+                x: -8.57879638671875,
+                y: 392.52593994140625,
+            },
+        ),
+        (
+            Point {
+                uuid: Uuid::parse_str("c049ab04-0000-0000-4081-6880b0000000").unwrap(),
+                x: -51.3360595703125,
+                y: 557.0628356933594,
+            },
+            Point {
+                uuid: Uuid::parse_str("4072bf6f-0000-0000-4085-265240000000").unwrap(),
+                x: 299.964599609375,
+                y: 676.7901611328125,
+            },
+        ),
+        (
+            Point {
+                uuid: Uuid::parse_str("4074119b-8000-0000-4088-5c1d00000000").unwrap(),
+                x: 321.1004638671875,
+                y: 779.51416015625,
+            },
+            Point {
+                uuid: Uuid::parse_str("c02c3e00-0000-0000-4084-95da80000000").unwrap(),
+                x: -14.12109375,
+                y: 658.731689453125,
+            },
+        ),
+        (
+            Point {
+                uuid: Uuid::parse_str("c053ea57-0000-0000-4089-1b9fe0000000").unwrap(),
+                x: -79.66156005859375,
+                y: 803.4530639648438,
+            },
+            Point {
+                uuid: Uuid::parse_str("407594c1-8000-0000-4072-483340000000").unwrap(),
+                x: 345.2972412109375,
+                y: 292.51251220703125,
+            },
+        ),
+    ] {
+        let brute_results = entries
+            .iter()
+            .filter(|(_, p)| linear_search(upbot(region), *p))
+            .cloned()
+            .map(|(i, p)| (i, p.into()))
+            .collect::<std::collections::HashSet<_>>();
+        assert_eq!(
+            &brute_results,
+            &kd_tree
+                .query_region(upbot(region))
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>()
+        );
+    }
+}
+
 /*
 #[test]
 fn test_range_query() {
@@ -142,19 +358,31 @@ fn test_range_query() {
 }
 */
 
+fn upboti((c1, c2): (IPoint, IPoint)) -> (IPoint, IPoint) {
+    let u = (c1.x.min(c2.x), c1.y.max(c2.y)).into();
+    let b = (c1.x.max(c2.x), c1.y.min(c2.y)).into();
+    (u, b)
+}
+
 macro_rules! contains {
     ($range:expr, $point:expr) => {{
-        let (bottom_left, top_right) = $range;
+        let (upper_left, bottom_right) = upboti($range);
         let IPoint { x, y, .. } = $point;
-        x >= bottom_left.x && x <= top_right.x && y >= bottom_left.y && y <= top_right.y
+        x <= bottom_right.x && x >= upper_left.x && y >= bottom_right.y && y <= upper_left.y
     }};
 }
 
 macro_rules! intersects {
     ($self:expr, $other:expr) => {{
-        let (a1, a2) = $self;
-        let (b1, b2) = $other;
-        a1.x <= b2.x && a2.x >= b1.x && a1.y <= b2.y && a2.y >= b1.y
+        let (au, ab) = upboti($self);
+        let (bu, bb) = upboti($other);
+        if au.x > bb.x || bu.x > ab.x {
+            false
+        } else if ab.y > bu.y || bb.y > au.y {
+            false
+        } else {
+            true
+        }
     }};
 }
 
@@ -531,23 +759,6 @@ pub struct KdTree {
 }
 
 impl KdTree {
-    /*pub fn new2(points: &[Point]) -> Self {
-        let mut ret = Self {
-            arena: Arena::new(),
-            size: 0,
-            min: MAX_IPOINT,
-            max: MIN_IPOINT,
-            root: None,
-        };
-
-        for p in points.iter().cloned() {
-            ret.add(p);
-        }
-
-        ret
-    }
-    */
-
     pub fn new(points: &[((usize, usize), Point)]) -> Self {
         let mut arena = Arena::new();
         let mut min = MAX_IPOINT;
@@ -658,7 +869,7 @@ impl KdTree {
                 Some(KdNode::Leaf {
                     min, max, points, ..
                 }) => {
-                    if intersects!((min, max), query_region) {
+                    if intersects!((*min, *max), query_region) {
                         ret.extend(
                             points
                                 .iter()
@@ -735,7 +946,7 @@ impl KdTree {
             }};
         }
 
-        let query_region: (IPoint, IPoint) = (
+        let query_region: (IPoint, IPoint) = upboti((
             IPoint {
                 x: o! { center.x, - radius / 2 },
                 y: o! { center.y, - radius / 2 },
@@ -744,12 +955,13 @@ impl KdTree {
                 x: o! { center.x, + radius / 2 },
                 y: o! { center.y, + radius / 2 },
             },
-        );
+        ));
 
         self.query_region(query_region)
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn depth(&self, root: Index) -> usize {
         let mut ret = 1;
         match self.arena.get(root) {
@@ -772,6 +984,7 @@ impl KdTree {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn new_group(
         &self,
         root: Index,
@@ -868,6 +1081,7 @@ impl KdTree {
     }
 
     #[cfg(test)]
+    #[allow(dead_code)]
     fn to_svg(&self) -> String {
         let mut output = vec![];
         let (width, height) = (
