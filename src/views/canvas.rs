@@ -21,11 +21,15 @@
 
 mod layers;
 mod transformation;
+pub use crate::utils::colors::*;
 use crate::utils::Point;
 pub use layers::*;
 pub use transformation::*;
 
-use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecObject, Value};
+use glib::{
+    ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecBoxed, ParamSpecDouble, ParamSpecObject,
+    Value,
+};
 
 use gtk::glib;
 use gtk::prelude::*;
@@ -33,7 +37,6 @@ use gtk::subclass::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-const RULER_BREADTH: f64 = 13.0;
 #[derive(Debug, Copy, Clone, Default)]
 #[repr(transparent)]
 pub struct UnitPoint(pub Point);
@@ -58,6 +61,13 @@ pub struct CanvasInner {
     pub pre_layers: Rc<RefCell<Vec<Layer>>>,
     pub layers: Rc<RefCell<Vec<Layer>>>,
     pub post_layers: Rc<RefCell<Vec<Layer>>>,
+    pub ruler_fg_color: Cell<Color>,
+    pub ruler_indicator_color: Cell<Color>,
+    pub ruler_bg_color: Cell<Color>,
+}
+
+impl CanvasInner {
+    pub const RULER_BREADTH: f64 = 13.0;
 }
 
 #[glib::object_subclass]
@@ -77,6 +87,9 @@ impl ObjectImpl for CanvasInner {
         self.show_total_area.set(true);
         self.show_rulers.set(true);
         self.warp_cursor.set(true);
+        self.ruler_fg_color.set(Color::BLACK);
+        self.ruler_bg_color.set(Color::WHITE);
+        self.ruler_indicator_color.set(Color::RED);
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))
@@ -206,6 +219,27 @@ impl ObjectImpl for CanvasInner {
                         0.0,
                         ParamFlags::READABLE,
                     ),
+                    ParamSpecBoxed::new(
+                        Canvas::RULER_BG_COLOR,
+                        Canvas::RULER_BG_COLOR,
+                        Canvas::RULER_BG_COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::RULER_FG_COLOR,
+                        Canvas::RULER_FG_COLOR,
+                        Canvas::RULER_FG_COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::RULER_INDICATOR_COLOR,
+                        Canvas::RULER_INDICATOR_COLOR,
+                        Canvas::RULER_INDICATOR_COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -223,7 +257,10 @@ impl ObjectImpl for CanvasInner {
             Canvas::WARP_CURSOR => self.warp_cursor.get().to_value(),
             Canvas::VIEW_HEIGHT => (self.instance().allocated_height() as f64).to_value(),
             Canvas::VIEW_WIDTH => (self.instance().allocated_width() as f64).to_value(),
-            Canvas::RULER_BREADTH_PIXELS => RULER_BREADTH.to_value(),
+            Canvas::RULER_BREADTH_PIXELS => Self::RULER_BREADTH.to_value(),
+            Canvas::RULER_FG_COLOR => self.ruler_fg_color.get().to_value(),
+            Canvas::RULER_BG_COLOR => self.ruler_bg_color.get().to_value(),
+            Canvas::RULER_INDICATOR_COLOR => self.ruler_indicator_color.get().to_value(),
             /*Canvas::RULER_BREADTH_UNITS => {
                 let ppu = self
                     .transformation
@@ -265,12 +302,19 @@ impl ObjectImpl for CanvasInner {
             Canvas::VIEW_HEIGHT => {
                 self.view_height.set(value.get().unwrap());
             }
+            Canvas::RULER_FG_COLOR => {
+                self.ruler_fg_color.set(value.get().unwrap());
+            }
+            Canvas::RULER_BG_COLOR => {
+                self.ruler_bg_color.set(value.get().unwrap());
+            }
+            Canvas::RULER_INDICATOR_COLOR => {
+                self.ruler_indicator_color.set(value.get().unwrap());
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
-
-impl CanvasInner {}
 
 impl DrawingAreaImpl for CanvasInner {}
 impl WidgetImpl for CanvasInner {}
@@ -293,6 +337,9 @@ impl Canvas {
     pub const WARP_CURSOR: &str = "warp-cursor";
     pub const MOUSE: &str = "mouse";
     pub const RULER_BREADTH_PIXELS: &str = "ruler-breadth-pixels";
+    pub const RULER_FG_COLOR: &str = "ruler-fg-color";
+    pub const RULER_BG_COLOR: &str = "ruler-bg-color";
+    pub const RULER_INDICATOR_COLOR: &str = "ruler-indicator-color";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
@@ -335,7 +382,7 @@ impl Canvas {
 
         cr.save().unwrap();
 
-        cr.set_source_rgb(1.0, 1.0, 1.0);
+        cr.set_source_color(Color::WHITE);
         cr.paint().unwrap();
         cr.set_line_width(1.5);
 
@@ -375,6 +422,11 @@ impl Canvas {
             .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
+        let (ruler_fg, ruler_bg, ruler_indicator_color) = (
+            self.property::<Color>(Canvas::RULER_FG_COLOR),
+            self.property::<Color>(Canvas::RULER_BG_COLOR),
+            self.property::<Color>(Canvas::RULER_INDICATOR_COLOR),
+        );
         let ViewPoint(camera) = self.imp().transformation.camera();
 
         cr.save().unwrap();
@@ -387,29 +439,38 @@ impl Canvas {
         /* Draw rulers */
 
         cr.save().unwrap();
+
         cr.rectangle(0.0, ruler_breadth, ruler_breadth, height);
-        cr.set_source_rgb(1.0, 1.0, 1.0);
+        cr.set_source_color(ruler_bg);
         cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_rgb(0.0, 0.0, 0.0);
-        cr.stroke_preserve().unwrap();
-        cr.set_source_rgb(0.0, 0.0, 0.0);
-        cr.move_to(0.0, view_mouse.y);
-        cr.line_to(ruler_breadth, view_mouse.y);
+        cr.set_source_color(ruler_fg);
         cr.stroke().unwrap();
+
+        cr.save().unwrap();
         cr.move_to(2.0 * ruler_breadth / 3.0, view_mouse.y - 1.0);
         cr.set_font_size(font_size);
         cr.rotate(-std::f64::consts::FRAC_PI_2);
-        cr.show_text(&format!("{:.0}", mouse.y)).unwrap();
+        cr.set_source_color(ruler_fg);
+        cr.show_text_with_bg(&format!("{:.0}", mouse.y), 0.5, ruler_fg, ruler_bg);
+        cr.restore().unwrap();
+
+        cr.save().unwrap();
+        cr.set_source_color(ruler_indicator_color);
+        cr.move_to(0.0, view_mouse.y);
+        cr.line_to(ruler_breadth, view_mouse.y);
+        cr.stroke().unwrap();
+        cr.restore().unwrap();
+
         cr.restore().expect("Invalid cairo surface state");
 
         cr.save().unwrap();
+
         cr.rectangle(0.0, 0.0, width, ruler_breadth);
-        cr.set_source_rgb(1.0, 1.0, 1.0);
+        cr.set_source_color(ruler_bg);
         cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_rgb(0.0, 0.0, 0.0);
-        cr.stroke_preserve().unwrap();
-        cr.set_source_rgb(0.0, 0.0, 0.0);
+        cr.set_source_color(ruler_fg);
         cr.stroke().unwrap();
+
         cr.arc(
             camera.x,
             camera.y,
@@ -431,14 +492,21 @@ impl Canvas {
             }
             x += step;
         }
+
+        cr.save().unwrap();
+        cr.move_to(view_mouse.x + 1.0, 2.0 * ruler_breadth / 3.0);
+        cr.set_font_size(font_size);
+        cr.show_text_with_bg(&format!("{:.0}", mouse.x), 0.5, ruler_fg, ruler_bg);
+        cr.restore().unwrap();
+
+        cr.save().unwrap();
+        cr.set_source_color(ruler_indicator_color);
         cr.move_to(view_mouse.x, 0.0);
         cr.line_to(view_mouse.x, ruler_breadth);
         cr.stroke().unwrap();
-        cr.move_to(view_mouse.x + 1.0, 2.0 * ruler_breadth / 3.0);
-        cr.set_font_size(font_size);
-        cr.show_text(&format!("{:.0}", mouse.x)).unwrap();
-        cr.restore().expect("Invalid cairo surface state");
+        cr.restore().unwrap();
 
+        cr.restore().unwrap();
         cr.restore().unwrap();
 
         Inhibit(false)

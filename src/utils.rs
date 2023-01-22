@@ -22,10 +22,12 @@
 use gtk::cairo::Context;
 use std::f64::consts::PI;
 
+pub mod colors;
 pub mod curves;
 pub mod menu;
 pub mod points;
 pub mod range_query;
+pub use colors::*;
 pub use points::{IPoint, Point};
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
@@ -86,34 +88,6 @@ pub fn draw_round_rectangle(
         (x + line_width, y + line_width).into(),
         (width - 2. * line_width, height - 2. * line_width),
     )
-}
-
-pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
-    if s.starts_with('#')
-        && s.len() == 7
-        && s[1..].as_bytes().iter().all(|&b| {
-            (b'0'..=b'9').contains(&b) || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
-        })
-    {
-        Some((
-            u8::from_str_radix(&s[1..3], 16).ok()? as f64 / 255.0,
-            u8::from_str_radix(&s[3..5], 16).ok()? as f64 / 255.0,
-            u8::from_str_radix(&s[5..7], 16).ok()? as f64 / 255.0,
-        ))
-    } else if s.starts_with('#')
-        && s.len() == 4
-        && s[1..].as_bytes().iter().all(|&b| {
-            (b'0'..=b'9').contains(&b) || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
-        })
-    {
-        Some((
-            (17 * u8::from_str_radix(&s[1..2], 16).ok()?) as f64 / 255.0,
-            (17 * u8::from_str_radix(&s[2..3], 16).ok()?) as f64 / 255.0,
-            (17 * u8::from_str_radix(&s[3..4], 16).ok()?) as f64 / 255.0,
-        ))
-    } else {
-        None
-    }
 }
 
 pub fn distance_between_two_points<K: Into<Point>, L: Into<Point>>(p_k: K, p_l: L) -> f64 {
