@@ -455,6 +455,7 @@ impl Glyph {
             outline: (0., 0., 0., 1.),
             inner_fill: None,
             highlight: None,
+            matrix: Matrix::new(1.0, 0.0, 0.0, -1.0, 0.0, 0.0),
             ..Default::default()
         };
         self.draw(&ctx, options);

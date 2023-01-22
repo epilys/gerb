@@ -860,4 +860,92 @@ impl GlyphEditView {
         Tool::setup_toolbox(&ret);
         ret
     }
+
+    pub fn make_debug_window(&self) {
+        let glyph_state = self.imp().glyph_state.get().unwrap().borrow();
+        let glyph = glyph_state.glyph.borrow();
+        let window = gtk::Window::new(gtk::WindowType::Toplevel);
+        window.set_default_size(640, 480);
+        let hbox = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .valign(gtk::Align::Fill)
+            .expand(false)
+            .spacing(5)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        let glyph_info = gtk::Label::new(Some(&format!(
+            "{:#?}",
+            glyph.contours.iter().map(Contour::imp).collect::<Vec<_>>()
+        )));
+        glyph_info.set_halign(gtk::Align::Start);
+        let scrolled_window = gtk::ScrolledWindow::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .margin_start(5)
+            .build();
+        scrolled_window.set_child(Some(&glyph_info));
+        hbox.pack_start(&scrolled_window, true, true, 0);
+        hbox.pack_start(
+            &gtk::Separator::new(gtk::Orientation::Horizontal),
+            false,
+            true,
+            0,
+        );
+        let scrolled_window = gtk::ScrolledWindow::builder()
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .margin_start(5)
+            .build();
+        let glif_info = gtk::Label::new(Some(&glyph.glif_source));
+        glif_info.set_halign(gtk::Align::Start);
+        scrolled_window.set_child(Some(&glif_info));
+        hbox.pack_start(&scrolled_window, true, true, 0);
+        #[cfg(feature = "svg")]
+        {
+            let save_to_svg = gtk::Button::builder()
+                .label("Save to SVG")
+                .valign(gtk::Align::Center)
+                .halign(gtk::Align::Center)
+                .visible(true)
+                .build();
+            save_to_svg.connect_clicked(
+                clone!(@strong glyph_state.glyph as glyph, @strong window => move |_| {
+                    let dialog = gtk::FileChooserDialog::builder()
+                        .create_folders(true)
+                        .do_overwrite_confirmation(true)
+                        .action(gtk::FileChooserAction::Save)
+                        .visible(true)
+                        .build();
+                    dialog.add_button("Save", gtk::ResponseType::Ok);
+                    dialog.add_button("Cancel", gtk::ResponseType::Cancel);
+                    dialog.set_current_name(&format!("{}.svg", glyph.borrow().name.as_ref()));
+                    if dialog.run() == gtk::ResponseType::Ok {
+                        if let Some(f) = dialog.filename() {
+                            if let Err(err) = glyph.borrow().save_to_svg(f) {
+                                let dialog = gtk::MessageDialog::new(
+                                    Some(&window),
+                                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                                    gtk::MessageType::Error,
+                                    gtk::ButtonsType::Close,
+                                    &err.to_string(),
+                                );
+                                dialog.set_title("Error: Could not svg file");
+                                dialog.set_use_markup(true);
+                                dialog.run();
+                                dialog.hide();
+                            }
+                        }
+                    }
+                    dialog.hide();
+                }),
+            );
+            hbox.pack_start(&save_to_svg, false, true, 5);
+        }
+
+        window.add(&hbox);
+        window.show_all();
+    }
 }

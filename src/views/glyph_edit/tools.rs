@@ -268,45 +268,11 @@ impl Tool {
                 Some(format!("{:.0}%", scale * 100.).to_value())
             })
             .build();
-        let debug_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Debug info"));
+        let debug_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Info"));
         debug_button.set_visible(true);
-        debug_button.set_tooltip_text(Some("Debug info"));
+        debug_button.set_tooltip_text(Some("Info"));
         debug_button.connect_clicked(clone!(@strong obj => move |_| {
-            let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-            let glyph = glyph_state.glyph.borrow();
-            let window = gtk::Window::new(gtk::WindowType::Toplevel);
-            window.set_default_size(640, 480);
-            let hbox = gtk::Box::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .valign(gtk::Align::Fill)
-                .expand(false)
-                .spacing(5)
-                .visible(true)
-                .can_focus(true)
-                .build();
-            let glyph_info = gtk::Label::new(Some(&format!("{:#?}", glyph.contours)));
-            glyph_info.set_halign(gtk::Align::Start);
-            let scrolled_window = gtk::ScrolledWindow::builder()
-                .expand(true)
-                .visible(true)
-                .can_focus(true)
-                .margin_start(5)
-                .build();
-            scrolled_window.set_child(Some(&glyph_info));
-            hbox.pack_start(&scrolled_window, true, true, 0);
-            hbox.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, true, 0);
-            let scrolled_window = gtk::ScrolledWindow::builder()
-                .expand(true)
-                .visible(true)
-                .can_focus(true)
-                .margin_start(5)
-                .build();
-            let glif_info = gtk::Label::new(Some(&glyph.glif_source));
-            glif_info.set_halign(gtk::Align::Start);
-            scrolled_window.set_child(Some(&glif_info));
-            hbox.pack_start(&scrolled_window, true, true, 0);
-            window.add(&hbox);
-            window.show_all();
+            obj.make_debug_window();
         }));
         obj.imp().toolbar_box.pack_start(&toolbar, false, false, 0);
         obj.imp()

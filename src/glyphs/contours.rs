@@ -108,11 +108,29 @@ impl Contour {
 
 mod imp {
     use super::*;
-    #[derive(Debug, Default)]
+    #[derive(Default)]
     pub struct Contour {
         pub open: Cell<bool>,
         pub curves: RefCell<Vec<Bezier>>,
         pub continuities: RefCell<Vec<Continuity>>,
+    }
+
+    impl std::fmt::Debug for Contour {
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Contour")
+                .field("open", &self.open.get())
+                .field(
+                    "curves",
+                    &self
+                        .curves
+                        .borrow()
+                        .iter()
+                        .map(Bezier::imp)
+                        .collect::<Vec<_>>(),
+                )
+                .field("continuities", &self.continuities.borrow())
+                .finish()
+        }
     }
 
     #[glib::object_subclass]

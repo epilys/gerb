@@ -64,11 +64,21 @@ mod imp {
         Tangent { beta: f64 },
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Default)]
     pub struct Bezier {
         pub smooth: Cell<bool>,
         pub points: Rc<RefCell<Vec<Point>>>,
         pub lut: Rc<RefCell<Vec<Point>>>,
+    }
+
+    impl std::fmt::Debug for Bezier {
+        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fmt.debug_struct("Bezier")
+                .field("smooth", &self.smooth.get())
+                .field("points", &self.points)
+                .field("lut entries", &self.lut.borrow().len())
+                .finish()
+        }
     }
 
     #[glib::object_subclass]
