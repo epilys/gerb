@@ -146,6 +146,10 @@ impl Workspace {
             .get()
             .unwrap()
             .attach(main_widget, 0, 0, 1, 1);
+        ret.connect_button_press_event(|_self, event| {
+            Inhibit(event.button() == gtk::gdk::BUTTON_SECONDARY)
+        });
+
         ret
     }
 }
