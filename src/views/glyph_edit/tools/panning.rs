@@ -260,6 +260,39 @@ impl ToolImplImpl for PanningToolInner {
             }
             gtk::gdk::BUTTON_SECONDARY => {
                 if self.mode.get() == ControlPointMode::None {
+                    let event_position = event.position();
+                    let UnitPoint(position) =
+                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
+                        if g.imp().on_line_query(position, None) {
+                            let menu = crate::utils::menu::Menu::new()
+                            .title(Some(std::borrow::Cow::from(format!(
+                                    "{} - {}",
+                                    g.name().as_deref()
+                                        .unwrap_or("Anonymous guideline"),
+                                    g.identifier().as_deref()
+                                        .unwrap_or("No identifier")
+                                ))))
+                            .separator()
+                            .add_button_cb("Edit", clone!(@weak g =>  move |_| {
+                                let obj = g.upcast::<gtk::glib::Object>();
+                                let w = crate::utils::new_property_window(obj, "Settings");
+                                w.present();
+                            }))
+                            .add_button_cb("Delete", clone!(@weak view as obj, @weak viewport =>  move |_| {
+                                let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+                                if glyph_state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
+                                    let mut action = glyph_state.delete_guideline(i);
+                                    (action.redo)();
+                                    glyph_state.add_undo_action(action);
+                                    viewport.queue_draw();
+                                }
+                            }));
+                            menu.popup();
+                            return Inhibit(true);
+                        }
+                    }
+
                     self.instance()
                         .set_property::<bool>(PanningTool::ACTIVE, false);
                     viewport.queue_draw();
@@ -343,10 +376,9 @@ impl ToolImplImpl for PanningToolInner {
                     crate::utils::menu::Menu::new()
                             .add_button_cb(
                                 "reverse",
-                                clone!(@strong view => @default-return Inhibit(false), move |_, _| {
+                                clone!(@strong view => move |_| {
                                     let glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                                     glyph_state.glyph.borrow().contours[i].reverse_direction();
-                                    Inhibit(true)
                                 }),
                             ).popup();
                     return Inhibit(true);

@@ -167,23 +167,21 @@ impl Tool {
                         crate::utils::menu::Menu::new()
                             .add_button_cb(
                                 "reset zoom",
-                                clone!(@strong obj => @default-return Inhibit(false), move |_, _| {
+                                clone!(@strong obj => move |_| {
                                     let t = &obj.imp().viewport.imp().transformation;
                                     t.reset_zoom();
-                                    Inhibit(true)
                                 }),
                             )
                             .add_button_cb(
                                 "reset camera",
-                                clone!(@strong obj => @default-return Inhibit(false), move |_, _| {
+                                clone!(@strong obj => move |_| {
                                     let t = &obj.imp().viewport.imp().transformation;
                                     t.center_camera();
-                                    Inhibit(true)
                                 }),
                             )
                             .add_button_cb(
                                 "set zoom value",
-                                clone!(@strong obj, @weak _self => @default-return Inhibit(false), move |_, _| {
+                                clone!(@strong obj, @weak _self => move |_| {
                                     let t = &obj.imp().viewport.imp().transformation;
                                     let dialog = gtk::Dialog::with_buttons(
                                         Some("set zoom value"),
@@ -244,7 +242,6 @@ impl Tool {
                                         }),
                                     );
                                     dialog.show_all();
-                                    Inhibit(true)
                                 }),
                             ).popup();
                         Inhibit(true)

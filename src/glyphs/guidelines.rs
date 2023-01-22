@@ -20,169 +20,189 @@
  */
 
 use super::*;
-use glib::{ParamFlags, ParamSpec, ParamSpecDouble, ParamSpecString, Value};
+use crate::utils::colors::*;
+use glib::{ParamFlags, ParamSpec, ParamSpecBoxed, ParamSpecDouble, ParamSpecString, Value};
 use gtk::glib;
 
-use std::cell::RefCell;
+use serde::{Deserialize, Serialize};
+use std::cell::{Cell, RefCell};
 
-mod imp {
-    use super::*;
-    use serde::{Deserialize, Serialize};
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct GuidelineInner {
+    pub name: RefCell<Option<String>>,
+    pub identifier: RefCell<Option<String>>,
+    pub angle: Cell<f64>,
+    pub x: Cell<f64>,
+    pub y: Cell<f64>,
+    pub color: Cell<Color>,
+    pub highlight_color: Cell<Color>,
+}
 
-    #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-    pub struct Guideline {
-        pub name: RefCell<Option<String>>,
-        pub identifier: RefCell<Option<String>>,
-        pub color: RefCell<Option<String>>,
-        pub angle: RefCell<f64>,
-        pub x: RefCell<f64>,
-        pub y: RefCell<f64>,
+#[glib::object_subclass]
+impl ObjectSubclass for GuidelineInner {
+    const NAME: &'static str = "Guideline";
+    type Type = Guideline;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+impl ObjectImpl for GuidelineInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.color.set(Color::new_alpha(0.0, 0.0, 1.0, 0.8));
+        self.highlight_color
+            .set(Color::new_alpha(1.0, 0.0, 0.0, 0.8));
     }
 
-    // The central trait for subclassing a GObject
-    #[glib::object_subclass]
-    impl ObjectSubclass for Guideline {
-        const NAME: &'static str = "GlyphGuideline";
-        type Type = super::Guideline;
-        type ParentType = glib::Object;
-        type Interfaces = ();
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    ParamSpecString::new(
+                        Guideline::NAME,
+                        Guideline::NAME,
+                        Guideline::NAME,
+                        None,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecString::new(
+                        Guideline::IDENTIFIER,
+                        Guideline::IDENTIFIER,
+                        Guideline::IDENTIFIER,
+                        None,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        Guideline::ANGLE,
+                        Guideline::ANGLE,
+                        Guideline::ANGLE,
+                        -360.0,
+                        360.0,
+                        0.,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        Guideline::X,
+                        Guideline::X,
+                        Guideline::X,
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        0.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        Guideline::Y,
+                        Guideline::Y,
+                        Guideline::Y,
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        0.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Guideline::COLOR,
+                        Guideline::COLOR,
+                        Guideline::COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
     }
 
-    // Trait shared by all GObjects
-    impl ObjectImpl for Guideline {
-        fn properties() -> &'static [ParamSpec] {
-            static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-                once_cell::sync::Lazy::new(|| {
-                    vec![
-                        ParamSpecString::new("name", "name", "name", None, ParamFlags::READWRITE),
-                        ParamSpecString::new(
-                            "identifier",
-                            "identifier",
-                            "identifier",
-                            None,
-                            ParamFlags::READWRITE,
-                        ),
-                        ParamSpecDouble::new(
-                            "angle",
-                            "angle",
-                            "angle",
-                            -360.0,
-                            360.0,
-                            0.,
-                            ParamFlags::READWRITE,
-                        ),
-                        ParamSpecDouble::new(
-                            "x",
-                            "x",
-                            "x",
-                            std::f64::MIN,
-                            std::f64::MAX,
-                            0.0,
-                            ParamFlags::READWRITE,
-                        ),
-                        ParamSpecDouble::new(
-                            "y",
-                            "y",
-                            "y",
-                            std::f64::MIN,
-                            std::f64::MAX,
-                            0.0,
-                            ParamFlags::READWRITE,
-                        ),
-                    ]
-                });
-            PROPERTIES.as_ref()
-        }
-
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
-            match pspec.name() {
-                "name" => self.name.borrow().to_value(),
-                "identifier" => self.identifier.borrow().to_value(),
-                "angle" => self.angle.borrow().to_value(),
-                "x" => self.x.borrow().to_value(),
-                "y" => self.y.borrow().to_value(),
-                _ => unimplemented!("{}", pspec.name()),
-            }
-        }
-
-        fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
-            match pspec.name() {
-                "name" => {
-                    *self.name.borrow_mut() = value.get().unwrap();
-                }
-                "identifier" => {
-                    *self.identifier.borrow_mut() = value.get().unwrap();
-                }
-                "angle" => {
-                    *self.angle.borrow_mut() = value.get().unwrap();
-                }
-                "x" => {
-                    *self.x.borrow_mut() = value.get().unwrap();
-                }
-                "y" => {
-                    *self.y.borrow_mut() = value.get().unwrap();
-                }
-                _ => unimplemented!("{}", pspec.name()),
-            }
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+        match pspec.name() {
+            Guideline::NAME => self.name.borrow().to_value(),
+            Guideline::IDENTIFIER => self.identifier.borrow().to_value(),
+            Guideline::ANGLE => self.angle.get().to_value(),
+            Guideline::X => self.x.get().to_value(),
+            Guideline::Y => self.y.get().to_value(),
+            Guideline::COLOR => self.color.get().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 
-    impl Guideline {
-        pub fn draw(
-            &self,
-            cr: &Context,
-            matrix: Matrix,
-            (_width, height): (f64, f64),
-            highlight: bool,
-        ) {
-            fn move_point(p: (f64, f64), d: f64, r: f64) -> (f64, f64) {
-                let (x, y) = p;
-                (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            Guideline::NAME => {
+                *self.name.borrow_mut() = value.get().unwrap();
             }
-            cr.save().unwrap();
-            if highlight {
-                cr.set_source_rgba(1., 0., 0., 0.8);
-                cr.set_line_width(2.0);
-            } else {
-                cr.set_source_rgba(0., 0., 1., 0.8);
-                cr.set_line_width(1.5);
+            Guideline::IDENTIFIER => {
+                *self.identifier.borrow_mut() = value.get().unwrap();
             }
-            let p = matrix.transform_point(*self.x.borrow(), *self.y.borrow());
-            let r = *self.angle.borrow() * 0.01745;
-            if let Some(name) = self.name.borrow().as_ref() {
-                cr.save().unwrap();
-                cr.move_to(p.0, p.1);
-                cr.rotate(r);
-                cr.show_text(name).unwrap();
-                cr.restore().unwrap();
+            Guideline::ANGLE => {
+                self.angle.set(value.get().unwrap());
             }
-            let top = move_point(p, height * 10., r);
-            cr.move_to(top.0, top.1);
-            let bottom = move_point(p, -height * 10., r);
-            cr.line_to(bottom.0, bottom.1);
-            cr.stroke().unwrap();
-            cr.restore().unwrap();
-        }
-
-        pub fn distance_from_point(&self, p: Point) -> f64 {
-            let (xp, yp) = (p.x, p.y);
-            // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
-            //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
-            let r = -*self.angle.borrow() * 0.01745;
-            let sin = f64::sin(r);
-            let cos = f64::cos(r);
-            (cos * (*self.y.borrow() - yp) - sin * (*self.x.borrow() - xp)).abs()
-        }
-
-        pub fn on_line_query(&self, point: Point, error: Option<f64>) -> bool {
-            let error = error.unwrap_or(5.0);
-            self.distance_from_point(point) <= error
+            Guideline::X => {
+                self.x.set(value.get().unwrap());
+            }
+            Guideline::Y => {
+                self.y.set(value.get().unwrap());
+            }
+            Guideline::COLOR => {
+                self.color.set(value.get().unwrap());
+            }
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
 
+impl GuidelineInner {
+    pub fn draw(
+        &self,
+        cr: &Context,
+        matrix: Matrix,
+        (_width, height): (f64, f64),
+        highlight: bool,
+    ) {
+        fn move_point(p: (f64, f64), d: f64, r: f64) -> (f64, f64) {
+            let (x, y) = p;
+            (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
+        }
+        cr.save().unwrap();
+        if highlight {
+            cr.set_source_color_alpha(self.highlight_color.get());
+            cr.set_line_width(2.0);
+        } else {
+            cr.set_source_color_alpha(self.color.get());
+            cr.set_line_width(1.5);
+        }
+        let p = matrix.transform_point(self.x.get(), self.y.get());
+        let r = self.angle.get() * 0.01745;
+        if let Some(name) = self.name.borrow().as_ref() {
+            cr.save().unwrap();
+            cr.move_to(p.0, p.1);
+            cr.rotate(r);
+            cr.show_text(name).unwrap();
+            cr.restore().unwrap();
+        }
+        let top = move_point(p, height * 10., r);
+        cr.move_to(top.0, top.1);
+        let bottom = move_point(p, -height * 10., r);
+        cr.line_to(bottom.0, bottom.1);
+        cr.stroke().unwrap();
+        cr.restore().unwrap();
+    }
+
+    pub fn distance_from_point(&self, p: Point) -> f64 {
+        let (xp, yp) = (p.x, p.y);
+        // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
+        //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
+        let r = -self.angle.get() * 0.01745;
+        let sin = f64::sin(r);
+        let cos = f64::cos(r);
+        (cos * (self.y.get() - yp) - sin * (self.x.get() - xp)).abs()
+    }
+
+    pub fn on_line_query(&self, point: Point, error: Option<f64>) -> bool {
+        let error = error.unwrap_or(5.0);
+        self.distance_from_point(point) <= error
+    }
+}
+
 glib::wrapper! {
-    pub struct Guideline(ObjectSubclass<imp::Guideline>);
+    pub struct Guideline(ObjectSubclass<GuidelineInner>);
 }
 
 impl Default for Guideline {
@@ -194,7 +214,7 @@ impl Default for Guideline {
 impl TryFrom<serde_json::Value> for Guideline {
     type Error = serde_json::Error;
     fn try_from(v: serde_json::Value) -> Result<Guideline, Self::Error> {
-        let inner: imp::Guideline = serde_json::from_value(v)?;
+        let inner: GuidelineInner = serde_json::from_value(v)?;
         let ret = Self::new();
         ret.imp().name.swap(&inner.name);
         ret.imp().identifier.swap(&inner.identifier);
@@ -207,27 +227,40 @@ impl TryFrom<serde_json::Value> for Guideline {
 }
 
 impl Guideline {
+    pub const NAME: &str = "name";
+    pub const COLOR: &str = "color";
+    pub const IDENTIFIER: &str = "identifier";
+    pub const ANGLE: &str = "angle";
+    pub const X: &str = "x";
+    pub const Y: &str = "y";
+
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
     }
+
     pub fn name(&self) -> Option<String> {
-        self.property("name")
+        self.property(Guideline::NAME)
     }
+
     pub fn identifier(&self) -> Option<String> {
-        self.property("identifier")
+        self.property(Guideline::IDENTIFIER)
     }
-    pub fn color(&self) -> Option<String> {
-        self.property("color")
+
+    pub fn color(&self) -> Option<Color> {
+        self.property(Guideline::COLOR)
     }
+
     pub fn angle(&self) -> f64 {
-        self.property("angle")
+        self.property(Guideline::ANGLE)
     }
+
     pub fn x(&self) -> f64 {
-        self.property("x")
+        self.property(Guideline::X)
     }
+
     pub fn y(&self) -> f64 {
-        self.property("y")
+        self.property(Guideline::Y)
     }
 
     pub fn builder() -> GuidelineBuilder {
@@ -259,22 +292,24 @@ impl GuidelineBuilder {
     }
 
     pub fn color(self, color: Option<String>) -> Self {
-        *self.0.imp().color.borrow_mut() = color;
+        if let Some(color) = color.as_deref().and_then(Color::try_parse) {
+            self.0.imp().color.set(color);
+        }
         self
     }
 
     pub fn angle(self, angle: f64) -> Self {
-        *self.0.imp().angle.borrow_mut() = angle;
+        self.0.imp().angle.set(angle);
         self
     }
 
     pub fn x(self, x: f64) -> Self {
-        *self.0.imp().x.borrow_mut() = x;
+        self.0.imp().x.set(x);
         self
     }
 
     pub fn y(self, y: f64) -> Self {
-        *self.0.imp().y.borrow_mut() = y;
+        self.0.imp().y.set(y);
         self
     }
 

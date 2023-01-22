@@ -112,86 +112,6 @@ impl TabInfo {
         ret
     }
 
-    pub fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
-        let val: glib::Value = obj.property(property);
-        match val.type_().name() {
-            "gboolean" => {
-                let val = val.get::<bool>().unwrap();
-                let entry = gtk::CheckButton::builder()
-                    .visible(true)
-                    .active(val)
-                    .build();
-                entry
-                    .bind_property("active", obj, property)
-                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                    .build();
-
-                entry.upcast()
-            }
-            "gchararray" => {
-                let val = val.get::<Option<String>>().unwrap().unwrap_or_default();
-                let entry = gtk::Entry::builder().visible(true).build();
-                entry.buffer().set_text(&val);
-                entry
-                    .buffer()
-                    .bind_property("text", obj, property)
-                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                    .build();
-
-                entry.upcast()
-            }
-            "gint64" => {
-                let val = val.get::<i64>().unwrap();
-                let entry = gtk::Entry::builder()
-                    .input_purpose(gtk::InputPurpose::Number)
-                    .visible(true)
-                    .build();
-                entry.buffer().set_text(&val.to_string());
-                entry
-                    .buffer()
-                    .bind_property("text", obj, property)
-                    .transform_to(|_, value| {
-                        let number = value.get::<String>().ok()?;
-                        Some(number.parse::<i64>().ok()?.to_value())
-                    })
-                    .transform_from(|_, value| {
-                        let number = value.get::<i64>().ok()?;
-                        Some(number.to_string().to_value())
-                    })
-                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                    .build();
-                entry.upcast()
-            }
-            "gdouble" => {
-                let val = val.get::<f64>().unwrap();
-                let entry = gtk::Entry::builder()
-                    .input_purpose(gtk::InputPurpose::Number)
-                    .visible(true)
-                    .build();
-                entry.buffer().set_text(&val.to_string());
-                entry
-                    .buffer()
-                    .bind_property("text", obj, property)
-                    .transform_to(|_, value| {
-                        let number = value.get::<String>().ok()?;
-                        Some(number.parse::<f64>().ok()?.to_value())
-                    })
-                    .transform_from(|_, value| {
-                        let number = value.get::<f64>().ok()?;
-                        Some(number.to_string().to_value())
-                    })
-                    .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                    .build();
-                entry.upcast()
-            }
-            _other => gtk::Label::builder()
-                .label(&format!("{:?}", val))
-                .visible(true)
-                .build()
-                .upcast(),
-        }
-    }
-
     pub fn set_object(&self, new_obj: Option<glib::Object>) {
         if let Some(obj) = new_obj {
             self.set_visible(true);
@@ -223,7 +143,7 @@ impl TabInfo {
                 );
                 //let val: glib::Value = std::dbg!(obj.property(prop.name()));
                 grid.attach(
-                    &Self::get_widget_for_value(&obj, prop.name()),
+                    &crate::utils::get_widget_for_value(&obj, prop.name()),
                     1,
                     row as i32 + 1,
                     1,

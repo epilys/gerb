@@ -20,12 +20,13 @@
  */
 
 use gtk::{gdk, glib};
+use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
-#[derive(Clone, Debug, Copy, Hash, glib::Boxed)]
+#[derive(Clone, Deserialize, Serialize, Debug, Copy, Hash, glib::Boxed)]
 #[boxed_type(name = "Color", nullable)]
 #[repr(transparent)]
-pub struct Color(gdk::RGBA);
+pub struct Color(#[serde(with = "rgba_serde")] gdk::RGBA);
 
 impl Color {
     // Constants re-exports
@@ -34,6 +35,18 @@ impl Color {
     pub const GREEN: Self = Self(gdk::RGBA::GREEN);
     pub const RED: Self = Self(gdk::RGBA::RED);
     pub const WHITE: Self = Self(gdk::RGBA::WHITE);
+
+    pub fn new(red: f64, green: f64, blue: f64) -> Self {
+        Self::new_alpha(red, green, blue, 1.0)
+    }
+
+    pub fn new_alpha(red: f64, green: f64, blue: f64, alpha: f64) -> Self {
+        Self(gdk::RGBA::new(red, green, blue, alpha))
+    }
+
+    pub fn try_parse(s: &str) -> Option<Self> {
+        Some(Self(gdk::RGBA::parse(s).ok()?))
+    }
 }
 
 impl Default for Color {
@@ -107,5 +120,26 @@ impl ColorExt for gtk::cairo::Context {
         self.move_to(x, y);
         self.set_source_color(fg);
         self.show_text(text).unwrap();
+    }
+}
+
+mod rgba_serde {
+    use gtk::gdk;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(super) fn deserialize<'de, D>(de: D) -> Result<gdk::RGBA, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let (r, g, b, a): (f64, f64, f64, f64) = <(f64, f64, f64, f64)>::deserialize(de)?;
+        Ok(gdk::RGBA::new(r, g, b, a))
+    }
+
+    pub(super) fn serialize<S>(val: &gdk::RGBA, se: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let vals: (f64, f64, f64, f64) = (val.red(), val.green(), val.blue(), val.alpha());
+        vals.serialize(se)
     }
 }

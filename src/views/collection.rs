@@ -587,24 +587,26 @@ impl ObjectImpl for GlyphBoxInner {
 
         obj.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
-                match event.button() {
-                    gtk::gdk::BUTTON_SECONDARY => {
-                        println!("context-menu");
-                        let context_menu = crate::utils::menu::Menu::new()
-                            .add_button_cb("Edit in canvas", clone!(@strong obj => @default-return Inhibit(false), move |_, _| {
-                                obj.emit_open_glyph_edit();
-                                Inhibit(true)
-                            })).add_button("Edit properties")
-                        .add_button("Delete glyph").add_button("Export SVG");
-                        println!("{:?}", context_menu.popup());
+                    match event.button() {
+                        gtk::gdk::BUTTON_SECONDARY => {
+                            let context_menu = crate::utils::menu::Menu::new()
+                                .add_button_cb(
+                                    "Edit in canvas",
+                                    clone!(@strong obj => move |_| {
+                                        obj.emit_open_glyph_edit();
+                                    }),
+                                )
+                                .add_button("Edit properties")
+                                .add_button("Delete glyph")
+                                .add_button("Export SVG");
+                            context_menu.popup();
+                        }
+                        gtk::gdk::BUTTON_PRIMARY => {
+                            obj.emit_open_glyph_edit();
+                        }
+                        _ => return Inhibit(false),
                     }
-                    gtk::gdk::BUTTON_PRIMARY => {
-                        obj.emit_open_glyph_edit();
-                        println!("open-glyph-edit emitted!");
-                    }
-                    _ => return Inhibit(false),
-                }
-                Inhibit(true)
+                    Inhibit(true)
             }),
         );
         let drawing_area = gtk::DrawingArea::builder()

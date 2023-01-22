@@ -202,6 +202,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                     cr.show_text(&line).unwrap();
                 }
             }
+            cr.stroke().unwrap();
         }
         cr.restore().unwrap();
     }

@@ -164,60 +164,12 @@ impl GerbApp {
         }));
 
         let settings = gtk::gio::SimpleAction::new("settings", None);
-        settings.connect_activate(
-            glib::clone!(@weak window, @weak application as app => move |_, _| {
-                let w = gtk::Window::builder()
-                    .application(&app)
-                    .deletable(true)
-                    .destroy_with_parent(true)
-                    .focus_on_map(true)
-                    .resizable(true)
-                    .title("Settings")
-                    .visible(true)
-                    .expand(true)
-                    .default_width(640)
-                    .default_height(480)
-                    .build();
-                let scrolled_window = gtk::ScrolledWindow::builder()
-                    .expand(true)
-                    .visible(true)
-                    .can_focus(true)
-                    .build();
-                let grid = gtk::Grid::builder()
-                    .expand(true)
-                    .visible(true)
-                    .can_focus(true)
-                    .column_spacing(5)
-                    .margin(10)
-                    .row_spacing(5)
-                    .build();
-                let app = app.downcast_ref::<super::GerbApp>().unwrap();
-                let obj: glib::Object = app.imp().settings.borrow().clone().upcast();
-                for (row, prop) in obj.list_properties().as_slice().iter().enumerate() {
-                    grid.attach(
-                        &gtk::Label::builder()
-                        .label(prop.name())
-                        .visible(true)
-                        .build(),
-                        0,
-                        row as i32 + 1,
-                        1,
-                        1,
-                    );
-                    grid.attach(
-                        &crate::window::TabInfo::get_widget_for_value(&obj, prop.name()),
-                        1,
-                        row as i32 + 1,
-                        1,
-                        1,
-                    );
-                }
-
-                scrolled_window.set_child(Some(&grid));
-                w.set_child(Some(&scrolled_window));
-                w.present();
-            }),
-        );
+        settings.connect_activate(glib::clone!(@weak application as app => move |_, _| {
+            let gapp = app.downcast_ref::<super::GerbApp>().unwrap();
+            let obj: glib::Object = gapp.imp().settings.borrow().clone().upcast();
+            let w = crate::utils::new_property_window(obj, "Settings");
+            w.present();
+        }));
 
         let open = gtk::gio::SimpleAction::new("open", None);
         open.connect_activate(glib::clone!(@weak window => move |_, _| {
