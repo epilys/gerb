@@ -50,14 +50,12 @@ mod visibility_toggles;
 use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 use tools::{PanningTool, Tool, ToolImpl};
 
+pub type ControlPointIndex = ((usize, usize), Uuid);
+
 #[derive(Debug, Clone)]
 pub enum ControlPointKind {
-    Endpoint {
-        handle: Option<((usize, usize), Uuid)>,
-    },
-    Handle {
-        end_points: Vec<((usize, usize), Uuid)>,
-    },
+    Endpoint { handle: Option<ControlPointIndex> },
+    Handle { end_points: Vec<ControlPointIndex> },
 }
 
 use ControlPointKind::*;
@@ -80,8 +78,8 @@ pub struct GlyphState {
     pub tools: HashMap<glib::types::Type, ToolImpl>,
     pub active_tool: glib::types::Type,
     pub panning_tool: glib::types::Type,
-    selection: Vec<((usize, usize), Uuid)>,
-    pub points: Rc<RefCell<HashMap<((usize, usize), Uuid), ControlPoint>>>,
+    selection: Vec<ControlPointIndex>,
+    pub points: Rc<RefCell<HashMap<ControlPointIndex, ControlPoint>>>,
     pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
 }
 
@@ -370,16 +368,14 @@ impl GlyphState {
         self.add_undo_action(action);
     }
 
-    fn transform_points(&self, idxs: &[((usize, usize), Uuid)], m: Matrix) -> crate::Action {
+    fn transform_points(&self, idxs: &[ControlPointIndex], m: Matrix) -> crate::Action {
         let viewport = self.viewport.clone();
         let idxs = Rc::new(idxs.to_vec());
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: "point",
-                id: unsafe {
-                    std::mem::transmute::<&[((usize, usize), Uuid)], &[u8]>(&idxs).into()
-                },
+                id: unsafe { std::mem::transmute::<&[ControlPointIndex], &[u8]>(&idxs).into() },
             },
             compress: true,
             redo: Box::new(
@@ -436,12 +432,12 @@ impl GlyphState {
         }
     }
 
-    fn set_selection(&mut self, selection: &[(((usize, usize), Uuid), crate::utils::IPoint)]) {
+    fn set_selection(&mut self, selection: &[(ControlPointIndex, crate::utils::IPoint)]) {
         self.selection.clear();
         self.selection.extend(selection.iter().map(|(u, _)| u));
     }
 
-    fn get_selection(&self) -> &[((usize, usize), Uuid)] {
+    fn get_selection(&self) -> &[ControlPointIndex] {
         &self.selection
     }
 }
