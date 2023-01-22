@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::tool_impl::*;
+use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::{Contour, GlyphDrawingOptions};
 use crate::utils::{curves::Bezier, distance_between_two_points, Point};
 use crate::views::{
@@ -114,10 +114,13 @@ impl ToolImplImpl for BezierToolInner {
             let mut state = self.state.borrow_mut();
             if !state.insert_point(position) {
                 let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-                if let Some(new_contour) = state.close() {
+                if let Some(contour) = state.close() {
                     let contour_index = glyph_state.glyph.borrow().contours.len();
-                    glyph_state.add_contour(&new_contour, contour_index);
-                    glyph_state.glyph.borrow_mut().contours.push(new_contour);
+                    let subaction = glyph_state.add_contour(&contour, contour_index);
+                    let mut action =
+                        new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                    (action.redo)();
+                    glyph_state.add_undo_action(action);
                 }
                 viewport.queue_draw();
             }
@@ -126,10 +129,12 @@ impl ToolImplImpl for BezierToolInner {
         } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
             let mut state = self.state.borrow_mut();
             let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-            if let Some(new_contour) = state.close() {
+            if let Some(contour) = state.close() {
                 let contour_index = glyph_state.glyph.borrow().contours.len();
-                glyph_state.add_contour(&new_contour, contour_index);
-                glyph_state.glyph.borrow_mut().contours.push(new_contour);
+                let subaction = glyph_state.add_contour(&contour, contour_index);
+                let mut action = new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                (action.redo)();
+                glyph_state.add_undo_action(action);
             }
             viewport.queue_draw();
 
@@ -162,10 +167,13 @@ impl ToolImplImpl for BezierToolInner {
                 state.current_curve.set_property(Bezier::SMOOTH, true);
                 if !state.insert_point(position) {
                     let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-                    if let Some(new_contour) = state.close() {
+                    if let Some(contour) = state.close() {
                         let contour_index = glyph_state.glyph.borrow().contours.len();
-                        glyph_state.add_contour(&new_contour, contour_index);
-                        glyph_state.glyph.borrow_mut().contours.push(new_contour);
+                        let subaction = glyph_state.add_contour(&contour, contour_index);
+                        let mut action =
+                            new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                        (action.redo)();
+                        glyph_state.add_undo_action(action);
                     }
                     viewport.queue_draw();
                 }

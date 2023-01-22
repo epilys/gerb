@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::tool_impl::*;
+use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::Contour;
 use crate::utils::{curves::Bezier, Point};
 use crate::views::{
@@ -168,8 +168,11 @@ impl ToolImplImpl for QuadrilateralToolInner {
                     *contour.curves().borrow_mut() = std::mem::take(&mut *curves).to_vec();
                     let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                     let contour_index = glyph_state.glyph.borrow().contours.len();
-                    glyph_state.add_contour(&contour, contour_index);
-                    glyph_state.glyph.borrow_mut().contours.push(contour);
+                    let subaction = glyph_state.add_contour(&contour, contour_index);
+                    let mut action =
+                        new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                    (action.redo)();
+                    glyph_state.add_undo_action(action);
                     viewport.queue_draw();
                     self.instance()
                         .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
@@ -471,8 +474,11 @@ impl ToolImplImpl for EllipseToolInner {
                     }
                     let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                     let contour_index = glyph_state.glyph.borrow().contours.len();
-                    glyph_state.add_contour(&contour, contour_index);
-                    glyph_state.glyph.borrow_mut().contours.push(contour);
+                    let subaction = glyph_state.add_contour(&contour, contour_index);
+                    let mut action =
+                        new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                    (action.redo)();
+                    glyph_state.add_undo_action(action);
                     viewport.queue_draw();
                     self.instance()
                         .set_property::<bool>(EllipseTool::ACTIVE, false);

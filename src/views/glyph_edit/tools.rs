@@ -321,3 +321,31 @@ impl Tool {
             .add_class("glyph-edit-toolbox");
     }
 }
+
+pub fn new_contour_action(
+    glyph: Rc<RefCell<Glyph>>,
+    contour: Contour,
+    subaction: crate::Action,
+) -> crate::Action {
+    let subaction = Rc::new(RefCell::new(subaction));
+    crate::Action {
+        stamp: crate::EventStamp {
+            t: std::any::TypeId::of::<Contour>(),
+            property: "create contour",
+            id: Box::new([]),
+        },
+        compress: false,
+        redo: Box::new(
+            clone!(@strong glyph, @strong contour, @strong subaction => move || {
+                glyph.borrow_mut().contours.push(contour.clone());
+                (subaction.borrow_mut().redo)();
+            }),
+        ),
+        undo: Box::new(
+            clone!(@strong glyph, @strong contour, @strong subaction => move || {
+                glyph.borrow_mut().contours.pop();
+                (subaction.borrow_mut().undo)();
+            }),
+        ),
+    }
+}

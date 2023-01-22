@@ -101,115 +101,176 @@ impl GlyphState {
         };
 
         for (contour_index, contour) in glyph.borrow().contours.iter().enumerate() {
-            ret.add_contour(contour, contour_index);
+            (ret.add_contour(contour, contour_index).redo)();
         }
         ret
     }
 
-    fn add_contour(&mut self, contour: &Contour, contour_index: usize) {
-        let mut points = self.points.borrow_mut();
-        let mut kd_tree = self.kd_tree.borrow_mut();
-        for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
-            match curve.points().borrow().len() {
-                4 => {
-                    for (endpoint, handle) in [(0, 1), (3, 2)] {
-                        let end_p = &curve.points().borrow()[endpoint];
-                        let handle_p = &curve.points().borrow()[handle];
-                        points.insert(
-                            ((contour_index, curve_index), end_p.uuid),
-                            ControlPoint {
-                                contour_index,
-                                curve_index,
-                                point_index: endpoint,
-                                position: *end_p,
-                                kind: Endpoint {
-                                    handle: Some(((contour_index, curve_index), handle_p.uuid)),
-                                },
-                            },
-                        );
-                        kd_tree.add(((contour_index, curve_index), end_p.uuid), *end_p);
-                        points.insert(
-                            ((contour_index, curve_index), handle_p.uuid),
-                            ControlPoint {
-                                contour_index,
-                                curve_index,
-                                point_index: handle,
-                                position: *handle_p,
-                                kind: Handle {
-                                    end_points: vec![((contour_index, curve_index), end_p.uuid)],
-                                },
-                            },
-                        );
-                        kd_tree.add(((contour_index, curve_index), handle_p.uuid), *handle_p);
-                    }
-                }
-                3 => {
-                    let p0 = &curve.points().borrow()[0];
-                    let p1 = &curve.points().borrow()[1];
-                    let p2 = &curve.points().borrow()[2];
-                    points.insert(
-                        ((contour_index, curve_index), p0.uuid),
-                        ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: 0,
-                            position: *p0,
-                            kind: Endpoint {
-                                handle: Some(((contour_index, curve_index), p1.uuid)),
-                            },
-                        },
-                    );
-                    points.insert(
-                        ((contour_index, curve_index), p1.uuid),
-                        ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: 1,
-                            position: *p1,
-                            kind: Handle {
-                                end_points: vec![
+    fn add_contour(&mut self, contour: &Contour, contour_index: usize) -> crate::Action {
+        crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "contour",
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
+            },
+            compress: false,
+            redo: Box::new(
+                clone!(@weak self.points as points, @weak self.kd_tree as kd_tree, @weak contour as contour  => move || {
+                    let mut points = points.borrow_mut();
+                    let mut kd_tree = kd_tree.borrow_mut();
+                    for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
+                        match curve.points().borrow().len() {
+                            4 => {
+                                for (endpoint, handle) in [(0, 1), (3, 2)] {
+                                    let end_p = &curve.points().borrow()[endpoint];
+                                    let handle_p = &curve.points().borrow()[handle];
+                                    points.insert(
+                                        ((contour_index, curve_index), end_p.uuid),
+                                        ControlPoint {
+                                            contour_index,
+                                            curve_index,
+                                            point_index: endpoint,
+                                            position: *end_p,
+                                            kind: Endpoint {
+                                                handle: Some(((contour_index, curve_index), handle_p.uuid)),
+                                            },
+                                        },
+                                    );
+                                    kd_tree.add(((contour_index, curve_index), end_p.uuid), *end_p);
+                                    points.insert(
+                                        ((contour_index, curve_index), handle_p.uuid),
+                                        ControlPoint {
+                                            contour_index,
+                                            curve_index,
+                                            point_index: handle,
+                                            position: *handle_p,
+                                            kind: Handle {
+                                                end_points: vec![((contour_index, curve_index), end_p.uuid)],
+                                            },
+                                        },
+                                    );
+                                    kd_tree.add(((contour_index, curve_index), handle_p.uuid), *handle_p);
+                                }
+                            }
+                            3 => {
+                                let p0 = &curve.points().borrow()[0];
+                                let p1 = &curve.points().borrow()[1];
+                                let p2 = &curve.points().borrow()[2];
+                                points.insert(
                                     ((contour_index, curve_index), p0.uuid),
+                                    ControlPoint {
+                                        contour_index,
+                                        curve_index,
+                                        point_index: 0,
+                                        position: *p0,
+                                        kind: Endpoint {
+                                            handle: Some(((contour_index, curve_index), p1.uuid)),
+                                        },
+                                    },
+                                );
+                                points.insert(
+                                    ((contour_index, curve_index), p1.uuid),
+                                    ControlPoint {
+                                        contour_index,
+                                        curve_index,
+                                        point_index: 1,
+                                        position: *p1,
+                                        kind: Handle {
+                                            end_points: vec![
+                                                ((contour_index, curve_index), p0.uuid),
+                                                ((contour_index, curve_index), p2.uuid),
+                                            ],
+                                        },
+                                    },
+                                );
+                                points.insert(
                                     ((contour_index, curve_index), p2.uuid),
-                                ],
-                            },
-                        },
-                    );
-                    points.insert(
-                        ((contour_index, curve_index), p2.uuid),
-                        ControlPoint {
-                            contour_index,
-                            curve_index,
-                            point_index: 2,
-                            position: *p2,
-                            kind: Endpoint {
-                                handle: Some(((contour_index, curve_index), p1.uuid)),
-                            },
-                        },
-                    );
-                    for p in [p0, p1, p2] {
-                        kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                                    ControlPoint {
+                                        contour_index,
+                                        curve_index,
+                                        point_index: 2,
+                                        position: *p2,
+                                        kind: Endpoint {
+                                            handle: Some(((contour_index, curve_index), p1.uuid)),
+                                        },
+                                    },
+                                );
+                                for p in [p0, p1, p2] {
+                                    kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                                }
+                            }
+                            2 => {
+                                for endpoint in 0..=1 {
+                                    let p = &curve.points().borrow()[endpoint];
+                                    points.insert(
+                                        ((contour_index, curve_index), p.uuid),
+                                        ControlPoint {
+                                            contour_index,
+                                            curve_index,
+                                            point_index: endpoint,
+                                            position: *p,
+                                            kind: Endpoint { handle: None },
+                                        },
+                                    );
+                                    kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                                }
+                            }
+                            1 => {}
+                            0 => {}
+                            _ => unreachable!(), //FIXME
+                        }
                     }
-                }
-                2 => {
-                    for endpoint in 0..=1 {
-                        let p = &curve.points().borrow()[endpoint];
-                        points.insert(
-                            ((contour_index, curve_index), p.uuid),
-                            ControlPoint {
-                                contour_index,
-                                curve_index,
-                                point_index: endpoint,
-                                position: *p,
-                                kind: Endpoint { handle: None },
-                            },
-                        );
-                        kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                }),
+            ),
+            undo: Box::new(
+                clone!(@weak self.points as points, @weak self.kd_tree as kd_tree, @weak contour as contour => move || {
+                    let mut points = points.borrow_mut();
+                    let mut kd_tree = kd_tree.borrow_mut();
+                    for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
+                        match curve.points().borrow().len() {
+                            4 => {
+                                for (endpoint, handle) in [(0, 1), (3, 2)] {
+                                    let end_p = &curve.points().borrow()[endpoint];
+                                    let handle_p = &curve.points().borrow()[handle];
+                                    points.remove(&((contour_index, curve_index), end_p.uuid));
+                                    kd_tree.remove(((contour_index, curve_index), end_p.uuid), *end_p);
+                                    points.remove(&((contour_index, curve_index), handle_p.uuid));
+                                    kd_tree.remove(((contour_index, curve_index), handle_p.uuid), *handle_p);
+                                }
+                            }
+                            3 => {
+                                let p0 = &curve.points().borrow()[0];
+                                let p1 = &curve.points().borrow()[1];
+                                let p2 = &curve.points().borrow()[2];
+                                points.remove(
+                                    &((contour_index, curve_index), p0.uuid),
+                                );
+                                points.remove(
+                                    &((contour_index, curve_index), p1.uuid),
+                                );
+                                points.remove(
+                                    &((contour_index, curve_index), p2.uuid),
+                                );
+                                for p in [p0, p1, p2] {
+                                    kd_tree.remove(((contour_index, curve_index), p.uuid), *p);
+                                }
+                            }
+                            2 => {
+                                for endpoint in 0..=1 {
+                                    let p = &curve.points().borrow()[endpoint];
+                                    points.remove(
+                                        &((contour_index, curve_index), p.uuid),
+                                    );
+                                    kd_tree.remove(((contour_index, curve_index), p.uuid), *p);
+                                }
+                            }
+                            1 => {}
+                            0 => {}
+                            _ => unreachable!(), //FIXME
+                        }
                     }
-                }
-                1 => {}
-                0 => {}
-                _ => unreachable!(), //FIXME
-            }
+                }),
+            ),
         }
     }
 
@@ -297,13 +358,16 @@ impl GlyphState {
         }
     }
 
+    fn add_undo_action(&self, action: crate::Action) {
+        let app: &crate::Application =
+            crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
+        app.undo_db.borrow_mut().event(action);
+    }
+
     fn transform_selection(&self, m: Matrix) {
         let mut action = self.transform_points(&self.selection, m);
         (action.redo)();
-        let app: &crate::Application =
-            crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
-        let undo_db = app.undo_db.borrow_mut();
-        undo_db.event(action);
+        self.add_undo_action(action);
     }
 
     fn transform_points(&self, idxs: &[((usize, usize), Uuid)], m: Matrix) -> crate::Action {
