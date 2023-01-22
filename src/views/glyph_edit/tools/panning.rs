@@ -203,8 +203,16 @@ impl ToolImplImpl for PanningToolInner {
                                 .kd_tree
                                 .borrow()
                                 .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
-                            glyph_state.set_selection(&pts);
-                            if pts.is_empty() {
+                            let current_selection = glyph_state.get_selection();
+                            let is_empty = if current_selection.is_empty()
+                                || !pts.iter().any(|&(u, _)| current_selection.contains(&u))
+                            {
+                                glyph_state.set_selection(&pts);
+                                pts.is_empty()
+                            } else {
+                                current_selection.is_empty()
+                            };
+                            if is_empty {
                                 view.imp().hovering.set(None);
                                 viewport.queue_draw();
                                 self.instance()
@@ -304,6 +312,7 @@ impl ToolImplImpl for PanningToolInner {
                         .borrow()
                         .query_region((upper_left.0, bottom_right.0));
                     glyph_state.set_selection(&pts);
+                    self.mode.set(ControlPointMode::None);
                     Inhibit(true)
                 }
                 (false, _) => Inhibit(false),

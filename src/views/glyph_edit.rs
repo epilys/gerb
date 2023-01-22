@@ -376,6 +376,10 @@ impl GlyphState {
         self.selection.clear();
         self.selection.extend(selection.iter().map(|(u, _)| u));
     }
+
+    fn get_selection(&self) -> &[((usize, usize), Uuid)] {
+        &self.selection
+    }
 }
 
 #[derive(Debug, Default)]
