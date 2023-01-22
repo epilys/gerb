@@ -233,7 +233,6 @@ impl GerbApp {
         menu_bar.append_submenu(Some("_File"), &file_menu);
 
         settings_menu.append(Some("Settings"), Some("app.settings"));
-        settings_menu.append(None, None);
         settings_menu.append(Some("Undo"), Some("app.undo"));
         settings_menu.append(Some("Redo"), Some("app.redo"));
         settings_menu.append(Some("Sub another"), Some("app.sub_another"));
