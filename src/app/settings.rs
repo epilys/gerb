@@ -24,6 +24,14 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use std::cell::Cell;
+use std::cell::RefCell;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::BufWriter;
+use std::io::{Read, Seek, Write};
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use toml_edit::{value as toml_value, Document, Item as TomlItem};
 
 glib::wrapper! {
     pub struct Settings(ObjectSubclass<SettingsInner>);
@@ -34,6 +42,141 @@ pub struct SettingsInner {
     pub handle_size: Cell<f64>,
     pub line_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
+    pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
+    pub document: Rc<RefCell<Document>>,
+}
+
+impl SettingsInner {
+    pub const HANDLE_SIZE_INIT_VAL: f64 = 5.0;
+    pub const LINE_WIDTH_INIT_VAL: f64 = 8.0;
+    pub const WARP_CURSOR_INIT_VAL: bool = false;
+
+    pub fn get_config_file() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        fn validate_path(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+            if !path.exists() && path.parent().is_some() {
+                let parent = path.parent().unwrap();
+                std::fs::create_dir_all(parent)?;
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(path)?;
+            } else {
+                if OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(false)
+                    .open(path)
+                    .is_ok()
+                {
+                    return Ok(());
+                }
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(path)?;
+            }
+            Ok(())
+        }
+
+        let xdg_dirs = xdg::BaseDirectories::with_prefix("gerb")
+            .map_err(|err| format!("Could not detect XDG directories for user: {}", err))?;
+
+        if let Ok(path) = std::env::var("GERB_CONFIG") {
+            let retval = PathBuf::from(path);
+            if let Err(err) = validate_path(&retval) {
+                eprintln!("Could not access configuration file `{}` from environment variable `GERB_CONFIG`: {}\nFalling back to default configuration location...", retval.display(), err);
+            } else {
+                return Ok(retval);
+            }
+        }
+
+        let path = xdg_dirs.place_config_file("config.toml").map_err(|err| {
+            format!(
+                "Cannot create configuration directory in {}: {}",
+                xdg_dirs.get_config_home().display(),
+                err
+            )
+        })?;
+        validate_path(&path).map_err(|err| {
+            format!(
+                "Cannot access configuration file in {}: {}",
+                path.display(),
+                err
+            )
+        })?;
+        Ok(path)
+    }
+
+    pub fn init_file(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let path = Self::get_config_file()?;
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path)?;
+        let mut toml = String::new();
+
+        file.read_to_string(&mut toml)?;
+        file.rewind()?;
+
+        let doc = toml.parse::<Document>()?;
+        *self.file.borrow_mut() = Some((path, BufWriter::new(file)));
+        *self.document.borrow_mut() = doc;
+        Ok(())
+    }
+
+    pub fn save_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some((_, file)) = self.file.borrow_mut().as_mut() {
+            let mut document = self.document.borrow_mut();
+            document[Settings::HANDLE_SIZE] = toml_value(self.handle_size.get());
+            document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
+            document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
+            file.rewind()?;
+            file.write_all(document.to_string().as_bytes())?;
+            file.flush()?;
+            file.rewind()?;
+        }
+        Ok(())
+    }
+
+    pub fn load_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let mut document = self.document.borrow_mut();
+        let mut save = false;
+        if let Some(v) = document
+            .get(Settings::HANDLE_SIZE)
+            .and_then(TomlItem::as_float)
+        {
+            self.handle_size.set(v);
+        } else {
+            document[Settings::HANDLE_SIZE] = toml_value(self.handle_size.get());
+            save = true;
+        }
+        if let Some(v) = document
+            .get(Settings::LINE_WIDTH)
+            .and_then(TomlItem::as_float)
+        {
+            self.line_width.set(v);
+        } else {
+            document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
+            save = true;
+        }
+        if let Some(v) = document
+            .get(Settings::WARP_CURSOR)
+            .and_then(TomlItem::as_bool)
+        {
+            self.warp_cursor.set(v);
+        } else {
+            document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
+            save = true;
+        }
+        drop(document);
+        if save {
+            self.save_settings()?;
+        }
+        Ok(())
+    }
 }
 
 #[glib::object_subclass]
@@ -45,6 +188,16 @@ impl ObjectSubclass for SettingsInner {
 }
 
 impl ObjectImpl for SettingsInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.handle_size.set(SettingsInner::HANDLE_SIZE_INIT_VAL);
+        self.line_width.set(SettingsInner::LINE_WIDTH_INIT_VAL);
+        self.warp_cursor.set(SettingsInner::WARP_CURSOR_INIT_VAL);
+
+        self.init_file().unwrap();
+        self.load_settings().unwrap();
+    }
+
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
@@ -55,7 +208,7 @@ impl ObjectImpl for SettingsInner {
                         Settings::HANDLE_SIZE,
                         2.0,
                         10.0,
-                        5.0,
+                        SettingsInner::HANDLE_SIZE_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
@@ -64,14 +217,14 @@ impl ObjectImpl for SettingsInner {
                         Settings::LINE_WIDTH,
                         2.0,
                         10.0,
-                        2.0,
+                        SettingsInner::LINE_WIDTH_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
-                        true,
+                        SettingsInner::WARP_CURSOR_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                 ]
@@ -92,12 +245,15 @@ impl ObjectImpl for SettingsInner {
         match pspec.name() {
             Settings::HANDLE_SIZE => {
                 self.handle_size.set(value.get().unwrap());
+                self.save_settings().unwrap();
             }
             Settings::LINE_WIDTH => {
                 self.line_width.set(value.get().unwrap());
+                self.save_settings().unwrap();
             }
             Settings::WARP_CURSOR => {
                 self.warp_cursor.set(value.get().unwrap());
+                self.save_settings().unwrap();
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -116,10 +272,6 @@ impl Settings {
     pub const WARP_CURSOR: &str = "warp-cursor";
 
     pub fn new() -> Self {
-        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        ret.imp().handle_size.set(5.0);
-        ret.imp().line_width.set(8.0);
-        ret.imp().warp_cursor.set(true);
-        ret
+        glib::Object::new::<Self>(&[]).unwrap()
     }
 }
