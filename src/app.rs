@@ -173,21 +173,22 @@ impl GerbApp {
                     .focus_on_map(true)
                     .resizable(true)
                     .title("Settings")
-                    .margin(15)
                     .visible(true)
+                    .expand(true)
+                    .default_width(640)
+                    .default_height(480)
                     .build();
                 let scrolled_window = gtk::ScrolledWindow::builder()
                     .expand(true)
                     .visible(true)
                     .can_focus(true)
-                    .margin_top(5)
-                    .margin_start(5)
                     .build();
                 let grid = gtk::Grid::builder()
                     .expand(true)
                     .visible(true)
                     .can_focus(true)
                     .column_spacing(5)
+                    .margin(10)
                     .row_spacing(5)
                     .build();
                 let app = app.downcast_ref::<super::GerbApp>().unwrap();
