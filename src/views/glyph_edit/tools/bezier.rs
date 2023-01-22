@@ -121,6 +121,8 @@ impl ToolImplImpl for BezierToolInner {
                         new_contour_action(glyph_state.glyph.clone(), contour, subaction);
                     (action.redo)();
                     glyph_state.add_undo_action(action);
+                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    self.on_deactivate(_obj, &view);
                 }
                 viewport.queue_draw();
             }
@@ -135,6 +137,8 @@ impl ToolImplImpl for BezierToolInner {
                 let mut action = new_contour_action(glyph_state.glyph.clone(), contour, subaction);
                 (action.redo)();
                 glyph_state.add_undo_action(action);
+                glyph_state.active_tool = glib::types::Type::INVALID;
+                self.on_deactivate(_obj, &view);
             }
             viewport.queue_draw();
 
@@ -174,6 +178,8 @@ impl ToolImplImpl for BezierToolInner {
                             new_contour_action(glyph_state.glyph.clone(), contour, subaction);
                         (action.redo)();
                         glyph_state.add_undo_action(action);
+                        glyph_state.active_tool = glib::types::Type::INVALID;
+                        self.on_deactivate(_obj, &view);
                     }
                     viewport.queue_draw();
                 }

@@ -173,7 +173,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
                         new_contour_action(glyph_state.glyph.clone(), contour, subaction);
                     (action.redo)();
                     glyph_state.add_undo_action(action);
-                    viewport.queue_draw();
+                    self.upper_left.set(None);
                     self.instance()
                         .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
                     glyph_state.active_tool = glib::types::Type::INVALID;
@@ -181,6 +181,11 @@ impl ToolImplImpl for QuadrilateralToolInner {
                 }
                 gtk::gdk::BUTTON_SECONDARY => {
                     self.upper_left.set(None);
+                    self.instance()
+                        .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
+                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    viewport.set_cursor("default");
                 }
                 _ => return Inhibit(false),
             },
@@ -273,6 +278,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
     }
 
     fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+        self.upper_left.set(None);
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
         view.imp().viewport.set_cursor("default");
@@ -487,6 +493,11 @@ impl ToolImplImpl for EllipseToolInner {
                 }
                 gtk::gdk::BUTTON_SECONDARY => {
                     self.center.set(None);
+                    self.instance()
+                        .set_property::<bool>(EllipseTool::ACTIVE, false);
+                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    viewport.set_cursor("default");
                 }
                 _ => return Inhibit(false),
             },
@@ -570,6 +581,7 @@ impl ToolImplImpl for EllipseToolInner {
     }
 
     fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+        self.center.set(None);
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, false);
         view.imp().viewport.set_cursor("default");
