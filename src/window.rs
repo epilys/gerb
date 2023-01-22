@@ -169,6 +169,18 @@ impl ObjectImpl for Window {
             .can_focus(true)
             .margin(0)
             .build();
+        {
+            if let Some(label) = statusbar
+                .message_area()
+                .and_then(|box_| box_.children().pop())
+                .and_then(|widget| widget.downcast::<gtk::Label>().ok())
+            {
+                label
+                    .bind_property("label", &label, "tooltip_text")
+                    .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
+                    .build();
+            }
+        }
         vbox.pack_start(&statusbar, false, false, 0);
 
         obj.set_child(Some(&vbox));
