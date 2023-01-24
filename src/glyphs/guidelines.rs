@@ -20,6 +20,7 @@
  */
 
 use super::*;
+use crate::ufo;
 use crate::utils::colors::*;
 use glib::{ParamFlags, ParamSpec, ParamSpecBoxed, ParamSpecDouble, ParamSpecString, Value};
 use gtk::glib;
@@ -52,6 +53,7 @@ impl ObjectImpl for GuidelineInner {
         self.color.set(Color::new_alpha(0.0, 0.0, 1.0, 0.8));
         self.highlight_color
             .set(Color::new_alpha(1.0, 0.0, 0.0, 0.8));
+        *self.identifier.borrow_mut() = Some(crate::ufo::make_random_identifier());
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -222,6 +224,43 @@ impl TryFrom<serde_json::Value> for Guideline {
         ret.imp().angle.swap(&inner.angle);
         ret.imp().x.swap(&inner.x);
         ret.imp().y.swap(&inner.y);
+        Ok(ret)
+    }
+}
+
+impl TryFrom<ufo::GuidelineInfo> for Guideline {
+    type Error = String;
+
+    fn try_from(v: ufo::GuidelineInfo) -> Result<Guideline, Self::Error> {
+        let ret = Self::new();
+        // FIXME: check for invalid optional set value combinations
+        let ufo::GuidelineInfo {
+            x,
+            y,
+            angle,
+            name,
+            color,
+            identifier,
+        } = v;
+
+        if let Some(x) = x {
+            ret.imp().x.set(x);
+        }
+        if let Some(y) = y {
+            ret.imp().y.set(y);
+        }
+        if let Some(name) = name {
+            *ret.imp().name.borrow_mut() = Some(name);
+        }
+        if let Some(identifier) = identifier {
+            *ret.imp().identifier.borrow_mut() = Some(identifier);
+        }
+        if let Some(_color) = color {
+            //ret.imp().color.swap(&inner.color);
+        }
+        if let Some(angle) = angle {
+            ret.imp().angle.set(angle);
+        }
         Ok(ret)
     }
 }

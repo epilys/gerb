@@ -19,6 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::ufo;
 use glib::{
     ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecInt64, ParamSpecString,
     ParamSpecUInt64, Value,
@@ -29,8 +30,6 @@ use gtk::subclass::prelude::*;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::fs::File;
-use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -70,6 +69,10 @@ mod imp {
         pub note: RefCell<String>,
         /// A list of guideline definitions that apply to all glyphs in all layers in the font. This attribute is optional.
         pub guidelines: RefCell<Vec<Guideline>>,
+        pub fontinfo: RefCell<ufo::FontInfo>,
+        pub contents: RefCell<ufo::Contents>,
+        pub metainfo: RefCell<ufo::MetaInfo>,
+        pub layercontents: RefCell<ufo::LayerContents>,
     }
 
     impl Default for ProjectInner {
@@ -94,6 +97,10 @@ mod imp {
                 italic_angle: Cell::new(0.),
                 note: RefCell::new(String::new()),
                 guidelines: RefCell::new(vec![]),
+                fontinfo: RefCell::new(ufo::FontInfo::default()),
+                contents: RefCell::new(ufo::Contents::default()),
+                metainfo: RefCell::new(ufo::MetaInfo::default()),
+                layercontents: RefCell::new(ufo::LayerContents::default()),
             }
         }
     }
@@ -280,7 +287,6 @@ impl Project {
     }
 
     pub fn from_path(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let glyphs = Glyph::from_ufo(path);
         let mut path: PathBuf = Path::new(path).into();
         if !path.exists() {
             return Err(format!("Directory <i>{}</i> does not exist.", path.display()).into());
@@ -289,108 +295,92 @@ impl Project {
             return Err(format!("Path {} is not a directory.", path.display()).into());
         }
         path.push("fontinfo.plist");
-        let mut file = match File::open(&path) {
-            Err(err) => return Err(format!("couldn't open {}: {}", path.display(), err).into()),
-            Ok(file) => file,
-        };
-
-        let mut s = String::new();
-        if let Err(err) = file.read_to_string(&mut s) {
-            return Err(format!("couldn't read {}: {}", path.display(), err).into());
-        }
-        let mut plist = fontinfo::Plist::from_str(&s)
+        let fontinfo @ ufo::FontInfo {
+            family_name: _,
+            style_name: _,
+            version_major,
+            version_minor,
+            copyright: _,
+            trademark: _,
+            units_per_em,
+            ascender,
+            descender,
+            x_height,
+            cap_height,
+            italic_angle,
+            guidelines: _,
+            style_map_family_name: _,
+            style_map_style_name: _,
+            year: _,
+            note: _,
+        } = ufo::FontInfo::from_path(&path)
             .map_err(|err| format!("couldn't read fontinfo.plist {}: {}", path.display(), err))?;
-        let family_name =
-            if let Some(fontinfo::DictValue::String(s)) = plist.dict.remove("familyName") {
-                s
-            } else {
-                String::new()
-            };
-        let style_name =
-            if let Some(fontinfo::DictValue::String(s)) = plist.dict.remove("styleName") {
-                s
-            } else {
-                String::new()
-            };
-        let copyright = if let Some(fontinfo::DictValue::String(s)) = plist.dict.remove("copyright")
-        {
-            s
-        } else {
-            String::new()
-        };
-        let trademark = if let Some(fontinfo::DictValue::String(s)) = plist.dict.remove("trademark")
-        {
-            s
-        } else {
-            String::new()
-        };
-        let units_per_em =
-            if let Some(fontinfo::DictValue::Integer(u)) = plist.dict.remove("unitsPerEm") {
-                u as f64
-            } else {
-                1000.0
-            };
-        let x_height = if let Some(fontinfo::DictValue::Integer(x)) = plist.dict.remove("xHeight") {
-            x as f64
-        } else {
-            500.0
-        };
-        let ascender = if let Some(fontinfo::DictValue::Integer(a)) = plist.dict.remove("ascender")
-        {
-            a as f64
-        } else {
-            700.0
-        };
-        let descender =
-            if let Some(fontinfo::DictValue::Integer(d)) = plist.dict.remove("descender") {
-                d as f64
-            } else {
-                -200.0
-            };
-        let cap_height =
-            if let Some(fontinfo::DictValue::Integer(c)) = plist.dict.remove("capHeight") {
-                c as f64
-            } else {
-                600.0
-            };
-        let italic_angle =
-            if let Some(fontinfo::DictValue::Integer(i)) = plist.dict.remove("italicAngle") {
-                i as f64
-            } else {
-                0.0
-            };
-        let version_major =
-            if let Some(fontinfo::DictValue::Integer(i)) = plist.dict.remove("versionMajor") {
-                i
-            } else {
-                0
-            };
-        let version_minor =
-            if let Some(fontinfo::DictValue::Integer(i)) = plist.dict.remove("versionMinor") {
-                i as u64
-            } else {
-                0
-            };
+        path.pop();
+        path.push("metainfo.plist");
+        let metainfo = ufo::MetaInfo::from_path(&path)
+            .map_err(|err| format!("couldn't read metainfo.plist {}: {}", path.display(), err))?;
+        path.pop();
+        path.push("layercontents.plist");
+        let layercontents = ufo::LayerContents::from_path(&path).map_err(|err| {
+            format!(
+                "couldn't read layercontents.plist {}: {}",
+                path.display(),
+                err
+            )
+        })?;
+        path.pop();
+        path.push("glyphs");
+        path.push("contents.plist");
+        let contents = ufo::Contents::from_path(&path)
+            .map_err(|err| format!("couldn't read contents.plist {}: {}", path.display(), err))?;
+        path.pop();
+        path.pop();
+        let glyphs = Glyph::from_ufo(&path, &contents);
         let ret: Self = Self::new();
-        ret.set_property(Project::NAME, family_name.clone());
+        ret.set_property(Project::NAME, fontinfo.family_name.clone());
         ret.set_property(Project::MODIFIED, false);
         *ret.imp().last_saved.borrow_mut() = None;
         *ret.imp().glyphs.borrow_mut() = glyphs?;
         *ret.imp().path.borrow_mut() = Some(path);
-        *ret.imp().family_name.borrow_mut() = family_name;
-        *ret.imp().style_name.borrow_mut() = style_name;
-        ret.set_property(Project::VERSION_MAJOR, version_major);
-        ret.set_property(Project::VERSION_MINOR, version_minor);
-        *ret.imp().copyright.borrow_mut() = copyright;
-        *ret.imp().trademark.borrow_mut() = trademark;
-        ret.set_property(Project::UNITS_PER_EM, units_per_em);
-        ret.set_property(Project::ASCENDER, ascender);
-        ret.set_property(Project::DESCENDER, descender);
-        ret.set_property(Project::X_HEIGHT, x_height);
-        ret.set_property(Project::CAP_HEIGHT, cap_height);
-        ret.set_property(Project::ITALIC_ANGLE, italic_angle);
+        *ret.imp().family_name.borrow_mut() = fontinfo.family_name.clone();
+        *ret.imp().style_name.borrow_mut() = fontinfo.style_name.clone();
+        if let Some(v) = version_major {
+            ret.set_property(Project::VERSION_MAJOR, v);
+        }
+        if let Some(v) = version_minor {
+            ret.set_property(Project::VERSION_MINOR, v);
+        }
+        *ret.imp().copyright.borrow_mut() = fontinfo.copyright.clone();
+        *ret.imp().trademark.borrow_mut() = fontinfo.trademark.clone();
+        if let Some(v) = units_per_em {
+            ret.set_property(Project::UNITS_PER_EM, v);
+        }
+        if let Some(v) = ascender {
+            ret.set_property(Project::ASCENDER, v);
+        }
+        if let Some(v) = descender {
+            ret.set_property(Project::DESCENDER, v);
+        }
+        if let Some(v) = x_height {
+            ret.set_property(Project::X_HEIGHT, v);
+        }
+        if let Some(v) = cap_height {
+            ret.set_property(Project::CAP_HEIGHT, v);
+        }
+        if let Some(v) = italic_angle {
+            ret.set_property(Project::ITALIC_ANGLE, v);
+        }
         *ret.imp().note.borrow_mut() = String::new();
-        *ret.imp().guidelines.borrow_mut() = vec![];
+        *ret.imp().guidelines.borrow_mut() = fontinfo
+            .guidelines
+            .clone()
+            .into_iter()
+            .map(Guideline::try_from)
+            .collect::<Result<Vec<Guideline>, String>>()?;
+        *ret.imp().fontinfo.borrow_mut() = fontinfo;
+        *ret.imp().metainfo.borrow_mut() = metainfo;
+        *ret.imp().contents.borrow_mut() = contents;
+        *ret.imp().layercontents.borrow_mut() = layercontents;
         Ok(ret)
     }
 }
@@ -409,356 +399,4 @@ impl Default for Project {
         *ret.imp().guidelines.borrow_mut() = vec![];
         ret
     }
-}
-
-mod fontinfo {
-    use std::collections::HashMap;
-
-    extern crate quick_xml;
-    extern crate serde;
-
-    use serde::Deserialize;
-
-    #[derive(Debug, Deserialize, PartialEq)]
-    #[serde(rename_all = "lowercase")]
-    pub struct Plist {
-        pub dict: HashMap<String, DictValue>,
-    }
-
-    #[derive(Debug, Deserialize, PartialEq)]
-    #[serde(rename_all = "lowercase")]
-    pub enum DictValue {
-        Integer(i64),
-        String(String),
-        Array(Vec<DictValue>),
-        Real(f64),
-    }
-
-    impl Plist {
-        pub fn from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
-            use quick_xml::events::Event;
-            use quick_xml::Reader;
-
-            let mut ret = Self {
-                dict: HashMap::default(),
-            };
-
-            let mut reader = Reader::from_str(xml);
-            reader.trim_text(true);
-
-            let mut buf = Vec::new();
-
-            #[derive(Debug)]
-            enum ArrayType {
-                Integer,
-                Real,
-                String,
-            }
-
-            #[derive(Debug)]
-            enum State {
-                Start,
-                InDict,
-                InKey,
-                Key(String),
-                String(String),
-                Integer(String),
-                Real(String),
-                Array(String, Vec<DictValue>, ArrayType),
-            }
-            let mut state = State::Start;
-            loop {
-                match (&mut state, reader.read_event(&mut buf)) {
-                    (State::Start, Ok(Event::Start(ref e))) => match e.name() {
-                        b"dict" => {
-                            state = State::InDict;
-                        }
-                        _ => (),
-                    },
-                    (State::InDict, Ok(Event::Start(ref e))) => match e.name() {
-                        b"key" => {
-                            state = State::InKey;
-                        }
-                        _ => (),
-                    },
-                    (State::Key(_), Ok(Event::End(ref e))) => match e.name() {
-                        b"key" => {}
-                        _ => (),
-                    },
-                    (State::Key(keyval), Ok(Event::Start(ref e))) => match e.name() {
-                        b"integer" => {
-                            let keyval = std::mem::take(keyval);
-                            state = State::Integer(keyval);
-                        }
-                        b"array" => {
-                            let keyval = std::mem::take(keyval);
-                            state = State::Array(keyval, vec![], ArrayType::Integer);
-                        }
-                        b"real" => {
-                            let keyval = std::mem::take(keyval);
-                            state = State::Real(keyval);
-                        }
-                        b"string" => {
-                            let keyval = std::mem::take(keyval);
-                            state = State::String(keyval);
-                        }
-                        _ => (),
-                    },
-                    (State::InDict, Ok(Event::End(ref e))) => match e.name() {
-                        b"dict" => {
-                            break;
-                        }
-                        b"string" | b"real" | b"integer" | b"array" => {}
-                        _ => (),
-                    },
-                    (State::Array(keyval, values, _array_type), Ok(Event::End(ref e))) => {
-                        match e.name() {
-                            b"array" => {
-                                let keyval = std::mem::take(keyval);
-                                let values = std::mem::take(values);
-                                ret.dict.insert(keyval, DictValue::Array(values));
-                                state = State::InDict;
-                            }
-                            b"string" | b"real" | b"integer" => {}
-                            _ => (),
-                        }
-                    }
-                    (State::Array(_, _, array_type), Ok(Event::Start(ref e))) => match e.name() {
-                        b"integer" => {
-                            *array_type = ArrayType::Integer;
-                        }
-                        b"string" => {
-                            *array_type = ArrayType::String;
-                        }
-                        b"real" => {
-                            *array_type = ArrayType::Real;
-                        }
-                        _ => (),
-                    },
-                    (State::Array(_, values, array_type), Ok(Event::Text(e))) => match array_type {
-                        ArrayType::Integer => {
-                            values.push(DictValue::Integer(
-                                std::str::from_utf8(&e.unescaped()?)?.parse()?,
-                            ));
-                        }
-                        ArrayType::String => {
-                            values.push(DictValue::String(e.unescape_and_decode(&reader)?));
-                        }
-                        ArrayType::Real => {
-                            values.push(DictValue::Real(
-                                std::str::from_utf8(&e.unescaped()?)?.parse()?,
-                            ));
-                        }
-                    },
-                    (State::InKey, Ok(Event::Text(e))) => {
-                        state = State::Key(e.unescape_and_decode(&reader)?);
-                    }
-                    (State::String(keyval), Ok(Event::Text(e))) => {
-                        let keyval = std::mem::take(keyval);
-                        state = State::InDict;
-                        ret.dict
-                            .insert(keyval, DictValue::String(e.unescape_and_decode(&reader)?));
-                    }
-                    (State::Integer(keyval), Ok(Event::Text(e))) => {
-                        let keyval = std::mem::take(keyval);
-                        state = State::InDict;
-                        ret.dict.insert(
-                            keyval,
-                            DictValue::Integer(std::str::from_utf8(&e.unescaped()?)?.parse()?),
-                        );
-                    }
-                    (State::Real(keyval), Ok(Event::Text(e))) => {
-                        let keyval = std::mem::take(keyval);
-                        state = State::InDict;
-                        ret.dict.insert(
-                            keyval,
-                            DictValue::Real(std::str::from_utf8(&e.unescaped()?)?.parse()?),
-                        );
-                    }
-                    (State::InDict, Ok(Event::Eof)) => break, // exits the loop when reaching end of file
-                    (_, Err(e)) => {
-                        panic!("Error at position {}: {:?}", reader.buffer_position(), e)
-                    }
-                    _ => (), // There are several other `Event`s we do not consider here
-                }
-
-                //buf.clear();
-            }
-            Ok(ret)
-        }
-    }
-
-    #[test]
-    fn test_plist_parse() {
-        //let p: Plist = quick_xml::de::from_str(_PLIST).unwrap();
-        //println!("{:#?}", p);
-        let p: Plist = Plist::from_str(_PLIST).unwrap();
-        println!("{:#?}", p);
-    }
-
-    const _PLIST: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-	<dict>
-		<key>ascender</key>
-		<integer>712</integer>
-		<key>capHeight</key>
-		<integer>656</integer>
-		<key>copyright</key>
-		<string>Copyright 2010–2021 Adobe Systems Incorporated (http://www.adobe.com/), with Reserved Font Name 'Source'.</string>
-		<key>descender</key>
-		<integer>-205</integer>
-		<key>familyName</key>
-		<string>Source Sans 3</string>
-		<key>guidelines</key>
-		<array>
-		</array>
-		<key>italicAngle</key>
-		<integer>0</integer>
-		<key>openTypeHheaAscender</key>
-		<integer>1024</integer>
-		<key>openTypeHheaDescender</key>
-		<integer>-400</integer>
-		<key>openTypeHheaLineGap</key>
-		<integer>0</integer>
-		<key>openTypeNameDesigner</key>
-		<string>Paul D. Hunt</string>
-		<key>openTypeNameLicense</key>
-		<string>This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL. This Font Software is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the SIL Open Font License for the specific language, permissions and limitations governing your use of this Font Software.</string>
-		<key>openTypeNameLicenseURL</key>
-		<string>http://scripts.sil.org/OFL</string>
-		<key>openTypeNameManufacturer</key>
-		<string>Adobe Systems Incorporated</string>
-		<key>openTypeNameManufacturerURL</key>
-		<string>http://www.adobe.com/type</string>
-		<key>openTypeOS2CodePageRanges</key>
-		<array>
-			<integer>0</integer>
-			<integer>1</integer>
-			<integer>2</integer>
-			<integer>3</integer>
-			<integer>4</integer>
-			<integer>7</integer>
-			<integer>8</integer>
-			<integer>29</integer>
-		</array>
-		<key>openTypeOS2Panose</key>
-		<array>
-			<integer>2</integer>
-			<integer>11</integer>
-			<integer>5</integer>
-			<integer>3</integer>
-			<integer>3</integer>
-			<integer>4</integer>
-			<integer>3</integer>
-			<integer>2</integer>
-			<integer>2</integer>
-			<integer>4</integer>
-		</array>
-		<key>openTypeOS2TypoAscender</key>
-		<integer>750</integer>
-		<key>openTypeOS2TypoDescender</key>
-		<integer>-250</integer>
-		<key>openTypeOS2TypoLineGap</key>
-		<integer>0</integer>
-		<key>openTypeOS2UnicodeRanges</key>
-		<array>
-			<integer>0</integer>
-			<integer>1</integer>
-			<integer>2</integer>
-			<integer>4</integer>
-			<integer>5</integer>
-			<integer>6</integer>
-			<integer>7</integer>
-			<integer>9</integer>
-			<integer>29</integer>
-			<integer>30</integer>
-			<integer>32</integer>
-			<integer>57</integer>
-		</array>
-		<key>openTypeOS2VendorID</key>
-		<string>ADBO</string>
-		<key>openTypeOS2WinAscent</key>
-		<integer>984</integer>
-		<key>openTypeOS2WinDescent</key>
-		<integer>273</integer>
-		<key>postscriptBlueFuzz</key>
-		<integer>0</integer>
-		<key>postscriptBlueScale</key>
-		<real>0.0625</real>
-		<key>postscriptBlueValues</key>
-		<array>
-			<integer>-12</integer>
-			<integer>0</integer>
-			<integer>486</integer>
-			<integer>498</integer>
-			<integer>518</integer>
-			<integer>530</integer>
-			<integer>574</integer>
-			<integer>586</integer>
-			<integer>638</integer>
-			<integer>650</integer>
-			<integer>656</integer>
-			<integer>668</integer>
-			<integer>712</integer>
-			<integer>724</integer>
-		</array>
-		<key>postscriptFamilyBlues</key>
-		<array>
-			<integer>-12</integer>
-			<integer>0</integer>
-			<integer>486</integer>
-			<integer>498</integer>
-			<integer>518</integer>
-			<integer>530</integer>
-			<integer>574</integer>
-			<integer>586</integer>
-			<integer>638</integer>
-			<integer>650</integer>
-			<integer>656</integer>
-			<integer>668</integer>
-			<integer>712</integer>
-			<integer>724</integer>
-		</array>
-		<key>postscriptFamilyOtherBlues</key>
-		<array>
-			<integer>-217</integer>
-			<integer>-205</integer>
-		</array>
-		<key>postscriptFontName</key>
-		<string>SourceSans3-Regular</string>
-		<key>postscriptOtherBlues</key>
-		<array>
-			<integer>-217</integer>
-			<integer>-205</integer>
-		</array>
-		<key>postscriptStemSnapH</key>
-		<array>
-			<integer>67</integer>
-			<integer>78</integer>
-		</array>
-		<key>postscriptStemSnapV</key>
-		<array>
-			<integer>84</integer>
-			<integer>95</integer>
-		</array>
-		<key>postscriptUnderlinePosition</key>
-		<integer>-75</integer>
-		<key>postscriptUnderlineThickness</key>
-		<integer>50</integer>
-		<key>styleName</key>
-		<string>Regular</string>
-		<key>trademark</key>
-		<string>Source is a trademark of Adobe Systems Incorporated in the United States and/or other countries.</string>
-		<key>unitsPerEm</key>
-		<integer>1000</integer>
-		<key>versionMajor</key>
-		<integer>3</integer>
-		<key>versionMinor</key>
-		<integer>38</integer>
-		<key>xHeight</key>
-		<integer>486</integer>
-	</dict>
-</plist>
-"##;
 }

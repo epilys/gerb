@@ -29,12 +29,15 @@ pub use app::*;
 pub mod glyphs;
 pub mod project;
 pub mod resources;
+pub mod ufo;
 pub mod unicode;
 pub mod utils;
 pub mod views;
 mod window;
 use app::GerbApp;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
+
+pub const APPLICATION_ID: &str = "com.epilys.gerb";
 
 fn main() {
     //let mut env_args = std::env::args().skip(1).collect::<Vec<String>>();

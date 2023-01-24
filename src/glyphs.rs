@@ -23,8 +23,10 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::path::Path;
 use std::rc::{Rc, Weak};
 
+use crate::ufo;
 use crate::unicode::names::CharName;
 use crate::utils::{curves::*, *};
 
@@ -132,45 +134,37 @@ impl Default for GlyphDrawingOptions {
 
 impl Glyph {
     pub fn from_ufo(
-        path: &str,
+        path: &Path,
+        contents: &ufo::Contents,
     ) -> Result<HashMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
-        use std::path::Path;
-
         //assert!(path.ends_with(".ufo"));
         let mut ret: HashMap<String, Rc<RefCell<Glyph>>> = HashMap::default();
-
         let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
-        let path = Path::new(path);
-        let path = path.join("glyphs");
+        let mut path = path.to_path_buf();
+        path.push("glyphs");
 
-        for entry in path
-            .read_dir()
-            .map_err(|err| format!("Reading directory {} failed: {}", path.display(), err))?
-            .flatten()
-        {
+        for (name, filename) in contents.glyphs.iter() {
+            path.push(filename);
             use std::fs::File;
             use std::io::prelude::*;
-            let mut file = match File::open(&entry.path()) {
-                Err(err) => {
-                    return Err(format!("Couldn't open {}: {}", entry.path().display(), err).into())
-                }
+            let mut file = match File::open(&path) {
+                Err(err) => return Err(format!("Couldn't open {}: {}", path.display(), err).into()),
                 Ok(file) => file,
             };
 
             let mut s = String::new();
             if let Err(err) = file.read_to_string(&mut s) {
-                return Err(format!("Couldn't read {}: {}", entry.path().display(), err).into());
+                return Err(format!("Couldn't read {}: {}", path.display(), err).into());
             }
             let g: Result<glif::Glif, _> = glif::Glif::from_str(&s);
             match g {
                 Err(err) => {
-                    eprintln!("couldn't parse {}: {}", entry.path().display(), err);
+                    eprintln!("couldn't parse {}: {}", path.display(), err);
                 }
                 Ok(g) => {
                     for mut g in g.into_iter() {
                         g.glif_source = s.clone();
                         let has_components = !g.components.is_empty();
-                        let name = g.name.clone();
                         let g = Rc::new(RefCell::new(g));
                         if has_components {
                             glyphs_with_refs.push(g.clone());
@@ -179,6 +173,7 @@ impl Glyph {
                     }
                 }
             }
+            path.pop();
         }
 
         for g in glyphs_with_refs {

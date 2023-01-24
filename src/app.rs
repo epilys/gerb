@@ -43,7 +43,7 @@ impl GerbApp {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         glib::Object::new(&[
-            ("application-id", &"com.epilys.gerb"),
+            ("application-id", &crate::APPLICATION_ID),
             ("flags", &ApplicationFlags::empty()), //&(ApplicationFlags::HANDLES_OPEN | ApplicationFlags::HANDLES_COMMAND_LINE)),
         ])
         .expect("Failed to create App")
