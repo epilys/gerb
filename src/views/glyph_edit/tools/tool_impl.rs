@@ -306,7 +306,7 @@ impl ObjectImpl for ToolImplInner {
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             ToolImpl::NAME => self.name.get().unwrap().as_ref().to_value(),
-            ToolImpl::DESCRIPTION => self.description.get().unwrap().as_ref().to_value(),
+            ToolImpl::DESCRIPTION => self.description.get().map(Cow::as_ref).to_value(),
             ToolImpl::ICON => self.icon.get().unwrap().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }

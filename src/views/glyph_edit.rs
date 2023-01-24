@@ -26,6 +26,7 @@ use gtk::cairo::Matrix;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use indexmap::IndexMap;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -71,7 +72,7 @@ pub struct GlyphState {
     pub glyph: Rc<RefCell<Glyph>>,
     pub reference: Rc<RefCell<Glyph>>,
     pub viewport: Canvas,
-    pub tools: HashMap<glib::types::Type, ToolImpl>,
+    pub tools: IndexMap<glib::types::Type, ToolImpl>,
     pub active_tool: glib::types::Type,
     pub panning_tool: glib::types::Type,
     selection: Vec<GlyphPointIndex>,
@@ -86,7 +87,7 @@ impl GlyphState {
             glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
             reference: Rc::clone(glyph),
             viewport,
-            tools: HashMap::default(),
+            tools: IndexMap::default(),
             active_tool: glib::types::Type::INVALID,
             panning_tool: PanningTool::static_type(),
             selection: vec![],
@@ -698,6 +699,20 @@ impl ObjectImpl for GlyphEditViewInner {
                         false,
                         ParamFlags::READWRITE,
                     ),
+                    glib::ParamSpecObject::new(
+                        GlyphEditView::ACTIVE_TOOL,
+                        GlyphEditView::ACTIVE_TOOL,
+                        GlyphEditView::ACTIVE_TOOL,
+                        ToolImpl::static_type(),
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecObject::new(
+                        GlyphEditView::PANNING_TOOL,
+                        GlyphEditView::PANNING_TOOL,
+                        GlyphEditView::PANNING_TOOL,
+                        ToolImpl::static_type(),
+                        glib::ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -724,6 +739,16 @@ impl ObjectImpl for GlyphEditViewInner {
             GlyphEditView::DESCENDER => self.descender.get().to_value(),
             GlyphEditView::CAP_HEIGHT => self.cap_height.get().to_value(),
             GlyphEditView::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
+            GlyphEditView::ACTIVE_TOOL => {
+                let state = self.glyph_state.get().unwrap().borrow();
+                let active_tool = state.active_tool;
+                state.tools.get(&active_tool).map(Clone::clone).to_value()
+            }
+            GlyphEditView::PANNING_TOOL => {
+                let state = self.glyph_state.get().unwrap().borrow();
+                let panning_tool = state.panning_tool;
+                state.tools.get(&panning_tool).map(Clone::clone).to_value()
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -803,6 +828,8 @@ impl GlyphEditView {
     pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
     pub const X_HEIGHT: &str = Project::X_HEIGHT;
     pub const LOCK_GUIDELINES: &str = "lock-guidelines";
+    pub const ACTIVE_TOOL: &str = "active-tool";
+    pub const PANNING_TOOL: &str = "panning-tool";
 
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
