@@ -193,7 +193,6 @@ impl ObjectImpl for Window {
         );
 
         obj.connect_local("open-glyph-edit", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
-            println!("open-glyph-edit received!");
             let glyph_box = v[1].get::<crate::views::GlyphBox>().unwrap();
             obj.imp().edit_glyph(glyph_box.imp().glyph.get().unwrap());
 
@@ -201,7 +200,6 @@ impl ObjectImpl for Window {
         }));
 
         obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
-            //println!("open-project received!");
             match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::from_path(&path)) {
                 Ok(project) => {
                     obj.imp().load_project(project);

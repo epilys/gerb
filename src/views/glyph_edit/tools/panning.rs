@@ -187,6 +187,9 @@ impl ToolImplImpl for PanningToolInner {
                         }
                         let mut is_guideline: bool = false;
                         for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
+                            if view.property::<bool>(GlyphEditView::LOCK_GUIDELINES) {
+                                break;
+                            }
                             if g.imp().on_line_query(position, None) {
                                 view.imp()
                                     .select_object(Some(g.clone().upcast::<gtk::glib::Object>()));

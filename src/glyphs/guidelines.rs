@@ -50,9 +50,9 @@ impl ObjectSubclass for GuidelineInner {
 impl ObjectImpl for GuidelineInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.color.set(Color::new_alpha(0.0, 0.0, 1.0, 0.8));
+        self.color.set(Color::new_alpha(0.0, 0.0, 1.0, 0.5));
         self.highlight_color
-            .set(Color::new_alpha(1.0, 0.0, 0.0, 0.8));
+            .set(Color::new_alpha(1.0, 0.0, 0.0, 0.5));
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -164,10 +164,10 @@ impl GuidelineInner {
         cr.save().unwrap();
         if highlight {
             cr.set_source_color_alpha(self.highlight_color.get());
-            cr.set_line_width(2.0);
+            let curr_width = cr.line_width();
+            cr.set_line_width(curr_width + 1.0);
         } else {
             cr.set_source_color_alpha(self.color.get());
-            cr.set_line_width(1.5);
         }
         let p = matrix.transform_point(self.x.get(), self.y.get());
         let r = self.angle.get() * 0.01745;

@@ -26,6 +26,8 @@ use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 
+use super::Canvas;
+
 #[derive(Debug, Default)]
 pub struct ViewHideBoxInner {
     show_grid_btn: OnceCell<gtk::CheckButton>,
@@ -65,16 +67,20 @@ impl ObjectImpl for ViewHideBoxInner {
         obj.set_can_focus(true);
 
         for (property, label, field) in [
-            ("show-grid", "Show grid", &self.show_grid_btn),
+            (ViewHideBox::SHOW_GRID, "Show grid", &self.show_grid_btn),
             (
-                "show-guidelines",
+                ViewHideBox::SHOW_GUIDELINES,
                 "Show guidelines",
                 &self.show_guidelines_btn,
             ),
-            ("show-handles", "Show handles", &self.show_handles_btn),
-            ("inner-fill", "Inner fill", &self.inner_fill_btn),
             (
-                "show-total-area",
+                ViewHideBox::SHOW_HANDLES,
+                "Show handles",
+                &self.show_handles_btn,
+            ),
+            (ViewHideBox::INNER_FILL, "Inner fill", &self.inner_fill_btn),
+            (
+                ViewHideBox::SHOW_TOTAL_AREA,
                 "Show total area",
                 &self.show_total_area_btn,
             ),
@@ -95,37 +101,37 @@ impl ObjectImpl for ViewHideBoxInner {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecBoolean::new(
-                        "show-grid",
-                        "show-grid",
-                        "show-grid",
+                        ViewHideBox::SHOW_GRID,
+                        ViewHideBox::SHOW_GRID,
+                        ViewHideBox::SHOW_GRID,
                         true,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        "show-guidelines",
-                        "show-guidelines",
-                        "show-guidelines",
+                        ViewHideBox::SHOW_GUIDELINES,
+                        ViewHideBox::SHOW_GUIDELINES,
+                        ViewHideBox::SHOW_GUIDELINES,
                         true,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        "show-handles",
-                        "show-handles",
-                        "show-handles",
+                        ViewHideBox::SHOW_HANDLES,
+                        ViewHideBox::SHOW_HANDLES,
+                        ViewHideBox::SHOW_HANDLES,
                         false,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        "inner-fill",
-                        "inner-fill",
-                        "inner-fill",
+                        ViewHideBox::INNER_FILL,
+                        ViewHideBox::INNER_FILL,
+                        ViewHideBox::INNER_FILL,
                         false,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        "show-total-area",
-                        "show-total-area",
-                        "show-total-area",
+                        ViewHideBox::SHOW_TOTAL_AREA,
+                        ViewHideBox::SHOW_TOTAL_AREA,
+                        ViewHideBox::SHOW_TOTAL_AREA,
                         true,
                         ParamFlags::READWRITE,
                     ),
@@ -136,34 +142,34 @@ impl ObjectImpl for ViewHideBoxInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            "show-grid" => self.show_grid.get().to_value(),
-            "show-guidelines" => self.show_guidelines.get().to_value(),
-            "show-handles" => self.show_handles.get().to_value(),
-            "inner-fill" => self.inner_fill.get().to_value(),
-            "show-total-area" => self.show_total_area.get().to_value(),
+            ViewHideBox::SHOW_GRID => self.show_grid.get().to_value(),
+            ViewHideBox::SHOW_GUIDELINES => self.show_guidelines.get().to_value(),
+            ViewHideBox::SHOW_HANDLES => self.show_handles.get().to_value(),
+            ViewHideBox::INNER_FILL => self.inner_fill.get().to_value(),
+            ViewHideBox::SHOW_TOTAL_AREA => self.show_total_area.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         match pspec.name() {
-            "show-grid" => {
+            ViewHideBox::SHOW_GRID => {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_grid.set(val);
             }
-            "show-guidelines" => {
+            ViewHideBox::SHOW_GUIDELINES => {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_guidelines.set(val);
             }
-            "show-handles" => {
+            ViewHideBox::SHOW_HANDLES => {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_handles.set(val);
             }
-            "inner-fill" => {
+            ViewHideBox::INNER_FILL => {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.inner_fill.set(val);
             }
-            "show-total-area" => {
+            ViewHideBox::SHOW_TOTAL_AREA => {
                 let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_total_area.set(val);
             }
@@ -182,15 +188,22 @@ glib::wrapper! {
 }
 
 impl ViewHideBox {
-    pub fn new(canvas: &super::Canvas) -> Self {
+    pub const INNER_FILL: &str = Canvas::INNER_FILL;
+    pub const SHOW_GRID: &str = Canvas::SHOW_GRID;
+    pub const SHOW_GUIDELINES: &str = Canvas::SHOW_GUIDELINES;
+    pub const SHOW_HANDLES: &str = Canvas::SHOW_HANDLES;
+    pub const SHOW_TOTAL_AREA: &str = Canvas::SHOW_TOTAL_AREA;
+
+    pub fn new(canvas: &Canvas) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create ViewHideBox");
         for property in [
-            "show-grid",
-            "show-guidelines",
-            "show-handles",
-            "inner-fill",
-            "show-total-area",
+            Canvas::INNER_FILL,
+            Canvas::SHOW_GRID,
+            Canvas::SHOW_GUIDELINES,
+            Canvas::SHOW_HANDLES,
+            Canvas::SHOW_TOTAL_AREA,
         ] {
+            ret.set_property(property, canvas.property::<bool>(property));
             ret.bind_property(property, canvas, property)
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
                 .build();

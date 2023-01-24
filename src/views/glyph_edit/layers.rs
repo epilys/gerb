@@ -179,7 +179,13 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
         cr.save().unwrap();
-        cr.set_line_width(2.5);
+        cr.set_line_width(
+            obj.imp()
+                .settings
+                .get()
+                .unwrap()
+                .property(Settings::GUIDELINE_WIDTH),
+        );
         let (width, height) = ((width * scale) * ppu, (height * scale) * ppu);
         let glyph_state_ref = glyph_state.borrow();
         for g in glyph_state_ref.glyph.borrow().guidelines.iter().chain(

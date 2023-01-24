@@ -68,6 +68,16 @@ pub struct CanvasInner {
 
 impl CanvasInner {
     pub const RULER_BREADTH: f64 = 13.0;
+    pub const SHOW_GRID_INIT_VAL: bool = false;
+    pub const SHOW_GUIDELINES_INIT_VAL: bool = true;
+    pub const SHOW_HANDLES_INIT_VAL: bool = true;
+    pub const INNER_FILL_INIT_VAL: bool = false;
+    pub const SHOW_TOTAL_AREA_INIT_VAL: bool = true;
+    pub const SHOW_RULERS_INIT_VAL: bool = true;
+    pub const WARP_CURSOR_INIT_VAL: bool = false;
+    pub const RULER_FG_COLOR_INIT_VAL: Color = Color::BLACK;
+    pub const RULER_BG_COLOR_INIT_VAL: Color = Color::WHITE;
+    pub const RULER_INDICATOR_COLOR_INIT_VAL: Color = Color::RED;
 }
 
 #[glib::object_subclass]
@@ -80,16 +90,21 @@ impl ObjectSubclass for CanvasInner {
 impl ObjectImpl for CanvasInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.show_grid.set(true);
-        self.show_guidelines.set(true);
-        self.show_handles.set(true);
-        self.inner_fill.set(false);
-        self.show_total_area.set(true);
-        self.show_rulers.set(true);
-        self.warp_cursor.set(true);
-        self.ruler_fg_color.set(Color::BLACK);
-        self.ruler_bg_color.set(Color::WHITE);
-        self.ruler_indicator_color.set(Color::RED);
+        self.show_grid.set(CanvasInner::SHOW_GRID_INIT_VAL);
+        self.show_guidelines
+            .set(CanvasInner::SHOW_GUIDELINES_INIT_VAL);
+        self.show_handles.set(CanvasInner::SHOW_HANDLES_INIT_VAL);
+        self.inner_fill.set(CanvasInner::INNER_FILL_INIT_VAL);
+        self.show_total_area
+            .set(CanvasInner::SHOW_TOTAL_AREA_INIT_VAL);
+        self.show_rulers.set(CanvasInner::SHOW_RULERS_INIT_VAL);
+        self.warp_cursor.set(CanvasInner::WARP_CURSOR_INIT_VAL);
+        self.ruler_fg_color
+            .set(CanvasInner::RULER_FG_COLOR_INIT_VAL);
+        self.ruler_bg_color
+            .set(CanvasInner::RULER_BG_COLOR_INIT_VAL);
+        self.ruler_indicator_color
+            .set(CanvasInner::RULER_INDICATOR_COLOR_INIT_VAL);
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))
@@ -140,28 +155,28 @@ impl ObjectImpl for CanvasInner {
                         Canvas::SHOW_GRID,
                         Canvas::SHOW_GRID,
                         Canvas::SHOW_GRID,
-                        true,
+                        CanvasInner::SHOW_GRID_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GUIDELINES,
                         Canvas::SHOW_GUIDELINES,
                         Canvas::SHOW_GUIDELINES,
-                        false,
+                        CanvasInner::SHOW_GUIDELINES_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_HANDLES,
                         Canvas::SHOW_HANDLES,
                         Canvas::SHOW_HANDLES,
-                        false,
+                        CanvasInner::SHOW_HANDLES_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::INNER_FILL,
                         Canvas::INNER_FILL,
                         Canvas::INNER_FILL,
-                        true,
+                        CanvasInner::INNER_FILL_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecObject::new(
@@ -175,21 +190,21 @@ impl ObjectImpl for CanvasInner {
                         Canvas::SHOW_TOTAL_AREA,
                         Canvas::SHOW_TOTAL_AREA,
                         Canvas::SHOW_TOTAL_AREA,
-                        false,
+                        CanvasInner::SHOW_TOTAL_AREA_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
-                        true,
+                        CanvasInner::SHOW_RULERS_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
-                        true,
+                        CanvasInner::WARP_CURSOR_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(

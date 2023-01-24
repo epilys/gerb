@@ -729,7 +729,6 @@ impl ObjectImpl for GlyphBoxInner {
                 | gtk::gdk::EventMask::LEAVE_NOTIFY_MASK,
         );
         obj.connect_enter_notify_event(|_self, _event| -> Inhibit {
-            //println!("obj has window {}", _self.has_window());
             if let Some(screen) = _self.window() {
                 let display = screen.display();
                 screen.set_cursor(Some(
@@ -738,12 +737,10 @@ impl ObjectImpl for GlyphBoxInner {
             }
             _self.imp().focused.set(true);
             _self.imp().drawing_area.get().unwrap().queue_draw();
-            //println!("focus in {:?}", _self.imp().glyph.get().unwrap());
             Inhibit(false)
         });
 
         obj.connect_leave_notify_event(|_self, _event| -> Inhibit {
-            //println!("focus out {:?}", _self.imp().glyph.get().unwrap());
             if let Some(screen) = _self.window() {
                 let display = screen.display();
                 screen.set_cursor(Some(

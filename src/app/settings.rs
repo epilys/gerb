@@ -41,6 +41,7 @@ glib::wrapper! {
 pub struct SettingsInner {
     pub handle_size: Cell<f64>,
     pub line_width: Cell<f64>,
+    pub guideline_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
@@ -49,6 +50,7 @@ pub struct SettingsInner {
 impl SettingsInner {
     pub const HANDLE_SIZE_INIT_VAL: f64 = 5.0;
     pub const LINE_WIDTH_INIT_VAL: f64 = 8.0;
+    pub const GUIDELINE_WIDTH_INIT_VAL: f64 = 1.0;
     pub const WARP_CURSOR_INIT_VAL: bool = false;
 
     pub fn get_config_file() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -132,6 +134,7 @@ impl SettingsInner {
             let mut document = self.document.borrow_mut();
             document[Settings::HANDLE_SIZE] = toml_value(self.handle_size.get());
             document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
+            document[Settings::GUIDELINE_WIDTH] = toml_value(self.guideline_width.get());
             document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
             file.rewind()?;
             file.write_all(document.to_string().as_bytes())?;
@@ -144,24 +147,20 @@ impl SettingsInner {
     pub fn load_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
         let mut document = self.document.borrow_mut();
         let mut save = false;
-        if let Some(v) = document
-            .get(Settings::HANDLE_SIZE)
-            .and_then(TomlItem::as_float)
-        {
-            self.handle_size.set(v);
-        } else {
-            document[Settings::HANDLE_SIZE] = toml_value(self.handle_size.get());
-            save = true;
+        /* floats */
+        for (prop, field) in [
+            (Settings::HANDLE_SIZE, &self.handle_size),
+            (Settings::LINE_WIDTH, &self.line_width),
+            (Settings::GUIDELINE_WIDTH, &self.guideline_width),
+        ] {
+            if let Some(v) = document.get(prop).and_then(TomlItem::as_float) {
+                field.set(v);
+            } else {
+                document[prop] = toml_value(field.get());
+                save = true;
+            }
         }
-        if let Some(v) = document
-            .get(Settings::LINE_WIDTH)
-            .and_then(TomlItem::as_float)
-        {
-            self.line_width.set(v);
-        } else {
-            document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
-            save = true;
-        }
+        /* bools */
         if let Some(v) = document
             .get(Settings::WARP_CURSOR)
             .and_then(TomlItem::as_bool)
@@ -192,6 +191,8 @@ impl ObjectImpl for SettingsInner {
         self.parent_constructed(obj);
         self.handle_size.set(SettingsInner::HANDLE_SIZE_INIT_VAL);
         self.line_width.set(SettingsInner::LINE_WIDTH_INIT_VAL);
+        self.guideline_width
+            .set(SettingsInner::GUIDELINE_WIDTH_INIT_VAL);
         self.warp_cursor.set(SettingsInner::WARP_CURSOR_INIT_VAL);
 
         self.init_file().unwrap();
@@ -220,6 +221,15 @@ impl ObjectImpl for SettingsInner {
                         SettingsInner::LINE_WIDTH_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecDouble::new(
+                        Settings::GUIDELINE_WIDTH,
+                        Settings::GUIDELINE_WIDTH,
+                        Settings::GUIDELINE_WIDTH,
+                        0.0001,
+                        10.0,
+                        SettingsInner::GUIDELINE_WIDTH_INIT_VAL,
+                        ParamFlags::READWRITE,
+                    ),
                     ParamSpecBoolean::new(
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
@@ -236,6 +246,7 @@ impl ObjectImpl for SettingsInner {
         match pspec.name() {
             Settings::HANDLE_SIZE => self.handle_size.get().to_value(),
             Settings::LINE_WIDTH => self.line_width.get().to_value(),
+            Settings::GUIDELINE_WIDTH => self.guideline_width.get().to_value(),
             Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -249,6 +260,10 @@ impl ObjectImpl for SettingsInner {
             }
             Settings::LINE_WIDTH => {
                 self.line_width.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::GUIDELINE_WIDTH => {
+                self.guideline_width.set(value.get().unwrap());
                 self.save_settings().unwrap();
             }
             Settings::WARP_CURSOR => {
@@ -269,6 +284,7 @@ impl Default for Settings {
 impl Settings {
     pub const HANDLE_SIZE: &str = "handle-size";
     pub const LINE_WIDTH: &str = "line-width";
+    pub const GUIDELINE_WIDTH: &str = "guideline-width";
     pub const WARP_CURSOR: &str = "warp-cursor";
 
     pub fn new() -> Self {

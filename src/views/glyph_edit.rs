@@ -461,6 +461,7 @@ pub struct GlyphEditViewInner {
     x_height: Cell<f64>,
     cap_height: Cell<f64>,
     ascender: Cell<f64>,
+    lock_guidelines: Cell<bool>,
     settings: OnceCell<Settings>,
 }
 
@@ -474,6 +475,7 @@ impl ObjectSubclass for GlyphEditViewInner {
 impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.lock_guidelines.set(true);
         self.statusbar_context_id.set(None);
         self.viewport.set_mouse(ViewPoint((0.0, 0.0).into()));
 
@@ -689,6 +691,13 @@ impl ObjectImpl for GlyphEditViewInner {
                         650.0,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        GlyphEditView::LOCK_GUIDELINES,
+                        GlyphEditView::LOCK_GUIDELINES,
+                        GlyphEditView::LOCK_GUIDELINES,
+                        false,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -714,6 +723,7 @@ impl ObjectImpl for GlyphEditViewInner {
             GlyphEditView::ASCENDER => self.ascender.get().to_value(),
             GlyphEditView::DESCENDER => self.descender.get().to_value(),
             GlyphEditView::CAP_HEIGHT => self.cap_height.get().to_value(),
+            GlyphEditView::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -734,6 +744,9 @@ impl ObjectImpl for GlyphEditViewInner {
             }
             GlyphEditView::CAP_HEIGHT => {
                 self.cap_height.set(value.get().unwrap());
+            }
+            GlyphEditView::LOCK_GUIDELINES => {
+                self.lock_guidelines.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -789,6 +802,7 @@ impl GlyphEditView {
     pub const TITLE: &str = "title";
     pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
     pub const X_HEIGHT: &str = Project::X_HEIGHT;
+    pub const LOCK_GUIDELINES: &str = "lock-guidelines";
 
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
