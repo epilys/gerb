@@ -53,7 +53,6 @@ impl ObjectImpl for GuidelineInner {
         self.color.set(Color::new_alpha(0.0, 0.0, 1.0, 0.8));
         self.highlight_color
             .set(Color::new_alpha(1.0, 0.0, 0.0, 0.8));
-        *self.identifier.borrow_mut() = Some(crate::ufo::make_random_identifier());
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -327,6 +326,11 @@ impl GuidelineBuilder {
 
     pub fn identifier(self, identifier: Option<String>) -> Self {
         *self.0.imp().identifier.borrow_mut() = identifier;
+        self
+    }
+
+    pub fn with_random_identifier(self) -> Self {
+        *self.0.imp().identifier.borrow_mut() = Some(crate::ufo::make_random_identifier());
         self
     }
 

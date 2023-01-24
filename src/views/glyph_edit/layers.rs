@@ -182,7 +182,16 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         cr.set_line_width(2.5);
         let (width, height) = ((width * scale) * ppu, (height * scale) * ppu);
         let glyph_state_ref = glyph_state.borrow();
-        for g in glyph_state_ref.glyph.borrow().guidelines.iter() {
+        for g in glyph_state_ref.glyph.borrow().guidelines.iter().chain(
+            obj.imp()
+                .project
+                .get()
+                .unwrap()
+                .imp()
+                .guidelines
+                .borrow()
+                .iter(),
+        ) {
             let highlight = g.imp().on_line_query(unit_mouse, None);
             g.imp().draw(cr, matrix, (width, height), highlight);
             if highlight {

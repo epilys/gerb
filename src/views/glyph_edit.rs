@@ -271,6 +271,12 @@ impl GlyphState {
     fn new_guideline(&self, angle: f64, p: Point) -> crate::Action {
         let (x, y) = (p.x, p.y);
         let viewport = self.viewport.clone();
+        let guideline = Guideline::builder()
+            .angle(angle)
+            .x(x)
+            .y(y)
+            .with_random_identifier()
+            .build();
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
@@ -279,8 +285,8 @@ impl GlyphState {
             },
             compress: false,
             redo: Box::new(
-                clone!(@weak self.glyph as glyph, @weak viewport => move || {
-                    glyph.borrow_mut().guidelines.push(Guideline::builder().angle(angle).x(x).y(y).build());
+                clone!(@weak self.glyph as glyph, @weak viewport, @strong guideline => move || {
+                    glyph.borrow_mut().guidelines.push(guideline.clone());
                     viewport.queue_draw();
                 }),
             ),
@@ -441,6 +447,7 @@ impl GlyphState {
 #[derive(Debug, Default)]
 pub struct GlyphEditViewInner {
     app: OnceCell<gtk::Application>,
+    project: OnceCell<Project>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<Rc<RefCell<GlyphState>>>,
     viewport: Canvas,
@@ -850,6 +857,7 @@ impl GlyphEditView {
             ))))
             .expect("Failed to create glyph state");
         Tool::setup_toolbox(&ret);
+        ret.imp().project.set(project).unwrap();
         ret
     }
 
