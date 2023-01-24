@@ -20,8 +20,9 @@
  */
 
 use indexmap::IndexMap;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::path::Path;
 
 /// fontinfo.plist
@@ -30,7 +31,7 @@ use std::path::Path;
 ///
 /// > This file contains information about the font itself, such as naming and dimensions.
 /// > This file is optional. Not all values are required for a proper file.
-#[derive(Default, Clone, Debug, Deserialize)]
+#[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FontInfo {
     /* Generic Identification Information */
@@ -73,7 +74,7 @@ pub struct FontInfo {
     pub guidelines: Vec<GuidelineInfo>,
 }
 
-#[derive(Default, Clone, Debug, Deserialize)]
+#[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GuidelineInfo {
     #[serde(default)]
@@ -103,6 +104,21 @@ impl FontInfo {
     pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let retval: Self = plist::from_reader_xml(std::io::Cursor::new(xml))?;
         Ok(retval)
+    }
+
+    pub fn save(&self, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        #[allow(deprecated)]
+        let opts = plist::XmlWriteOptions::default()
+            .indent_string("  ")
+            .root_element(true);
+
+        let file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .open(destination)?;
+        plist::to_writer_xml_with_options(file, self, &opts)?;
+        Ok(())
     }
 }
 
@@ -146,7 +162,7 @@ impl FontInfo {
 /// </dict>
 /// </plist>
 /// ```
-#[derive(Default, Debug, Deserialize)]
+#[derive(Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Contents {
     #[serde(flatten)]
@@ -176,7 +192,7 @@ impl Contents {
 /// # Specification
 ///
 /// <https://unifiedfontobject.org/versions/ufo3/metainfo.plist/>
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaInfo {
     /// The application or library that created the UFO. This should follow a reverse domain
@@ -484,6 +500,20 @@ fn test_plist_parse() {
 ] {
     assert_eq!(&LayerContents::new_from_str(input).unwrap_err().to_string(), err_msg);
         }
+}
+
+#[test]
+fn test_plist_write() {
+    let p: FontInfo = FontInfo::new_from_str(PLIST).unwrap();
+    #[allow(deprecated)]
+    let opts = plist::XmlWriteOptions::default()
+        .indent_string("  ")
+        .root_element(true);
+
+    let mut s = vec![];
+    plist::to_writer_xml_with_options(std::io::Cursor::new(&mut s), &p, &opts).unwrap();
+    let p2: FontInfo = FontInfo::new_from_str(&String::from_utf8(s).unwrap()).unwrap();
+    assert_eq!(p, p2);
 }
 
 #[cfg(test)]
