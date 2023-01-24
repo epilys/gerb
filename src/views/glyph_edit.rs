@@ -31,9 +31,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use uuid::Uuid;
-
-use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, Guideline};
+use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, GlyphPointIndex, Guideline};
 use crate::project::Project;
 use crate::utils::Point;
 use crate::views::{
@@ -50,12 +48,10 @@ mod visibility_toggles;
 use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 use tools::{PanningTool, Tool, ToolImpl};
 
-pub type ControlPointIndex = ((usize, usize), Uuid);
-
 #[derive(Debug, Clone)]
 pub enum ControlPointKind {
-    Endpoint { handle: Option<ControlPointIndex> },
-    Handle { end_points: Vec<ControlPointIndex> },
+    Endpoint { handle: Option<GlyphPointIndex> },
+    Handle { end_points: Vec<GlyphPointIndex> },
 }
 
 use ControlPointKind::*;
@@ -78,8 +74,8 @@ pub struct GlyphState {
     pub tools: HashMap<glib::types::Type, ToolImpl>,
     pub active_tool: glib::types::Type,
     pub panning_tool: glib::types::Type,
-    selection: Vec<ControlPointIndex>,
-    pub points: Rc<RefCell<HashMap<ControlPointIndex, ControlPoint>>>,
+    selection: Vec<GlyphPointIndex>,
+    pub points: Rc<RefCell<HashMap<GlyphPointIndex, ControlPoint>>>,
     pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
 }
 
@@ -123,31 +119,31 @@ impl GlyphState {
                                     let end_p = &curve.points().borrow()[endpoint];
                                     let handle_p = &curve.points().borrow()[handle];
                                     points.insert(
-                                        ((contour_index, curve_index), end_p.uuid),
+                                        end_p.glyph_index(contour_index, curve_index),
                                         ControlPoint {
                                             contour_index,
                                             curve_index,
                                             point_index: endpoint,
                                             position: *end_p,
                                             kind: Endpoint {
-                                                handle: Some(((contour_index, curve_index), handle_p.uuid)),
+                                                handle: Some(handle_p.glyph_index(contour_index, curve_index)),
                                             },
                                         },
                                     );
-                                    kd_tree.add(((contour_index, curve_index), end_p.uuid), *end_p);
+                                    kd_tree.add(end_p.glyph_index(contour_index, curve_index), *end_p);
                                     points.insert(
-                                        ((contour_index, curve_index), handle_p.uuid),
+                                        handle_p.glyph_index(contour_index, curve_index),
                                         ControlPoint {
                                             contour_index,
                                             curve_index,
                                             point_index: handle,
                                             position: *handle_p,
                                             kind: Handle {
-                                                end_points: vec![((contour_index, curve_index), end_p.uuid)],
+                                                end_points: vec![end_p.glyph_index(contour_index, curve_index)],
                                             },
                                         },
                                     );
-                                    kd_tree.add(((contour_index, curve_index), handle_p.uuid), *handle_p);
+                                    kd_tree.add(handle_p.glyph_index(contour_index, curve_index), *handle_p);
                                 }
                             }
                             3 => {
@@ -155,19 +151,19 @@ impl GlyphState {
                                 let p1 = &curve.points().borrow()[1];
                                 let p2 = &curve.points().borrow()[2];
                                 points.insert(
-                                    ((contour_index, curve_index), p0.uuid),
+                                    p0.glyph_index(contour_index, curve_index),
                                     ControlPoint {
                                         contour_index,
                                         curve_index,
                                         point_index: 0,
                                         position: *p0,
                                         kind: Endpoint {
-                                            handle: Some(((contour_index, curve_index), p1.uuid)),
+                                            handle: Some(p1.glyph_index(contour_index, curve_index)),
                                         },
                                     },
                                 );
                                 points.insert(
-                                    ((contour_index, curve_index), p1.uuid),
+                                    p1.glyph_index(contour_index, curve_index),
                                     ControlPoint {
                                         contour_index,
                                         curve_index,
@@ -175,33 +171,33 @@ impl GlyphState {
                                         position: *p1,
                                         kind: Handle {
                                             end_points: vec![
-                                                ((contour_index, curve_index), p0.uuid),
-                                                ((contour_index, curve_index), p2.uuid),
+                                                p0.glyph_index(contour_index, curve_index),
+                                                p2.glyph_index(contour_index, curve_index),
                                             ],
                                         },
                                     },
                                 );
                                 points.insert(
-                                    ((contour_index, curve_index), p2.uuid),
+                                    p2.glyph_index(contour_index, curve_index),
                                     ControlPoint {
                                         contour_index,
                                         curve_index,
                                         point_index: 2,
                                         position: *p2,
                                         kind: Endpoint {
-                                            handle: Some(((contour_index, curve_index), p1.uuid)),
+                                            handle: Some(p1.glyph_index(contour_index, curve_index)),
                                         },
                                     },
                                 );
                                 for p in [p0, p1, p2] {
-                                    kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                                    kd_tree.add(p.glyph_index(contour_index, curve_index), *p);
                                 }
                             }
                             2 => {
                                 for endpoint in 0..=1 {
                                     let p = &curve.points().borrow()[endpoint];
                                     points.insert(
-                                        ((contour_index, curve_index), p.uuid),
+                                        p.glyph_index(contour_index, curve_index),
                                         ControlPoint {
                                             contour_index,
                                             curve_index,
@@ -210,7 +206,7 @@ impl GlyphState {
                                             kind: Endpoint { handle: None },
                                         },
                                     );
-                                    kd_tree.add(((contour_index, curve_index), p.uuid), *p);
+                                    kd_tree.add(p.glyph_index(contour_index, curve_index), *p);
                                 }
                             }
                             1 => {}
@@ -230,10 +226,10 @@ impl GlyphState {
                                 for (endpoint, handle) in [(0, 1), (3, 2)] {
                                     let end_p = &curve.points().borrow()[endpoint];
                                     let handle_p = &curve.points().borrow()[handle];
-                                    points.remove(&((contour_index, curve_index), end_p.uuid));
-                                    kd_tree.remove(((contour_index, curve_index), end_p.uuid), *end_p);
-                                    points.remove(&((contour_index, curve_index), handle_p.uuid));
-                                    kd_tree.remove(((contour_index, curve_index), handle_p.uuid), *handle_p);
+                                    points.remove(&end_p.glyph_index(contour_index, curve_index));
+                                    kd_tree.remove(end_p.glyph_index(contour_index, curve_index), *end_p);
+                                    points.remove(&handle_p.glyph_index(contour_index, curve_index));
+                                    kd_tree.remove(handle_p.glyph_index(contour_index, curve_index), *handle_p);
                                 }
                             }
                             3 => {
@@ -241,25 +237,25 @@ impl GlyphState {
                                 let p1 = &curve.points().borrow()[1];
                                 let p2 = &curve.points().borrow()[2];
                                 points.remove(
-                                    &((contour_index, curve_index), p0.uuid),
+                                    &p0.glyph_index(contour_index, curve_index),
                                 );
                                 points.remove(
-                                    &((contour_index, curve_index), p1.uuid),
+                                    &p1.glyph_index(contour_index, curve_index),
                                 );
                                 points.remove(
-                                    &((contour_index, curve_index), p2.uuid),
+                                    &p2.glyph_index(contour_index, curve_index),
                                 );
                                 for p in [p0, p1, p2] {
-                                    kd_tree.remove(((contour_index, curve_index), p.uuid), *p);
+                                    kd_tree.remove(p.glyph_index(contour_index, curve_index), *p);
                                 }
                             }
                             2 => {
                                 for endpoint in 0..=1 {
                                     let p = &curve.points().borrow()[endpoint];
                                     points.remove(
-                                        &((contour_index, curve_index), p.uuid),
+                                        &p.glyph_index(contour_index, curve_index),
                                     );
-                                    kd_tree.remove(((contour_index, curve_index), p.uuid), *p);
+                                    kd_tree.remove(p.glyph_index(contour_index, curve_index), *p);
                                 }
                             }
                             1 => {}
@@ -368,14 +364,14 @@ impl GlyphState {
         self.add_undo_action(action);
     }
 
-    fn transform_points(&self, idxs: &[ControlPointIndex], m: Matrix) -> crate::Action {
+    fn transform_points(&self, idxs: &[GlyphPointIndex], m: Matrix) -> crate::Action {
         let viewport = self.viewport.clone();
         let idxs = Rc::new(idxs.to_vec());
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: "point",
-                id: unsafe { std::mem::transmute::<&[ControlPointIndex], &[u8]>(&idxs).into() },
+                id: unsafe { std::mem::transmute::<&[GlyphPointIndex], &[u8]>(&idxs).into() },
             },
             compress: true,
             redo: Box::new(
@@ -432,12 +428,12 @@ impl GlyphState {
         }
     }
 
-    fn set_selection(&mut self, selection: &[(ControlPointIndex, crate::utils::IPoint)]) {
+    fn set_selection(&mut self, selection: &[(GlyphPointIndex, crate::utils::IPoint)]) {
         self.selection.clear();
         self.selection.extend(selection.iter().map(|(u, _)| u));
     }
 
-    fn get_selection(&self) -> &[ControlPointIndex] {
+    fn get_selection(&self) -> &[GlyphPointIndex] {
         &self.selection
     }
 }

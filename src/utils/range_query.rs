@@ -20,9 +20,11 @@
  */
 
 use super::{IPoint, Point};
+use crate::glyphs::GlyphPointIndex;
 
 use generational_arena::{Arena, Index};
 use std::cmp::Ordering;
+#[cfg(test)]
 use uuid::Uuid;
 
 #[derive(Copy, Clone, Debug)]
@@ -179,8 +181,15 @@ fn test_range_query_region() {
         ),
     ];
     let mut kd_tree = KdTree::new(&[]);
-    for &(i, p) in entries {
-        kd_tree.add(i, p);
+    for &(((contour_index, curve_index), uuid), p) in entries {
+        kd_tree.add(
+            GlyphPointIndex {
+                contour_index,
+                curve_index,
+                uuid,
+            },
+            p,
+        );
     }
 
     let upbot = |(c1, c2): (Point, Point)| -> (Point, Point) {
@@ -246,7 +255,16 @@ fn test_range_query_region() {
             .iter()
             .filter(|(_, p)| linear_search(upbot(region), *p))
             .cloned()
-            .map(|(i, p)| (i, p.into()))
+            .map(|(((contour_index, curve_index), uuid), p)| {
+                (
+                    GlyphPointIndex {
+                        contour_index,
+                        curve_index,
+                        uuid,
+                    },
+                    p.into(),
+                )
+            })
             .collect::<std::collections::HashSet<_>>();
         assert_eq!(
             &brute_results,
@@ -747,7 +765,7 @@ const MIN_IPOINT: IPoint = IPoint {
     y: i64::MIN,
 };
 
-type TDArena = Arena<KdNode<((usize, usize), Uuid), 2>>;
+type TDArena = Arena<KdNode<GlyphPointIndex, 2>>;
 
 #[derive(Debug, Clone, Default)]
 pub struct KdTree {
@@ -759,7 +777,7 @@ pub struct KdTree {
 }
 
 impl KdTree {
-    pub fn new(points: &[((usize, usize), Point)]) -> Self {
+    pub fn new(points: &[(GlyphPointIndex, Point)]) -> Self {
         let mut arena = Arena::new();
         let mut min = MAX_IPOINT;
         let mut max = MIN_IPOINT;
@@ -776,7 +794,7 @@ impl KdTree {
                 &points
                     .iter()
                     .cloned()
-                    .map(|(i, p)| ((i, p.uuid), p.into()))
+                    .map(|(i, p)| (i, p.into()))
                     .collect::<Vec<_>>(),
                 0,
                 &mut arena,
@@ -791,7 +809,7 @@ impl KdTree {
         }
     }
 
-    pub fn add(&mut self, identifier: ((usize, usize), Uuid), point: Point) {
+    pub fn add(&mut self, identifier: GlyphPointIndex, point: Point) {
         let point: IPoint = point.into();
 
         self.size += 1;
@@ -814,7 +832,7 @@ impl KdTree {
         KdNode::insert(root, point, identifier, &mut self.arena);
     }
 
-    pub fn remove(&mut self, identifier: ((usize, usize), Uuid), point: Point) -> bool {
+    pub fn remove(&mut self, identifier: GlyphPointIndex, point: Point) -> bool {
         let point: IPoint = point.into();
 
         let root = if let Some(root) = self.root {
@@ -834,7 +852,7 @@ impl KdTree {
     pub fn query_region(
         &self,
         (u, l): (impl Into<IPoint>, impl Into<IPoint>),
-    ) -> Vec<(((usize, usize), Uuid), IPoint)> {
+    ) -> Vec<(GlyphPointIndex, IPoint)> {
         let query_region = (u.into(), l.into());
         let root = if let Some(root) = self.root {
             root
@@ -842,11 +860,7 @@ impl KdTree {
             return vec![];
         };
 
-        fn report_subtree(
-            root: Index,
-            ret: &mut Vec<(((usize, usize), Uuid), IPoint)>,
-            arena: &TDArena,
-        ) {
+        fn report_subtree(root: Index, ret: &mut Vec<(GlyphPointIndex, IPoint)>, arena: &TDArena) {
             let mut queue = vec![root];
             while let Some(v) = queue.pop() {
                 match arena.get(v) {
@@ -925,7 +939,7 @@ impl KdTree {
         &self,
         center: impl Into<IPoint>,
         radius: i64,
-    ) -> Vec<(((usize, usize), Uuid), IPoint)> {
+    ) -> Vec<(GlyphPointIndex, IPoint)> {
         let center: IPoint = center.into();
 
         /// Overflow guard

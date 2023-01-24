@@ -30,6 +30,7 @@ use crate::utils::{curves::*, *};
 
 use gtk::cairo::{Context, Matrix};
 use gtk::{glib::prelude::*, subclass::prelude::*};
+use uuid::Uuid;
 
 mod guidelines;
 pub use guidelines::*;
@@ -499,15 +500,23 @@ impl Glyph {
     pub fn on_curve_query(
         &self,
         position: Point,
-        pts: &[(((usize, usize), uuid::Uuid), IPoint)],
+        pts: &[(GlyphPointIndex, IPoint)],
     ) -> Option<((usize, usize), Bezier)> {
         for (ic, contour) in self.contours.iter().enumerate() {
             for (jc, curve) in contour.curves().borrow().iter().enumerate() {
                 if curve.on_curve_query(position, None) {
                     return Some(((ic, jc), curve.clone()));
                 }
-                for ((idxs, uuid), _p) in pts {
-                    if *idxs != (ic, jc) {
+                for (
+                    GlyphPointIndex {
+                        contour_index,
+                        curve_index,
+                        uuid,
+                    },
+                    _p,
+                ) in pts
+                {
+                    if (*contour_index, *curve_index) != (ic, jc) {
                         continue;
                     }
                     if curve.points().borrow().iter().any(|cp| cp.uuid == *uuid) {
@@ -518,4 +527,11 @@ impl Glyph {
         }
         None
     }
+}
+
+#[derive(Clone, Hash, Eq, PartialEq, Debug, Default, Copy)]
+pub struct GlyphPointIndex {
+    pub contour_index: usize,
+    pub curve_index: usize,
+    pub uuid: Uuid,
 }
