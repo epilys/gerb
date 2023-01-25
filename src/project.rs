@@ -127,6 +127,20 @@ mod imp {
                             Some("New project"),
                             ParamFlags::READWRITE,
                         ),
+                        ParamSpecString::new(
+                            Project::FAMILY_NAME,
+                            Project::FAMILY_NAME,
+                            Project::FAMILY_NAME,
+                            Some(""),
+                            ParamFlags::READWRITE,
+                        ),
+                        ParamSpecString::new(
+                            Project::STYLE_NAME,
+                            Project::STYLE_NAME,
+                            Project::STYLE_NAME,
+                            Some(""),
+                            ParamFlags::READWRITE,
+                        ),
                         ParamSpecBoolean::new(
                             Project::MODIFIED,
                             Project::MODIFIED,
@@ -214,6 +228,8 @@ mod imp {
         fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
             match pspec.name() {
                 Project::NAME => self.name.borrow().to_value(),
+                Project::FAMILY_NAME => self.family_name.borrow().to_value(),
+                Project::STYLE_NAME => self.style_name.borrow().to_value(),
                 Project::MODIFIED => self.modified.get().to_value(),
                 Project::VERSION_MAJOR => self.version_major.get().to_value(),
                 Project::VERSION_MINOR => self.version_minor.get().to_value(),
@@ -231,6 +247,12 @@ mod imp {
             match pspec.name() {
                 Project::NAME => {
                     *self.name.borrow_mut() = value.get().unwrap();
+                }
+                Project::FAMILY_NAME => {
+                    *self.family_name.borrow_mut() = value.get().unwrap();
+                }
+                Project::STYLE_NAME => {
+                    *self.style_name.borrow_mut() = value.get().unwrap();
                 }
                 Project::MODIFIED => {
                     self.modified.set(value.get().unwrap());
@@ -276,6 +298,8 @@ impl Project {
     pub const ITALIC_ANGLE: &str = "italic-angle";
     pub const MODIFIED: &str = "modified";
     pub const NAME: &str = "name";
+    pub const FAMILY_NAME: &str = "family-name";
+    pub const STYLE_NAME: &str = "style-name";
     pub const UNITS_PER_EM: &str = "units-per-em";
     pub const VERSION_MAJOR: &str = "version-major";
     pub const VERSION_MINOR: &str = "version-minor";

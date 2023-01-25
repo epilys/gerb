@@ -157,7 +157,8 @@ impl ToolImplImpl for PanningToolInner {
                         let event_position = event.position();
                         let UnitPoint(position) =
                             viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                        if viewport.property::<bool>(Canvas::SHOW_RULERS) {
+                        let lock_guidelines = view.property::<bool>(GlyphEditView::LOCK_GUIDELINES);
+                        if viewport.property::<bool>(Canvas::SHOW_RULERS) && !lock_guidelines {
                             let ruler_breadth =
                                 viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
                             if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth
@@ -187,7 +188,7 @@ impl ToolImplImpl for PanningToolInner {
                         }
                         let mut is_guideline: bool = false;
                         for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
-                            if view.property::<bool>(GlyphEditView::LOCK_GUIDELINES) {
+                            if lock_guidelines {
                                 break;
                             }
                             if g.imp().on_line_query(position, None) {

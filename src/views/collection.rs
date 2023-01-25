@@ -34,6 +34,7 @@ use std::rc::Rc;
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
 use crate::project::Project;
 use crate::unicode::blocks::*;
+use crate::window::Workspace;
 
 const GLYPH_BOX_WIDTH: f64 = 110.;
 const GLYPH_BOX_HEIGHT: f64 = 140.;
@@ -42,14 +43,15 @@ const GLYPH_BOX_HEIGHT: f64 = 140.;
 pub struct CollectionInner {
     app: OnceCell<gtk::Application>,
     project: OnceCell<Project>,
-    grid: OnceCell<gtk::FlowBox>,
-    tree: OnceCell<gtk::TreeView>,
+    flow_box: gtk::FlowBox,
+    tree: gtk::TreeView,
     tree_store: OnceCell<gtk::TreeStore>,
     show_blocks: RefCell<HashMap<&'static str, bool>>,
     hide_empty: Cell<bool>,
     zoom_factor: Cell<f64>,
     filter_input: RefCell<Option<String>>,
-    widgets: OnceCell<Vec<GlyphBox>>,
+    widgets: RefCell<Vec<GlyphBox>>,
+    title: RefCell<String>,
 }
 
 #[glib::object_subclass]
@@ -64,14 +66,12 @@ impl ObjectImpl for CollectionInner {
         self.parent_constructed(obj);
         *self.filter_input.borrow_mut() = None;
 
-        let grid = gtk::FlowBox::builder()
-            .max_children_per_line(150)
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .column_spacing(5)
-            .row_spacing(5)
-            .build();
+        self.flow_box.set_max_children_per_line(150);
+        self.flow_box.set_expand(true);
+        self.flow_box.set_visible(true);
+        self.flow_box.set_can_focus(true);
+        self.flow_box.set_column_spacing(5);
+        self.flow_box.set_row_spacing(5);
 
         let overlay = gtk::Overlay::builder()
             .expand(true)
@@ -87,25 +87,23 @@ impl ObjectImpl for CollectionInner {
             .margin_start(5)
             .build();
 
-        scrolled_window.set_child(Some(&grid));
+        scrolled_window.set_child(Some(&self.flow_box));
 
         let tool_palette = gtk::Toolbar::builder()
             .orientation(gtk::Orientation::Horizontal)
             .expand(true)
             .halign(gtk::Align::End)
             .valign(gtk::Align::End)
-            //.row_spacing(5)
-            //.column_spacing(5)
             .visible(true)
             .can_focus(true)
             .build();
-        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 2.0, 0.1);
+        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.1, 2.0, 0.1);
         zoom_scale.set_visible(true);
         zoom_scale.set_value(1.0);
         zoom_scale.connect_value_changed(clone!(@weak obj => move |_self| {
             let value = _self.value();
             obj.set_property(Collection::ZOOM_FACTOR, value);
-            obj.update_grid();
+            obj.update_flow_box();
         }));
 
         let zoom_pop_box = gtk::Box::builder()
@@ -158,11 +156,10 @@ impl ObjectImpl for CollectionInner {
             .active(false)
             .build();
         hide_empty_button.connect_toggled(clone!(@weak obj => move |_| {
-            let imp = obj.imp();
-            let hide_empty = !imp.hide_empty.get();
-            imp.hide_empty.set(hide_empty);
-            obj.update_grid();
-            imp.grid.get().unwrap().queue_draw();
+            let hide_empty = !obj.imp().hide_empty.get();
+            obj.imp().hide_empty.set(hide_empty);
+            obj.update_flow_box();
+            obj.imp().flow_box.queue_draw();
         }));
 
         tool_palette.add(&hide_empty_button);
@@ -188,18 +185,17 @@ impl ObjectImpl for CollectionInner {
             .build();
 
         search_entry.connect_changed(clone!(@weak obj => move |_self| {
-            let imp = obj.imp();
             let filter_input = if _self.buffer().length() == 0 {
                 None
             } else {
                 Some(_self.buffer().text())
             };
-            let mut cur_input = imp.filter_input.borrow_mut();
+            let mut cur_input = obj.imp().filter_input.borrow_mut();
             if cur_input.as_ref() != filter_input.as_ref() {
                 *cur_input = filter_input;
                 drop(cur_input);
-                obj.update_grid();
-                imp.grid.get().unwrap().queue_draw();
+                obj.update_flow_box();
+                obj.imp().flow_box.queue_draw();
             }
         }));
 
@@ -210,22 +206,21 @@ impl ObjectImpl for CollectionInner {
                 .build(),
         );
 
-        let tree = gtk::TreeView::new();
-        tree.set_visible(true);
-        tree.set_grid_lines(gtk::TreeViewGridLines::Both);
+        self.tree.set_visible(true);
+        self.tree.set_grid_lines(gtk::TreeViewGridLines::Both);
         let store = gtk::TreeStore::new(&[
             bool::static_type(),
             String::static_type(),
             i64::static_type(),
         ]);
 
-        let append_text_column = |tree: &gtk::TreeView| {
+        let append_text_column = |tree: &gtk::TreeView, store: &gtk::TreeStore| {
             let column = gtk::TreeViewColumn::new();
             let cell = gtk::CellRendererToggle::new();
             cell.set_radio(false);
             cell.set_active(true);
             cell.set_activatable(true);
-            cell.connect_toggled(clone!(@weak store, @weak obj => move |_self, treepath| {
+            cell.connect_toggled(clone!(@strong store, @weak obj => move |_self, treepath| {
                 if let Some(iter) = store.iter(&treepath) {
                     let prev_value: bool = store.value(&iter, 0).get().unwrap();
                     let cat_value = store.value(&iter, 1);
@@ -238,7 +233,7 @@ impl ObjectImpl for CollectionInner {
                         update = true;
                     }
                     if update {
-                        obj.update_grid();
+                        obj.update_flow_box();
                     }
                 }
             }));
@@ -260,9 +255,9 @@ impl ObjectImpl for CollectionInner {
             column.add_attribute(&cell, "text", 2);
             tree.append_column(&column);
         };
-        tree.set_model(Some(&store));
-        tree.set_headers_visible(false);
-        append_text_column(&tree);
+        self.tree.set_model(Some(&store));
+        self.tree.set_headers_visible(false);
+        append_text_column(&self.tree, &store);
 
         let filter_pop_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -281,7 +276,7 @@ impl ObjectImpl for CollectionInner {
             .margin_start(5)
             .build();
 
-        tree_scrolled_window.set_child(Some(&tree));
+        tree_scrolled_window.set_child(Some(&self.tree));
         let close_filter_pop_box = gtk::Button::builder()
             .label("Close")
             .valign(gtk::Align::Center)
@@ -334,12 +329,7 @@ impl ObjectImpl for CollectionInner {
         obj.set_child(Some(&overlay));
         self.hide_empty.set(false);
         obj.set_property(Collection::ZOOM_FACTOR, 1.0);
-        self.tree.set(tree).unwrap();
         self.tree_store.set(store).unwrap();
-
-        self.grid
-            .set(grid)
-            .expect("Failed to initialize window state");
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -347,16 +337,16 @@ impl ObjectImpl for CollectionInner {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecString::new(
-                        "title",
-                        "title",
-                        "title",
+                        Collection::TITLE,
+                        Collection::TITLE,
+                        Collection::TITLE,
                         Some("collection"),
-                        ParamFlags::READABLE,
+                        ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        "closeable",
-                        "closeable",
-                        "closeable",
+                        Collection::CLOSEABLE,
+                        Collection::CLOSEABLE,
+                        Collection::CLOSEABLE,
                         false,
                         ParamFlags::READABLE,
                     ),
@@ -376,8 +366,8 @@ impl ObjectImpl for CollectionInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            "title" => "collection".to_value(),
-            "closeable" => false.to_value(),
+            Collection::TITLE => self.title.borrow().to_value(),
+            Collection::CLOSEABLE => false.to_value(),
             Collection::ZOOM_FACTOR => self.zoom_factor.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -385,6 +375,9 @@ impl ObjectImpl for CollectionInner {
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         match pspec.name() {
+            Collection::TITLE => {
+                *self.title.borrow_mut() = value.get().unwrap();
+            }
             Collection::ZOOM_FACTOR => self.zoom_factor.set(value.get().unwrap()),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -402,11 +395,17 @@ glib::wrapper! {
 }
 
 impl Collection {
+    pub const TITLE: &str = Workspace::TITLE;
+    pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
     pub const ZOOM_FACTOR: &str = "zoom-factor";
 
     pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
-        let grid = ret.imp().grid.get().unwrap();
+        project
+            .bind_property(Project::STYLE_NAME, &ret, Self::TITLE)
+            .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
+            .build();
+        let flow_box = &ret.imp().flow_box;
         let mut widgets = vec![];
         {
             let glyphs_b = project.imp().glyphs.borrow();
@@ -417,14 +416,14 @@ impl Collection {
                 ret.bind_property(Self::ZOOM_FACTOR, &glyph_box, GlyphBox::ZOOM_FACTOR)
                     .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
                     .build();
-                grid.add(&glyph_box);
+                flow_box.add(&glyph_box);
                 widgets.push(glyph_box);
             }
         }
         ret.imp().app.set(app).unwrap();
-        ret.imp().widgets.set(widgets).unwrap();
         ret.imp().project.set(project).unwrap();
-        ret.update_grid();
+        *ret.imp().widgets.borrow_mut() = widgets;
+        ret.update_flow_box();
         ret.update_tree_store();
         ret
     }
@@ -435,7 +434,7 @@ impl Collection {
         show_blocks.clear();
         tree_store.clear();
         let mut blocks_set: std::collections::HashMap<&'static str, usize> = Default::default();
-        for c in self.imp().widgets.get().unwrap() {
+        for c in self.imp().widgets.borrow().iter() {
             let glyph = c.imp().glyph.get().unwrap().borrow();
             if let GlyphKind::Char(c) = glyph.kind {
                 if let Some(idx) = c.char_block() {
@@ -479,7 +478,7 @@ impl Collection {
         }
     }
 
-    fn update_grid(&self) {
+    fn update_flow_box(&self) {
         let hide_empty: bool = self.imp().hide_empty.get();
         let zoom_factor: f64 = self.imp().zoom_factor.get();
         let show_blocks = self.imp().show_blocks.clone();
@@ -497,8 +496,8 @@ impl Collection {
                 Some(first)
             }
         });
-        let grid = self.imp().grid.get().unwrap();
-        grid.set_filter_func(Some(Box::new(
+        let flow_box = &self.imp().flow_box;
+        flow_box.set_filter_func(Some(Box::new(
             clone!(@weak self as _self => @default-return true, move |flowbox: &gtk::FlowBoxChild| {
                 let child = flowbox.child();
                 if let Some(c) = child
@@ -550,7 +549,7 @@ impl Collection {
                 }
             }),
         )));
-        grid.queue_draw();
+        flow_box.queue_draw();
     }
 }
 
@@ -562,7 +561,7 @@ pub struct GlyphBoxInner {
     pub focused: Cell<bool>,
     pub zoom_factor: Cell<f64>,
     pub show_details: Cell<bool>,
-    pub drawing_area: OnceCell<gtk::DrawingArea>,
+    pub drawing_area: gtk::DrawingArea,
 }
 
 unsafe impl Send for GlyphBoxInner {}
@@ -610,13 +609,11 @@ impl ObjectImpl for GlyphBoxInner {
                     Inhibit(true)
             }),
         );
-        let drawing_area = gtk::DrawingArea::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .has_tooltip(true)
-            .build();
-        drawing_area.connect_query_tooltip(
+        self.drawing_area.set_expand(true);
+        self.drawing_area.set_visible(true);
+        self.drawing_area.set_can_focus(true);
+        self.drawing_area.set_has_tooltip(true);
+        self.drawing_area.connect_query_tooltip(
             clone!(@weak obj => @default-return false, move |_self, _x: i32, _y: i32, _by_keyboard: bool, tooltip| {
                 let glyph = obj.imp().glyph.get().unwrap().borrow();
                 if let GlyphKind::Char(c) = glyph.kind {
@@ -633,7 +630,7 @@ impl ObjectImpl for GlyphBoxInner {
                 }
                 true
             }));
-        drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
+        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
@@ -722,7 +719,7 @@ impl ObjectImpl for GlyphBoxInner {
             Inhibit(false)
         }
         ));
-        obj.set_child(Some(&drawing_area));
+        obj.set_child(Some(&self.drawing_area));
 
         obj.set_events(
             gtk::gdk::EventMask::POINTER_MOTION_MASK
@@ -737,7 +734,7 @@ impl ObjectImpl for GlyphBoxInner {
                 ));
             }
             _self.imp().focused.set(true);
-            _self.imp().drawing_area.get().unwrap().queue_draw();
+            _self.imp().drawing_area.queue_draw();
             Inhibit(false)
         });
 
@@ -749,14 +746,11 @@ impl ObjectImpl for GlyphBoxInner {
                 ));
             }
             _self.imp().focused.set(false);
-            _self.imp().drawing_area.get().unwrap().queue_draw();
+            _self.imp().drawing_area.queue_draw();
 
             Inhibit(false)
         });
 
-        self.drawing_area
-            .set(drawing_area)
-            .expect("Failed to initialize window state");
         self.focused.set(false);
         self.zoom_factor.set(1.0);
     }
