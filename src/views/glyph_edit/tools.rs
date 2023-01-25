@@ -91,6 +91,41 @@ impl Tool {
         Inhibit(false)
     }
 
+    pub fn on_scroll_event(
+        obj: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let (panning_tool, active_tool) = (glyph_state.panning_tool, glyph_state.active_tool);
+        let active_tools = glyph_state
+            .tools
+            .get(&active_tool)
+            .map(Clone::clone)
+            .into_iter()
+            .chain(
+                glyph_state
+                    .tools
+                    .get(&panning_tool)
+                    .map(Clone::clone)
+                    .into_iter(),
+            )
+            .chain(glyph_state.tools.clone().into_iter().filter_map(|(k, v)| {
+                if [panning_tool, active_tool].contains(&k) {
+                    None
+                } else {
+                    Some(v)
+                }
+            }));
+        drop(glyph_state);
+        for t in active_tools {
+            if t.on_scroll_event(obj.clone(), viewport, event) == Inhibit(true) {
+                return Inhibit(true);
+            }
+        }
+        Inhibit(false)
+    }
+
     pub fn on_motion_notify_event(
         obj: GlyphEditView,
         viewport: &Canvas,

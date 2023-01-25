@@ -71,6 +71,24 @@ impl ToolImplImpl for ZoomInToolInner {
         Inhibit(false)
     }
 
+    fn on_scroll_event(
+        &self,
+        _obj: &ToolImpl,
+        _view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+            let (_dx, dy) = event.delta();
+            if dy.is_normal() && dy.is_sign_negative() {
+                viewport.imp().transformation.zoom_in();
+                viewport.queue_draw();
+                return Inhibit(true);
+            }
+        }
+        Inhibit(false)
+    }
+
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
@@ -159,6 +177,24 @@ impl ToolImplImpl for ZoomOutToolInner {
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
+        Inhibit(false)
+    }
+
+    fn on_scroll_event(
+        &self,
+        _obj: &ToolImpl,
+        _view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+            let (_dx, dy) = event.delta();
+            if dy.is_normal() && dy.is_sign_positive() {
+                viewport.imp().transformation.zoom_out();
+                viewport.queue_draw();
+                return Inhibit(true);
+            }
+        }
         Inhibit(false)
     }
 

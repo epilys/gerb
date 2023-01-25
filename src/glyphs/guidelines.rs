@@ -77,8 +77,8 @@ impl ObjectImpl for GuidelineInner {
                         Guideline::ANGLE,
                         Guideline::ANGLE,
                         Guideline::ANGLE,
-                        -360.0,
-                        360.0,
+                        std::f64::MIN,
+                        std::f64::MAX,
                         0.,
                         ParamFlags::READWRITE,
                     ),
@@ -133,7 +133,10 @@ impl ObjectImpl for GuidelineInner {
                 *self.identifier.borrow_mut() = value.get().unwrap();
             }
             Guideline::ANGLE => {
-                self.angle.set(value.get().unwrap());
+                let val: f64 = value.get().unwrap();
+                if val.is_finite() {
+                    self.angle.set(val.rem_euclid(360.0));
+                }
             }
             Guideline::X => {
                 self.x.set(value.get().unwrap());

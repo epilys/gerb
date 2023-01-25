@@ -31,6 +31,7 @@ use crate::{
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::Inhibit;
 use gtk::{
+    cairo::Matrix,
     glib::{self},
     prelude::*,
     subclass::prelude::*,
@@ -394,6 +395,40 @@ impl ToolImplImpl for PanningToolInner {
         Inhibit(true)
     }
 
+    fn on_scroll_event(
+        &self,
+        _obj: &ToolImpl,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+            /* pan with middle mouse button */
+            let (mut dx, mut dy) = event.delta();
+            if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                if dy.abs() > dx.abs() {
+                    dx = dy;
+                }
+                dy = 0.0;
+            }
+            viewport
+                .imp()
+                .transformation
+                .move_camera_by_delta(ViewPoint(<_ as Into<Point>>::into((5.0 * dx, 5.0 * dy))));
+            viewport.queue_draw();
+            return Inhibit(true);
+        } else if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+            if let ControlPointMode::DragGuideline(idx) = self.mode.get() {
+                /* rotate guideline that is currently being dragged */
+                let (_dx, dy) = event.delta();
+                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+                glyph_state.transform_guideline(idx, Matrix::identity(), 1.5 * dy);
+                return Inhibit(true);
+            }
+        }
+        Inhibit(false)
+    }
+
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
@@ -437,23 +472,18 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
-                let mut m = gtk::cairo::Matrix::identity();
+                let mut m = Matrix::identity();
                 m.translate(delta.x, delta.y);
                 glyph_state.transform_selection(m);
             }
             ControlPointMode::DragGuideline(idx) => {
-                let mut action = glyph_state.update_guideline(idx, position);
-                (action.redo)();
-                let app: &crate::Application = crate::Application::from_instance(
-                    view.imp()
-                        .app
-                        .get()
-                        .unwrap()
-                        .downcast_ref::<crate::GerbApp>()
-                        .unwrap(),
-                );
-                let undo_db = app.undo_db.borrow_mut();
-                undo_db.event(action);
+                let mouse: ViewPoint = viewport.get_mouse();
+                let mut delta =
+                    (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
+                delta.y *= -1.0;
+                let mut m = gtk::cairo::Matrix::identity();
+                m.translate(delta.x, delta.y);
+                glyph_state.transform_guideline(idx, m, 0.0);
             }
             ControlPointMode::None => {
                 if warp_cursor {

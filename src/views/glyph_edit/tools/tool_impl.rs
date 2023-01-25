@@ -40,6 +40,8 @@ pub struct ToolImplClass {
         fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventButton) -> Inhibit,
     pub on_button_release_event:
         fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventButton) -> Inhibit,
+    pub on_scroll_event:
+        fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventScroll) -> Inhibit,
     pub on_motion_notify_event:
         fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventMotion) -> Inhibit,
     pub setup_toolbox: fn(&ToolImplInstance, &gtk::Toolbar, &GlyphEditView),
@@ -110,6 +112,15 @@ fn on_button_release_event_default_trampoline(
     this.imp().on_button_release_event(view, viewport, event)
 }
 
+fn on_scroll_event_default_trampoline(
+    this: &ToolImplInstance,
+    view: GlyphEditView,
+    viewport: &Canvas,
+    event: &gtk::gdk::EventScroll,
+) -> Inhibit {
+    this.imp().on_scroll_event(view, viewport, event)
+}
+
 fn on_motion_notify_event_default_trampoline(
     this: &ToolImplInstance,
     view: GlyphEditView,
@@ -153,6 +164,16 @@ pub fn base_on_button_release_event_default_trampoline(
 ) -> Inhibit {
     let klass = this.class();
     (klass.as_ref().on_button_release_event)(this, view, viewport, event)
+}
+
+pub fn base_on_scroll_event_default_trampoline(
+    this: &ToolImplInstance,
+    view: GlyphEditView,
+    viewport: &Canvas,
+    event: &gtk::gdk::EventScroll,
+) -> Inhibit {
+    let klass = this.class();
+    (klass.as_ref().on_scroll_event)(this, view, viewport, event)
 }
 
 pub fn base_on_motion_notify_event_default_trampoline(
@@ -200,6 +221,15 @@ impl ToolImplInner {
         _view: GlyphEditView,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
+    ) -> Inhibit {
+        Inhibit(false)
+    }
+
+    fn on_scroll_event(
+        &self,
+        _view: GlyphEditView,
+        _viewport: &Canvas,
+        _event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
         Inhibit(false)
     }
@@ -286,6 +316,7 @@ impl ObjectSubclass for ToolImplInner {
     fn class_init(klass: &mut Self::Class) {
         klass.on_button_press_event = on_button_press_event_default_trampoline;
         klass.on_button_release_event = on_button_release_event_default_trampoline;
+        klass.on_scroll_event = on_scroll_event_default_trampoline;
         klass.on_motion_notify_event = on_motion_notify_event_default_trampoline;
         klass.on_button_press_event = on_button_press_event_default_trampoline;
         klass.setup_toolbox = setup_toolbox_default_trampoline;
@@ -368,6 +399,12 @@ pub trait ToolImplExt {
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit;
+    fn on_scroll_event(
+        &self,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit;
     fn on_motion_notify_event(
         &self,
         view: GlyphEditView,
@@ -404,6 +441,20 @@ impl<O: IsA<ToolImpl>> ToolImplExt for O {
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         base_on_button_release_event_default_trampoline(
+            self.upcast_ref::<ToolImpl>(),
+            view,
+            viewport,
+            event,
+        )
+    }
+
+    fn on_scroll_event(
+        &self,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        base_on_scroll_event_default_trampoline(
             self.upcast_ref::<ToolImpl>(),
             view,
             viewport,
@@ -461,6 +512,16 @@ pub trait ToolImplImpl: ObjectImpl + 'static {
         self.parent_on_button_release_event(obj, view, viewport, event)
     }
 
+    fn on_scroll_event(
+        &self,
+        obj: &ToolImpl,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        self.parent_on_scroll_event(obj, view, viewport, event)
+    }
+
     fn on_motion_notify_event(
         &self,
         obj: &ToolImpl,
@@ -498,6 +559,13 @@ pub trait ToolImplImplExt: ObjectSubclass {
         view: GlyphEditView,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
+    ) -> Inhibit;
+    fn parent_on_scroll_event(
+        &self,
+        obj: &ToolImpl,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
     ) -> Inhibit;
     fn parent_on_motion_notify_event(
         &self,
@@ -537,6 +605,20 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
             let data = Self::type_data();
             let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
             (parent_class.on_button_release_event)(obj, view, viewport, event)
+        }
+    }
+
+    fn parent_on_scroll_event(
+        &self,
+        obj: &ToolImpl,
+        view: GlyphEditView,
+        viewport: &Canvas,
+        event: &gtk::gdk::EventScroll,
+    ) -> Inhibit {
+        unsafe {
+            let data = Self::type_data();
+            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            (parent_class.on_scroll_event)(obj, view, viewport, event)
         }
     }
 
@@ -587,6 +669,7 @@ unsafe impl<T: ToolImplImpl> IsSubclassable<T> for ToolImpl {
         let klass = class.as_mut();
         klass.on_button_press_event = on_button_press_event_trampoline::<T>;
         klass.on_button_release_event = on_button_release_event_trampoline::<T>;
+        klass.on_scroll_event = on_scroll_event_trampoline::<T>;
         klass.on_motion_notify_event = on_motion_notify_event_trampoline::<T>;
         klass.setup_toolbox = setup_toolbox_trampoline::<T>;
         klass.on_activate = on_activate_trampoline::<T>;
@@ -620,6 +703,19 @@ where
 {
     let imp = this.dynamic_cast_ref::<T::Type>().unwrap().imp();
     imp.on_button_release_event(this, view, viewport, event)
+}
+
+fn on_scroll_event_trampoline<T>(
+    this: &ToolImpl,
+    view: GlyphEditView,
+    viewport: &Canvas,
+    event: &gtk::gdk::EventScroll,
+) -> Inhibit
+where
+    T: ObjectSubclass + ToolImplImpl,
+{
+    let imp = this.dynamic_cast_ref::<T::Type>().unwrap().imp();
+    imp.on_scroll_event(this, view, viewport, event)
 }
 
 fn on_motion_notify_event_trampoline<T>(

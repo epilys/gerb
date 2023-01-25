@@ -300,39 +300,6 @@ impl GlyphState {
         }
     }
 
-    fn update_guideline(&self, idx: usize, position: Point) -> crate::Action {
-        let viewport = self.viewport.clone();
-        let old_position: Point = {
-            let g = self.glyph.borrow();
-            let x = g.guidelines[idx].property("x");
-            let y = g.guidelines[idx].property("y");
-            (x, y).into()
-        };
-        crate::Action {
-            stamp: crate::EventStamp {
-                t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
-                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
-            },
-            compress: true,
-            redo: Box::new(
-                clone!(@weak self.glyph as glyph, @weak viewport => move || {
-                    glyph.borrow().guidelines[idx].set_property("x", position.x);
-                    glyph.borrow().guidelines[idx].set_property("y", position.y);
-                    viewport.queue_draw();
-                }),
-            ),
-            undo: Box::new(
-                clone!(@weak self.glyph as glyph, @weak viewport => move || {
-                    glyph.borrow().guidelines[idx].set_property("x", old_position.x);
-                    glyph.borrow().guidelines[idx].set_property("y", old_position.y);
-                    viewport.queue_draw();
-                }),
-            ),
-        }
-    }
-
-    #[allow(dead_code)]
     fn delete_guideline(&self, idx: usize) -> crate::Action {
         let viewport = self.viewport.clone();
         let json: serde_json::Value =
@@ -363,6 +330,49 @@ impl GlyphState {
         let app: &crate::Application =
             crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
         app.undo_db.borrow_mut().event(action);
+    }
+
+    fn transform_guideline(&self, idx: usize, m: Matrix, dangle: f64) {
+        let viewport = self.viewport.clone();
+        let mut action = crate::Action {
+            stamp: crate::EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: "guideline",
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
+            },
+            compress: false,
+            redo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    let glyph = glyph.borrow();
+                    let g = &glyph.guidelines[idx];
+                    let x = g.property(Guideline::X);
+                    let y = g.property(Guideline::Y);
+                    let angle: f64 = g.property(Guideline::ANGLE);
+                    let (x, y) = m.transform_point(x, y);
+                    g.set_property(Guideline::X, x);
+                    g.set_property(Guideline::Y, y);
+                    g.set_property(Guideline::ANGLE, angle + dangle);
+                    viewport.queue_draw();
+                }),
+            ),
+            undo: Box::new(
+                clone!(@weak self.glyph as glyph, @weak viewport => move || {
+                    let m = if let Ok(m) = m.try_invert() {m} else {return;};
+                    let glyph = glyph.borrow();
+                    let g = &glyph.guidelines[idx];
+                    let x = g.property(Guideline::X);
+                    let y = g.property(Guideline::Y);
+                    let angle: f64 = g.property(Guideline::ANGLE);
+                    let (x, y) = m.transform_point(x, y);
+                    g.set_property(Guideline::X, x);
+                    g.set_property(Guideline::Y, y);
+                    g.set_property(Guideline::ANGLE, angle - dangle);
+                    viewport.queue_draw();
+                }),
+            ),
+        };
+        (action.redo)();
+        self.add_undo_action(action);
     }
 
     fn transform_selection(&self, m: Matrix) {
@@ -561,19 +571,11 @@ impl ObjectImpl for GlyphEditViewInner {
 
         self.viewport.connect_scroll_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
-                if event.state().contains(gtk::gdk::ModifierType::SHIFT_MASK) {
-                    let (mut dx, mut dy) = event.delta();
-                    if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
-                        if dy.abs() > dx.abs() {
-                            dx = dy;
-                        }
-                        dy = 0.0;
-                    }
-                    viewport.imp().transformation.move_camera_by_delta(ViewPoint(<_ as Into<Point>>::into((5.0 * dx, 5.0 * dy))));
+                let retval = Tool::on_scroll_event(obj, viewport, event);
+                if retval == Inhibit(true) {
                     viewport.queue_draw();
-                    return Inhibit(false);
                 }
-                Inhibit(false)
+                retval
             }),
         );
 
