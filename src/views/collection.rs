@@ -600,7 +600,7 @@ impl ObjectImpl for GlyphBoxInner {
                                 .add_button("Edit properties")
                                 .add_button("Delete glyph")
                                 .add_button("Export SVG");
-                            context_menu.popup();
+                            context_menu.popup(event.time());
                         }
                         gtk::gdk::BUTTON_PRIMARY => {
                             obj.emit_open_glyph_edit();

@@ -291,7 +291,7 @@ impl ToolImplImpl for PanningToolInner {
                                     viewport.queue_draw();
                                 }
                             }));
-                            menu.popup();
+                            menu.popup(event.time());
                             return Inhibit(true);
                         }
                     }
@@ -383,7 +383,7 @@ impl ToolImplImpl for PanningToolInner {
                                     let glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                                     glyph_state.glyph.borrow().contours[i].reverse_direction();
                                 }),
-                            ).popup();
+                            ).popup(event.time());
                     return Inhibit(true);
                 }
                 return Inhibit(false);

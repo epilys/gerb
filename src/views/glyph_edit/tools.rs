@@ -243,7 +243,7 @@ impl Tool {
                                     );
                                     dialog.show_all();
                                 }),
-                            ).popup();
+                            ).popup(event.time());
                         Inhibit(true)
                     }
                     gtk::gdk::BUTTON_PRIMARY => {

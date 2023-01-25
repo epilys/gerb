@@ -85,9 +85,10 @@ impl Menu {
         self
     }
 
-    pub fn popup(&self) {
+    pub fn popup(&self, activate_time: u32) {
         self.inner.show_all();
-        self.inner.popup_easy(gtk::gdk::BUTTON_SECONDARY, 0);
+        self.inner
+            .popup_easy(gtk::gdk::BUTTON_PRIMARY, activate_time);
     }
 }
 
