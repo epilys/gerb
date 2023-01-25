@@ -324,6 +324,9 @@ impl WindowInner {
         {
             *self.project.borrow_mut() = project.clone();
         }
+        self.notebook.foreach(|tab| {
+            self.notebook.remove(tab);
+        });
 
         let collection =
             crate::views::Collection::new(self.instance().application().unwrap(), project);
@@ -333,6 +336,8 @@ impl WindowInner {
             false,
             false,
         );
+        self.notebook.show_all();
+        self.notebook.queue_draw();
     }
 
     pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
