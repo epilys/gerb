@@ -76,9 +76,9 @@ impl Hash for Point {
     }
 }
 
-impl Into<(f64, f64)> for Point {
-    fn into(self) -> (f64, f64) {
-        (self.x, self.y)
+impl From<Point> for (f64, f64) {
+    fn from(p: Point) -> (f64, f64) {
+        (p.x, p.y)
     }
 }
 
@@ -177,20 +177,20 @@ pub struct IPoint {
     pub y: i64,
 }
 
-impl Into<IPoint> for Point {
-    fn into(self) -> IPoint {
+impl From<Point> for IPoint {
+    fn from(p: Point) -> IPoint {
         IPoint {
-            x: self.x as i64,
-            y: self.y as i64,
+            x: p.x as i64,
+            y: p.y as i64,
         }
     }
 }
 
-impl Into<IPoint> for &Point {
-    fn into(self) -> IPoint {
+impl From<&Point> for IPoint {
+    fn from(p: &Point) -> IPoint {
         IPoint {
-            x: self.x as i64,
-            y: self.y as i64,
+            x: p.x as i64,
+            y: p.y as i64,
         }
     }
 }

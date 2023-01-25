@@ -1143,6 +1143,7 @@ impl KdTree {
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn partition<I: Copy>(
     data: &[(I, IPoint)],
     c: Coordinate,
@@ -1175,6 +1176,7 @@ fn partition<I: Copy>(
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn select<I: Copy>(data: &[(I, IPoint)], k: usize, c: Coordinate) -> Option<i64> {
     let part = partition(data, c);
 
@@ -1192,6 +1194,7 @@ fn select<I: Copy>(data: &[(I, IPoint)], k: usize, c: Coordinate) -> Option<i64>
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn median<I: Copy>(data: &[(I, IPoint)], c: Coordinate) -> Option<f64> {
     let size = data.len();
 

@@ -639,7 +639,8 @@ impl ObjectImpl for GlyphEditViewInner {
                 .build(),
         );
         let viewhidebox = visibility_toggles::ViewHideBox::new(&self.viewport);
-        for property in [GlyphEditView::LOCK_GUIDELINES] {
+        {
+            let property = GlyphEditView::LOCK_GUIDELINES;
             viewhidebox.set_property(property, obj.property::<bool>(property));
             viewhidebox
                 .bind_property(property, obj, property)

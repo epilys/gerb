@@ -53,6 +53,7 @@ pub mod blocks {
 
     /* https://en.wikipedia.org/wiki/Unicode_block#List_of_blocks retrieved on 2022-03-04 */
     //Block range, Block name, Code points, Assigned characters, Scripts
+    #[allow(clippy::type_complexity)]
     pub const UNICODE_BLOCKS: &[((char, char), &str, i32, i32, &str)] = &[
     (('\u{0000}', '\u{007F}'), "Basic Latin", 128, 128, "Latin (52 characters), Common (76 characters)"),
     (('\u{0080}', '\u{00FF}'), "Latin-1 Supplement", 128, 128, "Latin (64 characters), Common (64 characters)"),

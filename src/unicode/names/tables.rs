@@ -24914,9 +24914,6 @@ pub const WORD_TABLE_INDEX_SPACE: u16 = 1;
 
 pub const WORD_TABLE_INDEX_CODEPOINT: u16 = 13;
 
-pub fn is_special_word_index(v: u16) -> bool {
-    match v {
-        2..=13 => true,
-        _ => false,
-    }
+pub const fn is_special_word_index(v: u16) -> bool {
+    matches!(v, 2..=13)
 }

@@ -43,6 +43,7 @@ pub struct SettingsInner {
     pub line_width: Cell<f64>,
     pub guideline_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
+    #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
 }

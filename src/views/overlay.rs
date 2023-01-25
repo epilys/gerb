@@ -65,15 +65,11 @@ impl ObjectImpl for OverlayInner {
     }
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
-        match pspec.name() {
-            _ => unimplemented!("{}", pspec.name()),
-        }
+        unimplemented!("{}", pspec.name())
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &Value, pspec: &ParamSpec) {
-        match pspec.name() {
-            _ => unimplemented!("{}", pspec.name()),
-        }
+        unimplemented!("{}", pspec.name())
     }
 }
 

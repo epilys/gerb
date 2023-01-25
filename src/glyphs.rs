@@ -133,11 +133,11 @@ impl Default for GlyphDrawingOptions {
 }
 
 impl Glyph {
+    #[allow(clippy::type_complexity)]
     pub fn from_ufo(
         path: &Path,
         contents: &ufo::Contents,
     ) -> Result<HashMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
-        //assert!(path.ends_with(".ufo"));
         let mut ret: HashMap<String, Rc<RefCell<Glyph>>> = HashMap::default();
         let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
         let mut path = path.to_path_buf();
@@ -310,21 +310,13 @@ impl Glyph {
 
         cr.stroke().expect("Invalid cairo surface state");
 
-        for curv in highlight
-            .and_then(|(contour_idx, curve_idx)| {
-                self.contours
-                    .get(contour_idx)
-                    .map(|contour| contour.curves().clone().borrow()[curve_idx].clone())
-            })
-            .into_iter()
-        {
+        if let Some((degree, curv)) = highlight.and_then(|(contour_idx, curve_idx)| {
+            self.contours
+                .get(contour_idx)
+                .map(|contour| contour.curves().clone().borrow()[curve_idx].clone())
+                .and_then(|curv| Some((curv.degree()?, curv)))
+        }) {
             cr.set_source_rgba(1.0, 0., 0., 1.0);
-            let degree = curv.degree();
-            let degree = if let Some(v) = degree {
-                v
-            } else {
-                continue;
-            };
             let point = curv.points().borrow()[0];
             cr.move_to(point.x, point.y);
             match degree {
@@ -332,7 +324,6 @@ impl Glyph {
                     /* Line. */
                     let new_point = curv.points().borrow()[1];
                     cr.line_to(new_point.x, new_point.y);
-                    pen_position = Some(new_point);
                 }
                 2 => {
                     /* Quadratic. */
@@ -351,7 +342,6 @@ impl Glyph {
                         c.x,
                         c.y,
                     );
-                    pen_position = Some(c);
                 }
                 3 => {
                     /* Cubic */
@@ -361,12 +351,9 @@ impl Glyph {
                     let c = curv.points().borrow()[2];
                     let d = curv.points().borrow()[3];
                     cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
-                    pen_position = Some(d);
                 }
                 d => {
                     eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
-                    pen_position = Some(*curv.points().borrow().last().unwrap());
-                    continue;
                 }
             }
             cr.stroke().expect("Invalid cairo surface state");
