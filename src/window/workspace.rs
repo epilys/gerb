@@ -20,20 +20,23 @@
  */
 
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
-use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use gtk::{gio, glib};
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Default)]
 pub struct WorkspaceInner {
-    scrolled_window: OnceCell<gtk::ScrolledWindow>,
-    grid: OnceCell<gtk::Grid>,
-    main_widget: OnceCell<gtk::Widget>,
+    scrolled_window: gtk::ScrolledWindow,
+    grid: gtk::Grid,
+    menubar: gtk::MenuBar,
+    child: OnceCell<gtk::Widget>,
     reorderable: Cell<bool>,
     closeable: Cell<bool>,
+    is_menu_visible: Cell<bool>,
     title: RefCell<String>,
+    menumodel: RefCell<Option<gio::Menu>>,
 }
 
 #[glib::object_subclass]
@@ -46,29 +49,33 @@ impl ObjectSubclass for WorkspaceInner {
 impl ObjectImpl for WorkspaceInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.reorderable.set(Self::REORDERABLE_INIT_VAL);
+        self.closeable.set(Self::CLOSEABLE_INIT_VAL);
+        self.is_menu_visible.set(Self::IS_MENU_VISIBLE_INIT_VAL);
+        obj.upcast_ref::<gtk::Box>()
+            .set_orientation(gtk::Orientation::Vertical);
 
-        let scrolled_window = gtk::ScrolledWindow::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .margin_top(0)
-            .margin_start(0)
-            .build();
-        let grid = gtk::Grid::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .column_spacing(5)
-            .row_spacing(5)
-            .build();
+        self.scrolled_window.set_expand(true);
+        self.scrolled_window.set_visible(true);
+        self.scrolled_window.set_can_focus(true);
+        self.scrolled_window.set_margin_top(0);
+        self.scrolled_window.set_margin_start(0);
+        self.grid.set_expand(true);
+        self.grid.set_visible(true);
+        self.grid.set_can_focus(true);
+        self.grid.set_column_spacing(5);
+        self.grid.set_row_spacing(5);
 
-        scrolled_window.set_child(Some(&grid));
-        obj.pack_start(&scrolled_window, true, true, 0);
+        self.scrolled_window.set_child(Some(&self.grid));
+        obj.pack_start(&self.menubar, false, false, 0);
+        obj.pack_start(&self.scrolled_window, true, true, 0);
         obj.set_visible(true);
         obj.set_expand(true);
         obj.set_can_focus(true);
-        self.scrolled_window.set(scrolled_window).unwrap();
-        self.grid.set(grid).unwrap();
+        self.menubar.set_visible(false);
+        obj.bind_property(Workspace::IS_MENU_VISIBLE, &self.menubar, "visible")
+            .flags(glib::BindingFlags::DEFAULT)
+            .build();
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -76,20 +83,54 @@ impl ObjectImpl for WorkspaceInner {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecBoolean::new(
-                        "reorderable",
-                        "reorderable",
-                        "reorderable",
-                        false,
+                        Workspace::REORDERABLE,
+                        Workspace::REORDERABLE,
+                        Workspace::REORDERABLE,
+                        WorkspaceInner::REORDERABLE_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        "closeable",
-                        "closeable",
-                        "closeable",
-                        false,
+                        Workspace::CLOSEABLE,
+                        Workspace::CLOSEABLE,
+                        Workspace::CLOSEABLE,
+                        WorkspaceInner::CLOSEABLE_INIT_VAL,
                         ParamFlags::READWRITE,
                     ),
-                    ParamSpecString::new("title", "title", "title", None, ParamFlags::READWRITE),
+                    ParamSpecBoolean::new(
+                        Workspace::IS_MENU_VISIBLE,
+                        Workspace::IS_MENU_VISIBLE,
+                        Workspace::IS_MENU_VISIBLE,
+                        WorkspaceInner::IS_MENU_VISIBLE_INIT_VAL,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecString::new(
+                        Workspace::TITLE,
+                        Workspace::TITLE,
+                        Workspace::TITLE,
+                        None,
+                        ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecObject::new(
+                        Workspace::MENUBAR,
+                        Workspace::MENUBAR,
+                        Workspace::MENUBAR,
+                        gtk::MenuBar::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecObject::new(
+                        Workspace::CHILD,
+                        Workspace::CHILD,
+                        Workspace::CHILD,
+                        gtk::Widget::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecObject::new(
+                        Workspace::MENUMODEL,
+                        Workspace::MENUMODEL,
+                        Workspace::MENUMODEL,
+                        gio::Menu::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -97,28 +138,42 @@ impl ObjectImpl for WorkspaceInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
         match pspec.name() {
-            "reorderable" => self.reorderable.get().to_value(),
-            "closeable" => self.closeable.get().to_value(),
-            "title" => self.title.borrow().to_value(),
+            Workspace::REORDERABLE => self.reorderable.get().to_value(),
+            Workspace::CLOSEABLE => self.closeable.get().to_value(),
+            Workspace::TITLE => self.title.borrow().to_value(),
+            Workspace::IS_MENU_VISIBLE => self.is_menu_visible.get().to_value(),
+            Workspace::MENUBAR => self.menubar.to_value(),
+            Workspace::CHILD => self.child.get().unwrap().to_value(),
+            Workspace::MENUMODEL => self.menumodel.borrow().as_ref().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         match pspec.name() {
-            "reorderable" => self.reorderable.set(value.get().unwrap()),
-            "closeable" => {
+            Workspace::REORDERABLE => self.reorderable.set(value.get().unwrap()),
+            Workspace::CLOSEABLE => {
                 self.closeable.set(value.get().unwrap());
             }
-            "title" => {
+            Workspace::TITLE => {
                 *self.title.borrow_mut() = value.get().unwrap();
+            }
+            Workspace::IS_MENU_VISIBLE => self.is_menu_visible.set(value.get().unwrap()),
+            Workspace::MENUMODEL => {
+                let new_model: Option<gio::Menu> = value.get().unwrap();
+                self.menubar.bind_model(new_model.as_ref(), None, true);
+                *self.menumodel.borrow_mut() = new_model;
             }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
 
-impl WorkspaceInner {}
+impl WorkspaceInner {
+    pub const REORDERABLE_INIT_VAL: bool = false;
+    pub const CLOSEABLE_INIT_VAL: bool = false;
+    pub const IS_MENU_VISIBLE_INIT_VAL: bool = false;
+}
 
 impl WidgetImpl for WorkspaceInner {}
 impl ContainerImpl for WorkspaceInner {}
@@ -130,22 +185,39 @@ glib::wrapper! {
 }
 
 impl Workspace {
-    pub fn new(main_widget: &gtk::Widget) -> Self {
+    pub const REORDERABLE: &str = "reorderable";
+    pub const CLOSEABLE: &str = "closeable";
+    pub const TITLE: &str = "title";
+    pub const IS_MENU_VISIBLE: &str = "is-menu-visible";
+    pub const MENUBAR: &str = "menubar";
+    pub const CHILD: &str = "child";
+    pub const MENUMODEL: &str = "menu-model";
+
+    pub fn new(child: &gtk::Widget) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Workspace");
-        for property in ["title", "closeable"] {
-            main_widget
+        let child_properties = child.list_properties();
+        for property in [
+            Self::TITLE,
+            Self::MENUMODEL,
+            Self::IS_MENU_VISIBLE,
+            Self::CLOSEABLE,
+        ] {
+            if !child_properties
+                .as_slice()
+                .iter()
+                .any(|p| p.name() == property)
+            {
+                continue;
+            }
+            ret.set_property_from_value(property, &child.property_value(property));
+            child
                 .bind_property(property, &ret, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
-        ret.bind_property("is-focus", main_widget, "is-focus")
-            .build();
-        ret.imp().main_widget.set(main_widget.clone()).unwrap();
-        ret.imp()
-            .grid
-            .get()
-            .unwrap()
-            .attach(main_widget, 0, 0, 1, 1);
+        ret.bind_property("is-focus", child, "is-focus").build();
+        ret.imp().child.set(child.clone()).unwrap();
+        ret.imp().grid.attach(child, 0, 0, 1, 1);
         ret.connect_button_press_event(|_self, event| {
             Inhibit(event.button() == gtk::gdk::BUTTON_SECONDARY)
         });

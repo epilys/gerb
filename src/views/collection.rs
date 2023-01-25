@@ -403,6 +403,7 @@ glib::wrapper! {
 
 impl Collection {
     pub const ZOOM_FACTOR: &str = "zoom-factor";
+
     pub fn new(app: gtk::Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         let grid = ret.imp().grid.get().unwrap();
@@ -830,8 +831,6 @@ impl GlyphBox {
             .unwrap()
             .imp()
             .window
-            .get()
-            .unwrap()
             .emit_by_name::<()>("open-glyph-edit", &[&self])
     }
 }

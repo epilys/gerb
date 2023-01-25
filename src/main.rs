@@ -33,9 +33,10 @@ pub mod ufo;
 pub mod unicode;
 pub mod utils;
 pub mod views;
-mod window;
+pub mod window;
 use app::GerbApp;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
+pub use window::Workspace;
 
 pub const APPLICATION_ID: &str = "com.epilys.gerb";
 
@@ -61,7 +62,6 @@ fn main() {
     );
 
     app.connect_handle_local_options(|_self, dict| {
-        //std::dbg!(&_self);
         if let Some(mut ufo_path) = dict
             .lookup_value("ufo", None)
             .and_then(|var| var.get::<Vec<u8>>())
@@ -69,10 +69,7 @@ fn main() {
             while ufo_path.ends_with(b"\0") {
                 ufo_path.pop();
             }
-            //std::dbg!(&ufo_path);
-            //_self.imp().window.get().unwrap().emit_by_name::<()>("open-project", &[&ufo_path]);
             if let Ok(s) = String::from_utf8(ufo_path) {
-                std::dbg!(&s);
                 _self
                     .imp()
                     .env_args

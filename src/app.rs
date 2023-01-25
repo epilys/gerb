@@ -23,7 +23,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 
-use crate::window::MainWindow;
+use crate::window::Window;
 
 use gio::ApplicationFlags;
 use gtk::{gio, glib};
@@ -52,7 +52,7 @@ impl GerbApp {
 
 #[derive(Debug, Default)]
 pub struct Application {
-    pub window: OnceCell<MainWindow>,
+    pub window: Window,
     pub settings: RefCell<Settings>,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
@@ -76,25 +76,11 @@ impl ApplicationImpl for Application {
     /// application is launched by the desktop environment and
     /// asked to present itself.
     fn activate(&self, app: &Self::Type) {
-        let app = app.downcast_ref::<super::GerbApp>().unwrap();
-        let imp = app.imp();
-        let window = imp
-            .window
-            .get()
-            .expect("Should always be initialized in gio_application_startup");
+        self.parent_activate(app);
+        #[cfg(debug_assertions)]
         gtk::Window::set_interactive_debugging(true);
-
-        //window.set_app_paintable(true); // crucial for transparency
-        window.set_resizable(true);
-        app.add_actions();
-        app.build_system_menu();
-        if let Some(path) = self.env_args.get().unwrap().clone().pop() {
-            window.emit_by_name::<()>("open-project", &[&path]);
-        } else {
-            //window.imp().load_project(crate::project::Project::default());
-        }
-        window.show_all();
-        window.present();
+        //self.window.set_app_paintable(true); // crucial for transparency
+        self.window.set_resizable(true);
     }
 
     /// `gio::Application` is bit special. It does not get initialized
@@ -102,14 +88,14 @@ impl ApplicationImpl for Application {
     /// once the `startup` signal is emitted and the `gio::Application::startup`
     /// is called.
     ///
-    /// Due to this, we create and initialize the `MainWindow` widget
+    /// Due to this, we create and initialize the `Window` widget
     /// here. Widgets can't be created before `startup` has been called.
     fn startup(&self, app: &Self::Type) {
         self.parent_startup(app);
+        self.window.set_application(Some(app));
+        self.instance().add_actions();
+        self.instance().build_system_menu();
 
-        let app = app.downcast_ref::<super::GerbApp>().unwrap();
-        let imp = app.imp();
-        let window = MainWindow::new(app);
         let css_provider = gtk::CssProvider::new();
         css_provider
             .load_from_data(include_bytes!("./custom.css"))
@@ -119,9 +105,11 @@ impl ApplicationImpl for Application {
             &css_provider,
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
-        imp.window
-            .set(window)
-            .expect("Failed to initialize application window");
+        if let Some(path) = self.env_args.get().unwrap().clone().pop() {
+            self.window.emit_by_name::<()>("open-project", &[&path]);
+        }
+        self.window.show_all();
+        self.window.present();
     }
 }
 
@@ -139,7 +127,7 @@ impl GerbApp {
         application.set_accels_for_action("edit.show-handles", &["<Primary><Shift>H"]);
         application.set_accels_for_action("edit.inner-fill", &["<Primary><Shift>I"]);
         application.set_accels_for_action("edit.show-total-area", &["<Primary><Shift>T"]);
-        let window = self.imp().window.get().unwrap().upcast_ref::<gtk::Window>();
+        let window = self.imp().window.upcast_ref::<gtk::Window>();
         let quit = gtk::gio::SimpleAction::new("quit", None);
         quit.connect_activate(glib::clone!(@weak window => move |_, _| {
             window.close();
@@ -171,7 +159,7 @@ impl GerbApp {
             w.present();
         }));
 
-        let open = gtk::gio::SimpleAction::new("open", None);
+        let open = gtk::gio::SimpleAction::new("project.open", None);
         open.connect_activate(glib::clone!(@weak window => move |_, _| {
             let dialog = gtk::FileChooserNative::new(
                 Some("Open font.ufo directory..."),
@@ -180,9 +168,7 @@ impl GerbApp {
                 None,
                 None
             );
-            let response = dialog.run();
-            std::dbg!(&response);
-            std::dbg!(&dialog.filename());
+            let _response = dialog.run();
             if let Some(f) = dialog.filename() {
                 if let Some(path) = f.to_str() {
                     window.emit_by_name::<()>("open-project", &[&path]);
@@ -191,6 +177,13 @@ impl GerbApp {
             }
             dialog.hide();
         }));
+        let new_project = gtk::gio::SimpleAction::new("project.new", None);
+        {
+            let window = &self.imp().window;
+            new_project.connect_activate(glib::clone!(@weak window => move |_, _| {
+                window.imp().load_project(crate::project::Project::default());
+            }));
+        }
         let undo = gtk::gio::SimpleAction::new("undo", None);
         undo.set_enabled(false);
         undo.connect_activate(glib::clone!(@weak self as _self => move |_, _| {
@@ -208,9 +201,18 @@ impl GerbApp {
             .flags(glib::BindingFlags::BIDIRECTIONAL)
             .build();
 
+        let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
+        project_properties.connect_activate(glib::clone!(@weak application as app => move |_, _| {
+            let gapp = app.downcast_ref::<super::GerbApp>().unwrap();
+            let obj: glib::Object = gapp.imp().window.imp().project.borrow().clone().upcast();
+            let w = crate::utils::new_property_window(obj, "Project");
+            w.present();
+        }));
+        application.add_action(&project_properties);
         application.add_action(&settings);
         application.add_action(&about);
         application.add_action(&open);
+        application.add_action(&new_project);
         application.add_action(&undo);
         application.add_action(&redo);
         application.add_action(&quit);
@@ -219,42 +221,34 @@ impl GerbApp {
     fn build_system_menu(&self) {
         let application = self.upcast_ref::<gtk::Application>();
         let menu_bar = gio::Menu::new();
-        let more_menu = gio::Menu::new();
+        let meta_menu = gio::Menu::new();
         let file_menu = gio::Menu::new();
-        let settings_menu = gio::Menu::new();
-        let submenu = gio::Menu::new();
+        let edit_menu = gio::Menu::new();
 
-        // The first argument is the label of the menu item whereas the second is the action name. It'll
-        // makes more sense when you'll be reading the "add_actions" function.
-
-        file_menu.append(Some("File"), Some("app.file"));
-        file_menu.append(Some("Open"), Some("app.open"));
+        file_menu.append(Some("New"), Some("app.project.new"));
+        file_menu.append(Some("Open"), Some("app.project.open"));
+        let project_section = gio::Menu::new();
+        project_section.append(Some("Properties"), Some("app.project.properties"));
+        file_menu.append_section(Some("Project"), &project_section);
         file_menu.append(Some("Quit"), Some("app.quit"));
         menu_bar.append_submenu(Some("_File"), &file_menu);
 
-        settings_menu.append(Some("Settings"), Some("app.settings"));
-        settings_menu.append(Some("Undo"), Some("app.undo"));
-        settings_menu.append(Some("Redo"), Some("app.redo"));
-        settings_menu.append(Some("Sub another"), Some("app.sub_another"));
-        submenu.append(Some("Sub sub another"), Some("app.sub_sub_another"));
-        submenu.append(Some("Sub sub another2"), Some("app.sub_sub_another2"));
-        settings_menu.append_submenu(Some("Sub menu"), &submenu);
-        menu_bar.append_submenu(Some("_Edit"), &settings_menu);
+        edit_menu.append(Some("Settings"), Some("app.settings"));
+        let undo_section = gio::Menu::new();
+        undo_section.append(Some("Undo"), Some("app.undo"));
+        undo_section.append(Some("Redo"), Some("app.redo"));
+        edit_menu.append_section(Some("Action history"), &undo_section);
+        menu_bar.append_submenu(Some("_Edit"), &edit_menu);
 
-        more_menu.append(Some("About"), Some("app.about"));
-        menu_bar.append_submenu(Some("Gerb"), &more_menu);
+        meta_menu.append(Some("Report issue"), Some("app.bug_report"));
+        meta_menu.append(Some("About"), Some("app.about"));
+        menu_bar.append_submenu(Some("Gerb"), &meta_menu);
 
         //application.set_app_menu(Some(&menu));
         application.set_menubar(Some(&menu_bar));
     }
 
     pub fn statusbar(&self) -> gtk::Statusbar {
-        let window = self.imp().window.get().unwrap();
-        window.imp().widgets.get().unwrap().statusbar.clone()
+        self.imp().window.imp().statusbar.clone()
     }
-
-    /*pub fn tabinfo(&self) -> crate::window::TabInfo {
-        let window = self.imp().window.get().unwrap();
-        window.imp().widgets.get().unwrap().sidebar.tabinfo.clone()
-    }*/
 }

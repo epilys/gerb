@@ -31,11 +31,10 @@ use gtk::glib;
 use gtk::glib::subclass::Signal;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use once_cell::{sync::Lazy, unsync::OnceCell};
+use once_cell::sync::Lazy;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::app::GerbApp;
 use crate::project::Project;
 
 #[derive(Debug)]
@@ -50,7 +49,7 @@ pub struct WindowSidebar {
 impl WindowSidebar {
     #[inline(always)]
     #[allow(dead_code)]
-    fn new(main: gtk::Paned, _obj: &<Window as ObjectSubclass>::Type) -> Self {
+    fn new(main: gtk::Paned, _obj: &<WindowInner as ObjectSubclass>::Type) -> Self {
         let ret = Self {
             tabinfo: TabInfo::new(),
             main,
@@ -109,49 +108,36 @@ impl WindowSidebar {
     }
 }
 
-#[derive(Debug)]
-pub struct WindowWidgets {
-    headerbar: gtk::HeaderBar,
-    //pub sidebar: WindowSidebar,
-    pub statusbar: gtk::Statusbar,
-    notebook: gtk::Notebook,
-}
-
 #[derive(Debug, Default)]
-pub struct Window {
-    app: OnceCell<gtk::Application>,
-    super_: OnceCell<MainWindow>,
-    pub widgets: OnceCell<WindowWidgets>,
-    project: RefCell<Project>,
+pub struct WindowInner {
+    pub project: RefCell<Project>,
+    pub headerbar: gtk::HeaderBar,
+    pub statusbar: gtk::Statusbar,
+    pub notebook: gtk::Notebook,
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for Window {
+impl ObjectSubclass for WindowInner {
     const NAME: &'static str = "Window";
-    type Type = MainWindow;
+    type Type = Window;
     type ParentType = gtk::ApplicationWindow;
 }
 
-impl ObjectImpl for Window {
+impl ObjectImpl for WindowInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.super_.set(obj.clone()).unwrap();
 
-        let headerbar = gtk::HeaderBar::new();
+        self.headerbar.set_title(Some("gerb"));
+        self.headerbar.set_show_close_button(true);
 
-        headerbar.set_title(Some("gerb"));
-        headerbar.set_show_close_button(true);
-
-        let notebook = gtk::Notebook::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .name("main-window-notebook")
-            .show_tabs(true)
-            .scrollable(true)
-            .enable_popup(true)
-            .show_border(true)
-            .build();
+        self.notebook.set_expand(true);
+        self.notebook.set_visible(true);
+        self.notebook.set_can_focus(true);
+        self.notebook.set_widget_name("main-window-notebook");
+        self.notebook.set_show_tabs(true);
+        self.notebook.set_scrollable(true);
+        self.notebook.set_enable_popup(true);
+        self.notebook.set_show_border(true);
 
         let vbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -160,17 +146,16 @@ impl ObjectImpl for Window {
             .visible(true)
             .can_focus(true)
             .build();
-        vbox.pack_start(&notebook, true, true, 0);
+        vbox.pack_start(&self.notebook, true, true, 0);
 
-        let statusbar = gtk::Statusbar::builder()
-            .vexpand(false)
-            .hexpand(true)
-            .visible(true)
-            .can_focus(true)
-            .margin(0)
-            .build();
+        self.statusbar.set_vexpand(false);
+        self.statusbar.set_hexpand(true);
+        self.statusbar.set_visible(true);
+        self.statusbar.set_can_focus(true);
+        self.statusbar.set_margin(0);
         {
-            if let Some(label) = statusbar
+            if let Some(label) = self
+                .statusbar
                 .message_area()
                 .and_then(|box_| box_.children().pop())
                 .and_then(|widget| widget.downcast::<gtk::Label>().ok())
@@ -181,10 +166,10 @@ impl ObjectImpl for Window {
                     .build();
             }
         }
-        vbox.pack_start(&statusbar, false, false, 0);
+        vbox.pack_start(&self.statusbar, false, false, 0);
 
         obj.set_child(Some(&vbox));
-        obj.set_titlebar(Some(&headerbar));
+        obj.set_titlebar(Some(&self.headerbar));
         obj.set_default_size(640, 480);
         obj.set_events(
             gtk::gdk::EventMask::POINTER_MOTION_MASK
@@ -222,13 +207,6 @@ impl ObjectImpl for Window {
             None
         }));
 
-        self.widgets
-            .set(WindowWidgets {
-                headerbar,
-                statusbar,
-                notebook,
-            })
-            .expect("Failed to initialize window state");
         *self.project.borrow_mut() = Project::new();
     }
 
@@ -310,15 +288,17 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
     widget.queue_draw();
 }
 
-impl Window {
+impl WindowInner {
     pub fn load_project(&self, project: Project) {
-        let widgets = self.widgets.get().unwrap();
-        widgets.headerbar.set_subtitle(Some(&format!(
-            "Loaded project: {}",
-            project.property::<String>("name").as_str()
-        )));
-        widgets.statusbar.push(
-            widgets.statusbar.context_id("main"),
+        project
+            .bind_property("name", &self.headerbar, "subtitle")
+            .transform_from(|_b, v| {
+                Some(format!("Loaded project: {}", v.get::<String>().unwrap()).to_value())
+            })
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
+        self.statusbar.push(
+            self.statusbar.context_id("main"),
             &format!(
                 "Loaded project: {}",
                 project.property::<String>("name").as_str()
@@ -345,9 +325,10 @@ impl Window {
             *self.project.borrow_mut() = project.clone();
         }
 
-        let collection = crate::views::Collection::new(self.app.get().unwrap().clone(), project);
+        let collection =
+            crate::views::Collection::new(self.instance().application().unwrap(), project);
         add_tab(
-            &widgets.notebook,
+            &self.notebook,
             Workspace::new(collection.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
             false,
             false,
@@ -355,14 +336,13 @@ impl Window {
     }
 
     pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
-        let widgets = self.widgets.get().unwrap();
         let edit_view = crate::views::GlyphEditView::new(
-            self.app.get().unwrap().clone(),
+            self.instance().application().unwrap(),
             self.project.borrow().clone(),
             glyph.clone(),
         );
         add_tab(
-            &widgets.notebook,
+            &self.notebook,
             Workspace::new(edit_view.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
             true,
             true,
@@ -370,8 +350,7 @@ impl Window {
     }
 
     pub fn unload_project(&self) {
-        let widgets = self.widgets.get().unwrap();
-        widgets.headerbar.set_subtitle(None);
+        self.headerbar.set_subtitle(None);
         /*
         let item_groups = widgets.tool_palette.children();
         if item_groups
@@ -388,30 +367,30 @@ impl Window {
         }
         widgets.tool_palette.queue_draw();
         */
-        widgets.notebook.queue_draw();
+        self.notebook.queue_draw();
         *self.project.borrow_mut() = Project::new();
     }
 }
 
-impl WidgetImpl for Window {}
-impl ContainerImpl for Window {}
-impl BinImpl for Window {}
-impl WindowImpl for Window {}
-impl ApplicationWindowImpl for Window {}
+impl WidgetImpl for WindowInner {}
+impl ContainerImpl for WindowInner {}
+impl BinImpl for WindowInner {}
+impl WindowImpl for WindowInner {}
+impl ApplicationWindowImpl for WindowInner {}
 
 glib::wrapper! {
-    pub struct MainWindow(ObjectSubclass<Window>)
+    pub struct Window(ObjectSubclass<WindowInner>)
         @extends gtk::Widget, gtk::Container, gtk::Bin, gtk::Window, gtk::ApplicationWindow;
 }
 
-impl MainWindow {
-    pub fn new(app: &GerbApp) -> Self {
-        let ret: Self =
-            glib::Object::new(&[("application", app)]).expect("Failed to create Main Window");
-        ret.imp()
-            .app
-            .set(app.upcast_ref::<gtk::Application>().clone())
-            .unwrap();
-        ret
+impl Default for Window {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Window {
+    pub fn new() -> Self {
+        glib::Object::new(&[]).expect("Failed to create Main Window")
     }
 }

@@ -23,9 +23,9 @@ use glib::{
     clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
 };
 use gtk::cairo::Matrix;
-use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use gtk::{gio, glib};
 use indexmap::IndexMap;
 use once_cell::unsync::OnceCell;
 use std::cell::{Cell, RefCell};
@@ -39,7 +39,7 @@ use crate::views::{
     canvas::{Layer, LayerBuilder},
     overlay::Child,
 };
-use crate::Settings;
+use crate::{Settings, Workspace};
 
 //mod bezier_pen;
 mod layers;
@@ -464,6 +464,7 @@ pub struct GlyphEditViewInner {
     ascender: Cell<f64>,
     lock_guidelines: Cell<bool>,
     settings: OnceCell<Settings>,
+    menumodel: gio::Menu,
 }
 
 #[glib::object_subclass]
@@ -476,6 +477,19 @@ impl ObjectSubclass for GlyphEditViewInner {
 impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        let glyph_menu = gio::Menu::new();
+        glyph_menu.append(Some("Properties"), Some("glyph.properties"));
+        self.menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
+        let curve_menu = gio::Menu::new();
+        curve_menu.append(Some("Properties"), Some("glyph.curve.properties"));
+        curve_menu.append(Some("Make cubic"), Some("glyph.curve.make_cubic"));
+        curve_menu.append(Some("Make quadratic"), Some("glyph.curve.make_quadratic"));
+        self.menumodel.append_submenu(Some("_Curve"), &curve_menu);
+        let contour_menu = gio::Menu::new();
+        contour_menu.append(Some("Properties"), Some("glyph.contour.properties"));
+        contour_menu.append(Some("Reverse"), Some("glyph.contour.reverse"));
+        self.menumodel
+            .append_submenu(Some("_Contour"), &contour_menu);
         self.lock_guidelines.set(true);
         self.statusbar_context_id.set(None);
         self.viewport.set_mouse(ViewPoint((0.0, 0.0).into()));
@@ -647,6 +661,13 @@ impl ObjectImpl for GlyphEditViewInner {
                         true,
                         ParamFlags::READABLE,
                     ),
+                    ParamSpecBoolean::new(
+                        GlyphEditView::IS_MENU_VISIBLE,
+                        GlyphEditView::IS_MENU_VISIBLE,
+                        GlyphEditView::IS_MENU_VISIBLE,
+                        true,
+                        ParamFlags::READABLE,
+                    ),
                     ParamSpecDouble::new(
                         GlyphEditView::UNITS_PER_EM,
                         GlyphEditView::UNITS_PER_EM,
@@ -713,6 +734,13 @@ impl ObjectImpl for GlyphEditViewInner {
                         ToolImpl::static_type(),
                         glib::ParamFlags::READWRITE,
                     ),
+                    glib::ParamSpecObject::new(
+                        Workspace::MENUMODEL,
+                        Workspace::MENUMODEL,
+                        Workspace::MENUMODEL,
+                        gio::Menu::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -733,6 +761,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 }
             }
             GlyphEditView::CLOSEABLE => true.to_value(),
+            GlyphEditView::IS_MENU_VISIBLE => true.to_value(),
             GlyphEditView::UNITS_PER_EM => self.units_per_em.get().to_value(),
             GlyphEditView::X_HEIGHT => self.x_height.get().to_value(),
             GlyphEditView::ASCENDER => self.ascender.get().to_value(),
@@ -749,6 +778,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 let panning_tool = state.panning_tool;
                 state.tools.get(&panning_tool).map(Clone::clone).to_value()
             }
+            GlyphEditView::MENUMODEL => Some(self.menumodel.clone()).to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -825,6 +855,8 @@ impl GlyphEditView {
     pub const CLOSEABLE: &str = "closeable";
     pub const DESCENDER: &str = Project::DESCENDER;
     pub const TITLE: &str = "title";
+    pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
+    pub const MENUMODEL: &str = Workspace::MENUMODEL;
     pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
     pub const X_HEIGHT: &str = Project::X_HEIGHT;
     pub const LOCK_GUIDELINES: &str = "lock-guidelines";
