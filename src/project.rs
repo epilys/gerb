@@ -201,7 +201,7 @@ mod imp {
                             Project::ITALIC_ANGLE,
                             Project::ITALIC_ANGLE,
                             Project::ITALIC_ANGLE,
-                            0.0,
+                            std::f64::MIN,
                             std::f64::MAX,
                             0.0,
                             ParamFlags::READWRITE,

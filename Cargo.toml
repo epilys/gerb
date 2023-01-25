@@ -31,6 +31,11 @@ version = "^0.15"
 optional = true
 features = ["svg", ]
 
+[dependencies.pyo3]
+version = "0.18"
+optional = true
+features = ["auto-initialize"]
+
 [dependencies.uuid]
 version = "1.2.1"
 features = [
@@ -40,8 +45,13 @@ features = [
 ]
 
 [features]
-default = ["svg", ]
+default = ["svg", "python"]
 svg = ["cairo-rs/svg", ]
+python = ["pyo3", ]
 
 [profile.release]
-lto = true
+lto = "fat"
+codegen-units = 1
+opt-level = "s"
+debug = false
+strip = true

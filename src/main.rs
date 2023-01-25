@@ -41,16 +41,8 @@ pub use window::Workspace;
 pub const APPLICATION_ID: &str = "com.epilys.gerb";
 
 fn main() {
-    //let mut env_args = std::env::args().skip(1).collect::<Vec<String>>();
-    //if env_args.len() > 1 {
-    //    eprintln!("Usage: gerb [/path/to/font.ufo]");
-    //    drop(env_args);
-    //    std::process::exit(-1);
-    //}
-
     gtk::init().expect("Failed to initialize gtk");
 
-    //let app = GerbApp::new(env_args);
     let app = GerbApp::new();
     app.add_main_option(
         "ufo",

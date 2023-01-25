@@ -19,11 +19,22 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#[cfg(feature = "python")]
+pub mod import;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+#[derive(Debug)]
+pub struct UFOInstance {
+    pub directory_name: String,
+    pub full_path: PathBuf,
+    pub family_name: String,
+    pub style_name: String,
+}
 
 /// fontinfo.plist
 ///
