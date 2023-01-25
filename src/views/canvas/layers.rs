@@ -27,10 +27,12 @@ use gtk::subclass::prelude::*;
 use std::borrow::Cow;
 use std::cell::Cell;
 
+pub type LayerCallback = dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit;
+
 pub struct LayerInner {
     active: Cell<bool>,
     hidden: Cell<bool>,
-    callback: Rc<RefCell<Rc<dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit>>>,
+    callback: Rc<RefCell<Rc<LayerCallback>>>,
     name: Rc<RefCell<Cow<'static, str>>>,
 }
 
@@ -130,13 +132,11 @@ impl Layer {
         l.property::<bool>(Self::ACTIVE)
     }
 
-    pub fn set_callback(&self, callback: Box<dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit>) {
+    pub fn set_callback(&self, callback: Box<LayerCallback>) {
         *self.imp().callback.borrow_mut() = callback.into();
     }
 
-    pub fn get_callback(
-        &self,
-    ) -> std::cell::Ref<Rc<dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit>> {
+    pub fn get_callback(&self) -> std::cell::Ref<Rc<LayerCallback>> {
         self.imp().callback.borrow()
     }
 
@@ -155,7 +155,7 @@ pub struct LayerBuilder {
     active: bool,
     hidden: bool,
     name: Option<Cow<'static, str>>,
-    cb: Option<Box<dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit>>,
+    cb: Option<Box<LayerCallback>>,
 }
 
 impl LayerBuilder {
@@ -176,10 +176,7 @@ impl LayerBuilder {
         Self { hidden, ..self }
     }
 
-    pub fn set_callback(
-        self,
-        cb: Option<Box<dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit>>,
-    ) -> Self {
+    pub fn set_callback(self, cb: Option<Box<LayerCallback>>) -> Self {
         Self { cb, ..self }
     }
 
