@@ -200,7 +200,7 @@ impl ObjectImpl for WindowInner {
                     dialog.set_title("Error: Could not open project");
                     dialog.set_use_markup(true);
                     dialog.run();
-                    dialog.hide();
+                    dialog.emit_close();
                 },
             }
 

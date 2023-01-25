@@ -464,7 +464,7 @@ pub struct GlyphEditViewInner {
     ascender: Cell<f64>,
     lock_guidelines: Cell<bool>,
     settings: OnceCell<Settings>,
-    menumodel: gio::Menu,
+    menubar: gtk::MenuBar,
 }
 
 #[glib::object_subclass]
@@ -477,19 +477,84 @@ impl ObjectSubclass for GlyphEditViewInner {
 impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        let menumodel = gio::Menu::new();
         let glyph_menu = gio::Menu::new();
         glyph_menu.append(Some("Properties"), Some("glyph.properties"));
-        self.menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
+        glyph_menu.append(Some("Inspect"), Some("glyph.inspect"));
+        glyph_menu.append(Some("Export to SVG"), Some("glyph.export.svg"));
+        menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
         let curve_menu = gio::Menu::new();
         curve_menu.append(Some("Properties"), Some("glyph.curve.properties"));
         curve_menu.append(Some("Make cubic"), Some("glyph.curve.make_cubic"));
         curve_menu.append(Some("Make quadratic"), Some("glyph.curve.make_quadratic"));
-        self.menumodel.append_submenu(Some("_Curve"), &curve_menu);
+        menumodel.append_submenu(Some("_Curve"), &curve_menu);
         let contour_menu = gio::Menu::new();
         contour_menu.append(Some("Properties"), Some("glyph.contour.properties"));
         contour_menu.append(Some("Reverse"), Some("glyph.contour.reverse"));
-        self.menumodel
-            .append_submenu(Some("_Contour"), &contour_menu);
+        menumodel.append_submenu(Some("_Contour"), &contour_menu);
+        let guideline_menu = gio::Menu::new();
+        guideline_menu.append(Some("Properties"), Some("glyph.guideline.properties"));
+        menumodel.append_submenu(Some("_Guideline"), &guideline_menu);
+        let layer_menu = gio::Menu::new();
+        layer_menu.append(Some("Properties"), Some("glyph.layer.properties"));
+        menumodel.append_submenu(Some("_Layers"), &layer_menu);
+        {
+            let action_map = gtk::gio::SimpleActionGroup::new();
+            let properties = gtk::gio::SimpleAction::new("properties", None);
+            properties.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                /*
+                 * TODO: Glyph struct is not a GObject yet
+                let gapp = obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap();
+                let obj: glib::Object = obj.imp().glyph.get().unwrap().borrow().clone().upcast();
+                let w = crate::utils::new_property_window(obj, "Glyph properties");
+                w.present();
+                */
+            }));
+            action_map.add_action(&properties);
+            let inspect = gtk::gio::SimpleAction::new("inspect", None);
+            inspect.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                obj.make_debug_window();
+            }));
+            action_map.add_action(&inspect);
+            #[cfg(feature = "svg")]
+            let export_svg = gtk::gio::SimpleAction::new("export.svg", None);
+            #[cfg(feature = "svg")]
+            export_svg.connect_activate(clone!(@weak obj => move |_, _| {
+                let dialog = gtk::FileChooserDialog::builder()
+                    .create_folders(true)
+                    .do_overwrite_confirmation(true)
+                    .action(gtk::FileChooserAction::Save)
+                    .visible(true)
+                    .sensitive(true)
+                    .build();
+                dialog.add_button("Save", gtk::ResponseType::Ok);
+                dialog.add_button("Cancel", gtk::ResponseType::Cancel);
+                let glyph = obj.imp().glyph_state.get().unwrap().borrow().glyph.clone();
+                dialog.set_current_name(&format!("{}.svg", glyph.borrow().name.as_ref()));
+                if dialog.run() == gtk::ResponseType::Ok {
+                    if let Some(f) = dialog.filename() {
+                        if let Err(err) = glyph.borrow().save_to_svg(f) {
+                            let dialog = gtk::MessageDialog::new(
+                                gtk::Window::NONE,
+                                gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                                gtk::MessageType::Error,
+                                gtk::ButtonsType::Close,
+                                &err.to_string(),
+                            );
+                            dialog.set_title("Error: Could not svg file");
+                            dialog.set_use_markup(true);
+                            dialog.run();
+                            dialog.emit_close();
+                        }
+                    }
+                }
+                dialog.emit_close();
+            }));
+            #[cfg(feature = "svg")]
+            action_map.add_action(&export_svg);
+            self.menubar.insert_action_group("glyph", Some(&action_map));
+            self.menubar.bind_model(Some(&menumodel), None, true);
+        }
         self.lock_guidelines.set(true);
         self.statusbar_context_id.set(None);
         self.viewport.set_mouse(ViewPoint((0.0, 0.0).into()));
@@ -735,10 +800,10 @@ impl ObjectImpl for GlyphEditViewInner {
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecObject::new(
-                        Workspace::MENUMODEL,
-                        Workspace::MENUMODEL,
-                        Workspace::MENUMODEL,
-                        gio::Menu::static_type(),
+                        Workspace::MENUBAR,
+                        Workspace::MENUBAR,
+                        Workspace::MENUBAR,
+                        gtk::MenuBar::static_type(),
                         ParamFlags::READWRITE,
                     ),
                 ]
@@ -778,7 +843,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 let panning_tool = state.panning_tool;
                 state.tools.get(&panning_tool).map(Clone::clone).to_value()
             }
-            GlyphEditView::MENUMODEL => Some(self.menumodel.clone()).to_value(),
+            GlyphEditView::MENUBAR => Some(self.menubar.clone()).to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -856,7 +921,7 @@ impl GlyphEditView {
     pub const DESCENDER: &str = Project::DESCENDER;
     pub const TITLE: &str = "title";
     pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
-    pub const MENUMODEL: &str = Workspace::MENUMODEL;
+    pub const MENUBAR: &str = Workspace::MENUBAR;
     pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
     pub const X_HEIGHT: &str = Project::X_HEIGHT;
     pub const LOCK_GUIDELINES: &str = "lock-guidelines";
@@ -938,7 +1003,9 @@ impl GlyphEditView {
         let glyph_state = self.imp().glyph_state.get().unwrap().borrow();
         let glyph = glyph_state.glyph.borrow();
         let window = gtk::Window::new(gtk::WindowType::Toplevel);
+        window.set_attached_to(Some(self));
         window.set_default_size(640, 480);
+        window.insert_action_group("glyph", self.imp().menubar.action_group("glyph").as_ref());
         let hbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .valign(gtk::Align::Fill)
@@ -983,38 +1050,8 @@ impl GlyphEditView {
                 .valign(gtk::Align::Center)
                 .halign(gtk::Align::Center)
                 .visible(true)
+                .action_name("glyph.export.svg")
                 .build();
-            save_to_svg.connect_clicked(
-                clone!(@strong glyph_state.glyph as glyph, @strong window => move |_| {
-                    let dialog = gtk::FileChooserDialog::builder()
-                        .create_folders(true)
-                        .do_overwrite_confirmation(true)
-                        .action(gtk::FileChooserAction::Save)
-                        .visible(true)
-                        .build();
-                    dialog.add_button("Save", gtk::ResponseType::Ok);
-                    dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-                    dialog.set_current_name(&format!("{}.svg", glyph.borrow().name.as_ref()));
-                    if dialog.run() == gtk::ResponseType::Ok {
-                        if let Some(f) = dialog.filename() {
-                            if let Err(err) = glyph.borrow().save_to_svg(f) {
-                                let dialog = gtk::MessageDialog::new(
-                                    Some(&window),
-                                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                                    gtk::MessageType::Error,
-                                    gtk::ButtonsType::Close,
-                                    &err.to_string(),
-                                );
-                                dialog.set_title("Error: Could not svg file");
-                                dialog.set_use_markup(true);
-                                dialog.run();
-                                dialog.hide();
-                            }
-                        }
-                    }
-                    dialog.hide();
-                }),
-            );
             hbox.pack_start(&save_to_svg, false, true, 5);
         }
 

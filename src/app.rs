@@ -207,7 +207,7 @@ impl GerbApp {
                                     );
                                     dialog.set_use_markup(true);
                                     dialog.run();
-                                    dialog.hide();
+                                    dialog.emit_close();
                                 }
                             }
                             Err(err) => {
@@ -223,7 +223,7 @@ impl GerbApp {
                                 );
                                 dialog.set_use_markup(true);
                                 dialog.run();
-                                dialog.hide();
+                                dialog.emit_close();
                             }
                         }
                     }
@@ -241,7 +241,7 @@ impl GerbApp {
                 dialog.set_title("Error");
                 dialog.set_use_markup(true);
                 dialog.run();
-                dialog.hide();
+                dialog.emit_close();
             }
         }));
         let open = gtk::gio::SimpleAction::new("project.open", None);

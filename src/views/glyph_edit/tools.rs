@@ -265,19 +265,10 @@ impl Tool {
                 Some(format!("{:.0}%", scale * 100.).to_value())
             })
             .build();
-        let debug_button = gtk::ToolButton::new(gtk::ToolButton::NONE, Some("Info"));
-        debug_button.set_visible(true);
-        debug_button.set_tooltip_text(Some("Info"));
-        debug_button.connect_clicked(clone!(@strong obj => move |_| {
-            obj.make_debug_window();
-        }));
         obj.imp().toolbar_box.pack_start(&toolbar, false, false, 0);
         obj.imp()
             .toolbar_box
             .pack_start(&zoom_percent_label, false, false, 0);
-        obj.imp()
-            .toolbar_box
-            .pack_start(&debug_button, false, false, 0);
         obj.imp()
             .toolbar_box
             .style_context()
