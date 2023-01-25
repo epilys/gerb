@@ -23,20 +23,15 @@ use glib::{clone, ParamFlags, ParamSpec, ParamSpecBoolean, Value};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use once_cell::unsync::OnceCell;
 use std::cell::Cell;
 
-use super::Canvas;
+use super::{Canvas, GlyphEditView};
 
 #[derive(Debug, Default)]
 pub struct ViewHideBoxInner {
-    show_grid_btn: OnceCell<gtk::CheckButton>,
-    show_guidelines_btn: OnceCell<gtk::CheckButton>,
-    show_handles_btn: OnceCell<gtk::CheckButton>,
-    inner_fill_btn: OnceCell<gtk::CheckButton>,
-    show_total_area_btn: OnceCell<gtk::CheckButton>,
     show_grid: Cell<bool>,
     show_guidelines: Cell<bool>,
+    lock_guidelines: Cell<bool>,
     show_handles: Cell<bool>,
     inner_fill: Cell<bool>,
     show_total_area: Cell<bool>,
@@ -57,8 +52,7 @@ impl ObjectImpl for ViewHideBoxInner {
         self.show_handles.set(true);
         self.inner_fill.set(false);
         self.show_total_area.set(true);
-        //obj.set_orientation(gtk::Orientation::Vertical);
-        //obj.set_orientation(gtk::Orientation::Horizontal);
+        self.lock_guidelines.set(false);
         obj.set_expand(false);
         obj.set_halign(gtk::Align::End);
         obj.set_valign(gtk::Align::End);
@@ -66,24 +60,13 @@ impl ObjectImpl for ViewHideBoxInner {
         obj.set_visible(true);
         obj.set_can_focus(true);
 
-        for (property, label, field) in [
-            (ViewHideBox::SHOW_GRID, "Show grid", &self.show_grid_btn),
-            (
-                ViewHideBox::SHOW_GUIDELINES,
-                "Show guidelines",
-                &self.show_guidelines_btn,
-            ),
-            (
-                ViewHideBox::SHOW_HANDLES,
-                "Show handles",
-                &self.show_handles_btn,
-            ),
-            (ViewHideBox::INNER_FILL, "Inner fill", &self.inner_fill_btn),
-            (
-                ViewHideBox::SHOW_TOTAL_AREA,
-                "Show total area",
-                &self.show_total_area_btn,
-            ),
+        for (property, label) in [
+            (ViewHideBox::SHOW_GRID, "Show grid"),
+            (ViewHideBox::SHOW_GUIDELINES, "Show guidelines"),
+            (ViewHideBox::LOCK_GUIDELINES, "Lock guidelines"),
+            (ViewHideBox::SHOW_HANDLES, "Show handles"),
+            (ViewHideBox::INNER_FILL, "Inner fill"),
+            (ViewHideBox::SHOW_TOTAL_AREA, "Show total area"),
         ] {
             let btn = gtk::CheckButton::with_label(label);
             btn.set_visible(true);
@@ -92,7 +75,6 @@ impl ObjectImpl for ViewHideBoxInner {
             obj.bind_property(property, &btn, "active")
                 .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
                 .build();
-            field.set(btn).expect("Failed to create ViewHideBox");
         }
     }
 
@@ -135,6 +117,13 @@ impl ObjectImpl for ViewHideBoxInner {
                         true,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        ViewHideBox::LOCK_GUIDELINES,
+                        ViewHideBox::LOCK_GUIDELINES,
+                        ViewHideBox::LOCK_GUIDELINES,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -147,31 +136,31 @@ impl ObjectImpl for ViewHideBoxInner {
             ViewHideBox::SHOW_HANDLES => self.show_handles.get().to_value(),
             ViewHideBox::INNER_FILL => self.inner_fill.get().to_value(),
             ViewHideBox::SHOW_TOTAL_AREA => self.show_total_area.get().to_value(),
+            ViewHideBox::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        let val = value.get().expect("The value needs to be of type `bool`.");
         match pspec.name() {
             ViewHideBox::SHOW_GRID => {
-                let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_grid.set(val);
             }
             ViewHideBox::SHOW_GUIDELINES => {
-                let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_guidelines.set(val);
             }
             ViewHideBox::SHOW_HANDLES => {
-                let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_handles.set(val);
             }
             ViewHideBox::INNER_FILL => {
-                let val = value.get().expect("The value needs to be of type `bool`.");
                 self.inner_fill.set(val);
             }
             ViewHideBox::SHOW_TOTAL_AREA => {
-                let val = value.get().expect("The value needs to be of type `bool`.");
                 self.show_total_area.set(val);
+            }
+            ViewHideBox::LOCK_GUIDELINES => {
+                self.lock_guidelines.set(val);
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -193,6 +182,7 @@ impl ViewHideBox {
     pub const SHOW_GUIDELINES: &str = Canvas::SHOW_GUIDELINES;
     pub const SHOW_HANDLES: &str = Canvas::SHOW_HANDLES;
     pub const SHOW_TOTAL_AREA: &str = Canvas::SHOW_TOTAL_AREA;
+    pub const LOCK_GUIDELINES: &str = GlyphEditView::LOCK_GUIDELINES;
 
     pub fn new(canvas: &Canvas) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create ViewHideBox");

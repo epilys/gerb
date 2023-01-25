@@ -461,6 +461,19 @@ impl Canvas {
         cr.set_source_color(ruler_fg);
         cr.stroke().unwrap();
 
+        let step: f64 = 200.0 * (scale * ppu);
+        let mut y = camera.y.rem_euclid(step).floor() + 0.5;
+        while y < height {
+            cr.move_to(0.0, y);
+            cr.line_to(ruler_breadth, y);
+            for i in 1..10 {
+                cr.move_to(ruler_breadth / 2.0, y + i as f64 * step / 10.0);
+                cr.line_to(ruler_breadth, y + i as f64 * step / 10.0);
+            }
+            y += step;
+        }
+        cr.stroke().unwrap();
+
         cr.save().unwrap();
         cr.move_to(2.0 * ruler_breadth / 3.0, view_mouse.y - 1.0);
         cr.set_font_size(font_size);
@@ -499,14 +512,13 @@ impl Canvas {
         while x < width {
             cr.move_to(x, 0.0);
             cr.line_to(x, ruler_breadth);
-            cr.stroke().unwrap();
             for i in 1..10 {
                 cr.move_to(x + i as f64 * step / 10.0, ruler_breadth / 2.0);
                 cr.line_to(x + i as f64 * step / 10.0, ruler_breadth);
-                cr.stroke().unwrap();
             }
             x += step;
         }
+        cr.stroke().unwrap();
 
         cr.save().unwrap();
         cr.move_to(view_mouse.x + 1.0, 2.0 * ruler_breadth / 3.0);

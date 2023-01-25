@@ -127,6 +127,8 @@ impl GerbApp {
         application.set_accels_for_action("edit.show-handles", &["<Primary><Shift>H"]);
         application.set_accels_for_action("edit.inner-fill", &["<Primary><Shift>I"]);
         application.set_accels_for_action("edit.show-total-area", &["<Primary><Shift>T"]);
+        application.set_accels_for_action("view.zoom.in", &["<Primary>plus", "plus"]);
+        application.set_accels_for_action("view.zoom.out", &["<Primary>minus", "minus"]);
         let window = self.imp().window.upcast_ref::<gtk::Window>();
         let quit = gtk::gio::SimpleAction::new("quit", None);
         quit.connect_activate(glib::clone!(@weak window => move |_, _| {

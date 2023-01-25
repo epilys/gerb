@@ -639,6 +639,19 @@ impl ObjectImpl for GlyphEditViewInner {
                 .build(),
         );
         let viewhidebox = visibility_toggles::ViewHideBox::new(&self.viewport);
+        for property in [GlyphEditView::LOCK_GUIDELINES] {
+            viewhidebox.set_property(property, obj.property::<bool>(property));
+            viewhidebox
+                .bind_property(property, obj, property)
+                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .build();
+            viewhidebox.connect_notify_local(
+                Some(property),
+                clone!(@weak self.viewport as canvas => move |_self, _| {
+                    canvas.queue_draw();
+                }),
+            );
+        }
         self.overlay.set_child(&self.viewport);
         self.overlay.add_overlay(Child::new(
             gtk::Expander::builder()
@@ -985,7 +998,21 @@ impl GlyphEditView {
             let prop_action = gtk::gio::PropertyAction::new(prop, &ret.imp().viewport, prop);
             action_map.add_action(&prop_action);
         }
-        ret.insert_action_group("edit", Some(&action_map));
+        for (zoom_action, tool_func) in [
+            (
+                "zoom.in",
+                &Transformation::zoom_in as &dyn Fn(&Transformation) -> bool,
+            ),
+            ("zoom.out", &Transformation::zoom_out),
+        ] {
+            let action = gtk::gio::SimpleAction::new(zoom_action, None);
+            action.connect_activate(glib::clone!(@weak ret as obj => move |_, _| {
+                let t = &obj.imp().viewport.imp().transformation;
+                tool_func(t);
+            }));
+            action_map.add_action(&action);
+        }
+        ret.insert_action_group("view", Some(&action_map));
         ret.imp()
             .glyph_state
             .set(Rc::new(RefCell::new(GlyphState::new(

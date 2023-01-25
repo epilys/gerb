@@ -81,7 +81,7 @@ impl ToolImplImpl for ZoomInToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, _view: &GlyphEditView) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToolButton::builder()
@@ -89,12 +89,8 @@ impl ToolImplImpl for ZoomInToolInner {
             .label(&name)
             .visible(true)
             .tooltip_text(&name)
+            .action_name("view.zoom.in")
             .build();
-        button.connect_clicked(
-            clone!(@strong view, @strong obj as self_ => move |_button| {
-                self_.on_activate(&view)
-            }),
-        );
         toolbar.add(&button);
         toolbar.set_item_homogeneous(&button, false);
     }
@@ -176,7 +172,7 @@ impl ToolImplImpl for ZoomOutToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, _view: &GlyphEditView) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToolButton::builder()
@@ -184,12 +180,8 @@ impl ToolImplImpl for ZoomOutToolInner {
             .label(&name)
             .visible(true)
             .tooltip_text(&name)
+            .action_name("view.zoom.out")
             .build();
-        button.connect_clicked(
-            clone!(@strong view, @strong obj as self_ => move |_button| {
-                self_.on_activate(&view)
-            }),
-        );
         toolbar.add(&button);
         toolbar.set_item_homogeneous(&button, false);
     }
