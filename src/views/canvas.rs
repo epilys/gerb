@@ -61,6 +61,9 @@ pub struct CanvasInner {
     pub pre_layers: Rc<RefCell<Vec<Layer>>>,
     pub layers: Rc<RefCell<Vec<Layer>>>,
     pub post_layers: Rc<RefCell<Vec<Layer>>>,
+    pub bg_color: Cell<Color>,
+    pub glyph_bbox_bg_color: Cell<Color>,
+    pub glyph_inner_fill_color: Cell<Color>,
     pub ruler_fg_color: Cell<Color>,
     pub ruler_indicator_color: Cell<Color>,
     pub ruler_bg_color: Cell<Color>,
@@ -99,6 +102,17 @@ impl ObjectImpl for CanvasInner {
             .set(CanvasInner::SHOW_TOTAL_AREA_INIT_VAL);
         self.show_rulers.set(CanvasInner::SHOW_RULERS_INIT_VAL);
         self.warp_cursor.set(CanvasInner::WARP_CURSOR_INIT_VAL);
+        self.bg_color.set(Color::WHITE);
+        self.bg_color.set(Color::try_from_hex("#E0DDDC").unwrap());
+        self.glyph_bbox_bg_color.set(Color::new_alpha(
+            210.0 / 255.0,
+            227.0 / 255.0,
+            252.0 / 255.0,
+            0.6,
+        ));
+        self.glyph_bbox_bg_color.set(Color::WHITE);
+        self.glyph_inner_fill_color
+            .set(Color::try_from_hex("#EBE8E7").unwrap());
         self.ruler_fg_color
             .set(CanvasInner::RULER_FG_COLOR_INIT_VAL);
         self.ruler_bg_color
@@ -235,6 +249,27 @@ impl ObjectImpl for CanvasInner {
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoxed::new(
+                        Canvas::BG_COLOR,
+                        Canvas::BG_COLOR,
+                        Canvas::BG_COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::GLYPH_INNER_FILL_COLOR,
+                        Canvas::GLYPH_INNER_FILL_COLOR,
+                        Canvas::GLYPH_INNER_FILL_COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::GLYPH_BBOX_BG_COLOR,
+                        Canvas::GLYPH_BBOX_BG_COLOR,
+                        Canvas::GLYPH_BBOX_BG_COLOR,
+                        Color::static_type(),
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoxed::new(
                         Canvas::RULER_BG_COLOR,
                         Canvas::RULER_BG_COLOR,
                         Canvas::RULER_BG_COLOR,
@@ -272,6 +307,9 @@ impl ObjectImpl for CanvasInner {
             Canvas::WARP_CURSOR => self.warp_cursor.get().to_value(),
             Canvas::VIEW_HEIGHT => (self.instance().allocated_height() as f64).to_value(),
             Canvas::VIEW_WIDTH => (self.instance().allocated_width() as f64).to_value(),
+            Canvas::BG_COLOR => self.bg_color.get().to_value(),
+            Canvas::GLYPH_INNER_FILL_COLOR => self.glyph_inner_fill_color.get().to_value(),
+            Canvas::GLYPH_BBOX_BG_COLOR => self.glyph_bbox_bg_color.get().to_value(),
             Canvas::RULER_BREADTH_PIXELS => Self::RULER_BREADTH.to_value(),
             Canvas::RULER_FG_COLOR => self.ruler_fg_color.get().to_value(),
             Canvas::RULER_BG_COLOR => self.ruler_bg_color.get().to_value(),
@@ -317,6 +355,15 @@ impl ObjectImpl for CanvasInner {
             Canvas::VIEW_HEIGHT => {
                 self.view_height.set(value.get().unwrap());
             }
+            Canvas::BG_COLOR => {
+                self.bg_color.set(value.get().unwrap());
+            }
+            Canvas::GLYPH_INNER_FILL_COLOR => {
+                self.glyph_inner_fill_color.set(value.get().unwrap());
+            }
+            Canvas::GLYPH_BBOX_BG_COLOR => {
+                self.glyph_bbox_bg_color.set(value.get().unwrap());
+            }
             Canvas::RULER_FG_COLOR => {
                 self.ruler_fg_color.set(value.get().unwrap());
             }
@@ -351,6 +398,9 @@ impl Canvas {
     pub const TRANSFORMATION: &str = "transformation";
     pub const WARP_CURSOR: &str = "warp-cursor";
     pub const MOUSE: &str = "mouse";
+    pub const BG_COLOR: &str = "bg-color";
+    pub const GLYPH_INNER_FILL_COLOR: &str = "glyph-inner-fill-color";
+    pub const GLYPH_BBOX_BG_COLOR: &str = "glyph-bbox-bg-color";
     pub const RULER_BREADTH_PIXELS: &str = "ruler-breadth-pixels";
     pub const RULER_FG_COLOR: &str = "ruler-fg-color";
     pub const RULER_BG_COLOR: &str = "ruler-bg-color";
@@ -379,44 +429,42 @@ impl Canvas {
     }
 
     pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        if !self.property::<bool>(Canvas::SHOW_GRID) {
-            return Inhibit(false);
-        }
-
-        let scale: f64 = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::SCALE);
-        let ppu = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::PIXELS_PER_UNIT);
-        let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
-        let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
-        let ViewPoint(camera) = self.imp().transformation.camera();
-
         cr.save().unwrap();
-
-        cr.set_source_color(Color::WHITE);
+        cr.set_source_color(self.property::<Color>(Canvas::BG_COLOR));
         cr.paint().unwrap();
-        cr.set_line_width(1.5);
 
-        for &(color, step) in &[(0.9, 50.0 * scale * ppu), (0.8, 200.0 * scale * ppu)] {
-            cr.set_source_rgb(color, color, color);
-            let mut y = camera.y.rem_euclid(step).floor() + 0.5;
-            while y < height {
-                cr.move_to(0.0, y);
-                cr.line_to(width, y);
-                y += step;
+        if self.property::<bool>(Canvas::SHOW_GRID) {
+            let scale: f64 = self
+                .imp()
+                .transformation
+                .property::<f64>(Transformation::SCALE);
+            let ppu = self
+                .imp()
+                .transformation
+                .property::<f64>(Transformation::PIXELS_PER_UNIT);
+            let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
+            let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
+            let ViewPoint(camera) = self.imp().transformation.camera();
+
+            cr.set_line_width(1.5);
+
+            for &(color, step) in &[(0.9, 50.0 * scale * ppu), (0.8, 200.0 * scale * ppu)] {
+                cr.set_source_rgb(color, color, color);
+                let mut y = camera.y.rem_euclid(step).floor() + 0.5;
+                while y < height {
+                    cr.move_to(0.0, y);
+                    cr.line_to(width, y);
+                    y += step;
+                }
+                cr.stroke().unwrap();
+                let mut x = camera.x.rem_euclid(step).floor() + 0.5;
+                while x < width {
+                    cr.move_to(x, 0.0);
+                    cr.line_to(x, height);
+                    x += step;
+                }
+                cr.stroke().unwrap();
             }
-            cr.stroke().unwrap();
-            let mut x = camera.x.rem_euclid(step).floor() + 0.5;
-            while x < width {
-                cr.move_to(x, 0.0);
-                cr.line_to(x, height);
-                x += step;
-            }
-            cr.stroke().unwrap();
         }
         cr.restore().unwrap();
         Inhibit(false)

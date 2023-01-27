@@ -34,6 +34,7 @@ use std::rc::Rc;
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
 use crate::project::Project;
 use crate::unicode::blocks::*;
+use crate::utils::colors::*;
 use crate::window::Workspace;
 
 const GLYPH_BOX_WIDTH: f64 = 110.;
@@ -675,8 +676,8 @@ impl ObjectImpl for GlyphBoxInner {
                 matrix.translate((width - glyph_width) / 2., vh / 2.0);
                 matrix.scale((width * 0.8) / units_per_em, -(width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
-                    outline: (0., 0., 0., 0.),
-                    inner_fill: Some((0.35, 0.35, 0.35, 1.)),
+                    outline: Color::new_alpha(0., 0., 0., 0.),
+                    inner_fill: Some(Color::new(0.35, 0.35, 0.35)),
                     highlight: None,
                     matrix,
                     units_per_em,

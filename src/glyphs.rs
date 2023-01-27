@@ -111,8 +111,8 @@ impl Default for Glyph {
 
 #[derive(Clone, Copy)]
 pub struct GlyphDrawingOptions {
-    pub outline: (f64, f64, f64, f64),
-    pub inner_fill: Option<(f64, f64, f64, f64)>,
+    pub outline: Color,
+    pub inner_fill: Option<Color>,
     pub highlight: Option<(usize, usize)>,
     pub matrix: Matrix,
     pub units_per_em: f64,
@@ -122,7 +122,7 @@ pub struct GlyphDrawingOptions {
 impl Default for GlyphDrawingOptions {
     fn default() -> Self {
         Self {
-            outline: (1., 1., 1., 1.),
+            outline: Color::WHITE,
             inner_fill: None,
             highlight: None,
             matrix: Matrix::identity(),
@@ -223,7 +223,7 @@ impl Glyph {
         cr.set_line_width(line_width);
         cr.transform(matrix);
         //cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
-        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
+        cr.set_source_color_alpha(outline);
         let mut pen_position: Option<Point> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
             let curves = contour.imp().curves.borrow();
@@ -303,7 +303,7 @@ impl Glyph {
         if let Some(inner_fill) = inner_fill {
             cr.save().unwrap();
             cr.close_path();
-            cr.set_source_rgba(inner_fill.0, inner_fill.1, inner_fill.2, inner_fill.3);
+            cr.set_source_color_alpha(inner_fill);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.restore().expect("Invalid cairo surface state");
         }
@@ -316,7 +316,7 @@ impl Glyph {
                 .map(|contour| contour.curves().clone().borrow()[curve_idx].clone())
                 .and_then(|curv| Some((curv.degree()?, curv)))
         }) {
-            cr.set_source_rgba(1.0, 0., 0., 1.0);
+            cr.set_source_color(Color::RED);
             let point = curv.points().borrow()[0];
             cr.move_to(point.x, point.y);
             match degree {
@@ -435,7 +435,7 @@ impl Glyph {
         let ctx = gtk::cairo::Context::new(&surface)?;
 
         let options = GlyphDrawingOptions {
-            outline: (0., 0., 0., 1.),
+            outline: Color::BLACK,
             inner_fill: None,
             highlight: None,
             matrix: Matrix::new(1.0, 0.0, 0.0, -1.0, 0.0, 0.0),

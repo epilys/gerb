@@ -21,6 +21,7 @@
 
 use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::{Contour, GlyphDrawingOptions};
+use crate::utils::colors::*;
 use crate::utils::{curves::Bezier, distance_between_two_points, Point};
 use crate::views::{
     canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
@@ -281,35 +282,34 @@ impl BezierTool {
         if !t.imp().active.get() {
             return Inhibit(false);
         }
-        {
-            let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
-            let units_per_em = viewport
+        let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
+        let units_per_em = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::UNITS_PER_EM);
+        let options = GlyphDrawingOptions {
+            outline: Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
+            inner_fill: if inner_fill {
+                Some(Color::BLACK)
+            } else {
+                Some(viewport.property::<Color>(Canvas::GLYPH_INNER_FILL_COLOR))
+            },
+            highlight: obj.imp().hovering.get(),
+            matrix: viewport.imp().transformation.matrix(),
+            units_per_em,
+            line_width: obj
                 .imp()
-                .transformation
-                .property::<f64>(Transformation::UNITS_PER_EM);
-            let options = GlyphDrawingOptions {
-                outline: (0.2, 0.2, 0.2, if inner_fill { 0. } else { 0.6 }),
-                inner_fill: if inner_fill {
-                    Some((0., 0., 0., 1.))
-                } else {
-                    None
-                },
-                highlight: obj.imp().hovering.get(),
-                matrix: viewport.imp().transformation.matrix(),
-                units_per_em,
-                line_width: obj
-                    .imp()
-                    .settings
-                    .get()
-                    .unwrap()
-                    .property::<f64>(crate::Settings::LINE_WIDTH),
-            };
-            t.imp().state.borrow().draw(
-                cr,
-                options,
-                viewport.view_to_unit_point(viewport.get_mouse()).0,
-            );
-        }
+                .settings
+                .get()
+                .unwrap()
+                .property::<f64>(crate::Settings::LINE_WIDTH),
+        };
+        t.imp().state.borrow().draw(
+            viewport,
+            cr,
+            options,
+            viewport.view_to_unit_point(viewport.get_mouse()).0,
+        );
 
         Inhibit(true)
     }
@@ -438,7 +438,13 @@ impl State {
         }
     }
 
-    pub fn draw(&self, cr: &Context, options: GlyphDrawingOptions, cursor_position: Point) {
+    pub fn draw(
+        &self,
+        _viewport: &Canvas,
+        cr: &Context,
+        options: GlyphDrawingOptions,
+        cursor_position: Point,
+    ) {
         let first_point = match self.first_point {
             Some(v) => v,
             None => return,
@@ -455,7 +461,7 @@ impl State {
         cr.save().expect("Invalid cairo surface state");
         cr.transform(matrix);
         cr.set_line_width(line_width);
-        cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
+        cr.set_source_color_alpha(outline);
         let draw_endpoint = |p: (f64, f64)| {
             cr.rectangle(p.0 - 2.5, p.1 - 2.5, 5., 5.);
             cr.stroke().expect("Invalid cairo surface state");
@@ -536,7 +542,7 @@ impl State {
             cr.move_to(pos.0, pos.1);
         }
         let (pos_x, pos_y) = p_fn(cursor_position);
-        cr.set_source_rgba(outline.0, outline.1, outline.2, 0.5 * outline.3);
+        //cr.set_source_color_alpha(outline.0, outline.1, outline.2, 0.5 * outline.3);
         match self.current_curve.degree() {
             None => {
                 cr.line_to(pos_x, pos_y);

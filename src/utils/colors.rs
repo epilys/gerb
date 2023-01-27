@@ -47,6 +47,10 @@ impl Color {
     pub fn try_parse(s: &str) -> Option<Self> {
         Some(Self(gdk::RGBA::parse(s).ok()?))
     }
+
+    pub fn try_from_hex(s: &str) -> Option<Self> {
+        hex_color_to_rgb(s).map(|(r, g, b)| Color::new(r, g, b))
+    }
 }
 
 impl Default for Color {

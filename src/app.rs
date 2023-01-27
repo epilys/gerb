@@ -122,11 +122,11 @@ impl GerbApp {
         application.set_accels_for_action("app.about", &["question", "F1"]);
         application.set_accels_for_action("app.undo", &["<Primary>Z"]);
         application.set_accels_for_action("app.redo", &["<Primary>R"]);
-        application.set_accels_for_action("edit.show-grid", &["<Primary>G"]);
-        application.set_accels_for_action("edit.show-guidelines", &["<Primary><Shift>G"]);
-        application.set_accels_for_action("edit.show-handles", &["<Primary><Shift>H"]);
-        application.set_accels_for_action("edit.inner-fill", &["<Primary><Shift>I"]);
-        application.set_accels_for_action("edit.show-total-area", &["<Primary><Shift>T"]);
+        application.set_accels_for_action("view.show-grid", &["<Primary>G"]);
+        application.set_accels_for_action("view.show-guidelines", &["<Primary><Shift>G"]);
+        application.set_accels_for_action("view.show-handles", &["<Primary><Shift>H"]);
+        application.set_accels_for_action("view.inner-fill", &["<Primary><Shift>I"]);
+        application.set_accels_for_action("view.show-total-area", &["<Primary><Shift>T"]);
         application.set_accels_for_action("view.zoom.in", &["<Primary>plus", "plus"]);
         application.set_accels_for_action("view.zoom.out", &["<Primary>minus", "minus"]);
         let window = self.imp().window.upcast_ref::<gtk::Window>();

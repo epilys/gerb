@@ -20,6 +20,7 @@
  */
 
 use super::*;
+use crate::utils::colors::*;
 
 pub fn draw_glyph_layer(
     viewport: &Canvas,
@@ -66,7 +67,7 @@ pub fn draw_glyph_layer(
 
     if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
         /* Draw em square of units_per_em units: */
-        cr.set_source_rgba(210.0 / 255.0, 227.0 / 255.0, 252.0 / 255.0, 0.6);
+        cr.set_source_color(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
         cr.rectangle(
             0.0,
             0.0,
@@ -79,11 +80,11 @@ pub fn draw_glyph_layer(
 
     {
         let options = GlyphDrawingOptions {
-            outline: (0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 }),
+            outline: Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 }),
             inner_fill: if inner_fill {
-                Some((0.0, 0.0, 0.0, 1.))
+                Some(Color::BLACK)
             } else {
-                None
+                Some(viewport.property::<Color>(Canvas::GLYPH_INNER_FILL_COLOR))
             },
             highlight: obj.imp().hovering.get(),
             matrix: Matrix::identity(),
