@@ -313,7 +313,14 @@ impl Glyph {
         if let Some((degree, curv)) = highlight.and_then(|(contour_idx, curve_idx)| {
             self.contours
                 .get(contour_idx)
-                .map(|contour| contour.curves().clone().borrow()[curve_idx].clone())
+                .and_then(|contour| {
+                    contour
+                        .curves()
+                        .clone()
+                        .borrow()
+                        .get(curve_idx)
+                        .map(Clone::clone)
+                })
                 .and_then(|curv| Some((curv.degree()?, curv)))
         }) {
             cr.set_source_color(Color::RED);

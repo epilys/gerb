@@ -70,25 +70,17 @@ impl Contour {
                 let beta = beta.y;
                 continuities.push(Continuity::Tangent { beta });
             }
-            (&[_, _, p2, p3_1], &[p3_2, p4, _, _]) if p3_1 == p3_2 && p4 == 2.0 * p3_1 - p2 => {
+            (&[_, _, p2, p3_1], &[p3_2, p4, _, _])
+            | (&[_, p2, p3_1], &[p3_2, p4, _, _])
+            | (&[_, p2, p3_1], &[p3_2, p4, _])
+            | (&[_, _, p2, p3_1], &[p3_2, p4, _])
+                if p3_1 == p3_2 && p4 == 2.0 * p3_1 - p2 =>
+            {
                 continuities.push(Continuity::Velocity);
             }
-            (&[_, _, _, p1], &[p2, _, _, _]) if p1 == p2 => {
+            _ => {
                 continuities.push(Continuity::Positional);
             }
-            (&[_, p1], &[p2, _]) if p1 == p2 => {
-                continuities.push(Continuity::Positional);
-            }
-            (&[_, p1], &[p2, _, _]) if p1 == p2 => {
-                continuities.push(Continuity::Positional);
-            }
-            (&[_, _, _, p1], &[p2, _]) if p1 == p2 => {
-                continuities.push(Continuity::Positional);
-            }
-            (&[_, p1], &[p2, _, _, _]) if p1 == p2 => {
-                continuities.push(Continuity::Positional);
-            }
-            _ => panic!("prev {:#?} curr {:#?}", prev, curr),
         }
         drop(curr);
         drop(prev);

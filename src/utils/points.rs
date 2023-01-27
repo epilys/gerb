@@ -60,6 +60,18 @@ impl Point {
             uuid: self.uuid,
         }
     }
+
+    pub fn mirror(&self, c: Self) -> Self {
+        let line = Line::from_two_points(*self, c);
+        let perp = line.perpendicular(c);
+
+        let (x, y) = (self.x, self.y);
+        let Line { a, b, c } = perp;
+        let b2a = (b * b) / a;
+        let mx = (b2a * x - c - b * y) / (a + b2a);
+        let my = (-a * mx - c) / b;
+        (2.0 * mx - x, 2.0 * my - y).into()
+    }
 }
 
 impl PartialEq for Point {
@@ -212,5 +224,39 @@ impl Eq for IPoint {}
 impl PartialOrd for IPoint {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[derive(Clone, Debug, Default, Copy)]
+pub struct Line {
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+}
+
+impl Line {
+    pub fn from_two_points(point_a: Point, point_b: Point) -> Self {
+        let (xa, ya) = (point_a.x, point_a.y);
+        let (xb, yb) = (point_b.x, point_b.y);
+        let a = yb - ya;
+        let b = xa - xb;
+        let c = xb * ya - xa * yb;
+        let mut ret = [a, b, c];
+        while ret.iter().any(|i| *i == 0.0) {
+            ret[0] += 1.0;
+            ret[1] += 1.0;
+            ret[2] += 1.0;
+        }
+        let [a, b, c] = ret;
+        Self { a, b, c }
+    }
+
+    pub fn perpendicular(self: Line, p: Point) -> Self {
+        let Self { a, b, c: _ } = self;
+        Self {
+            a: b,
+            b: -1.0 * a,
+            c: a * p.y - b * p.x,
+        }
     }
 }

@@ -212,7 +212,7 @@ impl GlyphState {
                             }
                             1 => {}
                             0 => {}
-                            _ => unreachable!(), //FIXME
+                            d => unreachable!("degree {d}"), //FIXME
                         }
                     }
                 }),

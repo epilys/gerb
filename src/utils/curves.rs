@@ -20,14 +20,16 @@
  */
 
 use super::Point;
+use glib::prelude::*;
 use gtk::glib;
+use gtk::prelude::ToValue;
 use gtk::subclass::prelude::*;
 use std::cell::RefCell;
 use std::cell::{Cell, Ref};
 use std::rc::Rc;
 
 glib::wrapper! {
-    pub struct Bezier(ObjectSubclass<imp::Bezier>);
+    pub struct Bezier(ObjectSubclass<BezierInner>);
 }
 
 impl Bezier {
@@ -36,130 +38,128 @@ impl Bezier {
     }
 }
 
-pub use imp::Continuity;
+/// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
+/// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
+#[derive(Clone, Debug, Default, Copy, glib::Boxed)]
+#[boxed_type(name = "Continuity", nullable)]
+pub enum Continuity {
+    /// C0 / G0 (positional continuity) requires that they meet at the same point, which all
+    /// Bézier splines do by definition. In this example, the shared point is P3
+    #[default]
+    Positional,
+    /// C1 (velocity continuity) requires the neighboring control points around the join to be
+    /// mirrors of each other. In other words, they must follow the constraint of P4 = 2P3 − P2
+    Velocity,
+    /// G1 (tangent continuity) requires the neighboring control points to be collinear with
+    /// the join. This is less strict than C1 continuity, leaving an extra degree of freedom
+    /// which can be parameterized using a scalar β. The constraint can then be expressed by P4
+    /// = P3 + (P3 − P2)β
+    Tangent { beta: f64 },
+}
 
-mod imp {
-    use super::*;
-    use gtk::prelude::ToValue;
+#[derive(Default)]
+pub struct BezierInner {
+    pub smooth: Cell<bool>,
+    pub points: Rc<RefCell<Vec<Point>>>,
+    pub lut: Rc<RefCell<Vec<Point>>>,
+}
 
-    use glib;
-    use glib::prelude::*;
+impl std::fmt::Debug for BezierInner {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("Bezier")
+            .field("degree", &{
+                let points = self.points.borrow();
+                if points.is_empty() {
+                    None
+                } else {
+                    Some(points.len() - 1)
+                }
+            })
+            .field("smooth", &self.smooth.get())
+            .field("points", &self.points)
+            .field("lut entries", &self.lut.borrow().len())
+            .finish()
+    }
+}
 
-    /// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
-    /// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
-    #[derive(Clone, Debug, Default, Copy, glib::Boxed)]
-    #[boxed_type(name = "Continuity", nullable)]
-    pub enum Continuity {
-        /// C0 / G0 (positional continuity) requires that they meet at the same point, which all
-        /// Bézier splines do by definition. In this example, the shared point is P3
-        #[default]
-        Positional,
-        /// C1 (velocity continuity) requires the neighboring control points around the join to be
-        /// mirrors of each other. In other words, they must follow the constraint of P4 = 2P3 − P2
-        Velocity,
-        /// G1 (tangent continuity) requires the neighboring control points to be collinear with
-        /// the join. This is less strict than C1 continuity, leaving an extra degree of freedom
-        /// which can be parameterized using a scalar β. The constraint can then be expressed by P4
-        /// = P3 + (P3 − P2)β
-        Tangent { beta: f64 },
+#[glib::object_subclass]
+impl ObjectSubclass for BezierInner {
+    const NAME: &'static str = "Bezier";
+    type Type = Bezier;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+impl ObjectImpl for BezierInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.smooth.set(true);
     }
 
-    #[derive(Default)]
-    pub struct Bezier {
-        pub smooth: Cell<bool>,
-        pub points: Rc<RefCell<Vec<Point>>>,
-        pub lut: Rc<RefCell<Vec<Point>>>,
-    }
-
-    impl std::fmt::Debug for Bezier {
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("Bezier")
-                .field("smooth", &self.smooth.get())
-                .field("points", &self.points)
-                .field("lut entries", &self.lut.borrow().len())
-                .finish()
-        }
-    }
-
-    #[glib::object_subclass]
-    impl ObjectSubclass for Bezier {
-        const NAME: &'static str = "Bezier";
-        type Type = super::Bezier;
-        type ParentType = glib::Object;
-        type Interfaces = ();
-    }
-
-    impl ObjectImpl for Bezier {
-        fn constructed(&self, obj: &Self::Type) {
-            self.parent_constructed(obj);
-            self.smooth.set(true);
-        }
-
-        fn properties() -> &'static [glib::ParamSpec] {
-            static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
-                once_cell::sync::Lazy::new(|| {
-                    vec![
-                        glib::ParamSpecBoolean::new(
-                            super::Bezier::SMOOTH,
-                            super::Bezier::SMOOTH,
-                            super::Bezier::SMOOTH,
-                            true,
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    glib::ParamSpecBoolean::new(
+                        Bezier::SMOOTH,
+                        Bezier::SMOOTH,
+                        Bezier::SMOOTH,
+                        true,
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecValueArray::new(
+                        Bezier::POINTS,
+                        Bezier::POINTS,
+                        Bezier::POINTS,
+                        &glib::ParamSpecBoxed::new(
+                            Bezier::POINT,
+                            Bezier::POINT,
+                            Bezier::POINT,
+                            Point::static_type(),
                             glib::ParamFlags::READWRITE,
                         ),
-                        glib::ParamSpecValueArray::new(
-                            super::Bezier::POINTS,
-                            super::Bezier::POINTS,
-                            super::Bezier::POINTS,
-                            &glib::ParamSpecBoxed::new(
-                                super::Bezier::POINT,
-                                super::Bezier::POINT,
-                                super::Bezier::POINT,
-                                Point::static_type(),
-                                glib::ParamFlags::READWRITE,
-                            ),
-                            glib::ParamFlags::READWRITE,
-                        ),
-                    ]
-                });
-            PROPERTIES.as_ref()
-        }
+                        glib::ParamFlags::READWRITE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
+    }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
-            match pspec.name() {
-                super::Bezier::SMOOTH => self.smooth.get().to_value(),
-                super::Bezier::POINTS => {
-                    let points = self.points.borrow();
-                    let mut ret = glib::ValueArray::new(points.len() as u32);
-                    for p in points.iter() {
-                        ret.append(&p.to_value());
-                    }
-                    ret.to_value()
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        match pspec.name() {
+            Bezier::SMOOTH => self.smooth.get().to_value(),
+            Bezier::POINTS => {
+                let points = self.points.borrow();
+                let mut ret = glib::ValueArray::new(points.len() as u32);
+                for p in points.iter() {
+                    ret.append(&p.to_value());
                 }
-                _ => unimplemented!("{}", pspec.name()),
+                ret.to_value()
             }
+            _ => unimplemented!("{}", pspec.name()),
         }
+    }
 
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            value: &glib::Value,
-            pspec: &glib::ParamSpec,
-        ) {
-            match pspec.name() {
-                super::Bezier::SMOOTH => {
-                    self.smooth.set(value.get().unwrap());
-                }
-                super::Bezier::POINTS => {
-                    let arr: glib::ValueArray = value.get().unwrap();
-                    let mut points = self.points.borrow_mut();
-                    points.clear();
-                    for p in arr.iter() {
-                        points.push(p.get().unwrap());
-                    }
-                }
-                _ => unimplemented!("{}", pspec.name()),
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        match pspec.name() {
+            Bezier::SMOOTH => {
+                self.smooth.set(value.get().unwrap());
             }
+            Bezier::POINTS => {
+                let arr: glib::ValueArray = value.get().unwrap();
+                let mut points = self.points.borrow_mut();
+                points.clear();
+                for p in arr.iter() {
+                    points.push(p.get().unwrap());
+                }
+            }
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
@@ -308,5 +308,35 @@ impl Bezier {
             return false;
         }
         (t / hits.len() as f64) != 0.0
+    }
+
+    pub fn clean_up(&self) {
+        match self.degree() {
+            Some(3) => {
+                let mut pts = self.points().borrow_mut();
+                if pts[0] == pts[1] && pts[2] == pts[3] {
+                    self.imp().lut.borrow_mut().clear();
+                    // Make quadratic
+                    let a = pts[0];
+                    let b = pts[3];
+                    pts.clear();
+                    pts.push(a);
+                    pts.push(b);
+                }
+            }
+            Some(2) => {
+                let mut pts = self.points().borrow_mut();
+                if pts[0] == pts[1] || pts[1] == pts[2] {
+                    self.imp().lut.borrow_mut().clear();
+                    // Make quadratic
+                    let a = pts[0];
+                    let b = pts[2];
+                    pts.clear();
+                    pts.push(a);
+                    pts.push(b);
+                }
+            }
+            _ => {}
+        }
     }
 }
