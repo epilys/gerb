@@ -139,14 +139,12 @@ impl GerbApp {
         about.connect_activate(glib::clone!(@weak window => move |_, _| {
             let p = gtk::AboutDialog::new();
             p.set_program_name("gerb");
-            //p.set_logo(Some(&gtk::gdk_pixbuf::Pixbuf::from_xpm_data(
-            //            ICON,
-            //)));
+            p.set_logo(crate::resources::svg_to_pixbuf(crate::resources::G_GLYPH_SVG).as_ref());
             p.set_website_label(Some("https://github.com/epilys/gerb"));
             p.set_website(Some("https://github.com/epilys/gerb"));
             p.set_authors(&["Manos Pitsidianakis"]);
             p.set_copyright(Some("2022 - Manos Pitsidianakis"));
-            p.set_title("About Gerb");
+            p.set_title("About gerb");
             p.set_license_type(gtk::License::Gpl30);
             p.set_transient_for(Some(&window));
             p.set_comments(Some(""));

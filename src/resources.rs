@@ -21,6 +21,8 @@
 
 use gtk::prelude::WidgetExt;
 
+pub const G_GLYPH_SVG: &str = include_str!("./resources/g.svg");
+
 pub const SELECT_ICON_SVG: &str = include_str!("./resources/select-icon-small.svg");
 
 pub const GRAB_ICON_SVG: &str = include_str!("./resources/grab-icon-small.svg");
