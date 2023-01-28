@@ -65,17 +65,6 @@ pub fn draw_glyph_layer(
 
     cr.restore().unwrap();
 
-    if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
-        /* Draw em square of units_per_em units: */
-        cr.set_source_color(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
-        cr.rectangle(
-            0.0,
-            0.0,
-            glyph_state.glyph.borrow().width.unwrap_or(units_per_em),
-            1000.0,
-        );
-        cr.fill().unwrap();
-    }
     /* Draw the glyph */
 
     {
@@ -164,9 +153,33 @@ pub fn draw_glyph_layer(
 }
 
 pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
+    let glyph_state = obj.imp().glyph_state.get().unwrap();
+    let matrix = viewport.imp().transformation.matrix();
+    let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
+    cr.save().unwrap();
+
+    if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
+        cr.save().unwrap();
+        cr.transform(matrix);
+
+        /* Draw em square of units_per_em units: */
+        cr.set_source_color(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
+        cr.rectangle(
+            0.0,
+            0.0,
+            glyph_state
+                .borrow()
+                .glyph
+                .borrow()
+                .width
+                .unwrap_or(units_per_em),
+            1000.0,
+        );
+        cr.fill().unwrap();
+        cr.restore().unwrap();
+    }
+
     if viewport.property::<bool>(Canvas::SHOW_GUIDELINES) {
-        let glyph_state = obj.imp().glyph_state.get().unwrap();
-        let matrix = viewport.imp().transformation.matrix();
         let scale: f64 = viewport
             .imp()
             .transformation
@@ -179,7 +192,6 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
-        cr.save().unwrap();
         cr.set_line_width(
             obj.imp()
                 .settings
@@ -187,7 +199,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 .unwrap()
                 .property(Settings::GUIDELINE_WIDTH),
         );
-        let (width, height) = ((width * scale) * ppu, (height * scale) * ppu);
+        let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
         let glyph_state_ref = glyph_state.borrow();
         for g in glyph_state_ref.glyph.borrow().guidelines.iter().chain(
             obj.imp()
@@ -200,7 +212,8 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 .iter(),
         ) {
             let highlight = g.imp().on_line_query(unit_mouse, None);
-            g.imp().draw(cr, matrix, (width, height), highlight);
+            g.imp()
+                .draw(cr, matrix, (unit_width, unit_height), highlight);
             if highlight {
                 cr.move_to(mouse.0.x, mouse.0.y);
                 let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
@@ -217,10 +230,25 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                     cr.move_to(mouse.0.x, mouse.0.y + (i + 1) as f64 * line_height);
                     cr.show_text(&line).unwrap();
                 }
+            } else if g.angle() == 0.0 {
+                cr.save().unwrap();
+                cr.set_source_color(Color::try_from_hex("#bbbaae").unwrap());
+                let ViewPoint(Point { y, .. }) =
+                    viewport.unit_to_view_point(UnitPoint((0.0, g.y()).into()));
+                let label = if let Some(name) = g.name().as_deref() {
+                    format!("{name} ({})", g.y())
+                } else {
+                    format!("{}", g.y())
+                };
+                let extents = cr.text_extents(&label).unwrap();
+                cr.move_to(width - 2.5 - extents.width, y - 0.5);
+                cr.show_text(&label).unwrap();
+                cr.restore().unwrap();
+            } else if g.angle() == 90.0 {
             }
             cr.stroke().unwrap();
         }
-        cr.restore().unwrap();
     }
+    cr.restore().unwrap();
     Inhibit(false)
 }
