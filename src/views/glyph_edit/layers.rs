@@ -180,6 +180,9 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
     }
 
     if viewport.property::<bool>(Canvas::SHOW_GUIDELINES) {
+        let show_glyph_guidelines = obj.property::<bool>(GlyphEditView::SHOW_GLYPH_GUIDELINES);
+        let show_project_guidelines = obj.property::<bool>(GlyphEditView::SHOW_PROJECT_GUIDELINES);
+        let show_metrics_guidelines = obj.property::<bool>(GlyphEditView::SHOW_METRICS_GUIDELINES);
         let scale: f64 = viewport
             .imp()
             .transformation
@@ -201,16 +204,35 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         );
         let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
         let glyph_state_ref = glyph_state.borrow();
-        for g in glyph_state_ref.glyph.borrow().guidelines.iter().chain(
-            obj.imp()
-                .project
-                .get()
-                .unwrap()
-                .imp()
-                .guidelines
-                .borrow()
-                .iter(),
-        ) {
+        for g in glyph_state_ref
+            .glyph
+            .borrow()
+            .guidelines
+            .iter()
+            .filter(|_| show_glyph_guidelines)
+            .chain(
+                obj.imp()
+                    .project
+                    .get()
+                    .unwrap()
+                    .imp()
+                    .guidelines
+                    .borrow()
+                    .iter()
+                    .filter(|_| show_project_guidelines),
+            )
+            .chain(
+                obj.imp()
+                    .project
+                    .get()
+                    .unwrap()
+                    .imp()
+                    .metric_guidelines
+                    .borrow()
+                    .iter()
+                    .filter(|_| show_metrics_guidelines),
+            )
+        {
             let highlight = g.imp().on_line_query(unit_mouse, None);
             g.imp()
                 .draw(cr, matrix, (unit_width, unit_height), highlight);

@@ -473,6 +473,9 @@ pub struct GlyphEditViewInner {
     cap_height: Cell<f64>,
     ascender: Cell<f64>,
     lock_guidelines: Cell<bool>,
+    show_glyph_guidelines: Cell<bool>,
+    show_project_guidelines: Cell<bool>,
+    show_metrics_guidelines: Cell<bool>,
     settings: OnceCell<Settings>,
     menubar: gtk::MenuBar,
 }
@@ -487,6 +490,10 @@ impl ObjectSubclass for GlyphEditViewInner {
 impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.lock_guidelines.set(true);
+        self.show_glyph_guidelines.set(true);
+        self.show_project_guidelines.set(true);
+        self.show_metrics_guidelines.set(true);
         let menumodel = gio::Menu::new();
         let glyph_menu = gio::Menu::new();
         glyph_menu.append(Some("Properties"), Some("glyph.properties"));
@@ -504,7 +511,23 @@ impl ObjectImpl for GlyphEditViewInner {
         menumodel.append_submenu(Some("_Contour"), &contour_menu);
         let guideline_menu = gio::Menu::new();
         guideline_menu.append(Some("Properties"), Some("glyph.guideline.properties"));
-        menumodel.append_submenu(Some("_Guideline"), &guideline_menu);
+        let view_guideline_menu = gio::Menu::new();
+        view_guideline_menu.append(Some("Show guidelines"), Some("glyph.guideline.show"));
+        view_guideline_menu.append(
+            Some("Show glyph guidelines"),
+            Some("glyph.guideline.show.glyph"),
+        );
+        view_guideline_menu.append(
+            Some("Show project guidelines"),
+            Some("glyph.guideline.show.project"),
+        );
+        view_guideline_menu.append(
+            Some("Show metrics guidelines"),
+            Some("glyph.guideline.show.metrics"),
+        );
+        view_guideline_menu.append(Some("Lock guidelines"), Some("glyph.guideline.lock"));
+        guideline_menu.append_section(None, &view_guideline_menu);
+        menumodel.append_submenu(Some("_Guidelines"), &guideline_menu);
         let layer_menu = gio::Menu::new();
         layer_menu.append(Some("Properties"), Some("glyph.layer.properties"));
         menumodel.append_submenu(Some("_Layers"), &layer_menu);
@@ -526,6 +549,36 @@ impl ObjectImpl for GlyphEditViewInner {
                 obj.make_debug_window();
             }));
             action_map.add_action(&inspect);
+            let show_action = gtk::gio::PropertyAction::new(
+                "guideline.show",
+                &obj.imp().viewport,
+                Canvas::SHOW_GUIDELINES,
+            );
+            action_map.add_action(&show_action);
+            let prop_action = gtk::gio::PropertyAction::new(
+                "guideline.show.glyph",
+                obj,
+                GlyphEditView::SHOW_GLYPH_GUIDELINES,
+            );
+            action_map.add_action(&prop_action);
+            let prop_action = gtk::gio::PropertyAction::new(
+                "guideline.show.project",
+                obj,
+                GlyphEditView::SHOW_PROJECT_GUIDELINES,
+            );
+            action_map.add_action(&prop_action);
+            let prop_action = gtk::gio::PropertyAction::new(
+                "guideline.show.metrics",
+                obj,
+                GlyphEditView::SHOW_METRICS_GUIDELINES,
+            );
+            action_map.add_action(&prop_action);
+            let prop_action = gtk::gio::PropertyAction::new(
+                "guideline.lock",
+                obj,
+                GlyphEditView::LOCK_GUIDELINES,
+            );
+            action_map.add_action(&prop_action);
             #[cfg(feature = "svg")]
             let export_svg = gtk::gio::SimpleAction::new("export.svg", None);
             #[cfg(feature = "svg")]
@@ -565,7 +618,6 @@ impl ObjectImpl for GlyphEditViewInner {
             self.menubar.insert_action_group("glyph", Some(&action_map));
             self.menubar.bind_model(Some(&menumodel), None, true);
         }
-        self.lock_guidelines.set(true);
         self.statusbar_context_id.set(None);
         self.viewport.set_mouse(ViewPoint((0.0, 0.0).into()));
 
@@ -801,6 +853,27 @@ impl ObjectImpl for GlyphEditViewInner {
                         false,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        GlyphEditView::SHOW_GLYPH_GUIDELINES,
+                        GlyphEditView::SHOW_GLYPH_GUIDELINES,
+                        GlyphEditView::SHOW_GLYPH_GUIDELINES,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoolean::new(
+                        GlyphEditView::SHOW_PROJECT_GUIDELINES,
+                        GlyphEditView::SHOW_PROJECT_GUIDELINES,
+                        GlyphEditView::SHOW_PROJECT_GUIDELINES,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecBoolean::new(
+                        GlyphEditView::SHOW_METRICS_GUIDELINES,
+                        GlyphEditView::SHOW_METRICS_GUIDELINES,
+                        GlyphEditView::SHOW_METRICS_GUIDELINES,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
                     glib::ParamSpecObject::new(
                         GlyphEditView::ACTIVE_TOOL,
                         GlyphEditView::ACTIVE_TOOL,
@@ -849,6 +922,9 @@ impl ObjectImpl for GlyphEditViewInner {
             GlyphEditView::DESCENDER => self.descender.get().to_value(),
             GlyphEditView::CAP_HEIGHT => self.cap_height.get().to_value(),
             GlyphEditView::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
+            GlyphEditView::SHOW_GLYPH_GUIDELINES => self.show_glyph_guidelines.get().to_value(),
+            GlyphEditView::SHOW_PROJECT_GUIDELINES => self.show_project_guidelines.get().to_value(),
+            GlyphEditView::SHOW_METRICS_GUIDELINES => self.show_metrics_guidelines.get().to_value(),
             GlyphEditView::ACTIVE_TOOL => {
                 let state = self.glyph_state.get().unwrap().borrow();
                 let active_tool = state.active_tool;
@@ -883,6 +959,15 @@ impl ObjectImpl for GlyphEditViewInner {
             }
             GlyphEditView::LOCK_GUIDELINES => {
                 self.lock_guidelines.set(value.get().unwrap());
+            }
+            GlyphEditView::SHOW_GLYPH_GUIDELINES => {
+                self.show_glyph_guidelines.set(value.get().unwrap());
+            }
+            GlyphEditView::SHOW_PROJECT_GUIDELINES => {
+                self.show_project_guidelines.set(value.get().unwrap());
+            }
+            GlyphEditView::SHOW_METRICS_GUIDELINES => {
+                self.show_metrics_guidelines.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -941,6 +1026,9 @@ impl GlyphEditView {
     pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
     pub const X_HEIGHT: &str = Project::X_HEIGHT;
     pub const LOCK_GUIDELINES: &str = "lock-guidelines";
+    pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
+    pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";
+    pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
 
