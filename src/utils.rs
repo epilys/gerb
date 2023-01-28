@@ -34,6 +34,8 @@ pub use points::{IPoint, Point};
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
 
+pub const UI_EDITABLE: glib::ParamFlags = glib::ParamFlags::USER_1;
+
 pub fn draw_round_rectangle(
     cr: &Context,
     p: Point,
@@ -119,52 +121,77 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
         1,
         1,
     );
-    for (row, prop) in obj.list_properties().as_slice().iter().enumerate() {
+    grid.attach(
+        &gtk::Separator::builder()
+            .expand(true)
+            .visible(true)
+            .vexpand(false)
+            .valign(gtk::Align::Start)
+            .build(),
+        0,
+        1,
+        2,
+        1,
+    );
+    for (row, prop) in obj
+        .list_properties()
+        .as_slice()
+        .iter()
+        .filter(|p| {
+            p.flags()
+                .contains(glib::ParamFlags::READWRITE | glib::ParamFlags::USER_1)
+                && p.owner_type() == obj.type_()
+        })
+        .enumerate()
+    {
         grid.attach(
             &gtk::Label::builder()
                 .label(prop.name())
                 .visible(true)
                 .build(),
             0,
-            row as i32 + 1,
+            row as i32 + 2,
             1,
             1,
         );
-        grid.attach(
-            &get_widget_for_value(&obj, prop.name()),
-            1,
-            row as i32 + 1,
-            1,
-            1,
-        );
+        grid.attach(&get_widget_for_value(&obj, prop), 1, row as i32 + 2, 1, 1);
     }
     grid
 }
 
-pub fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
-    let val: glib::Value = obj.property(property);
+pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> gtk::Widget {
+    let val: glib::Value = obj.property(property.name());
+    let readwrite = property.flags().contains(glib::ParamFlags::READWRITE);
+    let flags = if readwrite {
+        glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE
+    } else {
+        glib::BindingFlags::SYNC_CREATE
+    };
     match val.type_().name() {
         "gboolean" => {
             let val = val.get::<bool>().unwrap();
-            let entry = gtk::CheckButton::builder()
+            let entry = gtk::Switch::builder()
                 .visible(true)
                 .active(val)
+                .sensitive(readwrite)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Start)
                 .build();
-            entry
-                .bind_property("active", obj, property)
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+            obj.bind_property(property.name(), &entry, "active")
+                .flags(flags)
                 .build();
 
             entry.upcast()
         }
         "gchararray" => {
             let val = val.get::<Option<String>>().unwrap().unwrap_or_default();
-            let entry = gtk::Entry::builder().visible(true).build();
+            let entry = gtk::Entry::builder()
+                .visible(true)
+                .sensitive(readwrite)
+                .build();
             entry.buffer().set_text(&val);
-            entry
-                .buffer()
-                .bind_property("text", obj, property)
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+            obj.bind_property(property.name(), &entry.buffer(), "text")
+                .flags(flags)
                 .build();
 
             entry.upcast()
@@ -172,22 +199,42 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
         "gint64" => {
             let val = val.get::<i64>().unwrap();
             let entry = gtk::Entry::builder()
+                .sensitive(readwrite)
                 .input_purpose(gtk::InputPurpose::Number)
                 .visible(true)
                 .build();
             entry.buffer().set_text(&val.to_string());
-            entry
-                .buffer()
-                .bind_property("text", obj, property)
-                .transform_to(|_, value| {
+            obj.bind_property(property.name(), &entry.buffer(), "text")
+                .transform_from(|_, value| {
                     let number = value.get::<String>().ok()?;
                     Some(number.parse::<i64>().ok()?.to_value())
                 })
-                .transform_from(|_, value| {
+                .transform_to(|_, value| {
                     let number = value.get::<i64>().ok()?;
                     Some(number.to_string().to_value())
                 })
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .flags(flags)
+                .build();
+            entry.upcast()
+        }
+        "guint64" => {
+            let val = val.get::<u64>().unwrap();
+            let entry = gtk::Entry::builder()
+                .sensitive(readwrite)
+                .input_purpose(gtk::InputPurpose::Number)
+                .visible(true)
+                .build();
+            entry.buffer().set_text(&val.to_string());
+            obj.bind_property(property.name(), &entry.buffer(), "text")
+                .transform_from(|_, value| {
+                    let number = value.get::<String>().ok()?;
+                    Some(number.parse::<u64>().ok()?.to_value())
+                })
+                .transform_to(|_, value| {
+                    let number = value.get::<u64>().ok()?;
+                    Some(number.to_string().to_value())
+                })
+                .flags(flags)
                 .build();
             entry.upcast()
         }
@@ -195,27 +242,46 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &str) -> gtk::Widget {
             let val = val.get::<f64>().unwrap();
             let entry = gtk::Entry::builder()
                 .input_purpose(gtk::InputPurpose::Number)
+                .sensitive(readwrite)
                 .visible(true)
                 .build();
             entry.buffer().set_text(&val.to_string());
-            entry
-                .buffer()
-                .bind_property("text", obj, property)
-                .transform_to(|_, value| {
+            obj.bind_property(property.name(), &entry.buffer(), "text")
+                .transform_from(|_, value| {
                     let number = value.get::<String>().ok()?;
                     Some(number.parse::<f64>().ok()?.to_value())
                 })
-                .transform_from(|_, value| {
+                .transform_to(|_, value| {
                     let number = value.get::<f64>().ok()?;
                     Some(number.to_string().to_value())
                 })
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                .flags(flags)
                 .build();
+            entry.upcast()
+        }
+        "Color" => {
+            let val = val.get::<Color>().unwrap();
+            let entry = gtk::ColorButton::builder()
+                .rgba(&val.into())
+                .sensitive(readwrite)
+                .visible(true)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Start)
+                .show_editor(true)
+                .build();
+            entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
+                let new_val = self_.rgba();
+                _ = obj.try_set_property::<Color>(property.name(), new_val.into());
+            }));
             entry.upcast()
         }
         _other => gtk::Label::builder()
             .label(&format!("{:?}", val))
             .visible(true)
+            .width_chars(5)
+            .halign(gtk::Align::Start)
+            .valign(gtk::Align::Start)
+            .wrap(true)
             .build()
             .upcast(),
     }

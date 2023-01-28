@@ -34,6 +34,7 @@ pub mod resources;
 pub mod ufo;
 pub mod unicode;
 pub mod utils;
+pub(crate) use utils::UI_EDITABLE;
 pub mod views;
 pub mod window;
 use app::GerbApp;

@@ -211,7 +211,7 @@ impl ObjectImpl for SettingsInner {
                         2.0,
                         10.0,
                         SettingsInner::HANDLE_SIZE_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Settings::LINE_WIDTH,
@@ -220,7 +220,7 @@ impl ObjectImpl for SettingsInner {
                         2.0,
                         10.0,
                         SettingsInner::LINE_WIDTH_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Settings::GUIDELINE_WIDTH,
@@ -229,14 +229,14 @@ impl ObjectImpl for SettingsInner {
                         0.0001,
                         10.0,
                         SettingsInner::GUIDELINE_WIDTH_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         SettingsInner::WARP_CURSOR_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                 ]
             });

@@ -170,28 +170,28 @@ impl ObjectImpl for CanvasInner {
                         Canvas::SHOW_GRID,
                         Canvas::SHOW_GRID,
                         CanvasInner::SHOW_GRID_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GUIDELINES,
                         Canvas::SHOW_GUIDELINES,
                         Canvas::SHOW_GUIDELINES,
                         CanvasInner::SHOW_GUIDELINES_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_HANDLES,
                         Canvas::SHOW_HANDLES,
                         Canvas::SHOW_HANDLES,
                         CanvasInner::SHOW_HANDLES_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::INNER_FILL,
                         Canvas::INNER_FILL,
                         Canvas::INNER_FILL,
                         CanvasInner::INNER_FILL_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecObject::new(
                         Canvas::TRANSFORMATION,
@@ -205,21 +205,21 @@ impl ObjectImpl for CanvasInner {
                         Canvas::SHOW_TOTAL_AREA,
                         Canvas::SHOW_TOTAL_AREA,
                         CanvasInner::SHOW_TOTAL_AREA_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
                         CanvasInner::SHOW_RULERS_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
                         CanvasInner::WARP_CURSOR_INIT_VAL,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Canvas::VIEW_HEIGHT,
@@ -253,42 +253,42 @@ impl ObjectImpl for CanvasInner {
                         Canvas::BG_COLOR,
                         Canvas::BG_COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::GLYPH_INNER_FILL_COLOR,
                         Canvas::GLYPH_INNER_FILL_COLOR,
                         Canvas::GLYPH_INNER_FILL_COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::GLYPH_BBOX_BG_COLOR,
                         Canvas::GLYPH_BBOX_BG_COLOR,
                         Canvas::GLYPH_BBOX_BG_COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::RULER_BG_COLOR,
                         Canvas::RULER_BG_COLOR,
                         Canvas::RULER_BG_COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::RULER_FG_COLOR,
                         Canvas::RULER_FG_COLOR,
                         Canvas::RULER_FG_COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::RULER_INDICATOR_COLOR,
                         Canvas::RULER_INDICATOR_COLOR,
                         Canvas::RULER_INDICATOR_COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                 ]
             });
@@ -325,7 +325,8 @@ impl ObjectImpl for CanvasInner {
         }
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+    fn set_property(&self, obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        obj.queue_draw();
         match pspec.name() {
             Canvas::SHOW_GRID => {
                 self.show_grid.set(value.get().unwrap());

@@ -59,6 +59,24 @@ impl Default for Color {
     }
 }
 
+impl From<gdk::RGBA> for Color {
+    fn from(val: gdk::RGBA) -> Color {
+        Color(val)
+    }
+}
+
+impl From<Color> for gdk::RGBA {
+    fn from(val: Color) -> gdk::RGBA {
+        val.0
+    }
+}
+
+impl From<&Color> for gdk::RGBA {
+    fn from(val: &Color) -> gdk::RGBA {
+        val.0
+    }
+}
+
 pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
     if s.starts_with('#')
         && s.len() == 7

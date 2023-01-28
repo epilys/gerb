@@ -124,21 +124,21 @@ impl ObjectImpl for ProjectInner {
                         Project::NAME,
                         Project::NAME,
                         Some("New project"),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Project::FAMILY_NAME,
                         Project::FAMILY_NAME,
                         Project::FAMILY_NAME,
                         Some(""),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Project::STYLE_NAME,
                         Project::STYLE_NAME,
                         Project::STYLE_NAME,
                         Some(""),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Project::MODIFIED,
@@ -154,7 +154,7 @@ impl ObjectImpl for ProjectInner {
                         0,
                         std::i64::MAX,
                         1,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecUInt64::new(
                         Project::VERSION_MINOR,
@@ -163,7 +163,7 @@ impl ObjectImpl for ProjectInner {
                         0,
                         std::u64::MAX,
                         1,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::UNITS_PER_EM,
@@ -172,7 +172,7 @@ impl ObjectImpl for ProjectInner {
                         1.0,
                         std::f64::MAX,
                         1000.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::X_HEIGHT,
@@ -181,7 +181,7 @@ impl ObjectImpl for ProjectInner {
                         1.0,
                         std::f64::MAX,
                         450.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::ASCENDER,
@@ -190,7 +190,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         700.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::DESCENDER,
@@ -199,7 +199,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         -200.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::CAP_HEIGHT,
@@ -208,7 +208,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         650.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::ITALIC_ANGLE,
@@ -217,7 +217,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                 ]
             });

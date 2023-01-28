@@ -105,7 +105,7 @@ impl ObjectImpl for BezierInner {
                         Bezier::SMOOTH,
                         Bezier::SMOOTH,
                         true,
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     glib::ParamSpecValueArray::new(
                         Bezier::POINTS,

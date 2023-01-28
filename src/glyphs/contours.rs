@@ -156,7 +156,7 @@ mod imp {
                             super::Contour::OPEN,
                             super::Contour::OPEN,
                             true,
-                            glib::ParamFlags::READWRITE,
+                            glib::ParamFlags::READWRITE | crate::UI_EDITABLE,
                         ),
                     ]
                 });

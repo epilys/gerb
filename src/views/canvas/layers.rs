@@ -73,21 +73,21 @@ impl ObjectImpl for LayerInner {
                         Layer::ACTIVE,
                         Layer::ACTIVE,
                         true,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Layer::HIDDEN,
                         Layer::HIDDEN,
                         Layer::HIDDEN,
                         false,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Layer::NAME,
                         Layer::NAME,
                         Layer::NAME,
                         None,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                 ]
             });

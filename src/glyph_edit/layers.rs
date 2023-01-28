@@ -234,7 +234,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                     format!("Name: {}", g.name().as_deref().unwrap_or("-")),
                     format!("Identifier: {}", g.identifier().as_deref().unwrap_or("-")),
                     format!("Point: ({:.2}, {:.2})", g.x(), g.y()),
-                    format!("Angle: {:02}deg", g.angle()),
+                    format!("Angle: {:01}deg", g.angle()),
                 ]
                 .into_iter()
                 .enumerate()
@@ -248,9 +248,9 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 let ViewPoint(Point { y, .. }) =
                     viewport.unit_to_view_point(UnitPoint((0.0, g.y()).into()));
                 let label = if let Some(name) = g.name().as_deref() {
-                    format!("{name} ({})", g.y())
+                    format!("{name} ({:00})", g.y().ceil())
                 } else {
-                    format!("{}", g.y())
+                    format!("{}", g.y().ceil())
                 };
                 let extents = cr.text_extents(&label).unwrap();
                 cr.move_to(width - 2.5 - extents.width, y - 0.5);

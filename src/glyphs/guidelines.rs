@@ -64,14 +64,14 @@ impl ObjectImpl for GuidelineInner {
                         Guideline::NAME,
                         Guideline::NAME,
                         None,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Guideline::IDENTIFIER,
                         Guideline::IDENTIFIER,
                         Guideline::IDENTIFIER,
                         None,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Guideline::ANGLE,
@@ -80,7 +80,7 @@ impl ObjectImpl for GuidelineInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Guideline::X,
@@ -89,7 +89,7 @@ impl ObjectImpl for GuidelineInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Guideline::Y,
@@ -98,14 +98,14 @@ impl ObjectImpl for GuidelineInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.0,
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Guideline::COLOR,
                         Guideline::COLOR,
                         Guideline::COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                 ]
             });

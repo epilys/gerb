@@ -39,6 +39,7 @@ impl GlyphEditViewInner {
                 view_glyph_menu.append(Some("Show handles"), Some("glyph.show.handles"));
                 view_glyph_menu.append(Some("Inner fill"), Some("glyph.show.inner-fill"));
                 view_glyph_menu.append(Some("Show total area"), Some("glyph.show.total-area"));
+                view_glyph_menu.append(Some("View settings"), Some("glyph.show.settings"));
                 glyph_menu.append_section(None, &view_glyph_menu);
             }
             menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
@@ -52,6 +53,15 @@ impl GlyphEditViewInner {
                     gtk::gio::PropertyAction::new(action_name, &obj.imp().viewport, property);
                 action_map.add_action(&prop_action);
             }
+            let settings = gtk::gio::SimpleAction::new("show.settings", None);
+            settings.connect_activate(
+                glib::clone!(@weak self.viewport as viewport => move |_, _| {
+                    let obj = viewport.upcast::<gtk::glib::Object>();
+                    let w = crate::utils::new_property_window(obj, "Settings");
+                    w.present();
+                }),
+            );
+            action_map.add_action(&settings);
         }
         {
             let curve_menu = gio::Menu::new();

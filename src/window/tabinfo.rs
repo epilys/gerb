@@ -58,6 +58,8 @@ impl ObjectImpl for TabInfoInner {
             .can_focus(true)
             .column_spacing(5)
             .row_spacing(5)
+            .column_homogeneous(true)
+            .row_homogeneous(false)
             .build();
 
         scrolled_window.set_child(Some(&grid));
@@ -143,7 +145,7 @@ impl TabInfo {
                 );
                 //let val: glib::Value = std::dbg!(obj.property(prop.name()));
                 grid.attach(
-                    &crate::utils::get_widget_for_value(&obj, prop.name()),
+                    &crate::utils::get_widget_for_value(&obj, prop),
                     1,
                     row as i32 + 1,
                     1,
