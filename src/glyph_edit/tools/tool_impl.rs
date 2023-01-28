@@ -250,6 +250,11 @@ impl ToolImplInner {
             .active(false)
             .tooltip_text(&name)
             .build();
+        crate::resources::UIIcon::image_into_surface(
+            &button.icon_widget().unwrap().downcast().unwrap(),
+            view.scale_factor(),
+            view.window(),
+        );
         button.connect_clicked(
             clone!(@strong view, @strong obj as self_ => move |_button| {
                 self_.on_activate(&view)

@@ -62,12 +62,10 @@ impl ObjectImpl for QuadrilateralToolInner {
         );
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::svg_to_image_widget(crate::resources::RECTANGLE_ICON_SVG),
+            crate::resources::RECTANGLE_ICON.to_image_widget(),
         );
         self.cursor
-            .set(crate::resources::svg_to_pixbuf(
-                crate::resources::RECTANGLE_CURSOR_SVG,
-            ))
+            .set(crate::resources::RECTANGLE_CURSOR.to_pixbuf())
             .unwrap();
     }
 
@@ -371,12 +369,10 @@ impl ObjectImpl for EllipseToolInner {
         );
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::svg_to_image_widget(crate::resources::ELLIPSE_ICON_SVG),
+            crate::resources::ELLIPSE_ICON.to_image_widget(),
         );
         self.cursor
-            .set(crate::resources::svg_to_pixbuf(
-                crate::resources::CIRCLE_CURSOR_SVG,
-            ))
+            .set(crate::resources::CIRCLE_CURSOR.to_pixbuf())
             .unwrap();
     }
 

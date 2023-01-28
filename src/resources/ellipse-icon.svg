@@ -7,10 +7,10 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="300"
-   height="300"
+   width="64"
+   height="64"
    version="1.1"
-   viewBox="0 0 79 79"
+   viewBox="0 0 16.853333 16.853333"
    id="svg6"
    sodipodi:docname="ellipse-icon.svg"
    inkscape:version="1.0.2 (e86c870879, 2021-01-15)">
@@ -22,6 +22,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -49,9 +50,9 @@
      inkscape:current-layer="svg6"
      inkscape:document-rotation="0" />
   <g
-     transform="translate(-56,-107)"
+     transform="matrix(0.20791877,0,0,0.20791877,-11.533535,-22.137393)"
      id="g4"
-     style="stroke-width:10.53333333;stroke-miterlimit:4;stroke-dasharray:none">
+     style="stroke-width:10.5333;stroke-miterlimit:4;stroke-dasharray:none">
     <ellipse
        cx="96"
        cy="147"
@@ -62,7 +63,7 @@
        stroke-linecap="square"
        stroke-linejoin="bevel"
        stroke-width="1.4"
-       style="stroke-width:10.53333333;stroke-miterlimit:4;stroke-dasharray:none;paint-order:fill markers stroke"
+       style="stroke-width:10.5333;stroke-miterlimit:4;stroke-dasharray:none;paint-order:fill markers stroke"
        id="ellipse2" />
   </g>
 </svg>

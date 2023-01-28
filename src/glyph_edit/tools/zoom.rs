@@ -42,7 +42,7 @@ impl ObjectImpl for ZoomInToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "ZoomIn".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::svg_to_image_widget(crate::resources::ZOOM_IN_ICON_SVG),
+            crate::resources::ZOOM_IN_ICON.to_image_widget(),
         );
     }
 }
@@ -96,7 +96,7 @@ impl ToolImplImpl for ZoomInToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, _view: &GlyphEditView) {
+    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToolButton::builder()
@@ -106,6 +106,11 @@ impl ToolImplImpl for ZoomInToolInner {
             .tooltip_text(&name)
             .action_name("view.zoom.in")
             .build();
+        crate::resources::UIIcon::image_into_surface(
+            &button.icon_widget().unwrap().downcast().unwrap(),
+            view.scale_factor(),
+            view.window(),
+        );
         toolbar.add(&button);
         toolbar.set_item_homogeneous(&button, false);
     }
@@ -151,7 +156,7 @@ impl ObjectImpl for ZoomOutToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "ZoomOut".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::svg_to_image_widget(crate::resources::ZOOM_OUT_ICON_SVG),
+            crate::resources::ZOOM_OUT_ICON.to_image_widget(),
         );
     }
 }
@@ -205,7 +210,7 @@ impl ToolImplImpl for ZoomOutToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, _view: &GlyphEditView) {
+    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToolButton::builder()
@@ -215,6 +220,11 @@ impl ToolImplImpl for ZoomOutToolInner {
             .tooltip_text(&name)
             .action_name("view.zoom.out")
             .build();
+        crate::resources::UIIcon::image_into_surface(
+            &button.icon_widget().unwrap().downcast().unwrap(),
+            view.scale_factor(),
+            view.window(),
+        );
         toolbar.add(&button);
         toolbar.set_item_homogeneous(&button, false);
     }

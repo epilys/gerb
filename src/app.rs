@@ -139,7 +139,7 @@ impl GerbApp {
         about.connect_activate(glib::clone!(@weak window => move |_, _| {
             let p = gtk::AboutDialog::new();
             p.set_program_name("gerb");
-            p.set_logo(crate::resources::svg_to_pixbuf(crate::resources::G_GLYPH_SVG).as_ref());
+            p.set_logo(crate::resources::G_GLYPH.to_pixbuf().as_ref());
             p.set_website_label(Some("https://github.com/epilys/gerb"));
             p.set_website(Some("https://github.com/epilys/gerb"));
             p.set_authors(&["Manos Pitsidianakis"]);
@@ -148,6 +148,10 @@ impl GerbApp {
             p.set_license_type(gtk::License::Gpl30);
             p.set_transient_for(Some(&window));
             p.set_comments(Some(""));
+            /* find image widget */
+            if let Some(logo_image) =  p.children().iter().find_map(gtk::Widget::downcast_ref::<gtk::Box>).map(gtk::Box::children).and_then(|v| v.iter().find_map(gtk::Widget::downcast_ref::<gtk::Box>).cloned()).as_ref().map(gtk::Box::children).and_then(|v| v.iter().find_map(gtk::Widget::downcast_ref::<gtk::Image>).cloned()) {
+                crate::resources::UIIcon::image_into_surface(&logo_image, window.scale_factor(), window.window());
+            }
             p.show_all();
         }));
 

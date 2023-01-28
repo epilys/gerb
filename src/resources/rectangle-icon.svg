@@ -7,10 +7,10 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   width="300"
-   height="300"
+   width="64"
+   height="64"
    version="1.1"
-   viewBox="0 0 79 79"
+   viewBox="0 0 16.853333 16.853333"
    id="svg8"
    sodipodi:docname="rectangle-icon.svg"
    inkscape:version="1.0.2 (e86c870879, 2021-01-15)">
@@ -22,6 +22,7 @@
         <dc:format>image/svg+xml</dc:format>
         <dc:type
            rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
       </cc:Work>
     </rdf:RDF>
   </metadata>
@@ -59,8 +60,8 @@
        id="path2" />
     <path
        id="path4"
-       style="font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-variant-east-asian:normal;font-feature-settings:normal;font-variation-settings:normal;text-indent:0;text-decoration:none;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;text-transform:none;text-orientation:mixed;white-space:normal;shape-padding:0;shape-margin:0;inline-size:0;isolation:auto;mix-blend-mode:normal;fill:#ffffff;fill-opacity:1;stroke:#292929;stroke-width:10.53333333;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
-       d="m 121.53125,119.54883 c -0.0606,17.93359 -0.12109,35.86719 -0.18164,53.80078 l -51.800782,-0.33984 c 0.06055,-17.8698 0.121094,-35.73959 0.181641,-53.60938 17.266927,0.0495 34.533851,0.099 51.800781,0.14844 z"
+       style="font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-variant-east-asian:normal;font-feature-settings:normal;font-variation-settings:normal;text-indent:0;text-decoration:none;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;text-transform:none;text-orientation:mixed;white-space:normal;shape-padding:0;shape-margin:0;inline-size:0;isolation:auto;mix-blend-mode:normal;fill:#ffffff;fill-opacity:1;stroke:#292929;stroke-width:2.40735;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;paint-order:fill markers stroke"
+       d="m 70.368906,109.2934 c -0.01385,4.09866 -0.02768,8.19732 -0.04152,12.29598 l -11.838893,-0.0776 c 0.01384,-4.08408 0.02768,-8.16816 0.04151,-12.25225 3.946298,0.0114 7.892595,0.0226 11.838894,0.0339 z"
        sodipodi:nodetypes="ccccc" />
   </g>
 </svg>

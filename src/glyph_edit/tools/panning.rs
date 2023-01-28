@@ -76,7 +76,7 @@ impl ObjectImpl for PanningToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "Panning".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::svg_to_image_widget(crate::resources::GRAB_ICON_SVG),
+            crate::resources::GRAB_ICON.to_image_widget(),
         );
     }
 
