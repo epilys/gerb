@@ -20,7 +20,7 @@
 - [ ] save modifications to disk ([Tracking issue #5](https://github.com/epilys/gerb/issues/5))
 - [x] be able to create new paths/contours in a glyph ([Tracking issue #3](https://github.com/epilys/gerb/issues/3))
 - [ ] be able to add/remove glyphs
-- [ ] create new projects ([Tracking issue #4](https://github.com/epilys/gerb/issues/4))
+- [x] create new projects ([Tracking issue #4](https://github.com/epilys/gerb/issues/4))
 - [x] {un,re}do (event sourcing) ([Tracking issue #2](https://github.com/epilys/gerb/issues/2))
 
 ## Running the demo
