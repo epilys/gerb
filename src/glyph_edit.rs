@@ -38,15 +38,14 @@ use crate::utils::Point;
 use crate::views::{
     canvas::{Layer, LayerBuilder},
     overlay::Child,
+    Canvas, Overlay, Transformation, UnitPoint, ViewPoint,
 };
 use crate::{Settings, Workspace};
 
-//mod bezier_pen;
 mod layers;
 mod tools;
 mod visibility_toggles;
 
-use super::{Canvas, Transformation, UnitPoint, ViewPoint};
 use tools::{PanningTool, Tool, ToolImpl};
 
 #[derive(Debug, Clone)]
@@ -463,7 +462,7 @@ pub struct GlyphEditViewInner {
     glyph_state: OnceCell<Rc<RefCell<GlyphState>>>,
     viewport: Canvas,
     statusbar_context_id: Cell<Option<u32>>,
-    overlay: super::Overlay,
+    overlay: Overlay,
     hovering: Cell<Option<(usize, usize)>>,
     pub toolbar_box: gtk::Box,
     pub viewhidebox: OnceCell<visibility_toggles::ViewHideBox>,

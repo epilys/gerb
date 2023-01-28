@@ -24,16 +24,13 @@ use crate::glyphs::Contour;
 use crate::utils::{curves::Bezier, Point};
 use crate::views::{
     canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
-    Canvas, GlyphEditView,
+    Canvas,
 };
+use crate::GlyphEditView;
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::cairo::Context;
 use gtk::Inhibit;
-use gtk::{
-    glib::{self},
-    prelude::*,
-    subclass::prelude::*,
-};
+use gtk::{glib, prelude::*, subclass::prelude::*};
 use once_cell::sync::OnceCell;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

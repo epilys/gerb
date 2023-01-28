@@ -19,12 +19,10 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-mod canvas;
-mod collection;
-mod glyph_edit;
-mod overlay;
+pub mod canvas;
+pub mod collection;
+pub mod overlay;
 
 pub use canvas::{Canvas, Transformation, UnitPoint, ViewPoint};
 pub use collection::*;
-pub use glyph_edit::*;
 pub use overlay::Overlay;

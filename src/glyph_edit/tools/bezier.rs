@@ -25,8 +25,9 @@ use crate::utils::colors::*;
 use crate::utils::{curves::Bezier, distance_between_two_points, Point};
 use crate::views::{
     canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
-    Canvas, GlyphEditView, Transformation,
+    Canvas, Transformation,
 };
+use crate::GlyphEditView;
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::cairo::Context;
 use gtk::Inhibit;

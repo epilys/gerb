@@ -200,3 +200,9 @@ impl LayerBuilder {
         retval
     }
 }
+
+impl Default for LayerBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

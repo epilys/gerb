@@ -21,21 +21,17 @@
 
 use super::tool_impl::*;
 
+use crate::GlyphEditView;
 use crate::{
     utils::points::Point,
     views::{
         canvas::{Layer, LayerBuilder},
-        Canvas, GlyphEditView, Transformation, UnitPoint, ViewPoint,
+        Canvas, Transformation, UnitPoint, ViewPoint,
     },
 };
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::Inhibit;
-use gtk::{
-    cairo::Matrix,
-    glib::{self},
-    prelude::*,
-    subclass::prelude::*,
-};
+use gtk::{cairo::Matrix, glib, prelude::*, subclass::prelude::*};
 use once_cell::sync::OnceCell;
 use std::cell::Cell;
 

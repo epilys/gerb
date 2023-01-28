@@ -20,14 +20,11 @@
  */
 
 use super::tool_impl::*;
-use crate::views::{Canvas, GlyphEditView};
+use crate::views::Canvas;
+use crate::GlyphEditView;
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::Inhibit;
-use gtk::{
-    glib::{self},
-    prelude::*,
-    subclass::prelude::*,
-};
+use gtk::{glib, prelude::*, subclass::prelude::*};
 
 #[derive(Default)]
 pub struct ZoomInToolInner;
