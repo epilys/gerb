@@ -183,16 +183,8 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         let show_glyph_guidelines = obj.property::<bool>(GlyphEditView::SHOW_GLYPH_GUIDELINES);
         let show_project_guidelines = obj.property::<bool>(GlyphEditView::SHOW_PROJECT_GUIDELINES);
         let show_metrics_guidelines = obj.property::<bool>(GlyphEditView::SHOW_METRICS_GUIDELINES);
-        let scale: f64 = viewport
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::SCALE);
         let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
         let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
-        let ppu = viewport
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
         cr.set_line_width(
@@ -202,7 +194,6 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 .unwrap()
                 .property(Settings::GUIDELINE_WIDTH),
         );
-        let (unit_width, unit_height) = ((width * scale) * ppu, (height * scale) * ppu);
         let glyph_state_ref = glyph_state.borrow();
         for g in glyph_state_ref
             .glyph
@@ -234,8 +225,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
             )
         {
             let highlight = g.imp().on_line_query(unit_mouse, None);
-            g.imp()
-                .draw(cr, matrix, (unit_width, unit_height), highlight);
+            g.imp().draw(cr, matrix, (width, height), highlight);
             if highlight {
                 cr.move_to(mouse.0.x, mouse.0.y);
                 let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
