@@ -1,3 +1,6 @@
+* {
+  font-family: "Inter", "Sans", sans;
+}
 window, menubar, button{
   background-color: white;
   background-image: none;
@@ -15,16 +18,22 @@ menubar {
   font-weight: bolder;
 }
 
-window headerbar {
+headerbar {
   border-radius: 0;
   border: 1px solid grey;
   min-height: 35px;
   background-color: white;
   background-image: none;
+  min-height: 0;
+  padding: .2rem;
 }
 
-window headerbar * {
+headerbar * {
   padding: 0;
+}
+
+dialog {
+  background: white;
 }
 
 .titlebutton {
@@ -44,11 +53,26 @@ window headerbar * {
   background: white;
 }
 
-
 .text-button:checked label {
   color: white;
   background: black;
 }
+
+headerbar .text-button label {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: white;
+}
+
+.sidebar-label {
+  color: black;
+  box-shadow:none;
+  outline:none;
+  text-shadow:1px 1px darkgrey;
+  font-weight:bold;
+}
+
 
 toolpalette  {
   background: #DDD;
