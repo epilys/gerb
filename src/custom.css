@@ -169,6 +169,12 @@ button.active.toggle {
   background: lightgrey;
 }
 
+button.toggle{
+  padding: 0;
+  min-width: 16px;
+  min-height: 16px;
+}
+
 notebook header {
   box-shadow: 0px 1px #a9a9a9;
 }
