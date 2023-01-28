@@ -45,7 +45,6 @@ use crate::{Settings, Workspace};
 mod layers;
 mod menu;
 mod tools;
-mod visibility_toggles;
 
 use tools::{PanningTool, Tool, ToolImpl};
 
@@ -466,7 +465,6 @@ pub struct GlyphEditViewInner {
     overlay: Overlay,
     hovering: Cell<Option<(usize, usize)>>,
     pub toolbar_box: gtk::Box,
-    pub viewhidebox: OnceCell<visibility_toggles::ViewHideBox>,
     units_per_em: Cell<f64>,
     descender: Cell<f64>,
     x_height: Cell<f64>,
@@ -568,34 +566,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 .set_callback(Some(Box::new(Canvas::draw_rulers)))
                 .build(),
         );
-        let viewhidebox = visibility_toggles::ViewHideBox::new(&self.viewport);
-        {
-            let property = GlyphEditView::LOCK_GUIDELINES;
-            viewhidebox.set_property(property, obj.property::<bool>(property));
-            viewhidebox
-                .bind_property(property, obj, property)
-                .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
-                .build();
-            viewhidebox.connect_notify_local(
-                Some(property),
-                clone!(@weak self.viewport as canvas => move |_self, _| {
-                    canvas.queue_draw();
-                }),
-            );
-        }
         self.overlay.set_child(&self.viewport);
-        self.overlay.add_overlay(Child::new(
-            gtk::Expander::builder()
-                .child(&viewhidebox)
-                .expanded(false)
-                .visible(true)
-                .can_focus(true)
-                .tooltip_text("Toggle overlay visibilities")
-                .halign(gtk::Align::End)
-                .valign(gtk::Align::End)
-                .build(),
-            true,
-        ));
         self.overlay
             .add_overlay(Child::new(self.toolbar_box.clone(), true));
         let listbox = gtk::ListBox::builder()
@@ -646,11 +617,6 @@ impl ObjectImpl for GlyphEditViewInner {
         obj.set_visible(true);
         obj.set_expand(true);
         obj.set_can_focus(true);
-
-        self.viewhidebox
-            .set(viewhidebox)
-            .expect("Failed to initialize window state");
-
         self.setup_menu(obj);
     }
 
@@ -911,7 +877,7 @@ impl GlyphEditView {
     pub const PANNING_TOOL: &str = "panning-tool";
 
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
-        let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
+        let ret: Self = glib::Object::new(&[]).unwrap();
         ret.imp().glyph.set(glyph.clone()).unwrap();
         ret.imp().app.set(app.clone()).unwrap();
         {
@@ -982,6 +948,9 @@ impl GlyphEditView {
             action_map.add_action(&action);
         }
         ret.insert_action_group("view", Some(&action_map));
+        ret.imp()
+            .menubar
+            .insert_action_group("view", Some(&action_map));
         ret.imp()
             .glyph_state
             .set(Rc::new(RefCell::new(GlyphState::new(

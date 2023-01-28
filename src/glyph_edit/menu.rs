@@ -27,60 +27,67 @@ use gtk::{gio, glib::subclass::prelude::*, prelude::*};
 impl GlyphEditViewInner {
     pub fn setup_menu(&self, obj: &GlyphEditView) {
         let menumodel = gio::Menu::new();
-        let glyph_menu = gio::Menu::new();
-        glyph_menu.append(Some("Properties"), Some("glyph.properties"));
-        glyph_menu.append(Some("Inspect"), Some("glyph.inspect"));
-        glyph_menu.append(Some("Export to SVG"), Some("glyph.export.svg"));
-        menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
-        let curve_menu = gio::Menu::new();
-        curve_menu.append(Some("Properties"), Some("glyph.curve.properties"));
-        curve_menu.append(Some("Make cubic"), Some("glyph.curve.make_cubic"));
-        curve_menu.append(Some("Make quadratic"), Some("glyph.curve.make_quadratic"));
-        menumodel.append_submenu(Some("_Curve"), &curve_menu);
-        let contour_menu = gio::Menu::new();
-        contour_menu.append(Some("Properties"), Some("glyph.contour.properties"));
-        contour_menu.append(Some("Reverse"), Some("glyph.contour.reverse"));
-        menumodel.append_submenu(Some("_Contour"), &contour_menu);
-        let guideline_menu = gio::Menu::new();
-        guideline_menu.append(Some("Properties"), Some("glyph.guideline.properties"));
-        let view_guideline_menu = gio::Menu::new();
-        view_guideline_menu.append(Some("Show guidelines"), Some("glyph.guideline.show"));
-        view_guideline_menu.append(
-            Some("Show glyph guidelines"),
-            Some("glyph.guideline.show.glyph"),
-        );
-        view_guideline_menu.append(
-            Some("Show project guidelines"),
-            Some("glyph.guideline.show.project"),
-        );
-        view_guideline_menu.append(
-            Some("Show metrics guidelines"),
-            Some("glyph.guideline.show.metrics"),
-        );
-        view_guideline_menu.append(Some("Lock guidelines"), Some("glyph.guideline.lock"));
-        guideline_menu.append_section(None, &view_guideline_menu);
-        menumodel.append_submenu(Some("_Guidelines"), &guideline_menu);
-        let layer_menu = gio::Menu::new();
-        layer_menu.append(Some("Properties"), Some("glyph.layer.properties"));
-        menumodel.append_submenu(Some("_Layers"), &layer_menu);
+        let action_map = gtk::gio::SimpleActionGroup::new();
         {
-            let action_map = gtk::gio::SimpleActionGroup::new();
-            let properties = gtk::gio::SimpleAction::new("properties", None);
-            properties.connect_activate(glib::clone!(@weak obj => move |_, _| {
-                /*
-                 * TODO: Glyph struct is not a GObject yet
-                let gapp = obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap();
-                let obj: glib::Object = obj.imp().glyph.get().unwrap().borrow().clone().upcast();
-                let w = crate::utils::new_property_window(obj, "Glyph properties");
-                w.present();
-                */
-            }));
-            action_map.add_action(&properties);
-            let inspect = gtk::gio::SimpleAction::new("inspect", None);
-            inspect.connect_activate(glib::clone!(@weak obj => move |_, _| {
-                obj.make_debug_window();
-            }));
-            action_map.add_action(&inspect);
+            let glyph_menu = gio::Menu::new();
+            glyph_menu.append(Some("Properties"), Some("glyph.properties"));
+            glyph_menu.append(Some("Inspect"), Some("glyph.inspect"));
+            glyph_menu.append(Some("Export to SVG"), Some("glyph.export.svg"));
+            {
+                let view_glyph_menu = gio::Menu::new();
+                view_glyph_menu.append(Some("Show grid"), Some("glyph.show.grid"));
+                view_glyph_menu.append(Some("Show handles"), Some("glyph.show.handles"));
+                view_glyph_menu.append(Some("Inner fill"), Some("glyph.show.inner-fill"));
+                view_glyph_menu.append(Some("Show total area"), Some("glyph.show.total-area"));
+                glyph_menu.append_section(None, &view_glyph_menu);
+            }
+            menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
+            for (action_name, property) in [
+                ("show.grid", Canvas::SHOW_GRID),
+                ("show.inner-fill", Canvas::INNER_FILL),
+                ("show.handles", Canvas::SHOW_HANDLES),
+                ("show.total-area", Canvas::SHOW_TOTAL_AREA),
+            ] {
+                let prop_action =
+                    gtk::gio::PropertyAction::new(action_name, &obj.imp().viewport, property);
+                action_map.add_action(&prop_action);
+            }
+        }
+        {
+            let curve_menu = gio::Menu::new();
+            curve_menu.append(Some("Properties"), Some("glyph.curve.properties"));
+            curve_menu.append(Some("Make cubic"), Some("glyph.curve.make_cubic"));
+            curve_menu.append(Some("Make quadratic"), Some("glyph.curve.make_quadratic"));
+            menumodel.append_submenu(Some("_Curve"), &curve_menu);
+        }
+        {
+            let contour_menu = gio::Menu::new();
+            contour_menu.append(Some("Properties"), Some("glyph.contour.properties"));
+            contour_menu.append(Some("Reverse"), Some("glyph.contour.reverse"));
+            menumodel.append_submenu(Some("_Contour"), &contour_menu);
+        }
+        {
+            let guideline_menu = gio::Menu::new();
+            guideline_menu.append(Some("Properties"), Some("glyph.guideline.properties"));
+            {
+                let view_guideline_menu = gio::Menu::new();
+                view_guideline_menu.append(Some("Show guidelines"), Some("glyph.guideline.show"));
+                view_guideline_menu.append(
+                    Some("Show glyph guidelines"),
+                    Some("glyph.guideline.show.glyph"),
+                );
+                view_guideline_menu.append(
+                    Some("Show project guidelines"),
+                    Some("glyph.guideline.show.project"),
+                );
+                view_guideline_menu.append(
+                    Some("Show metrics guidelines"),
+                    Some("glyph.guideline.show.metrics"),
+                );
+                view_guideline_menu.append(Some("Lock guidelines"), Some("glyph.guideline.lock"));
+                guideline_menu.append_section(None, &view_guideline_menu);
+            }
+            menumodel.append_submenu(Some("_Guidelines"), &guideline_menu);
             let show_action = gtk::gio::PropertyAction::new(
                 "guideline.show",
                 &obj.imp().viewport,
@@ -111,6 +118,29 @@ impl GlyphEditViewInner {
                 GlyphEditView::LOCK_GUIDELINES,
             );
             action_map.add_action(&prop_action);
+        }
+        {
+            let layer_menu = gio::Menu::new();
+            layer_menu.append(Some("Properties"), Some("glyph.layer.properties"));
+            menumodel.append_submenu(Some("_Layers"), &layer_menu);
+        }
+        {
+            let properties = gtk::gio::SimpleAction::new("properties", None);
+            properties.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                /*
+                 * TODO: Glyph struct is not a GObject yet
+                let gapp = obj.imp().app.get().unwrap().downcast_ref::<crate::GerbApp>().unwrap();
+                let obj: glib::Object = obj.imp().glyph.get().unwrap().borrow().clone().upcast();
+                let w = crate::utils::new_property_window(obj, "Glyph properties");
+                w.present();
+                */
+            }));
+            action_map.add_action(&properties);
+            let inspect = gtk::gio::SimpleAction::new("inspect", None);
+            inspect.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                obj.make_debug_window();
+            }));
+            action_map.add_action(&inspect);
             #[cfg(feature = "svg")]
             let export_svg = gtk::gio::SimpleAction::new("export.svg", None);
             #[cfg(feature = "svg")]
