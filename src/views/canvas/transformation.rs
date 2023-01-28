@@ -294,11 +294,11 @@ impl Transformation {
     }
 
     pub fn zoom_in(&self) -> bool {
-        self.set_zoom(self.property::<f64>(Transformation::SCALE) + 0.05)
+        self.set_zoom(self.property::<f64>(Transformation::SCALE) + 0.1)
     }
 
     pub fn zoom_out(&self) -> bool {
-        self.set_zoom(self.property::<f64>(Transformation::SCALE) - 0.05)
+        self.set_zoom(self.property::<f64>(Transformation::SCALE) - 0.1)
     }
 
     pub fn reset_zoom(&self) {
