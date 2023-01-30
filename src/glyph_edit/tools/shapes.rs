@@ -21,7 +21,7 @@
 
 use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::Contour;
-use crate::utils::{curves::Bezier, Point};
+use crate::utils::{curves::Bezier, CurvePoint, Point};
 use crate::views::{
     canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
     Canvas,
@@ -54,6 +54,9 @@ impl ObjectSubclass for QuadrilateralToolInner {
 impl ObjectImpl for QuadrilateralToolInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        for c in self.curves.borrow().iter() {
+            c.set_property(Bezier::SMOOTH, true);
+        }
         obj.set_property::<bool>(QuadrilateralTool::ACTIVE, false);
         obj.set_property::<String>(ToolImpl::NAME, "quadrilateral".to_string());
         obj.set_property::<String>(
@@ -113,23 +116,23 @@ fn make_quadrilateral_bezier_curves(
     }
     {
         let mut c0 = curves[0].points().borrow_mut();
-        c0.push(a);
-        c0.push(b);
+        c0.push(CurvePoint::new(a));
+        c0.push(CurvePoint::new(b));
     }
     {
         let mut c1 = curves[1].points().borrow_mut();
-        c1.push(b);
-        c1.push(c);
+        c1.push(CurvePoint::new(b));
+        c1.push(CurvePoint::new(c));
     }
     {
         let mut c2 = curves[2].points().borrow_mut();
-        c2.push(c);
-        c2.push(d);
+        c2.push(CurvePoint::new(c));
+        c2.push(CurvePoint::new(d));
     }
     {
         let mut c3 = curves[3].points().borrow_mut();
-        c3.push(d);
-        c3.push(a);
+        c3.push(CurvePoint::new(d));
+        c3.push(CurvePoint::new(a));
     }
 }
 
@@ -331,7 +334,7 @@ impl QuadrilateralTool {
 
         for curv in curves.iter() {
             let points = curv.points().borrow();
-            let (a, b) = (points[0], points[1]);
+            let (a, b) = (points[0].position, points[1].position);
             cr.move_to(a.x, a.y);
             cr.line_to(b.x, b.y);
         }
@@ -361,6 +364,9 @@ impl ObjectSubclass for EllipseToolInner {
 impl ObjectImpl for EllipseToolInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        for c in self.curves.borrow().iter() {
+            c.set_property(Bezier::SMOOTH, true);
+        }
         obj.set_property::<bool>(EllipseTool::ACTIVE, false);
         obj.set_property::<String>(ToolImpl::NAME, "ellipse".to_string());
         obj.set_property::<String>(
@@ -424,24 +430,32 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
         let mut matrix = gtk::cairo::Matrix::identity();
         matrix.translate(center.x, center.y);
         matrix.rotate(i as f64 * std::f64::consts::FRAC_PI_2);
-        c.push(matrix * <_ as Into<Point>>::into((A * radius, 0.0)));
-        c.push(matrix * <_ as Into<Point>>::into((C * radius, B * radius)));
-        c.push(matrix * <_ as Into<Point>>::into((B * radius, C * radius)));
-        c.push(matrix * <_ as Into<Point>>::into((0.0, A * radius)));
+        c.push(CurvePoint::new(
+            matrix * <_ as Into<Point>>::into((A * radius, 0.0)),
+        ));
+        c.push(CurvePoint::new(
+            matrix * <_ as Into<Point>>::into((C * radius, B * radius)),
+        ));
+        c.push(CurvePoint::new(
+            matrix * <_ as Into<Point>>::into((B * radius, C * radius)),
+        ));
+        c.push(CurvePoint::new(
+            matrix * <_ as Into<Point>>::into((0.0, A * radius)),
+        ));
     }
     /* ensure continuities after rotation */
-    let mut last_point = curves[3].points().borrow()[3];
+    let mut last_point = curves[3].points().borrow()[3].position;
     let mut pts = curves[0].points().borrow_mut();
-    pts[0] = last_point;
-    last_point = pts[3];
+    pts[0].position = last_point;
+    last_point = pts[3].position;
     let mut pts = curves[1].points().borrow_mut();
-    pts[0] = last_point;
-    last_point = pts[3];
+    pts[0].position = last_point;
+    last_point = pts[3].position;
     let mut pts = curves[2].points().borrow_mut();
-    pts[0] = last_point;
-    last_point = pts[3];
+    pts[0].position = last_point;
+    last_point = pts[3].position;
     let mut pts = curves[3].points().borrow_mut();
-    pts[0] = last_point;
+    pts[0].position = last_point;
 }
 
 impl ToolImplImpl for EllipseToolInner {
@@ -635,7 +649,12 @@ impl EllipseTool {
             if points.len() != 4 {
                 continue;
             }
-            let (a, b, c, d) = (points[0], points[1], points[2], points[3]);
+            let (a, b, c, d) = (
+                points[0].position,
+                points[1].position,
+                points[2].position,
+                points[3].position,
+            );
             cr.move_to(a.x, a.y);
             cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
         }

@@ -20,28 +20,57 @@
  */
 
 use super::{new_contour_action, tool_impl::*};
-use crate::glyphs::{Contour, GlyphDrawingOptions};
-use crate::utils::colors::*;
-use crate::utils::{curves::Bezier, distance_between_two_points, Point};
+use crate::glyphs::{Contour, GlyphPointIndex};
+use crate::utils::{curves::Bezier, distance_between_two_points, CurvePoint, Point};
 use crate::views::{
     canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
-    Canvas, Transformation,
+    Canvas,
 };
 use crate::GlyphEditView;
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
-use gtk::cairo::Context;
+use gtk::cairo::{Context, Matrix};
 use gtk::Inhibit;
 use gtk::{glib, prelude::*, subclass::prelude::*};
 use once_cell::sync::OnceCell;
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::cell::{Cell, RefCell, RefMut};
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+enum InnerState {
+    #[default]
+    OnCurvePoint,
+    Handle,
+    HandleUnlinked,
+}
+
+struct ContourState {
+    first_point: Point,
+    contour: Contour,
+    first_curve: Bezier,
+    current_curve: Bezier,
+    last_point: CurvePoint,
+    curve_index: usize,
+}
+
+impl std::fmt::Debug for ContourState {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("ContourState")
+            .field("first_point", &self.first_point)
+            .field("contour", &self.contour.imp())
+            .field("first_curve", &self.first_curve.imp())
+            .field("current_curve", &self.current_curve.imp())
+            .field("last_point", &self.last_point)
+            .field("curve_index", &self.curve_index)
+            .finish()
+    }
+}
 
 #[derive(Default)]
 pub struct BezierToolInner {
     layer: OnceCell<Layer>,
-    state: Rc<RefCell<State>>,
     active: Cell<bool>,
     cursor: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
+    inner: Cell<InnerState>,
+    contour: RefCell<Option<ContourState>>,
 }
 
 #[glib::object_subclass]
@@ -103,49 +132,60 @@ impl ObjectImpl for BezierToolInner {
 impl ToolImplImpl for BezierToolInner {
     fn on_button_press_event(
         &self,
-        _obj: &ToolImpl,
+        obj: &ToolImpl,
         view: GlyphEditView,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         if event.button() == gtk::gdk::BUTTON_PRIMARY {
-            let mut state = self.state.borrow_mut();
-            if state.inner == InnerState::OnCurvePoint {
-                let event_position = event.position();
+            let mut c = self.contour.borrow_mut();
+            if c.is_none() {
+                let UnitPoint(first_point) =
+                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                let current_curve = Bezier::new(vec![first_point]);
+                let new_state = ContourState {
+                    last_point: {
+                        let p = current_curve.points().borrow()[0].clone();
+                        p
+                    },
+                    first_point,
+                    contour: {
+                        let contour = Contour::new();
+                        contour.push_curve(current_curve.clone());
+                        contour
+                    },
+                    first_curve: current_curve.clone(),
+                    current_curve,
+                    curve_index: 0,
+                };
+                let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                let contour_index = glyph_state.glyph.borrow().contours.len();
+                let subaction = glyph_state.add_contour(&new_state.contour, contour_index);
+                let mut action = new_contour_action(
+                    glyph_state.glyph.clone(),
+                    new_state.contour.clone(),
+                    subaction,
+                );
+                (action.redo)();
+                glyph_state.add_undo_action(action);
+                *c = Some(new_state);
+                return Inhibit(true);
+            }
+
+            if self.inner.get() == InnerState::OnCurvePoint {
                 let UnitPoint(position) =
-                    viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                if !state.insert_point(position) {
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-                    if let Some(contour) = state.close() {
-                        let contour_index = glyph_state.glyph.borrow().contours.len();
-                        let subaction = glyph_state.add_contour(&contour, contour_index);
-                        let mut action =
-                            new_contour_action(glyph_state.glyph.clone(), contour, subaction);
-                        (action.redo)();
-                        glyph_state.add_undo_action(action);
-                        glyph_state.active_tool = glib::types::Type::INVALID;
-                        self.on_deactivate(_obj, &view);
-                        return Inhibit(true);
-                    }
-                }
+                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                self.insert_point(obj, &view, c, position);
                 // b.start
-                assert!(state.inner != InnerState::OnCurvePoint);
 
                 return Inhibit(true);
             }
         } else if event.button() == gtk::gdk::BUTTON_SECONDARY {
-            let mut state = self.state.borrow_mut();
-            let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-            if let Some(contour) = state.close() {
-                let contour_index = glyph_state.glyph.borrow().contours.len();
-                let subaction = glyph_state.add_contour(&contour, contour_index);
-                let mut action = new_contour_action(glyph_state.glyph.clone(), contour, subaction);
-                (action.redo)();
-                glyph_state.add_undo_action(action);
-                glyph_state.active_tool = glib::types::Type::INVALID;
-                self.on_deactivate(_obj, &view);
+            let c = self.contour.borrow_mut();
+            if c.is_none() {
+                return Inhibit(false);
             }
-            viewport.queue_draw();
+            self.close(obj, &view, c);
 
             return Inhibit(true);
         }
@@ -154,43 +194,22 @@ impl ToolImplImpl for BezierToolInner {
 
     fn on_button_release_event(
         &self,
-        _obj: &ToolImpl,
+        obj: &ToolImpl,
         view: GlyphEditView,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
-        let mut state = self.state.borrow_mut();
-        //let is_smooth: bool = state.current_curve.property(Bezier::SMOOTH);
-        match (event.button(), state.inner) {
-            /*(gtk::gdk::BUTTON_PRIMARY, InnerState::OnCurvePoint, false) => {
-                let mut state = self.state.borrow_mut();
-                state.add_corner();
-                viewport.queue_draw();
-                Inhibit(true)
-            }*/
-            (
-                gtk::gdk::BUTTON_PRIMARY,
-                prev @ InnerState::Handle | prev @ InnerState::HandleUnlinked,
-            ) => {
-                let event_position = event.position();
-                let UnitPoint(position) =
-                    viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                state.current_curve.set_property(Bezier::SMOOTH, true);
-                if !state.insert_point(position) {
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-                    if let Some(contour) = state.close() {
-                        let contour_index = glyph_state.glyph.borrow().contours.len();
-                        let subaction = glyph_state.add_contour(&contour, contour_index);
-                        let mut action =
-                            new_contour_action(glyph_state.glyph.clone(), contour, subaction);
-                        (action.redo)();
-                        glyph_state.add_undo_action(action);
-                        glyph_state.active_tool = glib::types::Type::INVALID;
-                        self.on_deactivate(_obj, &view);
-                    }
-                    viewport.queue_draw();
+        match (event.button(), self.inner.get()) {
+            (gtk::gdk::BUTTON_PRIMARY, InnerState::Handle | InnerState::HandleUnlinked) => {
+                let c = self.contour.borrow_mut();
+                if c.is_none() {
+                    return Inhibit(false);
                 }
-                assert!(state.inner != prev);
+                let UnitPoint(position) =
+                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                self.inner.set(InnerState::OnCurvePoint);
+                self.insert_point(obj, &view, c, position);
+                viewport.queue_draw();
                 Inhibit(true)
             }
             _ => Inhibit(false),
@@ -199,48 +218,48 @@ impl ToolImplImpl for BezierToolInner {
 
     fn on_motion_notify_event(
         &self,
-        _obj: &ToolImpl,
-        _view: GlyphEditView,
+        obj: &ToolImpl,
+        view: GlyphEditView,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
+        let mut c = self.contour.borrow_mut();
+        if c.is_none() {
+            return Inhibit(false);
+        }
+
         let event_state = event.state();
-        let mut state = self.state.borrow_mut();
+        let inner = self.inner.get();
 
         if event_state.intersects(gtk::gdk::ModifierType::BUTTON1_MASK)
-            && state.inner == InnerState::OnCurvePoint
+            && inner == InnerState::OnCurvePoint
         {
-            //state.current_curve.set_property(Bezier::SMOOTH, true);
-            state.inner = InnerState::Handle;
+            let UnitPoint(position) =
+                viewport.view_to_unit_point(ViewPoint(event.position().into()));
+            self.insert_point(obj, &view, c, position);
+            self.inner.set(InnerState::Handle);
             return Inhibit(true);
         } else if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) {
             /* snap */
             return Inhibit(true);
         } else if event_state.intersects(gtk::gdk::ModifierType::META_MASK)
-            && matches!(state.inner, InnerState::Handle | InnerState::HandleUnlinked)
+            && matches!(inner, InnerState::Handle | InnerState::HandleUnlinked)
         {
-            state.inner = if state.inner == InnerState::Handle {
+            self.inner.set(if inner == InnerState::Handle {
                 InnerState::HandleUnlinked
             } else {
                 InnerState::Handle
-            };
-            return Inhibit(true);
-        } else if state.inner == InnerState::Handle && !state.curves.is_empty() {
-            let event_position = event.position();
-            let UnitPoint(point) = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+            });
 
-            let mut current_points = state.current_curve.points().borrow_mut();
-            let p_len = current_points.len();
-            let end_point = current_points[p_len - 1];
-            let dist = distance_between_two_points(point, end_point);
-            if dist >= 0.1 {
-                if p_len == 1 {
-                    let mut prev_points = state.curves.last().unwrap().points().borrow_mut();
-                    let prev_points_len = prev_points.len();
-                    prev_points[prev_points_len - 2] = point.mirror(end_point);
-                } else {
-                    current_points[p_len - 2] = point.mirror(end_point);
-                }
+            return Inhibit(true);
+        } else if inner == InnerState::Handle {
+            let state = c.as_mut().unwrap();
+            let UnitPoint(point) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
+            let diff_vector = point - state.last_point.position;
+            if diff_vector.norm() >= 0.1 {
+                let mut m = Matrix::identity();
+                m.translate(diff_vector.x, diff_vector.y);
+                self.transform_point(m, &view, state);
             }
             return Inhibit(true);
         }
@@ -253,7 +272,7 @@ impl ToolImplImpl for BezierToolInner {
                 .set_name(Some("bezier"))
                 .set_active(false)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &Context| {
                     BezierTool::draw_layer(viewport, cr, view)
                 }))))
                 .build();
@@ -286,7 +305,99 @@ impl ToolImplImpl for BezierToolInner {
     }
 }
 
-impl BezierToolInner {}
+impl BezierToolInner {
+    fn insert_point(
+        &self,
+        obj: &ToolImpl,
+        view: &GlyphEditView,
+        /* to ensure we don't reborrow ContourState */
+        mut state_opt: RefMut<'_, Option<ContourState>>,
+        point: Point,
+    ) {
+        if let Some(mut state) = state_opt.as_mut() {
+            let add_to_kdtree = |state: &mut ContourState| {
+                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+                let contour_index = glyph_state.glyph.borrow().contours.len();
+                let curve_index = state.curve_index;
+                let uuid = state.last_point.uuid;
+                let idx = GlyphPointIndex {
+                    contour_index,
+                    curve_index,
+                    uuid,
+                };
+                let mut kd_tree = glyph_state.kd_tree.borrow_mut();
+                /* update kd_tree */
+                kd_tree.add(idx, state.last_point.position);
+                glyph_state.viewport.queue_draw();
+            };
+            let curve_point = CurvePoint::new(point);
+            if distance_between_two_points(point, state.first_point) < 20.0
+                && self.inner.get() == InnerState::Handle
+            {
+                state.first_curve.set_property(Bezier::SMOOTH, true);
+                state.last_point = curve_point.clone();
+                state.current_curve.points().borrow_mut().push(curve_point);
+                add_to_kdtree(state);
+                self.close(obj, view, state_opt);
+            } else {
+                state.last_point = curve_point.clone();
+                state.current_curve.points().borrow_mut().push(curve_point);
+                add_to_kdtree(state);
+                if state.current_curve.degree() == Some(3) {
+                    /* current_curve is cubic, so split it. */
+                    let curv =
+                        std::mem::replace(&mut state.current_curve, Bezier::new(vec![point]));
+                    curv.clean_up();
+                    state.last_point = state.current_curve.points().borrow()[0].clone();
+                    state.contour.push_curve(state.current_curve.clone());
+                    state.curve_index += 1;
+                    add_to_kdtree(state);
+                }
+            }
+        }
+    }
+
+    fn close(
+        &self,
+        obj: &ToolImpl,
+        view: &GlyphEditView,
+        /* to ensure we don't reborrow ContourState */
+        state_opt: RefMut<'_, Option<ContourState>>,
+    ) {
+        if state_opt.as_ref().is_some() {
+            drop(state_opt);
+            view.imp()
+                .glyph_state
+                .get()
+                .unwrap()
+                .borrow_mut()
+                .active_tool = glib::types::Type::INVALID;
+            self.on_deactivate(obj, view);
+            self.contour.borrow_mut().take();
+        }
+    }
+
+    fn transform_point(&self, m: Matrix, view: &GlyphEditView, state: &mut ContourState) {
+        let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+        let contour_index = glyph_state.glyph.borrow().contours.len();
+        let curve_index = state.curve_index;
+        let uuid = state.last_point.uuid;
+        let idxs = [GlyphPointIndex {
+            contour_index,
+            curve_index,
+            uuid,
+        }];
+        let mut kd_tree = glyph_state.kd_tree.borrow_mut();
+        for (idx, new_pos) in state.contour.transform_points(contour_index, &idxs, m) {
+            if idx.uuid == uuid {
+                state.last_point.position = new_pos;
+            }
+            /* update kd_tree */
+            kd_tree.add(idx, new_pos);
+            glyph_state.viewport.queue_draw();
+        }
+    }
+}
 
 glib::wrapper! {
     pub struct BezierTool(ObjectSubclass<BezierToolInner>)
@@ -306,7 +417,9 @@ impl BezierTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
+    pub fn draw_layer(_viewport: &Canvas, _cr: &Context, _obj: GlyphEditView) -> Inhibit {
+        Inhibit(false)
+        /*
         let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
         if BezierTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
@@ -318,6 +431,12 @@ impl BezierTool {
         if !t.imp().active.get() {
             return Inhibit(false);
         }
+        let c = t.imp().contour.borrow();
+        if c.is_none() {
+            return Inhibit(false);
+        }
+        let state = c.as_ref().unwrap();
+
         let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
         let units_per_em = viewport
             .imp()
@@ -340,238 +459,14 @@ impl BezierTool {
                 .unwrap()
                 .property::<f64>(crate::Settings::LINE_WIDTH),
         };
-        t.imp().state.borrow().draw(
-            viewport,
-            cr,
-            options,
-            viewport.view_to_unit_point(viewport.get_mouse()).0,
-        );
+        //t.imp().state.borrow().draw(
+        //    viewport,
+        //    cr,
+        //    options,
+        //    viewport.view_to_unit_point(viewport.get_mouse()).0,
+        //);
 
-        Inhibit(true)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum InnerState {
-    OnCurvePoint,
-    Handle,
-    HandleUnlinked,
-}
-
-#[derive(Debug, Clone)]
-pub struct State {
-    inner: InnerState,
-    snap_to_angle: bool,
-    first_point: Option<Point>,
-    current_curve: Bezier,
-    curves: Vec<Bezier>,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State {
-            inner: InnerState::OnCurvePoint,
-            snap_to_angle: false,
-            current_curve: Bezier::new(true, vec![]),
-            curves: vec![],
-            first_point: None,
-        }
-    }
-}
-
-impl State {
-    pub fn insert_point(&mut self, point: Point) -> bool {
-        match self.inner {
-            InnerState::OnCurvePoint => {
-                // (a).end
-                match self.first_point.as_ref() {
-                    None => {
-                        self.first_point = Some(point);
-                        self.current_curve
-                            .set_property::<bool>(Bezier::SMOOTH, false);
-                    }
-                    Some(fp) if distance_between_two_points(point, *fp) < 20.0 => {
-                        let mut current_points = self.current_curve.points().borrow_mut();
-                        current_points.push(*fp);
-                        return false;
-                    }
-                    _ => {}
-                }
-                self.inner = InnerState::Handle;
-            }
-            InnerState::Handle => {
-                self.inner = InnerState::OnCurvePoint;
-                // (b).end
-                let current_points = self.current_curve.points().borrow();
-                let p_len = current_points.len();
-                let end_point = current_points[p_len - 1];
-                drop(current_points);
-                if distance_between_two_points(point, end_point) < 20.0
-                    && self.current_curve.degree() == Some(2)
-                {
-                    /* current_curve should be quadratic, so split it. */
-                    let curv = std::mem::replace(
-                        &mut self.current_curve,
-                        Bezier::new(true, vec![point, point]),
-                    );
-                    curv.clean_up();
-                    self.curves.push(curv);
-                    return true;
-                }
-
-                let mut current_points = self.current_curve.points().borrow_mut();
-                if !self.curves.is_empty() {
-                    let dist = distance_between_two_points(point, end_point);
-                    if dist >= 0.1 {
-                        current_points[p_len - 2] = point.mirror(end_point);
-                    }
-                }
-            }
-            InnerState::HandleUnlinked => {
-                self.inner = InnerState::OnCurvePoint;
-                // (c).end
-                let current_points = self.current_curve.points().borrow();
-                let p_len = current_points.len();
-                let end_point = current_points[p_len - 1];
-                drop(current_points);
-                if distance_between_two_points(point, end_point) < 20.0 {
-                    if self.current_curve.degree() == Some(2) {
-                        /* current_curve should be quadratic, so split it. */
-                        let curv = std::mem::replace(
-                            &mut self.current_curve,
-                            Bezier::new(true, vec![point, point]),
-                        );
-                        curv.clean_up();
-                        self.curves.push(curv);
-                    }
-                    return true;
-                }
-            }
-        }
-        /*if !self.current_curve.property::<bool>(Bezier::SMOOTH) {
-            match self.first_point.as_ref() {
-                None => {
-                    self.first_point = Some(point);
-                }
-                Some(fp) if distance_between_two_points(point, *fp) < 20.0 => {
-                    self.current_curve.points().borrow_mut().push(*fp);
-                    return false;
-                }
-                _ => {}
-            }
-            self.current_curve.points().borrow_mut().push(point);
-            let curv = std::mem::replace(&mut self.current_curve, Bezier::new(false, vec![]));
-            self.current_curve.points().borrow_mut().push(point);
-            self.curves.push(curv);
-            return true;
-        }
-        match self.inner {
-            InnerState::OnCurvePoint | InnerState::HandleUnlinked => {
-                match self.first_point.as_ref() {
-                    None => {
-                        self.first_point = Some(point);
-                        self.current_curve
-                            .set_property::<bool>(Bezier::SMOOTH, false);
-                    }
-                    Some(fp) if distance_between_two_points(point, *fp) < 20.0 => {
-                        self.current_curve.points().borrow_mut().push(*fp);
-                        return false;
-                    }
-                    _ => {}
-                }
-                self.current_curve.points().borrow_mut().push(point);
-                //self.inner = InnerState::Handle;
-            }
-            InnerState::Handle => {
-                self.inner = InnerState::OnCurvePoint;
-                self.current_curve.points().borrow_mut().push(point);
-            }
-        }
-        */
-        self.current_curve.points().borrow_mut().push(point);
-        if self.current_curve.degree() == Some(3) {
-            /* current_curve is cubic, so split it. */
-            let curv = std::mem::replace(
-                &mut self.current_curve,
-                Bezier::new(
-                    true,
-                    if self.inner == InnerState::OnCurvePoint {
-                        vec![point, point]
-                    } else {
-                        vec![point]
-                    },
-                ),
-            );
-            curv.clean_up();
-            self.curves.push(curv);
-        }
-        true
-    }
-
-    pub fn close(&mut self) -> Option<Contour> {
-        let State {
-            inner: _,
-            first_point: _,
-            current_curve,
-            snap_to_angle: _,
-            mut curves,
-        } = std::mem::take(self);
-        if current_curve.degree().is_some() {
-            current_curve.clean_up();
-            curves.push(current_curve);
-        }
-        curves.retain(|c| !matches!(c.degree(), Some(0) | None));
-        if curves.is_empty() {
-            return None;
-        }
-
-        let ret = Contour::new();
-        ret.set_property::<bool>(
-            Contour::OPEN,
-            curves.first().unwrap().points().borrow()[0]
-                != *curves.last().unwrap().points().borrow().last().unwrap(),
-        );
-        if !ret.property::<bool>(Contour::OPEN) && curves.len() > 2 {
-            let l = curves.len();
-            let (first, prev, last) = (
-                curves.first().unwrap().points().borrow(),
-                curves[l - 2].points().borrow(),
-                &curves[l - 1],
-            );
-            if last.degree() == Some(1) {
-                let mut pts = last.points().borrow_mut();
-                let p_l = prev.len();
-                pts.pop();
-                pts.push(prev[p_l - 2].mirror(prev[p_l - 1]));
-                pts.push(first[1].mirror(first[0]));
-                pts.push(first[0]);
-            }
-        }
-
-        for c in curves {
-            if matches!(c.degree(), Some(0) | None) {
-                continue;
-            }
-            ret.push_curve(c);
-        }
-        if ret.curves().borrow().is_empty() {
-            None
-        } else {
-            Some(ret)
-        }
-    }
-
-    pub fn draw(
-        &self,
-        viewport: &Canvas,
-        cr: &Context,
-        options: GlyphDrawingOptions,
-        cursor_position: Point,
-    ) {
-        let first_point = match self.first_point {
-            Some(v) => v,
-            None => return,
-        };
+        let cursor: Point = viewport.view_to_unit_point(viewport.get_mouse()).0;
         let GlyphDrawingOptions {
             outline,
             inner_fill: _,
@@ -588,19 +483,26 @@ impl State {
             cr.set_font_size(11.0);
             let line_height = cr.text_extents("BezierTool").unwrap().height * 1.5;
             cr.show_text("BezierTool").unwrap();
-            for (i, line) in Some(format!("state: {:?}", self.inner))
+            for (i, line) in Some(format!("state: {:?}", t.imp().inner))
                 .into_iter()
-                .chain(Some(format!("snap_to_angle: {:?}", self.snap_to_angle)).into_iter())
-                .chain(Some(format!("first_point: {:?}", self.first_point.as_ref())).into_iter())
+                .chain(Some(format!("snap_to_angle: {:?}", t.imp().snap_to_angle)).into_iter())
+                .chain(Some(format!("first_point: {:?}", &state.first_point)).into_iter())
                 .chain(
-                    format!("current_curve: {:#?}", self.current_curve.imp())
+                    format!("current_curve: {:#?}", state.current_curve.imp())
                         .lines()
                         .map(str::to_string),
                 )
                 .chain(
                     format!(
                         "curves: {:#?}",
-                        self.curves.iter().map(Bezier::imp).collect::<Vec<_>>()
+                        state
+                            .contour
+                            .imp()
+                            .curves
+                            .borrow()
+                            .iter()
+                            .map(Bezier::imp)
+                            .collect::<Vec<_>>()
                     )
                     .lines()
                     .map(str::to_string),
@@ -614,25 +516,21 @@ impl State {
         cr.transform(matrix);
         cr.set_line_width(line_width);
         cr.set_source_color_alpha(outline);
-        let draw_endpoint = |p: (f64, f64)| {
-            cr.rectangle(p.0 - 2.5, p.1 - 2.5, 5., 5.);
+        let draw_endpoint = |p: Point| {
+            cr.rectangle(p.x - 2.5, p.y - 2.5, 5.0, 5.0);
             cr.stroke().expect("Invalid cairo surface state");
         };
-        let draw_handle = |p: (f64, f64), ep: (f64, f64)| {
-            cr.arc(p.0 - 2.5, p.1 - 2.5, 2.0, 0., 2. * std::f64::consts::PI);
+        let draw_handle = |p: Point, ep: Point| {
+            cr.arc(p.x - 2.5, p.y - 2.5, 2.0, 0.0, 2.0 * std::f64::consts::PI);
             cr.fill().unwrap();
-            cr.move_to(p.0 - 2.5, p.1 - 2.5);
-            cr.line_to(ep.0, ep.1);
+            cr.move_to(p.x - 2.5, p.y - 2.5);
+            cr.line_to(ep.x, ep.y);
             cr.stroke().unwrap();
         };
-        let p_fn = |p: Point| -> (f64, f64) { (p.x as f64, p.y as f64) };
-        let fp = p_fn(first_point);
+        let fp = state.first_point;
         draw_endpoint(fp);
-        let mut pen_position: Option<(f64, f64)> = Some(fp);
-        for curv in self.curves.iter() {
-            if !curv.property::<bool>(Bezier::SMOOTH) {
-                //cr.stroke().expect("Invalid cairo surface state");
-            }
+        let mut pen_position: Option<Point> = Some(fp);
+        for curv in state.contour.imp().curves.borrow().iter() {
             let degree = curv.degree();
             let degree = if let Some(v) = degree {
                 v
@@ -640,14 +538,14 @@ impl State {
                 continue;
             };
             if let Some(p) = pen_position.take() {
-                cr.move_to(p.0, p.1);
+                cr.move_to(p.x, p.y);
             }
             match degree {
                 0 => { /* ignore */ }
                 1 => {
                     /* Line. */
-                    let new_point = p_fn(curv.points().borrow()[1]);
-                    cr.line_to(new_point.0, new_point.1);
+                    let new_point = curv.points().borrow()[1].position;
+                    cr.line_to(new_point.x, new_point.y);
                     pen_position = Some(new_point);
                 }
                 2 => {
@@ -655,17 +553,17 @@ impl State {
                     let a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        p_fn(curv.points().borrow()[0])
+                        curv.points().borrow()[0].position
                     };
-                    let b = p_fn(curv.points().borrow()[1]);
-                    let c = p_fn(curv.points().borrow()[2]);
+                    let b = curv.points().borrow()[1].position;
+                    let c = curv.points().borrow()[2].position;
                     cr.curve_to(
-                        2.0 / 3.0 * b.0 + 1.0 / 3.0 * a.0,
-                        2.0 / 3.0 * b.1 + 1.0 / 3.0 * a.1,
-                        2.0 / 3.0 * b.0 + 1.0 / 3.0 * c.0,
-                        2.0 / 3.0 * b.1 + 1.0 / 3.0 * c.1,
-                        c.0,
-                        c.1,
+                        2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
+                        2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
+                        2.0 / 3.0 * b.x + 1.0 / 3.0 * c.x,
+                        2.0 / 3.0 * b.y + 1.0 / 3.0 * c.y,
+                        c.x,
+                        c.y,
                     );
                     pen_position = Some(c);
                 }
@@ -674,72 +572,30 @@ impl State {
                     let _a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        p_fn(curv.points().borrow()[0])
+                        curv.points().borrow()[0].position
                     };
-                    let b = p_fn(curv.points().borrow()[1]);
-                    let c = p_fn(curv.points().borrow()[2]);
-                    let d = p_fn(curv.points().borrow()[3]);
-                    cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
+                    let b = curv.points().borrow()[1].position;
+                    let c = curv.points().borrow()[2].position;
+                    let d = curv.points().borrow()[3].position;
+                    cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
                     pen_position = Some(d);
                 }
                 d => {
                     eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
-                    pen_position = Some(p_fn(*curv.points().borrow().last().unwrap()));
+                    pen_position = Some(curv.points().borrow().last().unwrap().position);
                     continue;
                 }
             }
         }
         cr.stroke().expect("Invalid cairo surface state");
         if let Some(pos) = pen_position {
-            cr.move_to(pos.0, pos.1);
+            cr.move_to(pos.x, pos.y);
+            draw_handle(pos, state.last_point.position);
+            cr.stroke().expect("Invalid cairo surface state");
         }
-        let (pos_x, pos_y) = p_fn(cursor_position);
-        //cr.set_source_color_alpha(outline.0, outline.1, outline.2, 0.5 * outline.3);
-        match self.current_curve.degree() {
-            None => {
-                cr.line_to(pos_x, pos_y);
-                cr.stroke().expect("Invalid cairo surface state");
-            }
-            Some(0) => {
-                let new_point = p_fn(self.current_curve.points().borrow()[0]);
-                cr.line_to(new_point.0, new_point.1);
-                cr.line_to(pos_x, pos_y);
-                cr.stroke().expect("Invalid cairo surface state");
-                draw_endpoint(new_point);
-            }
-            Some(1) => {
-                let a = p_fn(self.current_curve.points().borrow()[0]);
-                cr.line_to(a.0, a.1);
-                let b = p_fn(self.current_curve.points().borrow()[1]);
-                let c = (pos_x, pos_y);
-                let d = (pos_x, pos_y);
-                cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
-                cr.stroke().expect("Invalid cairo surface state");
-                draw_endpoint(a);
-                draw_endpoint(d);
-                draw_handle(b, a);
-            }
-            Some(2) => {
-                let a = p_fn(self.current_curve.points().borrow()[0]);
-                cr.line_to(a.0, a.1);
-                let b = p_fn(self.current_curve.points().borrow()[1]);
-                let c = p_fn(self.current_curve.points().borrow()[2]);
-                let d = (pos_x, pos_y);
-                cr.curve_to(b.0, b.1, c.0, c.1, d.0, d.1);
-                cr.stroke().expect("Invalid cairo surface state");
-                draw_endpoint(a);
-                draw_endpoint(d);
-                draw_handle(b, a);
-                draw_handle(c, d);
-            }
-            Some(d) => {
-                eprintln!(
-                    "Something's wrong in current curve. Bezier of degree {}: {:?}",
-                    d, self.current_curve
-                );
-            }
-        }
-
         cr.restore().expect("Invalid cairo surface state");
+
+        Inhibit(true)
+        */
     }
 }

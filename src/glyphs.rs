@@ -117,6 +117,7 @@ pub struct GlyphDrawingOptions {
     pub matrix: Matrix,
     pub units_per_em: f64,
     pub line_width: f64,
+    pub handle_size: Option<f64>,
 }
 
 impl Default for GlyphDrawingOptions {
@@ -128,6 +129,7 @@ impl Default for GlyphDrawingOptions {
             matrix: Matrix::identity(),
             units_per_em: 1000.,
             line_width: 4.0,
+            handle_size: None,
         }
     }
 }
@@ -217,6 +219,7 @@ impl Glyph {
             matrix,
             units_per_em: _,
             line_width,
+            handle_size,
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
@@ -230,32 +233,31 @@ impl Glyph {
             if !contour.property::<bool>(Contour::OPEN) {
                 if let Some(point) = curves
                     .last()
-                    .and_then(|b| b.points().borrow().last().copied())
+                    .and_then(|b| b.points().borrow().last().cloned())
                 {
                     cr.move_to(point.x, point.y);
-                    pen_position = Some(point);
+                    pen_position = Some(point.position);
                 }
             } else if let Some(point) = curves
                 .first()
-                .and_then(|b| b.points().borrow().first().copied())
+                .and_then(|b| b.points().borrow().first().cloned())
             {
                 cr.move_to(point.x, point.y);
             }
 
             for (_jc, curv) in curves.iter().enumerate() {
-                if !curv.property::<bool>(Bezier::SMOOTH) {
-                    //cr.stroke().expect("Invalid cairo surface state");
-                }
                 let degree = curv.degree();
                 let degree = if let Some(v) = degree {
                     v
                 } else {
                     continue;
                 };
+                let curv_points = curv.points().borrow();
                 match degree {
+                    0 => { /* Single point */ }
                     1 => {
                         /* Line. */
-                        let new_point = curv.points().borrow()[1];
+                        let new_point = curv_points[1].position;
                         cr.line_to(new_point.x, new_point.y);
                         pen_position = Some(new_point);
                     }
@@ -264,10 +266,10 @@ impl Glyph {
                         let a = if let Some(v) = pen_position.take() {
                             v
                         } else {
-                            curv.points().borrow()[0]
+                            curv_points[0].position
                         };
-                        let b = curv.points().borrow()[1];
-                        let c = curv.points().borrow()[2];
+                        let b = curv_points[1].position;
+                        let c = curv_points[2].position;
                         cr.curve_to(
                             2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
                             2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
@@ -283,17 +285,17 @@ impl Glyph {
                         let _a = if let Some(v) = pen_position.take() {
                             v
                         } else {
-                            curv.points().borrow()[0]
+                            curv_points[0].position
                         };
-                        let b = curv.points().borrow()[1];
-                        let c = curv.points().borrow()[2];
-                        let d = curv.points().borrow()[3];
+                        let b = curv_points[1].position;
+                        let c = curv_points[2].position;
+                        let d = curv_points[3].position;
                         cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
                         pen_position = Some(d);
                     }
                     d => {
                         eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
-                        pen_position = Some(*curv.points().borrow().last().unwrap());
+                        pen_position = Some(curv_points.last().unwrap().position);
                         continue;
                     }
                 }
@@ -323,13 +325,15 @@ impl Glyph {
                 })
                 .and_then(|curv| Some((curv.degree()?, curv)))
         }) {
+            let curv_points = curv.points().borrow();
             cr.set_source_color(Color::RED);
-            let point = curv.points().borrow()[0];
+            let point = curv_points[0].position;
             cr.move_to(point.x, point.y);
             match degree {
+                0 => { /* Single point */ }
                 1 => {
                     /* Line. */
-                    let new_point = curv.points().borrow()[1];
+                    let new_point = curv_points[1].position;
                     cr.line_to(new_point.x, new_point.y);
                 }
                 2 => {
@@ -337,10 +341,10 @@ impl Glyph {
                     let a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        curv.points().borrow()[0]
+                        curv_points[0].position
                     };
-                    let b = curv.points().borrow()[1];
-                    let c = curv.points().borrow()[2];
+                    let b = curv_points[1].position;
+                    let c = curv_points[2].position;
                     cr.curve_to(
                         2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
                         2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
@@ -352,11 +356,11 @@ impl Glyph {
                 }
                 3 => {
                     /* Cubic */
-                    let _a = { curv.points().borrow()[0] };
+                    let _a = { curv_points[0].position };
                     cr.move_to(_a.x, _a.y);
-                    let b = curv.points().borrow()[1];
-                    let c = curv.points().borrow()[2];
-                    let d = curv.points().borrow()[3];
+                    let b = curv_points[1].position;
+                    let c = curv_points[2].position;
+                    let d = curv_points[3].position;
                     cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
                 }
                 d => {
@@ -364,6 +368,102 @@ impl Glyph {
                 }
             }
             cr.stroke().expect("Invalid cairo surface state");
+        }
+        if let Some(handle_size) = handle_size {
+            let draw_oncurve = |p: Point| {
+                cr.set_line_width(line_width);
+                cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                cr.rectangle(
+                    p.x - handle_size / 2.0,
+                    p.y - handle_size / 2.0,
+                    handle_size,
+                    handle_size,
+                );
+                cr.stroke().unwrap();
+                cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
+                cr.rectangle(
+                    p.x - handle_size / 2.0,
+                    p.y - handle_size / 2.0,
+                    handle_size,
+                    handle_size + 1.0,
+                );
+                cr.stroke().unwrap();
+            };
+            let draw_handle = |p: Point| {
+                if inner_fill.is_some() {
+                    cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
+                } else {
+                    cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                }
+                cr.arc(p.x, p.y, handle_size / 2.0, 0.0, 2.0 * std::f64::consts::PI);
+                cr.fill().unwrap();
+                cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
+                cr.arc(
+                    p.x,
+                    p.y,
+                    handle_size / 2.0 + 1.0,
+                    0.0,
+                    2.0 * std::f64::consts::PI,
+                );
+                cr.stroke().unwrap();
+            };
+            let draw_handle_connection = |h: Point, ep: Point| {
+                cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
+                cr.move_to(h.x - 2.5, h.y - 2.5);
+                cr.line_to(ep.x, ep.y);
+                cr.stroke().unwrap();
+            };
+            for contour in self.contours.iter() {
+                let curves = contour.imp().curves.borrow();
+                for curv in curves.iter() {
+                    let degree = curv.degree();
+                    let degree = if let Some(v) = degree {
+                        v
+                    } else {
+                        continue;
+                    };
+                    let curv_points = curv.points().borrow();
+                    match degree {
+                        0 => {
+                            /* Single point */
+                            draw_oncurve(curv_points[0].position);
+                        }
+                        1 => {
+                            /* Line. */
+                            draw_oncurve(curv_points[0].position);
+                            draw_oncurve(curv_points[1].position);
+                        }
+                        2 => {
+                            /* Quadratic. */
+                            let handle = curv_points[1].position;
+                            let ep1 = curv_points[0].position;
+                            let ep2 = curv_points[2].position;
+                            draw_handle_connection(handle, ep1);
+                            draw_handle_connection(handle, ep2);
+                            draw_handle(handle);
+                            draw_oncurve(ep1);
+                            draw_oncurve(ep2);
+                        }
+                        3 => {
+                            /* Cubic */
+                            let handle1 = curv_points[1].position;
+                            let handle2 = curv_points[2].position;
+                            let ep1 = curv_points[0].position;
+                            let ep2 = curv_points[3].position;
+                            draw_handle_connection(handle1, ep1);
+                            draw_handle_connection(handle2, ep2);
+                            draw_handle(handle1);
+                            draw_handle(handle2);
+                            draw_oncurve(ep1);
+                            draw_oncurve(ep2);
+                        }
+                        d => {
+                            eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);
+                            continue;
+                        }
+                    }
+                }
+            }
         }
         cr.restore().expect("Invalid cairo surface state");
         for component in self.components.iter() {
@@ -379,7 +479,14 @@ impl Glyph {
                     component.x_offset,
                     component.y_offset,
                 );
-                glyph.draw(cr, GlyphDrawingOptions { matrix, ..options });
+                glyph.draw(
+                    cr,
+                    GlyphDrawingOptions {
+                        matrix,
+                        handle_size: None,
+                        ..options
+                    },
+                );
                 cr.restore().expect("Invalid cairo surface state");
             }
         }
@@ -395,21 +502,22 @@ impl Glyph {
             if !contour.property::<bool>(Contour::OPEN) {
                 if let Some(point) = curves
                     .last()
-                    .and_then(|b| b.points().borrow().last().copied())
+                    .and_then(|b| b.points().borrow().last().cloned())
                 {
-                    pen_position = Some(point);
+                    pen_position = Some(point.position);
                 }
             }
 
             for curv in curves.iter_mut() {
-                if curv.points().borrow().len() == 3 {
+                let curv_points = curv.points().borrow();
+                if curv_points.len() == 3 {
                     let a = if let Some(v) = pen_position.take() {
                         v
                     } else {
-                        curv.points().borrow()[0]
+                        curv_points[0].position
                     };
-                    let b = curv.points().borrow()[1];
-                    let c = curv.points().borrow()[2];
+                    let b = curv_points[1].position;
+                    let c = curv_points[2].position;
                     let new_points = vec![
                         a,
                         (
@@ -424,10 +532,11 @@ impl Glyph {
                             .into(),
                         c,
                     ];
-                    *curv = Bezier::new(curv.property::<bool>(Bezier::SMOOTH), new_points);
+                    drop(curv_points);
+                    *curv = Bezier::new(new_points);
                     pen_position = Some(c);
-                } else if let Some(last_p) = curv.points().borrow().last() {
-                    pen_position = Some(*last_p);
+                } else if let Some(last_p) = curv_points.last() {
+                    pen_position = Some(last_p.position);
                 }
             }
         }

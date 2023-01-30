@@ -27,12 +27,99 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, Div, Mul, Sub};
 use uuid::Uuid;
 
+#[derive(Clone, Debug, glib::Boxed)]
+#[boxed_type(name = "CurvePoint", nullable)]
+pub struct CurvePoint {
+    pub uuid: Uuid,
+    pub position: Point,
+}
+
+impl Default for CurvePoint {
+    fn default() -> CurvePoint {
+        CurvePoint {
+            uuid: Uuid::new_v4(),
+            position: Point::default(),
+        }
+    }
+}
+
+impl CurvePoint {
+    pub fn new(position: Point) -> Self {
+        Self {
+            position,
+            ..Self::default()
+        }
+    }
+
+    pub fn glyph_index(&self, contour_index: usize, curve_index: usize) -> GlyphPointIndex {
+        GlyphPointIndex {
+            contour_index,
+            curve_index,
+            uuid: self.uuid,
+        }
+    }
+}
+
+impl PartialEq for CurvePoint {
+    fn eq(&self, other: &Self) -> bool {
+        self.uuid == other.uuid
+    }
+}
+
+impl Eq for CurvePoint {}
+
+impl Hash for CurvePoint {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uuid.hash(state);
+    }
+}
+
+impl From<CurvePoint> for (f64, f64) {
+    fn from(p: CurvePoint) -> (f64, f64) {
+        (p.position.x, p.position.y)
+    }
+}
+
+impl std::ops::Deref for CurvePoint {
+    type Target = Point;
+
+    fn deref(&self) -> &Self::Target {
+        &self.position
+    }
+}
+
 #[derive(Clone, Debug, Default, Copy, glib::Boxed)]
 #[boxed_type(name = "Point", nullable)]
 pub struct Point {
-    pub uuid: Uuid,
     pub x: f64,
     pub y: f64,
+}
+
+impl Hash for Point {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.x.to_bits().hash(state);
+        self.y.to_bits().hash(state);
+    }
+}
+
+impl PartialEq for Point {
+    fn eq(&self, other: &Self) -> bool {
+        (self.x.to_bits(), self.y.to_bits()) == (other.x.to_bits(), other.y.to_bits())
+    }
+}
+
+impl Eq for Point {}
+
+impl From<CurvePoint> for Point {
+    fn from(cp: CurvePoint) -> Point {
+        cp.position
+    }
+}
+
+impl From<&CurvePoint> for Point {
+    fn from(cp: &CurvePoint) -> Point {
+        cp.position
+    }
 }
 
 impl Point {
@@ -53,14 +140,6 @@ impl Point {
         old_val
     }
 
-    pub fn glyph_index(&self, contour_index: usize, curve_index: usize) -> GlyphPointIndex {
-        GlyphPointIndex {
-            contour_index,
-            curve_index,
-            uuid: self.uuid,
-        }
-    }
-
     pub fn mirror(&self, c: Self) -> Self {
         let line = Line::from_two_points(*self, c);
         let perp = line.perpendicular(c);
@@ -72,19 +151,9 @@ impl Point {
         let my = (-a * mx - c) / b;
         (2.0 * mx - x, 2.0 * my - y).into()
     }
-}
 
-impl PartialEq for Point {
-    fn eq(&self, other: &Self) -> bool {
-        self.uuid == other.uuid
-    }
-}
-
-impl Eq for Point {}
-
-impl Hash for Point {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.uuid.hash(state);
+    pub fn norm(&self) -> f64 {
+        (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
 }
 
@@ -96,11 +165,7 @@ impl From<Point> for (f64, f64) {
 
 impl From<(f64, f64)> for Point {
     fn from((x, y): (f64, f64)) -> Point {
-        Point {
-            uuid: Uuid::from_u64_pair(x.to_bits(), y.to_bits()),
-            x,
-            y,
-        }
+        Point { x, y }
     }
 }
 
@@ -174,12 +239,20 @@ impl std::ops::MulAssign<f64> for Point {
     }
 }
 
-impl Mul<Point> for gtk::cairo::Matrix {
+impl Mul<Point> for Matrix {
     type Output = Point;
 
     fn mul(self, point: Point) -> Self::Output {
         let (x, y) = self.transform_point(point.x, point.y);
         (x, y).into()
+    }
+}
+
+impl std::ops::MulAssign<Matrix> for Point {
+    fn mul_assign(&mut self, m: Matrix) {
+        let (x, y) = m.transform_point(self.x, self.y);
+        self.x = x;
+        self.y = y;
     }
 }
 

@@ -300,7 +300,6 @@ impl Iterator for GlifIterator {
                     prev_point = (p.x, p.y);
                 }
                 let super_ = super::Contour::new();
-                super_.set_property::<bool>(super::Contour::OPEN, open);
                 loop {
                     match points.pop_front() {
                         Some(Point {
@@ -328,11 +327,11 @@ impl Iterator for GlifIterator {
                             prev_point = (*x, *y);
                             c.push(prev_point);
                             c.insert(0, last_oncurve);
-                            let smooth = smooth.as_ref().map(|s| s == "yes").unwrap_or(false);
-                            super_.push_curve(Bezier::new(
-                                smooth,
-                                c.into_iter().map(Into::into).collect(),
-                            ));
+                            let curv = Bezier::new(c.into_iter().map(Into::into).collect());
+                            if smooth.as_ref().map(|s| s == "yes") == Some(true) {
+                                curv.set_property(Bezier::SMOOTH, true);
+                            }
+                            super_.push_curve(curv);
                             c = vec![];
                             last_oncurve = prev_point;
                         }
@@ -347,10 +346,7 @@ impl Iterator for GlifIterator {
                                 c.push(prev_point);
                             }
                             c.push((*x, *y));
-                            super_.push_curve(Bezier::new(
-                                false,
-                                c.into_iter().map(Into::into).collect(),
-                            ));
+                            super_.push_curve(Bezier::new(c.into_iter().map(Into::into).collect()));
                             c = vec![];
                             prev_point = (*x, *y);
                             last_oncurve = prev_point;
@@ -367,13 +363,15 @@ impl Iterator for GlifIterator {
                                     c.push(prev_point);
                                 }
                                 super_.push_curve(Bezier::new(
-                                    false,
                                     c.into_iter().map(Into::into).collect(),
                                 ));
                             }
                             break;
                         }
                     }
+                }
+                if !open {
+                    super_.close();
                 }
                 ret.contours.push(super_);
             }

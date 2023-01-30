@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::Point;
+use super::{CurvePoint, Point};
 use glib::prelude::*;
 use gtk::glib;
 use gtk::prelude::ToValue;
@@ -33,7 +33,7 @@ glib::wrapper! {
 }
 
 impl Bezier {
-    pub fn points(&self) -> &RefCell<Vec<Point>> {
+    pub fn points(&self) -> &RefCell<Vec<CurvePoint>> {
         &self.imp().points
     }
 }
@@ -60,7 +60,7 @@ pub enum Continuity {
 #[derive(Default)]
 pub struct BezierInner {
     pub smooth: Cell<bool>,
-    pub points: Rc<RefCell<Vec<Point>>>,
+    pub points: Rc<RefCell<Vec<CurvePoint>>>,
     pub lut: Rc<RefCell<Vec<Point>>>,
 }
 
@@ -93,7 +93,7 @@ impl ObjectSubclass for BezierInner {
 impl ObjectImpl for BezierInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.smooth.set(true);
+        self.smooth.set(false);
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
@@ -104,7 +104,7 @@ impl ObjectImpl for BezierInner {
                         Bezier::SMOOTH,
                         Bezier::SMOOTH,
                         Bezier::SMOOTH,
-                        true,
+                        false,
                         glib::ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     glib::ParamSpecValueArray::new(
@@ -115,7 +115,7 @@ impl ObjectImpl for BezierInner {
                             Bezier::POINT,
                             Bezier::POINT,
                             Bezier::POINT,
-                            Point::static_type(),
+                            CurvePoint::static_type(),
                             glib::ParamFlags::READWRITE,
                         ),
                         glib::ParamFlags::READWRITE,
@@ -166,7 +166,7 @@ impl ObjectImpl for BezierInner {
 
 impl Default for Bezier {
     fn default() -> Self {
-        Bezier::new(true, vec![])
+        Bezier::new(vec![])
     }
 }
 
@@ -175,10 +175,15 @@ impl Bezier {
     pub const POINTS: &str = "points";
     pub const POINT: &str = "point";
 
-    pub fn new(smooth: bool, points: Vec<Point>) -> Self {
+    pub fn new(points: Vec<Point>) -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        ret.imp().smooth.set(smooth);
-        *ret.imp().points.borrow_mut() = points;
+        *ret.imp().points.borrow_mut() = points
+            .into_iter()
+            .map(|position| CurvePoint {
+                position,
+                ..CurvePoint::default()
+            })
+            .collect::<Vec<CurvePoint>>();
         ret
     }
 
@@ -219,28 +224,32 @@ impl Bezier {
         let points = self.points().borrow();
         // shortcuts
         if t == 0.0 {
-            return points[0];
+            return points[0].position;
         }
 
         let order = self.degree().unwrap();
 
         if t == 1.0 {
-            return points[order];
+            return points[order].position;
         }
 
         let mt = 1.0 - t;
-        let mut p = points.as_slice();
-
         // constant?
         if order == 0 {
-            return p[0];
+            return points[0].position;
         }
 
         // linear?
         if order == 1 {
-            let ret = ((mt * p[0].x + t * p[1].x), (mt * p[0].y + t * p[1].y));
+            let ret = (
+                (mt * points[0].x + t * points[1].x),
+                (mt * points[0].y + t * points[1].y),
+            );
             return ret.into();
         }
+
+        let positions = points.iter().map(|cp| cp.position).collect::<Vec<Point>>();
+        let mut p = positions.as_slice();
 
         // quadratic/cubic curve?
         if order < 4 {
@@ -314,11 +323,11 @@ impl Bezier {
         match self.degree() {
             Some(3) => {
                 let mut pts = self.points().borrow_mut();
-                if pts[0] == pts[1] && pts[2] == pts[3] {
+                if pts[0].position == pts[1].position && pts[2].position == pts[3].position {
                     self.imp().lut.borrow_mut().clear();
                     // Make quadratic
-                    let a = pts[0];
-                    let b = pts[3];
+                    let a = pts[0].clone();
+                    let b = pts[3].clone();
                     pts.clear();
                     pts.push(a);
                     pts.push(b);
@@ -326,11 +335,11 @@ impl Bezier {
             }
             Some(2) => {
                 let mut pts = self.points().borrow_mut();
-                if pts[0] == pts[1] || pts[1] == pts[2] {
+                if pts[0].position == pts[1].position || pts[1].position == pts[2].position {
                     self.imp().lut.borrow_mut().clear();
                     // Make quadratic
-                    let a = pts[0];
-                    let b = pts[2];
+                    let a = pts[0].clone();
+                    let b = pts[2].clone();
                     pts.clear();
                     pts.push(a);
                     pts.push(b);

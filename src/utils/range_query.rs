@@ -21,9 +21,10 @@
 
 use super::{IPoint, Point};
 use crate::glyphs::GlyphPointIndex;
+use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use generational_arena::{Arena, Index};
-use std::cmp::Ordering;
 #[cfg(test)]
 use uuid::Uuid;
 
@@ -774,6 +775,7 @@ pub struct KdTree {
     min: IPoint,
     max: IPoint,
     root: Option<Index>,
+    map: HashMap<GlyphPointIndex, Point>,
 }
 
 impl KdTree {
@@ -806,10 +808,23 @@ impl KdTree {
             min,
             max,
             root,
+            map: points.iter().cloned().collect(),
         }
     }
 
     pub fn add(&mut self, identifier: GlyphPointIndex, point: Point) {
+        if self
+            .map
+            .get(&identifier)
+            .map(|present| *present != point)
+            .unwrap_or(false)
+        {
+            self.remove(identifier);
+        }
+        if self.map.contains_key(&identifier) {
+            return;
+        }
+        self.map.insert(identifier, point);
         let point: IPoint = point.into();
 
         self.size += 1;
@@ -832,8 +847,12 @@ impl KdTree {
         KdNode::insert(root, point, identifier, &mut self.arena);
     }
 
-    pub fn remove(&mut self, identifier: GlyphPointIndex, point: Point) -> bool {
-        let point: IPoint = point.into();
+    pub fn remove(&mut self, identifier: GlyphPointIndex) -> bool {
+        let point: IPoint = if let Some(p) = self.map.get(&identifier) {
+            p.into()
+        } else {
+            return false;
+        };
 
         let root = if let Some(root) = self.root {
             root
@@ -842,6 +861,7 @@ impl KdTree {
         };
 
         if KdNode::remove(root, point, identifier, &mut self.arena) {
+            self.map.remove(&identifier);
             self.size -= 1;
             true
         } else {
