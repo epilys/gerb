@@ -30,7 +30,7 @@ pub mod menu;
 pub mod points;
 pub mod range_query;
 pub use colors::*;
-pub use points::{IPoint, Point};
+pub use points::{CurvePoint, IPoint, Point};
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
 

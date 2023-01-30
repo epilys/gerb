@@ -84,18 +84,25 @@ pub fn draw_glyph_layer(
                 .get()
                 .unwrap()
                 .property(Settings::LINE_WIDTH),
+            handle_size: if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
+                Some(
+                    obj.imp()
+                        .settings
+                        .get()
+                        .unwrap()
+                        .property::<f64>(Settings::HANDLE_SIZE)
+                        / (scale * ppu),
+                )
+            } else {
+                None
+            },
+            selection: Some(glyph_state.get_selection_set()),
         };
         glyph_state.glyph.borrow().draw(cr, options);
     }
 
     if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
-        let handle_size: f64 = obj
-            .imp()
-            .settings
-            .get()
-            .unwrap()
-            .property::<f64>(Settings::HANDLE_SIZE)
-            / (scale * ppu);
+        /*
         for (key, cp) in glyph_state.points.borrow().iter() {
             let p = cp.position;
             if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0 / (scale * ppu)
@@ -108,7 +115,7 @@ pub fn draw_glyph_layer(
                 cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
             }
             match &cp.kind {
-                Endpoint { .. } => {
+                OnCurve { .. } => {
                     cr.rectangle(
                         p.x - handle_size / 2.0,
                         p.y - handle_size / 2.0,
@@ -146,6 +153,7 @@ pub fn draw_glyph_layer(
                 }
             }
         }
+        */
     }
     cr.restore().unwrap();
 
