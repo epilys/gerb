@@ -23,7 +23,9 @@ mod layers;
 mod transformation;
 pub use crate::utils::colors::*;
 use crate::utils::Point;
+use crate::Theme;
 pub use layers::*;
+use once_cell::sync::OnceCell;
 pub use transformation::*;
 
 use glib::{
@@ -67,6 +69,7 @@ pub struct CanvasInner {
     pub ruler_fg_color: Cell<Color>,
     pub ruler_indicator_color: Cell<Color>,
     pub ruler_bg_color: Cell<Color>,
+    pub theme: OnceCell<Theme>,
 }
 
 impl CanvasInner {
@@ -81,6 +84,33 @@ impl CanvasInner {
     pub const RULER_FG_COLOR_INIT_VAL: Color = Color::BLACK;
     pub const RULER_BG_COLOR_INIT_VAL: Color = Color::WHITE;
     pub const RULER_INDICATOR_COLOR_INIT_VAL: Color = Color::RED;
+
+    fn initialize_theme(obj: &Canvas) -> Theme {
+        let theme = Theme::builder(obj.clone().upcast())
+            .set_section("canvas".into())
+            .add_color(Canvas::BG_COLOR, Color::try_from_hex("#E0DDDC").unwrap())
+            .add_color(Canvas::RULER_FG_COLOR, Self::RULER_FG_COLOR_INIT_VAL)
+            .add_color(Canvas::RULER_BG_COLOR, Self::RULER_BG_COLOR_INIT_VAL)
+            .add_color(
+                Canvas::RULER_INDICATOR_COLOR,
+                Self::RULER_INDICATOR_COLOR_INIT_VAL,
+            )
+            .add_color(
+                Canvas::GLYPH_INNER_FILL_COLOR,
+                Color::try_from_hex("#EBE8E7").unwrap(),
+            )
+            .add_color(Canvas::GLYPH_BBOX_BG_COLOR, Color::WHITE)
+            .add_boolean(Canvas::SHOW_GRID, Self::SHOW_GRID_INIT_VAL)
+            .add_boolean(Canvas::SHOW_GUIDELINES, Self::SHOW_GUIDELINES_INIT_VAL)
+            .add_boolean(Canvas::SHOW_HANDLES, Self::SHOW_HANDLES_INIT_VAL)
+            .add_boolean(Canvas::SHOW_RULERS, Self::SHOW_RULERS_INIT_VAL)
+            .add_boolean(Canvas::SHOW_RULERS, Self::SHOW_RULERS_INIT_VAL)
+            .add_boolean(Canvas::SHOW_TOTAL_AREA, Self::SHOW_TOTAL_AREA_INIT_VAL)
+            .add_boolean(Canvas::INNER_FILL, Self::INNER_FILL_INIT_VAL)
+            .build();
+
+        theme
+    }
 }
 
 #[glib::object_subclass]
@@ -93,6 +123,7 @@ impl ObjectSubclass for CanvasInner {
 impl ObjectImpl for CanvasInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.theme.set(Self::initialize_theme(obj)).unwrap();
         self.show_grid.set(CanvasInner::SHOW_GRID_INIT_VAL);
         self.show_guidelines
             .set(CanvasInner::SHOW_GUIDELINES_INIT_VAL);

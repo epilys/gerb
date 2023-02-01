@@ -33,6 +33,8 @@ mod undo;
 pub use undo::*;
 mod settings;
 pub use settings::*;
+mod themes;
+pub use themes::*;
 
 glib::wrapper! {
     pub struct GerbApp(ObjectSubclass<Application>)
