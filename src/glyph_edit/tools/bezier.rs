@@ -285,101 +285,102 @@ impl ToolImplImpl for BezierToolInner {
         let event_state = event.state();
         let inner = self.inner.get();
 
+        /* first update state if any modifiers are active (Shift, Ctrl, etc) */
+        match inner {
+            InnerState::FirstHandle {
+                handle,
+                unlinked,
+                snap_to_angle,
+            } if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) => {
+                /* toggle snap */
+                self.inner.set(InnerState::FirstHandle {
+                    handle,
+                    unlinked,
+                    snap_to_angle: !snap_to_angle,
+                });
+            }
+            InnerState::SecondHandle {
+                handle,
+                unlinked,
+                snap_to_angle,
+            } if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) => {
+                /* toggle snap */
+                self.inner.set(InnerState::SecondHandle {
+                    handle,
+                    unlinked,
+                    snap_to_angle: !snap_to_angle,
+                });
+            }
+            InnerState::ClosingHandle {
+                handle,
+                unlinked,
+                snap_to_angle,
+            } if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) => {
+                /* toggle snap */
+                self.inner.set(InnerState::ClosingHandle {
+                    handle,
+                    unlinked,
+                    snap_to_angle: !snap_to_angle,
+                });
+            }
+            InnerState::FirstHandle {
+                handle,
+                unlinked,
+                snap_to_angle,
+            } if event_state.intersects(
+                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
+            ) =>
+            {
+                /* toggle linked */
+                self.inner.set(InnerState::FirstHandle {
+                    handle,
+                    unlinked: !unlinked,
+                    snap_to_angle,
+                });
+                let state = c.as_mut().unwrap();
+                state.current_curve.set_property(Bezier::SMOOTH, unlinked);
+            }
+            InnerState::SecondHandle {
+                handle,
+                unlinked,
+                snap_to_angle,
+            } if event_state.intersects(
+                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
+            ) =>
+            {
+                /* toggle linked */
+                self.inner.set(InnerState::SecondHandle {
+                    handle,
+                    unlinked: !unlinked,
+                    snap_to_angle,
+                });
+                let state = c.as_mut().unwrap();
+                state.current_curve.set_property(Bezier::SMOOTH, unlinked);
+            }
+            InnerState::ClosingHandle {
+                handle,
+                unlinked,
+                snap_to_angle,
+            } if event_state.intersects(
+                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
+            ) =>
+            {
+                /* toggle linked */
+                self.inner.set(InnerState::ClosingHandle {
+                    handle,
+                    unlinked: !unlinked,
+                    snap_to_angle,
+                });
+                let state = c.as_mut().unwrap();
+                state.current_curve.set_property(Bezier::SMOOTH, unlinked);
+            }
+            _ => {}
+        }
+
+        let inner = self.inner.get();
+
         match inner {
             InnerState::Empty => {}
-            InnerState::FirstHandle {
-                handle,
-                unlinked,
-                snap_to_angle,
-            } if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) => {
-                /* toggle snap */
-                self.inner.set(InnerState::FirstHandle {
-                    handle,
-                    unlinked,
-                    snap_to_angle: !snap_to_angle,
-                });
-                return Inhibit(true);
-            }
-            InnerState::SecondHandle {
-                handle,
-                unlinked,
-                snap_to_angle,
-            } if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) => {
-                /* toggle snap */
-                self.inner.set(InnerState::SecondHandle {
-                    handle,
-                    unlinked,
-                    snap_to_angle: !snap_to_angle,
-                });
-                return Inhibit(true);
-            }
-            InnerState::ClosingHandle {
-                handle,
-                unlinked,
-                snap_to_angle,
-            } if event_state.intersects(gtk::gdk::ModifierType::SHIFT_MASK) => {
-                /* toggle snap */
-                self.inner.set(InnerState::ClosingHandle {
-                    handle,
-                    unlinked,
-                    snap_to_angle: !snap_to_angle,
-                });
-                return Inhibit(true);
-            }
-            InnerState::FirstHandle {
-                handle,
-                unlinked,
-                snap_to_angle,
-            } if event_state.intersects(
-                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
-            ) =>
-            {
-                /* toggle linked */
-                self.inner.set(InnerState::FirstHandle {
-                    handle,
-                    unlinked: !unlinked,
-                    snap_to_angle,
-                });
-                let state = c.as_mut().unwrap();
-                state.current_curve.set_property(Bezier::SMOOTH, unlinked);
-                return Inhibit(true);
-            }
-            InnerState::SecondHandle {
-                handle,
-                unlinked,
-                snap_to_angle,
-            } if event_state.intersects(
-                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
-            ) =>
-            {
-                /* toggle linked */
-                self.inner.set(InnerState::SecondHandle {
-                    handle,
-                    unlinked: !unlinked,
-                    snap_to_angle,
-                });
-                let state = c.as_mut().unwrap();
-                state.current_curve.set_property(Bezier::SMOOTH, unlinked);
-                return Inhibit(true);
-            }
-            InnerState::ClosingHandle {
-                handle,
-                unlinked,
-                snap_to_angle,
-            } if event_state.intersects(
-                gtk::gdk::ModifierType::CONTROL_MASK | gtk::gdk::ModifierType::SHIFT_MASK,
-            ) =>
-            {
-                /* toggle linked */
-                self.inner.set(InnerState::ClosingHandle {
-                    handle,
-                    unlinked: !unlinked,
-                    snap_to_angle,
-                });
-                let state = c.as_mut().unwrap();
-                state.current_curve.set_property(Bezier::SMOOTH, unlinked);
-                return Inhibit(true);
-            }
             InnerState::FirstHandle {
                 handle: _,
                 unlinked,
