@@ -111,11 +111,13 @@ impl Contour {
             {
                 let beta =
                     (p4.position - p3_1.position).norm() / (p3_1.position - p2.position).norm();
-                if beta == 1.0 || (beta.round() == 1.0 && (beta.fract() - 1.0).abs() < (1e-2 / 2.0))
+                if beta.is_nan() {
+                    Continuity::Positional
+                } else if beta == 1.0
+                    || (beta.round() == 1.0 && (beta.fract() - 1.0).abs() < (1e-2 / 2.0))
                 {
                     Continuity::Velocity
                 } else {
-                    debug_assert!(!beta.is_nan());
                     Continuity::Tangent { beta }
                 }
             }

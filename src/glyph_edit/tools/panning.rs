@@ -267,6 +267,7 @@ impl ToolImplImpl for PanningToolInner {
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
                                 self.mode.set(Mode::Drag);
+                                view.imp().hovering.set(Some((i, j)));
                                 viewport.set_cursor("grab");
                                 return Inhibit(true);
                             }
@@ -439,7 +440,6 @@ impl ToolImplImpl for PanningToolInner {
                     return Inhibit(false);
                 }
             }
-            Mode::None => return Inhibit(false),
             _ if event_button == gtk::gdk::BUTTON_MIDDLE => {
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -464,6 +464,7 @@ impl ToolImplImpl for PanningToolInner {
                 }
                 return Inhibit(false);
             }
+            Mode::None => return Inhibit(false),
             _ => return Inhibit(false),
         }
         Inhibit(true)
@@ -532,9 +533,12 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
             }
             if let Some(((i, j), curve)) = glyph.on_curve_query(position, &pts) {
+                viewport.set_cursor("grab");
                 view.imp().new_statusbar_message(&format!("{:?}", curve));
                 view.imp().hovering.set(Some((i, j)));
                 viewport.queue_draw();
+            } else {
+                self.set_default_cursor(&view);
             }
             return Inhibit(false);
         }
