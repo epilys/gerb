@@ -299,7 +299,8 @@ impl GlyphEditViewInner {
         {
             let label = gtk::Label::new(Some(&layer.property::<String>(Layer::NAME)));
             label.set_visible(true);
-            let button = gtk::ToggleButton::builder()
+            label.set_margin(3);
+            let button = gtk::CheckButton::builder()
                 .visible(true)
                 .active(true)
                 .build();

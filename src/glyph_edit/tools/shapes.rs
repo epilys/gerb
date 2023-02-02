@@ -162,8 +162,11 @@ impl ToolImplImpl for QuadrilateralToolInner {
                     let d: Point = bottom_right - (width, 0.0).into();
                     make_quadrilateral_bezier_curves(&mut curves, (a, b, c, d));
                     let contour = Contour::new();
-                    contour.set_property(Contour::OPEN, false);
-                    *contour.curves().borrow_mut() = std::mem::take(&mut *curves).to_vec();
+                    let curves = std::mem::take(&mut *curves);
+                    for c in curves {
+                        contour.push_curve(c);
+                    }
+                    contour.close();
                     let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                     let contour_index = glyph_state.glyph.borrow().contours.len();
                     let subaction = glyph_state.add_contour(&contour, contour_index);
@@ -480,11 +483,11 @@ impl ToolImplImpl for EllipseToolInner {
                     let radius: f64 = crate::utils::distance_between_two_points(center, r);
                     make_circle_bezier_curves(&mut curves, (center, radius));
                     let contour = Contour::new();
-                    contour.set_property(Contour::OPEN, false);
                     let curves = std::mem::take(&mut *curves);
                     for c in curves {
                         contour.push_curve(c);
                     }
+                    contour.close();
                     let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
                     let contour_index = glyph_state.glyph.borrow().contours.len();
                     let subaction = glyph_state.add_contour(&contour, contour_index);
