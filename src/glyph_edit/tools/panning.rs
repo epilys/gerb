@@ -229,7 +229,7 @@ impl ToolImplImpl for PanningToolInner {
                     let is_empty = if current_selection.is_empty()
                         || !pts.iter().any(|i| current_selection.contains(&i.uuid))
                     {
-                        glyph_state.set_selection(&pts);
+                        glyph_state.set_selection(&pts, event.state().into());
                         pts.is_empty()
                     } else {
                         current_selection.is_empty()
@@ -251,7 +251,7 @@ impl ToolImplImpl for PanningToolInner {
                                         .iter()
                                         .map(|cp| cp.glyph_index(i, j))
                                         .collect::<Vec<_>>();
-                                    glyph_state.set_selection(&pts);
+                                    glyph_state.set_selection(&pts, event.state().into());
                                 }
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
@@ -290,7 +290,7 @@ impl ToolImplImpl for PanningToolInner {
                     self.is_selection_active.set(true);
                     self.instance()
                         .set_property::<bool>(PanningTool::ACTIVE, true);
-                    glyph_state.set_selection(&[]);
+                    glyph_state.set_selection(&[], Default::default());
                 }
             }
             Mode::None if event_button == gtk::gdk::BUTTON_SECONDARY => {
@@ -328,7 +328,7 @@ impl ToolImplImpl for PanningToolInner {
                 }
                 self.is_selection_empty.set(true);
                 self.is_selection_active.set(false);
-                glyph_state.set_selection(&[]);
+                glyph_state.set_selection(&[], Default::default());
 
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -338,7 +338,7 @@ impl ToolImplImpl for PanningToolInner {
             Mode::Select if event_button == gtk::gdk::BUTTON_SECONDARY => {
                 self.is_selection_empty.set(true);
                 self.is_selection_active.set(false);
-                glyph_state.set_selection(&[]);
+                glyph_state.set_selection(&[], Default::default());
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.queue_draw();
@@ -374,7 +374,7 @@ impl ToolImplImpl for PanningToolInner {
             if !pts.is_empty() {
                 self.is_selection_empty.set(false);
             }
-            glyph_state.set_selection(&pts);
+            glyph_state.set_selection(&pts, event.state().into());
             self.mode.set(Mode::None);
             return Inhibit(true);
         }
@@ -421,7 +421,7 @@ impl ToolImplImpl for PanningToolInner {
                         .iter()
                         .map(|cp| cp.glyph_index(i, j))
                         .collect::<Vec<_>>();
-                    glyph_state.set_selection(&pts);
+                    glyph_state.set_selection(&pts, event.state().into());
                     self.mode.set(Mode::None);
                 } else {
                     return Inhibit(false);

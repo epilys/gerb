@@ -48,6 +48,28 @@ mod tools;
 
 use tools::{PanningTool, Tool, ToolImpl};
 
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+pub enum SelectionModifier {
+    #[default]
+    Replace,
+    Add,
+    Remove,
+}
+
+impl From<gtk::gdk::ModifierType> for SelectionModifier {
+    fn from(modifier: gtk::gdk::ModifierType) -> SelectionModifier {
+        if modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+            if modifier.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                SelectionModifier::Remove
+            } else {
+                SelectionModifier::Add
+            }
+        } else {
+            SelectionModifier::default()
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct GlyphState {
     pub app: gtk::Application,
@@ -268,12 +290,29 @@ impl GlyphState {
         }
     }
 
-    fn set_selection(&mut self, selection: &[GlyphPointIndex]) {
-        self.selection.clear();
-        self.selection_set.clear();
-        self.selection.extend(selection.iter());
-        for v in &self.selection {
-            self.selection_set.insert(v.uuid);
+    fn set_selection(&mut self, selection: &[GlyphPointIndex], modifier: SelectionModifier) {
+        use SelectionModifier::*;
+        match modifier {
+            Replace => {
+                self.selection.clear();
+                self.selection_set.clear();
+                self.selection.extend(selection.iter());
+                for v in &self.selection {
+                    self.selection_set.insert(v.uuid);
+                }
+            }
+            Add => {
+                self.selection.extend(selection.iter());
+                for v in &self.selection {
+                    self.selection_set.insert(v.uuid);
+                }
+            }
+            Remove => {
+                self.selection.retain(|e| !selection.contains(e));
+                for v in selection {
+                    self.selection_set.remove(&v.uuid);
+                }
+            }
         }
     }
 
