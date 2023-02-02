@@ -613,16 +613,30 @@ impl Canvas {
     }
 
     pub fn set_cursor(&self, name: &str) {
-        if let Some(screen) = self.window() {
-            let display = screen.display();
-            screen.set_cursor(Some(&gtk::gdk::Cursor::from_name(&display, name).unwrap()));
+        if let Some(window) = self.window() {
+            let display = window.display();
+            window.set_cursor(Some(&gtk::gdk::Cursor::from_name(&display, name).unwrap()));
         }
     }
 
-    pub fn set_cursor_from_pixbuf(&self, pixbuf: &gtk::gdk_pixbuf::Pixbuf) {
-        if let Some(screen) = self.window() {
-            let display = screen.display();
-            screen.set_cursor(Some(&gtk::gdk::Cursor::from_pixbuf(&display, pixbuf, 0, 0)));
+    pub fn set_cursor_from_pixbuf(&self, mut pixbuf: gtk::gdk_pixbuf::Pixbuf) {
+        if let Some(window) = self.window() {
+            let display = window.display();
+            let scale_factor = window.scale_factor();
+            if scale_factor == 1 {
+                pixbuf = pixbuf
+                    .scale_simple(16, 16, gtk::gdk_pixbuf::InterpType::Bilinear)
+                    .unwrap();
+            }
+            if let Some(surf) = pixbuf.create_surface(scale_factor, Some(&window)) {
+                window.set_cursor(Some(&gtk::gdk::Cursor::from_surface(
+                    &display, &surf, 0.0, 0.0,
+                )));
+            } else {
+                window.set_cursor(Some(&gtk::gdk::Cursor::from_pixbuf(
+                    &display, &pixbuf, 0, 0,
+                )));
+            }
         }
     }
 }

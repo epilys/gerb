@@ -267,7 +267,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, true);
-        if let Some(pixbuf) = self.cursor.get().unwrap().as_ref() {
+        if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
             view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
             view.imp().viewport.set_cursor("grab");
@@ -579,7 +579,7 @@ impl ToolImplImpl for EllipseToolInner {
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, true);
-        if let Some(pixbuf) = self.cursor.get().unwrap().as_ref() {
+        if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
             view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
             view.imp().viewport.set_cursor("grab");

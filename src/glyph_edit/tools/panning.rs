@@ -19,6 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::super::SelectionModifier;
 use super::tool_impl::*;
 
 use crate::GlyphEditView;
@@ -59,6 +60,9 @@ pub struct PanningToolInner {
     pub is_selection_active: Cell<bool>,
     pub selection_upper_left: Cell<UnitPoint>,
     pub selection_bottom_right: Cell<UnitPoint>,
+    cursor: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
+    cursor_plus: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
+    cursor_minus: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
     layer: OnceCell<Layer>,
 }
 
@@ -91,6 +95,13 @@ impl ObjectImpl for PanningToolInner {
             ToolImpl::ICON,
             crate::resources::GRAB_ICON.to_image_widget(),
         );
+        for (field, resource) in [
+            (&self.cursor, crate::resources::ARROW_CURSOR),
+            (&self.cursor_plus, crate::resources::ARROW_PLUS_CURSOR),
+            (&self.cursor_minus, crate::resources::ARROW_MINUS_CURSOR),
+        ] {
+            field.set(resource.to_pixbuf()).unwrap();
+        }
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
@@ -153,7 +164,7 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
             }
             Mode::None if event_button == gtk::gdk::BUTTON_MIDDLE => {
                 self.mode.set(Mode::Pan);
@@ -167,7 +178,7 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
             }
             Mode::None if event_button == gtk::gdk::BUTTON_PRIMARY => {
                 let event_position = event.position();
@@ -268,7 +279,7 @@ impl ToolImplImpl for PanningToolInner {
                         self.selection_upper_left.set(uposition);
                         self.selection_bottom_right.set(uposition);
                         self.mode.set(Mode::Select);
-                        viewport.set_cursor("default");
+                        self.set_default_cursor(&view);
                         viewport.queue_draw();
                     } else {
                         self.instance()
@@ -290,7 +301,7 @@ impl ToolImplImpl for PanningToolInner {
                     self.is_selection_active.set(true);
                     self.instance()
                         .set_property::<bool>(PanningTool::ACTIVE, true);
-                    glyph_state.set_selection(&[], Default::default());
+                    glyph_state.set_selection(&[], SelectionModifier::Replace);
                 }
             }
             Mode::None if event_button == gtk::gdk::BUTTON_SECONDARY => {
@@ -328,21 +339,21 @@ impl ToolImplImpl for PanningToolInner {
                 }
                 self.is_selection_empty.set(true);
                 self.is_selection_active.set(false);
-                glyph_state.set_selection(&[], Default::default());
+                glyph_state.set_selection(&[], SelectionModifier::Replace);
 
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.queue_draw();
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
             }
             Mode::Select if event_button == gtk::gdk::BUTTON_SECONDARY => {
                 self.is_selection_empty.set(true);
                 self.is_selection_active.set(false);
-                glyph_state.set_selection(&[], Default::default());
+                glyph_state.set_selection(&[], SelectionModifier::Replace);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.queue_draw();
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
                 self.mode.set(Mode::None);
             }
             _ => return Inhibit(false),
@@ -376,6 +387,7 @@ impl ToolImplImpl for PanningToolInner {
             }
             glyph_state.set_selection(&pts, event.state().into());
             self.mode.set(Mode::None);
+            self.set_default_cursor(&view);
             return Inhibit(true);
         }
         let event_button = event.button();
@@ -385,7 +397,7 @@ impl ToolImplImpl for PanningToolInner {
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 self.mode.set(Mode::None);
                 viewport.queue_draw();
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
             }
             Mode::Select
                 if event_button == gtk::gdk::BUTTON_PRIMARY && self.is_selection_active.get() =>
@@ -398,14 +410,14 @@ impl ToolImplImpl for PanningToolInner {
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 self.mode.set(Mode::None);
+                self.set_default_cursor(&view);
                 viewport.queue_draw();
-                viewport.set_cursor("default");
             }
             Mode::Drag if event_button == gtk::gdk::BUTTON_PRIMARY => {
                 self.mode.set(Mode::None);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
             }
             Mode::None if event_button == gtk::gdk::BUTTON_PRIMARY => {
                 let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
@@ -431,11 +443,11 @@ impl ToolImplImpl for PanningToolInner {
             _ if event_button == gtk::gdk::BUTTON_MIDDLE => {
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
             }
             _ if event_button == gtk::gdk::BUTTON_SECONDARY => {
                 let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
-                viewport.set_cursor("default");
+                self.set_default_cursor(&view);
                 let glyph = glyph_state.glyph.borrow();
                 let UnitPoint(position) =
                     viewport.view_to_unit_point(ViewPoint(event.position().into()));
@@ -592,6 +604,13 @@ impl ToolImplImpl for PanningToolInner {
                     .move_camera_by_delta(ViewPoint(delta));
             }
             Mode::Select => {
+                if let Some(pixbuf) = match event.state().into() {
+                    SelectionModifier::Add => self.cursor_plus.get().unwrap().clone(),
+                    SelectionModifier::Remove => self.cursor_minus.get().unwrap().clone(),
+                    SelectionModifier::Replace => self.cursor.get().unwrap().clone(),
+                } {
+                    view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+                }
                 return if self.is_selection_active.get() {
                     let event_position = event.position();
                     let bottom_right =
@@ -628,17 +647,26 @@ impl ToolImplImpl for PanningToolInner {
 
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         obj.set_property::<bool>(PanningTool::ACTIVE, true);
+        self.set_default_cursor(view);
         self.parent_on_activate(obj, view);
     }
 
     fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         obj.set_property::<bool>(PanningTool::ACTIVE, false);
-        view.imp().viewport.set_cursor("default");
+        self.set_default_cursor(view);
         self.parent_on_deactivate(obj, view);
     }
 }
 
-impl PanningToolInner {}
+impl PanningToolInner {
+    fn set_default_cursor(&self, view: &GlyphEditView) {
+        if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
+            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+        } else {
+            view.imp().viewport.set_cursor("default");
+        }
+    }
+}
 
 glib::wrapper! {
     pub struct PanningTool(ObjectSubclass<PanningToolInner>)

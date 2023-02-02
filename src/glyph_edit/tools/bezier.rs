@@ -554,7 +554,7 @@ impl ToolImplImpl for BezierToolInner {
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(BezierTool::ACTIVE, true);
-        if let Some(pixbuf) = self.cursor.get().unwrap().as_ref() {
+        if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
             view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
             view.imp().viewport.set_cursor("grab");

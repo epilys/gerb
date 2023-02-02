@@ -85,6 +85,21 @@ pub const CIRCLE_CURSOR: UIIcon = UIIcon {
     png: include_bytes!("./resources/circle-cursor.png"),
 };
 
+pub const ARROW_CURSOR: UIIcon = UIIcon {
+    svg: include_bytes!("./resources/arrow-cursor.svg"),
+    png: include_bytes!("./resources/arrow-cursor.png"),
+};
+
+pub const ARROW_PLUS_CURSOR: UIIcon = UIIcon {
+    svg: include_bytes!("./resources/arrow-plus-cursor.svg"),
+    png: include_bytes!("./resources/arrow-plus-cursor.png"),
+};
+
+pub const ARROW_MINUS_CURSOR: UIIcon = UIIcon {
+    svg: include_bytes!("./resources/arrow-minus-cursor.svg"),
+    png: include_bytes!("./resources/arrow-minus-cursor.png"),
+};
+
 impl UIIcon {
     pub fn to_image_widget(&self) -> gtk::Image {
         if let Ok(pixbuf) = gtk::gdk_pixbuf::Pixbuf::from_read(self.svg) {
