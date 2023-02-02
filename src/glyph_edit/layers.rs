@@ -96,7 +96,7 @@ pub fn draw_glyph_layer(
             } else {
                 None
             },
-            selection: Some(glyph_state.get_selection_set()),
+            selection: Some(glyph_state.get_selection()),
         };
         glyph_state.glyph.borrow().draw(cr, options);
     }

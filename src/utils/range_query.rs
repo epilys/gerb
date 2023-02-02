@@ -53,132 +53,84 @@ fn test_range_query_region() {
                 (0, 0),
                 Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
-                x: 83.0,
-                y: 598.0,
-            },
+            Point { x: 83.0, y: 598.0 },
         ),
         (
             (
                 (0, 0),
                 Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
-                x: 99.0,
-                y: 431.0,
-            },
+            Point { x: 99.0, y: 431.0 },
         ),
         (
             (
                 (0, 1),
                 Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4058c000-0000-0000-407a-f00000000000").unwrap(),
-                x: 99.0,
-                y: 431.0,
-            },
+            Point { x: 99.0, y: 431.0 },
         ),
         (
             (
                 (0, 1),
                 Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
-                x: 149.0,
-                y: 431.0,
-            },
+            Point { x: 149.0, y: 431.0 },
         ),
         (
             (
                 (0, 2),
                 Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4062a000-0000-0000-407a-f00000000000").unwrap(),
-                x: 149.0,
-                y: 431.0,
-            },
+            Point { x: 149.0, y: 431.0 },
         ),
         (
             (
                 (0, 2),
                 Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
-                x: 165.0,
-                y: 598.0,
-            },
+            Point { x: 165.0, y: 598.0 },
         ),
         (
             (
                 (0, 3),
                 Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4064a000-0000-0000-4082-b00000000000").unwrap(),
-                x: 165.0,
-                y: 598.0,
-            },
+            Point { x: 165.0, y: 598.0 },
         ),
         (
             (
                 (0, 3),
                 Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
-                x: 168.0,
-                y: 690.0,
-            },
+            Point { x: 168.0, y: 690.0 },
         ),
         (
             (
                 (0, 4),
                 Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("40650000-0000-0000-4085-900000000000").unwrap(),
-                x: 168.0,
-                y: 690.0,
-            },
+            Point { x: 168.0, y: 690.0 },
         ),
         (
             (
                 (0, 4),
                 Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
-                x: 80.0,
-                y: 690.0,
-            },
+            Point { x: 80.0, y: 690.0 },
         ),
         (
             (
                 (0, 5),
                 Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("40540000-0000-0000-4085-900000000000").unwrap(),
-                x: 80.0,
-                y: 690.0,
-            },
+            Point { x: 80.0, y: 690.0 },
         ),
         (
             (
                 (0, 5),
                 Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
             ),
-            Point {
-                uuid: Uuid::parse_str("4054c000-0000-0000-4082-b00000000000").unwrap(),
-                x: 83.0,
-                y: 598.0,
-            },
+            Point { x: 83.0, y: 598.0 },
         ),
     ];
     let mut kd_tree = KdTree::new(&[]);
@@ -205,48 +157,40 @@ fn test_range_query_region() {
     for region in [
         (
             Point {
-                uuid: Uuid::parse_str("4076239c-c000-0000-407f-28db00000000").unwrap(),
                 x: 354.22576904296875,
                 y: 498.553466796875,
             },
             Point {
-                uuid: Uuid::parse_str("c0212858-0000-0000-4078-886a40000000").unwrap(),
                 x: -8.57879638671875,
                 y: 392.52593994140625,
             },
         ),
         (
             Point {
-                uuid: Uuid::parse_str("c049ab04-0000-0000-4081-6880b0000000").unwrap(),
                 x: -51.3360595703125,
                 y: 557.0628356933594,
             },
             Point {
-                uuid: Uuid::parse_str("4072bf6f-0000-0000-4085-265240000000").unwrap(),
                 x: 299.964599609375,
                 y: 676.7901611328125,
             },
         ),
         (
             Point {
-                uuid: Uuid::parse_str("4074119b-8000-0000-4088-5c1d00000000").unwrap(),
                 x: 321.1004638671875,
                 y: 779.51416015625,
             },
             Point {
-                uuid: Uuid::parse_str("c02c3e00-0000-0000-4084-95da80000000").unwrap(),
                 x: -14.12109375,
                 y: 658.731689453125,
             },
         ),
         (
             Point {
-                uuid: Uuid::parse_str("c053ea57-0000-0000-4089-1b9fe0000000").unwrap(),
                 x: -79.66156005859375,
                 y: 803.4530639648438,
             },
             Point {
-                uuid: Uuid::parse_str("407594c1-8000-0000-4072-483340000000").unwrap(),
                 x: 345.2972412109375,
                 y: 292.51251220703125,
             },
@@ -256,16 +200,13 @@ fn test_range_query_region() {
             .iter()
             .filter(|(_, p)| linear_search(upbot(region), *p))
             .cloned()
-            .map(|(((contour_index, curve_index), uuid), p)| {
-                (
-                    GlyphPointIndex {
-                        contour_index,
-                        curve_index,
-                        uuid,
-                    },
-                    p.into(),
-                )
-            })
+            .map(
+                |(((contour_index, curve_index), uuid), _)| GlyphPointIndex {
+                    contour_index,
+                    curve_index,
+                    uuid,
+                },
+            )
             .collect::<std::collections::HashSet<_>>();
         assert_eq!(
             &brute_results,
@@ -872,7 +813,7 @@ impl KdTree {
     pub fn query_region(
         &self,
         (u, l): (impl Into<IPoint>, impl Into<IPoint>),
-    ) -> Vec<(GlyphPointIndex, IPoint)> {
+    ) -> Vec<GlyphPointIndex> {
         let query_region = (u.into(), l.into());
         let root = if let Some(root) = self.root {
             root
@@ -880,12 +821,12 @@ impl KdTree {
             return vec![];
         };
 
-        fn report_subtree(root: Index, ret: &mut Vec<(GlyphPointIndex, IPoint)>, arena: &TDArena) {
+        fn report_subtree(root: Index, ret: &mut Vec<GlyphPointIndex>, arena: &TDArena) {
             let mut queue = vec![root];
             while let Some(v) = queue.pop() {
                 match arena.get(v) {
                     Some(KdNode::Leaf { points, .. }) => {
-                        ret.extend(points.iter().cloned());
+                        ret.extend(points.iter().map(|(i, _)| i).cloned());
                     }
                     Some(KdNode::Division { left, right, .. }) => {
                         queue.push(*left);
@@ -907,7 +848,13 @@ impl KdTree {
                         ret.extend(
                             points
                                 .iter()
-                                .filter(|(_, p)| contains!(query_region, *p))
+                                .filter_map(|(i, p)| {
+                                    if contains!(query_region, *p) {
+                                        Some(i)
+                                    } else {
+                                        None
+                                    }
+                                })
                                 .cloned(),
                         );
                     }
@@ -955,11 +902,7 @@ impl KdTree {
         ret
     }
 
-    pub fn query_point(
-        &self,
-        center: impl Into<IPoint>,
-        radius: i64,
-    ) -> Vec<(GlyphPointIndex, IPoint)> {
+    pub fn query_point(&self, center: impl Into<IPoint>, radius: i64) -> Vec<GlyphPointIndex> {
         let center: IPoint = center.into();
 
         /// Overflow guard

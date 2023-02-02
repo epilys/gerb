@@ -34,30 +34,43 @@ use gtk::Inhibit;
 use gtk::{cairo::Matrix, glib, prelude::*, subclass::prelude::*};
 use once_cell::sync::OnceCell;
 use std::cell::Cell;
+use std::collections::HashSet;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ControlPointMode {
+pub enum Mode {
     None,
+    Pan,
     Drag,
     DragGuideline(usize),
     Select,
 }
 
-impl Default for ControlPointMode {
-    fn default() -> ControlPointMode {
-        ControlPointMode::None
+impl Default for Mode {
+    fn default() -> Mode {
+        Mode::None
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct PanningToolInner {
     pub active: Cell<bool>,
-    pub mode: Cell<ControlPointMode>,
+    pub mode: Cell<Mode>,
     pub is_selection_empty: Cell<bool>,
     pub is_selection_active: Cell<bool>,
     pub selection_upper_left: Cell<UnitPoint>,
     pub selection_bottom_right: Cell<UnitPoint>,
     layer: OnceCell<Layer>,
+}
+
+impl std::fmt::Debug for PanningToolInner {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("PanningTool")
+            .field("mode", &self.mode.get())
+            .field("active", &self.active.get())
+            .field("is_selection_empty", &self.is_selection_empty.get())
+            .field("is_selection_active", &self.is_selection_active.get())
+            .finish()
+    }
 }
 
 #[glib::object_subclass]
@@ -132,141 +145,161 @@ impl ToolImplImpl for PanningToolInner {
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-        match event.button() {
-            gtk::gdk::BUTTON_MIDDLE => {
-                self.mode.set(ControlPointMode::None);
+        let event_button = event.button();
+        match self.mode.get() {
+            Mode::Pan => {
+                self.mode.set(Mode::None);
+                view.imp().hovering.set(None);
+                viewport.queue_draw();
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                viewport.set_cursor("default");
+            }
+            Mode::None if event_button == gtk::gdk::BUTTON_MIDDLE => {
+                self.mode.set(Mode::Pan);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, true);
                 viewport.set_cursor("crosshair");
-                Inhibit(true)
             }
-            gtk::gdk::BUTTON_PRIMARY => {
-                match self.mode.get() {
-                    ControlPointMode::Drag | ControlPointMode::DragGuideline(_) => {
-                        self.mode.set(ControlPointMode::None);
-                        view.imp().hovering.set(None);
-                        viewport.queue_draw();
-                        self.instance()
-                            .set_property::<bool>(PanningTool::ACTIVE, false);
-                        viewport.set_cursor("default");
-                    }
-                    ControlPointMode::None => {
-                        let event_position = event.position();
-                        let UnitPoint(position) =
-                            viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                        let lock_guidelines = view.property::<bool>(GlyphEditView::LOCK_GUIDELINES);
-                        if viewport.property::<bool>(Canvas::SHOW_RULERS) && !lock_guidelines {
-                            let ruler_breadth =
-                                viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
-                            if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth
-                            {
-                                let angle = if event_position.0 < ruler_breadth
-                                    && event_position.1 < ruler_breadth
-                                {
-                                    -45.0
-                                } else if event_position.0 < ruler_breadth {
-                                    90.0
-                                } else {
-                                    0.0
-                                };
-                                let mut action = glyph_state.new_guideline(angle, position);
-                                (action.redo)();
-                                let app: &crate::Application = crate::Application::from_instance(
-                                    view.imp()
-                                        .app
-                                        .get()
-                                        .unwrap()
-                                        .downcast_ref::<crate::GerbApp>()
-                                        .unwrap(),
-                                );
-                                let undo_db = app.undo_db.borrow_mut();
-                                undo_db.event(action);
-                            }
-                        }
-                        let mut is_guideline: bool = false;
-                        for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
-                            if lock_guidelines {
-                                break;
-                            }
-                            if g.imp().on_line_query(position, None) {
-                                view.imp()
-                                    .select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
-                                self.mode.set(ControlPointMode::DragGuideline(i));
-                                self.instance()
-                                    .set_property::<bool>(PanningTool::ACTIVE, true);
-                                is_guideline = true;
-                                viewport.set_cursor("grab");
-                                break;
-                            }
-                        }
-                        if !is_guideline {
-                            let pts = glyph_state
-                                .kd_tree
-                                .borrow()
-                                .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
-                            let current_selection = glyph_state.get_selection();
-                            let is_empty = if current_selection.is_empty()
-                                || !pts.iter().any(|&(u, _)| current_selection.contains(&u))
-                            {
-                                glyph_state.set_selection(&pts);
-                                pts.is_empty()
-                            } else {
-                                current_selection.is_empty()
-                            };
-                            if is_empty {
-                                view.imp().hovering.set(None);
-                                viewport.queue_draw();
-                                self.instance()
-                                    .set_property::<bool>(PanningTool::ACTIVE, false);
-                                viewport.set_cursor("default");
-                            } else {
-                                self.instance()
-                                    .set_property::<bool>(PanningTool::ACTIVE, true);
-                                self.mode.set(ControlPointMode::Drag);
-                                viewport.set_cursor("grab");
-                            }
-                        }
-
-                        if !self.instance().property::<bool>(PanningTool::ACTIVE) {
-                            self.instance()
-                                .set_property::<bool>(PanningTool::ACTIVE, true);
-                            self.mode.set(ControlPointMode::Select);
-                            viewport.set_cursor("default");
-                        }
-                    }
-                    ControlPointMode::Select => {
-                        match (
-                            self.is_selection_active.get(),
-                            self.is_selection_empty.get(),
-                        ) {
-                            (_, true) | (false, false) => {
-                                let event_position = event.position();
-                                let position =
-                                    viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                                self.selection_upper_left.set(position);
-                                self.selection_bottom_right.set(position);
-                                self.is_selection_empty.set(false);
-                                self.is_selection_active.set(true);
-                                self.instance()
-                                    .set_property::<bool>(PanningTool::ACTIVE, true);
-                                glyph_state.set_selection(&[]);
-                            }
-                            (true, false) => {
-                                self.is_selection_empty.set(true);
-                            }
-                        }
+            Mode::Drag | Mode::DragGuideline(_) if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                self.mode.set(Mode::None);
+                view.imp().hovering.set(None);
+                viewport.queue_draw();
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                viewport.set_cursor("default");
+            }
+            Mode::None if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                let event_position = event.position();
+                let uposition @ UnitPoint(position) =
+                    viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                let lock_guidelines = view.property::<bool>(GlyphEditView::LOCK_GUIDELINES);
+                if viewport.property::<bool>(Canvas::SHOW_RULERS) && !lock_guidelines {
+                    let ruler_breadth = viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
+                    if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth {
+                        let angle = if event_position.0 < ruler_breadth
+                            && event_position.1 < ruler_breadth
+                        {
+                            -45.0
+                        } else if event_position.0 < ruler_breadth {
+                            90.0
+                        } else {
+                            0.0
+                        };
+                        let mut action = glyph_state.new_guideline(angle, position);
+                        (action.redo)();
+                        let app: &crate::Application = crate::Application::from_instance(
+                            view.imp()
+                                .app
+                                .get()
+                                .unwrap()
+                                .downcast_ref::<crate::GerbApp>()
+                                .unwrap(),
+                        );
+                        let undo_db = app.undo_db.borrow_mut();
+                        undo_db.event(action);
                     }
                 }
-                Inhibit(true)
+                let mut is_guideline: bool = false;
+                for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
+                    if lock_guidelines {
+                        break;
+                    }
+                    if g.imp().on_line_query(position, None) {
+                        view.imp()
+                            .select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
+                        self.mode.set(Mode::DragGuideline(i));
+                        self.instance()
+                            .set_property::<bool>(PanningTool::ACTIVE, true);
+                        is_guideline = true;
+                        viewport.set_cursor("grab");
+                        break;
+                    }
+                }
+                if !is_guideline {
+                    let curve_query = {
+                        let glyph = glyph_state.glyph.borrow();
+                        glyph.on_curve_query(position, &[])
+                    };
+                    let pts = glyph_state
+                        .kd_tree
+                        .borrow()
+                        .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
+                    let current_selection = glyph_state.get_selection();
+                    let is_empty = if current_selection.is_empty()
+                        || !pts.iter().any(|i| current_selection.contains(&i.uuid))
+                    {
+                        glyph_state.set_selection(&pts);
+                        pts.is_empty()
+                    } else {
+                        current_selection.is_empty()
+                    };
+                    if is_empty {
+                        if let Some(((i, j), curve)) = curve_query {
+                            let pts = curve
+                                .points()
+                                .borrow()
+                                .iter()
+                                .map(|cp| cp.uuid)
+                                .collect::<HashSet<_>>();
+                            if !pts.is_empty() {
+                                self.is_selection_empty.set(false);
+                                if !glyph_state.get_selection().is_superset(&pts) {
+                                    let pts = curve
+                                        .points()
+                                        .borrow()
+                                        .iter()
+                                        .map(|cp| cp.glyph_index(i, j))
+                                        .collect::<Vec<_>>();
+                                    glyph_state.set_selection(&pts);
+                                }
+                                self.instance()
+                                    .set_property::<bool>(PanningTool::ACTIVE, true);
+                                self.mode.set(Mode::Drag);
+                                viewport.set_cursor("grab");
+                                return Inhibit(true);
+                            }
+                        }
+                        view.imp().hovering.set(None);
+                        self.instance()
+                            .set_property::<bool>(PanningTool::ACTIVE, true);
+                        self.is_selection_active.set(true);
+                        self.is_selection_empty.set(true);
+                        self.selection_upper_left.set(uposition);
+                        self.selection_bottom_right.set(uposition);
+                        self.mode.set(Mode::Select);
+                        viewport.set_cursor("default");
+                        viewport.queue_draw();
+                    } else {
+                        self.instance()
+                            .set_property::<bool>(PanningTool::ACTIVE, true);
+                        self.mode.set(Mode::Drag);
+                        viewport.set_cursor("grab");
+                    }
+                }
             }
-            gtk::gdk::BUTTON_SECONDARY => {
-                if self.mode.get() == ControlPointMode::None {
+            Mode::Select if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                if self.is_selection_active.get() {
+                    self.is_selection_empty.set(true);
+                } else {
                     let event_position = event.position();
-                    let UnitPoint(position) =
-                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                    for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
-                        if g.imp().on_line_query(position, None) {
-                            let menu = crate::utils::menu::Menu::new()
+                    let position = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    self.selection_upper_left.set(position);
+                    self.selection_bottom_right.set(position);
+                    self.is_selection_empty.set(true);
+                    self.is_selection_active.set(true);
+                    self.instance()
+                        .set_property::<bool>(PanningTool::ACTIVE, true);
+                    glyph_state.set_selection(&[]);
+                }
+            }
+            Mode::None if event_button == gtk::gdk::BUTTON_SECONDARY => {
+                let event_position = event.position();
+                let UnitPoint(position) =
+                    viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
+                    if g.imp().on_line_query(position, None) {
+                        let menu = crate::utils::menu::Menu::new()
                             .title(Some(std::borrow::Cow::from(format!(
                                     "{} - {}",
                                     g.name().as_deref()
@@ -289,32 +322,32 @@ impl ToolImplImpl for PanningToolInner {
                                     viewport.queue_draw();
                                 }
                             }));
-                            menu.popup(event.time());
-                            return Inhibit(true);
-                        }
+                        menu.popup(event.time());
+                        return Inhibit(true);
                     }
-
-                    self.instance()
-                        .set_property::<bool>(PanningTool::ACTIVE, false);
-                    viewport.queue_draw();
-                    viewport.set_cursor("default");
-                    Inhibit(true)
-                } else if self.mode.get() == ControlPointMode::Select {
-                    self.is_selection_empty.set(true);
-                    self.is_selection_active.set(false);
-                    glyph_state.set_selection(&[]);
-                    self.instance()
-                        .set_property::<bool>(PanningTool::ACTIVE, false);
-                    viewport.queue_draw();
-                    viewport.set_cursor("default");
-                    self.mode.set(ControlPointMode::None);
-                    Inhibit(true)
-                } else {
-                    Inhibit(false)
                 }
+                self.is_selection_empty.set(true);
+                self.is_selection_active.set(false);
+                glyph_state.set_selection(&[]);
+
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                viewport.queue_draw();
+                viewport.set_cursor("default");
             }
-            _ => Inhibit(false),
+            Mode::Select if event_button == gtk::gdk::BUTTON_SECONDARY => {
+                self.is_selection_empty.set(true);
+                self.is_selection_active.set(false);
+                glyph_state.set_selection(&[]);
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                viewport.queue_draw();
+                viewport.set_cursor("default");
+                self.mode.set(Mode::None);
+            }
+            _ => return Inhibit(false),
         }
+        Inhibit(true)
     }
 
     fn on_button_release_event(
@@ -325,50 +358,83 @@ impl ToolImplImpl for PanningToolInner {
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         let mode = self.mode.get();
-        if mode == ControlPointMode::Select {
-            return match (
-                self.is_selection_active.get(),
-                self.is_selection_empty.get(),
-            ) {
-                (_, true) => Inhibit(false),
-                (true, false) => {
-                    let event_position = event.position();
-                    let upper_left = self.selection_upper_left.get();
-                    let bottom_right =
-                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                    self.is_selection_active.set(false);
-                    self.instance()
-                        .set_property::<bool>(PanningTool::ACTIVE, false);
-                    self.selection_bottom_right.set(bottom_right);
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-                    let pts = glyph_state
-                        .kd_tree
-                        .borrow()
-                        .query_region((upper_left.0, bottom_right.0));
-                    glyph_state.set_selection(&pts);
-                    self.mode.set(ControlPointMode::None);
-                    Inhibit(true)
-                }
-                (false, _) => Inhibit(false),
-            };
+        if mode == Mode::Select && self.is_selection_active.get() && self.is_selection_empty.get() {
+            let event_position = event.position();
+            let upper_left = self.selection_upper_left.get();
+            let bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+            self.is_selection_active.set(false);
+            self.instance()
+                .set_property::<bool>(PanningTool::ACTIVE, false);
+            self.selection_bottom_right.set(bottom_right);
+            let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+            let pts = glyph_state
+                .kd_tree
+                .borrow()
+                .query_region((upper_left.0, bottom_right.0));
+            if !pts.is_empty() {
+                self.is_selection_empty.set(false);
+            }
+            glyph_state.set_selection(&pts);
+            self.mode.set(Mode::None);
+            return Inhibit(true);
         }
-        self.is_selection_active.set(false);
-        match event.button() {
-            gtk::gdk::BUTTON_PRIMARY => {
-                if mode == ControlPointMode::None {
+        let event_button = event.button();
+        match mode {
+            Mode::Pan if event_button == gtk::gdk::BUTTON_MIDDLE => {
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                self.mode.set(Mode::None);
+                viewport.queue_draw();
+                viewport.set_cursor("default");
+            }
+            Mode::Select
+                if event_button == gtk::gdk::BUTTON_PRIMARY && self.is_selection_active.get() =>
+            {
+                let event_position = event.position();
+                let bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                self.selection_bottom_right.set(bottom_right);
+                self.is_selection_active.set(false);
+                self.is_selection_empty.set(true);
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                self.mode.set(Mode::None);
+                viewport.queue_draw();
+                viewport.set_cursor("default");
+            }
+            Mode::Drag if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                self.mode.set(Mode::None);
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                viewport.set_cursor("default");
+            }
+            Mode::None if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                let glyph = glyph_state.glyph.borrow();
+                let UnitPoint(position) =
+                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                if let Some(((i, j), curve)) = glyph.on_curve_query(position, &[]) {
+                    drop(glyph);
+                    self.is_selection_empty.set(false);
+                    let pts = curve
+                        .points()
+                        .borrow()
+                        .iter()
+                        .map(|cp| cp.glyph_index(i, j))
+                        .collect::<Vec<_>>();
+                    glyph_state.set_selection(&pts);
+                    self.mode.set(Mode::None);
+                } else {
                     return Inhibit(false);
                 }
+            }
+            Mode::None => return Inhibit(false),
+            _ if event_button == gtk::gdk::BUTTON_MIDDLE => {
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 viewport.set_cursor("default");
             }
-            gtk::gdk::BUTTON_MIDDLE => {
-                self.instance()
-                    .set_property::<bool>(PanningTool::ACTIVE, false);
-                viewport.set_cursor("default");
-            }
-            gtk::gdk::BUTTON_SECONDARY => {
-                let glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+            _ if event_button == gtk::gdk::BUTTON_SECONDARY => {
+                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
                 viewport.set_cursor("default");
                 let glyph = glyph_state.glyph.borrow();
                 let UnitPoint(position) =
@@ -414,7 +480,7 @@ impl ToolImplImpl for PanningToolInner {
             viewport.queue_draw();
             return Inhibit(true);
         } else if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
-            if let ControlPointMode::DragGuideline(idx) = self.mode.get() {
+            if let Mode::DragGuideline(idx) = self.mode.get() {
                 /* rotate guideline that is currently being dragged */
                 let (_dx, dy) = event.delta();
                 let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
@@ -456,14 +522,14 @@ impl ToolImplImpl for PanningToolInner {
             if let Some(((i, j), curve)) = glyph.on_curve_query(position, &pts) {
                 view.imp().new_statusbar_message(&format!("{:?}", curve));
                 view.imp().hovering.set(Some((i, j)));
-                viewport.set_cursor("grab");
                 viewport.queue_draw();
             }
             return Inhibit(false);
         }
 
         match self.mode.get() {
-            ControlPointMode::Drag => {
+            Mode::None => {}
+            Mode::Drag => {
                 let mouse: ViewPoint = viewport.get_mouse();
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
@@ -472,7 +538,7 @@ impl ToolImplImpl for PanningToolInner {
                 m.translate(delta.x, delta.y);
                 glyph_state.transform_selection(m, false);
             }
-            ControlPointMode::DragGuideline(idx) => {
+            Mode::DragGuideline(idx) => {
                 let mouse: ViewPoint = viewport.get_mouse();
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
@@ -481,7 +547,7 @@ impl ToolImplImpl for PanningToolInner {
                 m.translate(delta.x, delta.y);
                 glyph_state.transform_guideline(idx, m, 0.0);
             }
-            ControlPointMode::None => {
+            Mode::Pan => {
                 if warp_cursor {
                     let (width, height) = (
                         viewport.allocated_width() as f64,
@@ -525,20 +591,15 @@ impl ToolImplImpl for PanningToolInner {
                     .transformation
                     .move_camera_by_delta(ViewPoint(delta));
             }
-            ControlPointMode::Select => {
-                return match (
-                    self.is_selection_active.get(),
-                    self.is_selection_empty.get(),
-                ) {
-                    (_, true) => Inhibit(false),
-                    (true, false) => {
-                        let event_position = event.position();
-                        let bottom_right =
-                            viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                        self.selection_bottom_right.set(bottom_right);
-                        Inhibit(true)
-                    }
-                    (false, _) => Inhibit(false),
+            Mode::Select => {
+                return if self.is_selection_active.get() {
+                    let event_position = event.position();
+                    let bottom_right =
+                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                    self.selection_bottom_right.set(bottom_right);
+                    Inhibit(true)
+                } else {
+                    Inhibit(false)
                 };
             }
         }
@@ -567,7 +628,6 @@ impl ToolImplImpl for PanningToolInner {
 
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         obj.set_property::<bool>(PanningTool::ACTIVE, true);
-        view.imp().viewport.set_cursor("grab");
         self.parent_on_activate(obj, view);
     }
 
@@ -608,10 +668,14 @@ impl PanningTool {
             .clone()
             .downcast::<PanningTool>()
             .unwrap();
-        if !t.imp().active.get() || t.imp().mode.get() != ControlPointMode::Select {
+        if !t.imp().active.get() || t.imp().mode.get() != Mode::Select {
             return Inhibit(false);
         }
         let active = t.imp().is_selection_active.get();
+        let empty = t.imp().is_selection_empty.get();
+        if empty && !active {
+            return Inhibit(false);
+        }
         let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
         let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
 

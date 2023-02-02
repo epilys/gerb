@@ -616,21 +616,18 @@ impl Glyph {
     pub fn on_curve_query(
         &self,
         position: Point,
-        pts: &[(GlyphPointIndex, IPoint)],
+        pts: &[GlyphPointIndex],
     ) -> Option<((usize, usize), Bezier)> {
         for (ic, contour) in self.contours.iter().enumerate() {
             for (jc, curve) in contour.curves().borrow().iter().enumerate() {
                 if curve.on_curve_query(position, None) {
                     return Some(((ic, jc), curve.clone()));
                 }
-                for (
-                    GlyphPointIndex {
-                        contour_index,
-                        curve_index,
-                        uuid,
-                    },
-                    _p,
-                ) in pts
+                for GlyphPointIndex {
+                    contour_index,
+                    curve_index,
+                    uuid,
+                } in pts
                 {
                     if (*contour_index, *curve_index) != (ic, jc) {
                         continue;

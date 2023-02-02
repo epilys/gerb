@@ -268,20 +268,16 @@ impl GlyphState {
         }
     }
 
-    fn set_selection(&mut self, selection: &[(GlyphPointIndex, crate::utils::IPoint)]) {
+    fn set_selection(&mut self, selection: &[GlyphPointIndex]) {
         self.selection.clear();
         self.selection_set.clear();
-        self.selection.extend(selection.iter().map(|(u, _)| u));
+        self.selection.extend(selection.iter());
         for v in &self.selection {
             self.selection_set.insert(v.uuid);
         }
     }
 
-    fn get_selection(&self) -> &[GlyphPointIndex] {
-        &self.selection
-    }
-
-    fn get_selection_set(&self) -> &HashSet<uuid::Uuid> {
+    fn get_selection(&self) -> &HashSet<uuid::Uuid> {
         &self.selection_set
     }
 }
