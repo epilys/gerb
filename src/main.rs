@@ -41,6 +41,7 @@ use app::GerbApp;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 pub use window::Workspace;
 
+pub const APPLICATION_NAME: &str = "gerb";
 pub const APPLICATION_ID: &str = "com.epilys.gerb";
 
 fn main() {

@@ -176,60 +176,58 @@ impl GerbApp {
                 );
                 let _response = dialog.run();
                 dialog.hide();
-                if let Some(f) = dialog.filename() {
-                    if let Some(path) = f.to_str() {
-                        match crate::ufo::import::import(
-                            crate::ufo::import::Glyphs2UFOOptions::new(path.into()).output_dir(None),
-                        ) {
-                            Ok(instances) => {
-                                if instances.len() == 1 {
-                                    window.emit_by_name::<()>(
-                                        "open-project",
-                                        &[&instances[0].full_path.display().to_string()],
-                                    );
-                                } else {
-                                    let dialog = gtk::MessageDialog::new(
-                                        Some(&window),
-                                        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                                        gtk::MessageType::Info,
-                                        gtk::ButtonsType::Close,
-                                        &format!(
-                                            "Generated {} instances:\n{:?}",
-                                            instances.len(),
-                                            instances
-                                            .iter()
-                                            .map(|i| (
-                                                    i.family_name.as_str(),
-                                                    i.style_name.as_str(),
-                                                    i.full_path.as_path()
-                                            ))
-                                            .collect::<Vec<_>>()
-                                        ),
-                                    );
-                                    dialog.set_title(
-                                        "Info: generated more than once instance, open one manually.",
-                                    );
-                                    dialog.set_use_markup(true);
-                                    dialog.run();
-                                    dialog.emit_close();
-                                }
-                            }
-                            Err(err) => {
-                                let dialog = gtk::MessageDialog::new(
-                                    Some(&window),
-                                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                                    gtk::MessageType::Error,
-                                    gtk::ButtonsType::Close,
-                                    &err.to_string(),
-                                );
-                                dialog.set_title(
-                                    "Error: could not perform conversion to UFOv3 with glyphsLib",
-                                );
-                                dialog.set_use_markup(true);
-                                dialog.run();
-                                dialog.emit_close();
-                            }
+                let Some(f) = dialog.filename() else { return; };
+                let Some(path) = f.to_str() else { return; };
+                match crate::ufo::import::glyphsapp::import(
+                    crate::ufo::import::glyphsapp::Glyphs2UFOOptions::new(path.into()).output_dir(None),
+                ) {
+                    Ok(instances) => {
+                        if instances.len() == 1 {
+                            window.emit_by_name::<()>(
+                                "open-project",
+                                &[&instances[0].full_path.display().to_string()],
+                            );
+                        } else {
+                            let dialog = gtk::MessageDialog::new(
+                                Some(&window),
+                                gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                                gtk::MessageType::Info,
+                                gtk::ButtonsType::Close,
+                                &format!(
+                                    "Generated {} instances:\n{:?}",
+                                    instances.len(),
+                                    instances
+                                    .iter()
+                                    .map(|i| (
+                                            i.family_name.as_str(),
+                                            i.style_name.as_str(),
+                                            i.full_path.as_path()
+                                    ))
+                                    .collect::<Vec<_>>()
+                                ),
+                            );
+                            dialog.set_title(
+                                "Info: generated more than once instance, open one manually.",
+                            );
+                            dialog.set_use_markup(true);
+                            dialog.run();
+                            dialog.emit_close();
                         }
+                    }
+                    Err(err) => {
+                        let dialog = gtk::MessageDialog::new(
+                            Some(&window),
+                            gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                            gtk::MessageType::Error,
+                            gtk::ButtonsType::Close,
+                            &err.to_string(),
+                        );
+                        dialog.set_title(
+                            "Error: could not perform conversion to UFOv3 with glyphsLib",
+                        );
+                        dialog.set_use_markup(true);
+                        dialog.run();
+                        dialog.emit_close();
                     }
                 }
             }
@@ -248,6 +246,79 @@ impl GerbApp {
                 dialog.emit_close();
             }
         }));
+        let import_ufo2 = gtk::gio::SimpleAction::new("project.import.ufo2", None);
+
+        import_ufo2.connect_activate(glib::clone!(@weak window => move |_, _| {
+            #[cfg(feature = "python")]
+            {
+                let dialog = gtk::FileChooserNative::new(
+                    Some("Select UFOv2 input path"),
+                    Some(&window),
+                    gtk::FileChooserAction::SelectFolder,
+                    None,
+                    None,
+                );
+                let _response = dialog.run();
+                dialog.hide();
+                let Some(f) = dialog.filename() else { return; };
+                let Some(input_dir) = f.to_str() else { return; };
+                let dialog2 = gtk::FileChooserNative::new(
+                    Some("Select UFOv3 output path"),
+                    Some(&window),
+                    gtk::FileChooserAction::SelectFolder,
+                    None,
+                    None,
+                );
+                let _response = dialog2.run();
+                dialog2.hide();
+                let Some(f) = dialog2.filename() else { return; };
+                let Some(output_dir) = f.to_str() else { return; };
+                match crate::ufo::import::ufo2::import(
+                    crate::ufo::import::ufo2::UFO2ToUFO3Options::new(
+                        input_dir.into(),
+                        output_dir.into(),
+                    ),
+                ) {
+                    Ok(instance) => {
+                        GerbApp::show_notification(
+                            &format!("Succesfully converted {} to UFOv3.", &instance.family_name),
+                            &format!("Project saved at {}", instance.full_path.display()),
+                        );
+                        window.emit_by_name::<()>(
+                            "open-project",
+                            &[&instance.full_path.display().to_string()],
+                        );
+                    }
+                    Err(err) => {
+                        let dialog = gtk::MessageDialog::new(
+                            Some(&window),
+                            gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                            gtk::MessageType::Error,
+                            gtk::ButtonsType::Close,
+                            &err.to_string(),
+                        );
+                        dialog.set_title("Error: could not perform conversion to UFOv3 with fontTools");
+                        dialog.set_use_markup(true);
+                        dialog.run();
+                        dialog.emit_close();
+                    }
+                }
+            }
+            #[cfg(not(feature = "python"))]
+            {
+                let dialog = gtk::MessageDialog::new(
+                    Some(&window),
+                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                    gtk::MessageType::Error,
+                    gtk::ButtonsType::Close,
+                    "This application build doesn't include python support. UFOv2 import is performed with the fontTools python3 library. Compile the app with `python` Cargo feature.",
+                );
+                dialog.set_title("Error");
+                dialog.set_use_markup(true);
+                dialog.run();
+                dialog.emit_close();
+            }
+        }));
         let open = gtk::gio::SimpleAction::new("project.open", None);
         open.connect_activate(glib::clone!(@weak window => move |_, _| {
             let dialog = gtk::FileChooserNative::new(
@@ -258,13 +329,11 @@ impl GerbApp {
                 None
             );
             let _response = dialog.run();
-            if let Some(f) = dialog.filename() {
-                if let Some(path) = f.to_str() {
-                    window.emit_by_name::<()>("open-project", &[&path]);
-                    window.show_all();
-                }
-            }
             dialog.hide();
+            let Some(f) = dialog.filename() else { return; };
+            let Some(path) = f.to_str() else { return; };
+            window.emit_by_name::<()>("open-project", &[&path]);
+            window.show_all();
         }));
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
@@ -299,6 +368,7 @@ impl GerbApp {
         }));
         application.add_action(&project_properties);
         application.add_action(&import_glyphs);
+        application.add_action(&import_ufo2);
         application.add_action(&settings);
         application.add_action(&about);
         application.add_action(&open);
@@ -321,6 +391,10 @@ impl GerbApp {
         import_menu.append(
             Some("Import Glyphs file"),
             Some("app.project.import.glyphs"),
+        );
+        import_menu.append(
+            Some("Import UFOv2 directory"),
+            Some("app.project.import.ufo2"),
         );
         file_menu.append_submenu(Some("Import"), &import_menu);
         let project_section = gio::Menu::new();
@@ -346,5 +420,26 @@ impl GerbApp {
 
     pub fn statusbar(&self) -> gtk::Statusbar {
         self.imp().window.imp().statusbar.clone()
+    }
+
+    #[cfg(not(feature = "notifications"))]
+    pub fn show_notification(_: &str, _: &str) {}
+
+    #[cfg(feature = "notifications")]
+    pub fn show_notification(summary: &str, body: &str) {
+        use notify_rust::Notification;
+
+        let mut n = Notification::new();
+        n.appname(crate::APPLICATION_NAME)
+            .summary(summary)
+            .body(body)
+            .urgency(notify_rust::Urgency::Normal);
+        #[cfg(all(unix, not(target_os = "macos"), not(target_os = "windows")))]
+        {
+            n.image_data(crate::resources::G_GLYPH.to_rust_image().unwrap());
+        }
+        if let Err(err) = n.show() {
+            eprintln!("Could not display desktop notification: {err}");
+        }
     }
 }

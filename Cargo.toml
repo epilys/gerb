@@ -16,7 +16,9 @@ futures-util = "0.3"
 generational-arena = "0.2"
 glib = { version = "^0.15" }
 gtk = { version = "^0.15", features = [ "v3_20" ] }
+image = { version = "0.24", default-features = false, features = ["png"], optional = true }
 indexmap = { version = "1.9" }
+notify-rust = { version = "4", optional = true, features = ["images"] }
 once_cell = "1.2.0"
 plist = { version = "1" }
 quick-xml = { version = "0.21", features = [ "serialize" ] }
@@ -48,6 +50,7 @@ features = [
 default = ["svg", "python"]
 svg = ["cairo-rs/svg", ]
 python = ["pyo3", ]
+notifications = ["notify-rust", "image"]
 
 [profile.release]
 lto = "fat"
