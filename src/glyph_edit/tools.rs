@@ -23,12 +23,14 @@ use super::*;
 
 mod bezier;
 mod bspline;
+mod freehand;
 mod panning;
 mod shapes;
 mod tool_impl;
 mod zoom;
 pub use bezier::*;
 pub use bspline::*;
+pub use freehand::*;
 pub use panning::*;
 pub use shapes::*;
 pub use tool_impl::*;
@@ -178,6 +180,7 @@ impl Tool {
         let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
         for t in [
             PanningTool::new().upcast::<ToolImpl>(),
+            FreehandTool::new().upcast::<ToolImpl>(),
             BezierTool::new().upcast::<ToolImpl>(),
             BSplineTool::new().upcast::<ToolImpl>(),
             QuadrilateralTool::new().upcast::<ToolImpl>(),

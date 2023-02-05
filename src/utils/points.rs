@@ -123,6 +123,10 @@ impl From<&CurvePoint> for Point {
 }
 
 impl Point {
+    pub fn new(x: f64, y: f64) -> Self {
+        (x, y).into()
+    }
+
     pub fn collinear(&self, other_a: &Self, other_b: &Self) -> bool {
         //Putting all this together, the points (a,b), (m,n) and (x,y) are collinear if and only if
         //    (n−b)(x−m)=(y−n)(m−a)

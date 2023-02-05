@@ -113,6 +113,7 @@ pub mod icons {
     decl_icon! {ELLIPSE_ICON, "./resources/ellipse-icon"}
     decl_icon! {CHECKBOX_ICON, "./resources/icons/checkbox"}
     decl_icon! {CHECKBOX_CHECKED_ICON, "./resources/icons/checkbox-checked"}
+    decl_icon! {FREEHAND_ICON, "./resources/freehand-icon"}
 }
 
 pub mod cursors {
