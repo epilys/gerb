@@ -161,6 +161,11 @@ button.image-button > box {
   border-radius: 3px;
 }
 
+.image-button.toggle-button {
+  border:none;
+  box-shadow: none;
+}
+
 .tab-button {
   background: none;
   margin: 0;

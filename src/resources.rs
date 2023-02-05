@@ -111,6 +111,8 @@ pub mod icons {
     decl_icon! {BSPLINE_ICON, "./resources/b-spline-icon"}
     decl_icon! {RECTANGLE_ICON, "./resources/rectangle-icon"}
     decl_icon! {ELLIPSE_ICON, "./resources/ellipse-icon"}
+    decl_icon! {CHECKBOX_ICON, "./resources/icons/checkbox"}
+    decl_icon! {CHECKBOX_CHECKED_ICON, "./resources/icons/checkbox-checked"}
 }
 
 pub mod cursors {

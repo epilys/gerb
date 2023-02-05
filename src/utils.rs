@@ -29,6 +29,7 @@ pub mod curves;
 pub mod menu;
 pub mod points;
 pub mod range_query;
+pub mod widgets;
 pub use colors::*;
 pub use points::{CurvePoint, IPoint, Point};
 
@@ -170,13 +171,12 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
     match val.type_().name() {
         "gboolean" => {
             let val = val.get::<bool>().unwrap();
-            let entry = gtk::Switch::builder()
-                .visible(true)
-                .active(val)
-                .sensitive(readwrite)
-                .halign(gtk::Align::Start)
-                .valign(gtk::Align::Start)
-                .build();
+            let entry = widgets::ToggleButton::new();
+            entry.set_visible(true);
+            entry.set_active(val);
+            entry.set_sensitive(readwrite);
+            entry.set_halign(gtk::Align::Start);
+            entry.set_valign(gtk::Align::Start);
             obj.bind_property(property.name(), &entry, "active")
                 .flags(flags)
                 .build();
