@@ -505,9 +505,9 @@ impl Canvas {
         cr.save().unwrap();
 
         cr.rectangle(0.0, ruler_breadth, ruler_breadth, height);
-        cr.set_source_color(ruler_bg);
+        cr.set_source_color_alpha(ruler_bg);
         cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_color(ruler_fg);
+        cr.set_source_color_alpha(ruler_fg);
         cr.stroke().unwrap();
 
         let step: f64 = 200.0 * (scale * ppu);
@@ -527,12 +527,12 @@ impl Canvas {
         cr.move_to(2.0 * ruler_breadth / 3.0, view_mouse.y - 1.0);
         cr.set_font_size(font_size);
         cr.rotate(-std::f64::consts::FRAC_PI_2);
-        cr.set_source_color(ruler_fg);
+        cr.set_source_color_alpha(ruler_fg);
         cr.show_text_with_bg(&format!("{:.0}", mouse.y), 0.5, ruler_fg, ruler_bg);
         cr.restore().unwrap();
 
         cr.save().unwrap();
-        cr.set_source_color(ruler_indicator_color);
+        cr.set_source_color_alpha(ruler_indicator_color);
         cr.move_to(0.0, view_mouse.y);
         cr.line_to(ruler_breadth, view_mouse.y);
         cr.stroke().unwrap();
@@ -543,9 +543,9 @@ impl Canvas {
         cr.save().unwrap();
 
         cr.rectangle(0.0, 0.0, width, ruler_breadth);
-        cr.set_source_color(ruler_bg);
+        cr.set_source_color_alpha(ruler_bg);
         cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_color(ruler_fg);
+        cr.set_source_color_alpha(ruler_fg);
         cr.stroke().unwrap();
 
         cr.arc(
@@ -576,7 +576,7 @@ impl Canvas {
         cr.restore().unwrap();
 
         cr.save().unwrap();
-        cr.set_source_color(ruler_indicator_color);
+        cr.set_source_color_alpha(ruler_indicator_color);
         cr.move_to(view_mouse.x, 0.0);
         cr.line_to(view_mouse.x, ruler_breadth);
         cr.stroke().unwrap();

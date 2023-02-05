@@ -156,19 +156,22 @@ impl Tool {
     pub fn setup_toolbox(obj: &GlyphEditView) {
         obj.imp()
             .toolbar_box
-            .set_orientation(gtk::Orientation::Horizontal);
+            .set_orientation(gtk::Orientation::Vertical);
         obj.imp().toolbar_box.set_expand(false);
-        obj.imp().toolbar_box.set_halign(gtk::Align::Center);
+        obj.imp().toolbar_box.set_halign(gtk::Align::Start);
         obj.imp().toolbar_box.set_valign(gtk::Align::Start);
         obj.imp().toolbar_box.set_spacing(5);
+        obj.imp().toolbar_box.set_border_width(0);
         obj.imp().toolbar_box.set_visible(true);
+        obj.imp().toolbar_box.set_tooltip_text(Some("Tools"));
         obj.imp().toolbar_box.set_can_focus(true);
         let toolbar = gtk::Toolbar::builder()
-            .orientation(gtk::Orientation::Horizontal)
+            .orientation(gtk::Orientation::Vertical)
             .expand(false)
+            .show_arrow(false)
             .halign(gtk::Align::Center)
             .valign(gtk::Align::Start)
-            //.toolbar_style(gtk::ToolbarStyle::Both)
+            .toolbar_style(gtk::ToolbarStyle::Icons)
             .visible(true)
             .can_focus(true)
             .build();
@@ -189,11 +192,16 @@ impl Tool {
         let zoom_percent_label = gtk::Label::builder()
             .label("100%")
             .visible(true)
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Center)
+            .hexpand(false)
+            .vexpand(false)
             .selectable(true) // So that the widget can receive the button-press event
             .width_chars(5) // So that if 2 digit zoom (<100%) has the same length as a widget with a three digit zoom value. For example 75% and 125% should result in the same width
             .events(gtk::gdk::EventMask::BUTTON_PRESS_MASK)
             .tooltip_text("Interface zoom percentage")
             .build();
+        zoom_percent_label.style_context().add_class("zoom-label");
 
         zoom_percent_label.connect_button_press_event(
             clone!(@strong obj => @default-return Inhibit(false), move |_self, event| {

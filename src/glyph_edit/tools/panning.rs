@@ -172,13 +172,35 @@ impl ToolImplImpl for PanningToolInner {
                     .set_property::<bool>(PanningTool::ACTIVE, true);
                 viewport.set_cursor("crosshair");
             }
-            Mode::Drag | Mode::DragGuideline(_) if event_button == gtk::gdk::BUTTON_PRIMARY => {
+            m @ Mode::Drag | m @ Mode::DragGuideline(_)
+                if event_button == gtk::gdk::BUTTON_PRIMARY =>
+            {
                 self.mode.set(Mode::None);
                 view.imp().hovering.set(None);
                 viewport.queue_draw();
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 self.set_default_cursor(&view);
+                if matches!(
+                    (m, event.event_type()),
+                    (Mode::Drag, gtk::gdk::EventType::DoubleButtonPress)
+                ) {
+                    let UnitPoint(position) =
+                        viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                    let pts = glyph_state
+                        .kd_tree
+                        .borrow()
+                        .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
+                    if !pts.is_empty() {
+                        let menu = crate::utils::menu::Menu::new()
+                            .title(Some("Point".into()))
+                            .separator()
+                            .add_button_cb("Dissolve point", move |_| {})
+                            .add_button_cb("Make smooth", move |_| {})
+                            .add_button_cb("Make corner", move |_| {});
+                        menu.popup(event.time());
+                    }
+                }
             }
             Mode::None if event_button == gtk::gdk::BUTTON_PRIMARY => {
                 let event_position = event.position();

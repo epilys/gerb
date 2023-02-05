@@ -435,9 +435,9 @@ impl ObjectImpl for GlyphEditViewInner {
         );
         self.overlay.set_child(&self.viewport);
         self.overlay
-            .add_overlay(Child::new(self.toolbar_box.clone(), true));
+            .add_overlay(Child::new(self.toolbar_box.clone()));
         self.overlay
-            .add_overlay(Child::new(self.create_layer_widget(), true));
+            .add_overlay(Child::new(self.create_layer_widget()).expanded(false));
         obj.add(&self.overlay);
         obj.set_visible(true);
         obj.set_expand(true);

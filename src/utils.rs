@@ -267,6 +267,7 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 .visible(true)
                 .halign(gtk::Align::Start)
                 .valign(gtk::Align::Start)
+                .use_alpha(true)
                 .show_editor(true)
                 .build();
             entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {

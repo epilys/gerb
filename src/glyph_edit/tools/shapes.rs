@@ -23,10 +23,10 @@ use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::Contour;
 use crate::utils::{curves::Bezier, CurvePoint, Point};
 use crate::views::{
-    canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
+    canvas::{Layer, LayerBuilder, Transformation, UnitPoint, ViewPoint},
     Canvas,
 };
-use crate::GlyphEditView;
+use crate::{GlyphEditView, Settings};
 use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::cairo::Context;
 use gtk::Inhibit;
@@ -322,13 +322,22 @@ impl QuadrilateralTool {
         if t.imp().upper_left.get().is_none() {
             return Inhibit(false);
         }
+        let scale: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let curves = t.imp().curves.borrow();
         let line_width = obj
             .imp()
             .settings
             .get()
             .unwrap()
-            .property::<f64>(crate::Settings::LINE_WIDTH);
+            .property::<f64>(Settings::LINE_WIDTH)
+            / (scale * ppu);
         cr.save().expect("Invalid cairo surface state");
         cr.transform(viewport.imp().transformation.matrix());
         cr.set_line_width(line_width);
@@ -634,13 +643,22 @@ impl EllipseTool {
         if t.imp().center.get().is_none() {
             return Inhibit(false);
         }
+        let scale: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu: f64 = viewport
+            .imp()
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let curves = t.imp().curves.borrow();
         let line_width = obj
             .imp()
             .settings
             .get()
             .unwrap()
-            .property::<f64>(crate::Settings::LINE_WIDTH);
+            .property::<f64>(Settings::LINE_WIDTH)
+            / (scale * ppu);
         cr.save().expect("Invalid cairo surface state");
         cr.transform(viewport.imp().transformation.matrix());
         cr.set_line_width(line_width);

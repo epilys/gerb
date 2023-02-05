@@ -83,7 +83,8 @@ pub fn draw_glyph_layer(
                 .settings
                 .get()
                 .unwrap()
-                .property(Settings::LINE_WIDTH),
+                .property::<f64>(Settings::LINE_WIDTH)
+                / (scale * ppu),
             handle_size: if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
                 Some(
                     obj.imp()
@@ -171,7 +172,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         cr.transform(matrix);
 
         /* Draw em square of units_per_em units: */
-        cr.set_source_color(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
+        cr.set_source_color_alpha(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
         cr.rectangle(
             0.0,
             0.0,
@@ -252,7 +253,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 }
             } else if g.angle() == 0.0 {
                 cr.save().unwrap();
-                cr.set_source_color(Color::try_from_hex("#bbbaae").unwrap());
+                cr.set_source_color_alpha(Color::try_from_hex("#bbbaae").unwrap());
                 let ViewPoint(Point { y, .. }) =
                     viewport.unit_to_view_point(UnitPoint((0.0, g.y()).into()));
                 let label = if let Some(name) = g.name().as_deref() {

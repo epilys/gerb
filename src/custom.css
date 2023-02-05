@@ -87,15 +87,27 @@ toolpalette  {
 }
 
 .glyph-edit-toolbox {
-  background: white;
-  border-radius: 5px;
   padding: 5px;
   margin-top: 20px;
-  box-shadow: 0 2px gray, 0 -2px gray;
+}
+
+.glyph-edit-toolbox, .glyph-edit-toolbox toolbar {
+  background: none;
+  border: none;
+  box-shadow: none;
 }
 
 .glyph-edit-toolbox * {
   padding: 2px;
+}
+
+label.zoom-label {
+  padding: 2px;
+  background: white;
+  border: 1px solid darkgray;
+  border-radius: 2px;
+  color: black;
+  font-weight: 500;
 }
 
 .project-label {

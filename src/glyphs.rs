@@ -226,8 +226,8 @@ impl Glyph {
         } = options;
 
         cr.save().expect("Invalid cairo surface state");
-        cr.set_line_width(line_width);
         cr.transform(matrix);
+        cr.set_line_width(line_width);
         //cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr.set_source_color_alpha(outline);
         let mut pen_position: Option<Point> = None;
@@ -374,7 +374,6 @@ impl Glyph {
         }
         if let Some(handle_size) = handle_size {
             let draw_oncurve = |p: &CurvePoint| {
-                cr.set_line_width(line_width);
                 if selection.map(|s| s.contains(&p.uuid)).unwrap_or(false) {
                     cr.set_source_color(Color::RED);
                 } else {
@@ -426,7 +425,7 @@ impl Glyph {
             };
             let draw_handle_connection = |h: Point, ep: Point| {
                 cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-                cr.move_to(h.x - 2.5, h.y - 2.5);
+                cr.move_to(h.x, h.y);
                 cr.line_to(ep.x, ep.y);
                 cr.stroke().unwrap();
             };

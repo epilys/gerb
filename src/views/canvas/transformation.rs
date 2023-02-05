@@ -82,7 +82,7 @@ impl ObjectImpl for TransformationInner {
                         Transformation::SCALE,
                         Transformation::SCALE,
                         0.001,
-                        10.0,
+                        20.0,
                         TransformationInner::INIT_SCALE_VAL,
                         ParamFlags::READWRITE,
                     ),
@@ -237,7 +237,10 @@ impl Transformation {
         let units_per_em = self.property::<f64>(Self::UNITS_PER_EM);
         let ppu = self.property::<f64>(Self::PIXELS_PER_UNIT);
         let half_unit = (ppu * units_per_em / 4.0, ppu * units_per_em / 4.0);
-        let (x, y) = (width / 2.0 - half_unit.0, height / 2.0 + half_unit.1);
+        let (x, y) = (
+            width / 2.0 - half_unit.0 * 1.5,
+            height / 2.0 + half_unit.1 * 2.0,
+        );
         if !x.is_finite() || !y.is_finite() {
             return;
         }
@@ -285,7 +288,7 @@ impl Transformation {
     }
 
     pub fn set_zoom(&self, new_value: f64) -> bool {
-        if !(0.2..=5.0).contains(&new_value) {
+        if !(0.2..=20.0).contains(&new_value) {
             return false;
         }
         self.set_property::<f64>(Self::SCALE, new_value);

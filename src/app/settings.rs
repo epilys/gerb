@@ -50,7 +50,7 @@ pub struct SettingsInner {
 
 impl SettingsInner {
     pub const HANDLE_SIZE_INIT_VAL: f64 = 5.0;
-    pub const LINE_WIDTH_INIT_VAL: f64 = 8.0;
+    pub const LINE_WIDTH_INIT_VAL: f64 = 0.85;
     pub const GUIDELINE_WIDTH_INIT_VAL: f64 = 1.0;
     pub const WARP_CURSOR_INIT_VAL: bool = false;
 
@@ -208,7 +208,7 @@ impl ObjectImpl for SettingsInner {
                         Settings::HANDLE_SIZE,
                         Settings::HANDLE_SIZE,
                         Settings::HANDLE_SIZE,
-                        2.0,
+                        0.0001,
                         10.0,
                         SettingsInner::HANDLE_SIZE_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
@@ -217,7 +217,7 @@ impl ObjectImpl for SettingsInner {
                         Settings::LINE_WIDTH,
                         Settings::LINE_WIDTH,
                         Settings::LINE_WIDTH,
-                        2.0,
+                        0.0001,
                         10.0,
                         SettingsInner::LINE_WIDTH_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
