@@ -93,12 +93,18 @@ impl ObjectImpl for PanningToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "Panning".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::GRAB_ICON.to_image_widget(),
+            crate::resources::icons::GRAB_ICON.to_image_widget(),
         );
         for (field, resource) in [
-            (&self.cursor, crate::resources::ARROW_CURSOR),
-            (&self.cursor_plus, crate::resources::ARROW_PLUS_CURSOR),
-            (&self.cursor_minus, crate::resources::ARROW_MINUS_CURSOR),
+            (&self.cursor, crate::resources::cursors::ARROW_CURSOR),
+            (
+                &self.cursor_plus,
+                crate::resources::cursors::ARROW_PLUS_CURSOR,
+            ),
+            (
+                &self.cursor_minus,
+                crate::resources::cursors::ARROW_MINUS_CURSOR,
+            ),
         ] {
             field.set(resource.to_pixbuf()).unwrap();
         }

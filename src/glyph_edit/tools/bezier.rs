@@ -130,10 +130,10 @@ impl ObjectImpl for BezierToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "Create Bézier curve".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::BEZIER_ICON.to_image_widget(),
+            crate::resources::icons::BEZIER_ICON.to_image_widget(),
         );
         self.cursor
-            .set(crate::resources::PEN_CURSOR.to_pixbuf())
+            .set(crate::resources::cursors::PEN_CURSOR.to_pixbuf())
             .unwrap();
     }
 

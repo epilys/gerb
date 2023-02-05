@@ -42,7 +42,7 @@ impl ObjectImpl for BSplineToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "Create b-spline curve".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::BSPLINE_ICON.to_image_widget(),
+            crate::resources::icons::BSPLINE_ICON.to_image_widget(),
         );
     }
 }

@@ -27,78 +27,16 @@ pub struct UIIcon {
     png: &'static [u8],
 }
 
-pub const G_GLYPH: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/g.svg"),
-    png: include_bytes!("./resources/g.png"),
-};
+macro_rules! decl_icon {
+    ($ident:ident, $path:literal) => {
+        pub const $ident: UIIcon = UIIcon {
+            svg: include_bytes!(concat!($path, ".svg")),
+            png: include_bytes!(concat!($path, ".png")),
+        };
+    };
+}
 
-pub const GRAB_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/grab-icon-small.svg"),
-    png: include_bytes!("./resources/grab-icon.png"),
-};
-
-pub const PEN_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/pen-icon.svg"),
-    png: include_bytes!("./resources/pen-icon.png"),
-};
-
-pub const ZOOM_IN_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/zoom-in-icon.svg"),
-    png: include_bytes!("./resources/zoom-in-icon.png"),
-};
-
-pub const ZOOM_OUT_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/zoom-out-icon.svg"),
-    png: include_bytes!("./resources/zoom-out-icon.png"),
-};
-
-pub const BEZIER_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/bezier-icon.svg"),
-    png: include_bytes!("./resources/bezier-icon.png"),
-};
-
-pub const BSPLINE_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/b-spline-icon.svg"),
-    png: include_bytes!("./resources/b-spline-icon.png"),
-};
-
-pub const RECTANGLE_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/rectangle-icon.svg"),
-    png: include_bytes!("./resources/rectangle-icon.png"),
-};
-
-pub const ELLIPSE_ICON: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/ellipse-icon.svg"),
-    png: include_bytes!("./resources/ellipse-icon.png"),
-};
-
-pub const PEN_CURSOR: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/pen-cursor.svg"),
-    png: include_bytes!("./resources/pen-cursor.png"),
-};
-pub const RECTANGLE_CURSOR: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/rectangle-cursor.svg"),
-    png: include_bytes!("./resources/rectangle-cursor.png"),
-};
-pub const CIRCLE_CURSOR: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/circle-cursor.svg"),
-    png: include_bytes!("./resources/circle-cursor.png"),
-};
-
-pub const ARROW_CURSOR: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/arrow-cursor.svg"),
-    png: include_bytes!("./resources/arrow-cursor.png"),
-};
-
-pub const ARROW_PLUS_CURSOR: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/arrow-plus-cursor.svg"),
-    png: include_bytes!("./resources/arrow-plus-cursor.png"),
-};
-
-pub const ARROW_MINUS_CURSOR: UIIcon = UIIcon {
-    svg: include_bytes!("./resources/arrow-minus-cursor.svg"),
-    png: include_bytes!("./resources/arrow-minus-cursor.png"),
-};
+decl_icon! { G_GLYPH, "./resources/g" }
 
 impl UIIcon {
     pub fn to_image_widget(&self) -> gtk::Image {
@@ -160,4 +98,28 @@ impl UIIcon {
         let img = image::DynamicImage::from_decoder(dec).ok()?;
         Image::try_from(img).ok()
     }
+}
+
+pub mod icons {
+    use super::UIIcon;
+
+    decl_icon! {GRAB_ICON, "./resources/grab-icon"}
+    decl_icon! {PEN_ICON, "./resources/pen-icon"}
+    decl_icon! {ZOOM_IN_ICON, "./resources/zoom-in-icon"}
+    decl_icon! {ZOOM_OUT_ICON, "./resources/zoom-out-icon"}
+    decl_icon! {BEZIER_ICON, "./resources/bezier-icon"}
+    decl_icon! {BSPLINE_ICON, "./resources/b-spline-icon"}
+    decl_icon! {RECTANGLE_ICON, "./resources/rectangle-icon"}
+    decl_icon! {ELLIPSE_ICON, "./resources/ellipse-icon"}
+}
+
+pub mod cursors {
+    use super::UIIcon;
+
+    decl_icon! {PEN_CURSOR, "./resources/pen-cursor"}
+    decl_icon! {RECTANGLE_CURSOR, "./resources/rectangle-cursor"}
+    decl_icon! {CIRCLE_CURSOR, "./resources/circle-cursor"}
+    decl_icon! {ARROW_CURSOR, "./resources/arrow-cursor"}
+    decl_icon! {ARROW_PLUS_CURSOR, "./resources/arrow-plus-cursor"}
+    decl_icon! {ARROW_MINUS_CURSOR, "./resources/arrow-minus-cursor"}
 }

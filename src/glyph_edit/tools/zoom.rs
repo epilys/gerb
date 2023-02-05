@@ -42,7 +42,7 @@ impl ObjectImpl for ZoomInToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "ZoomIn".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::ZOOM_IN_ICON.to_image_widget(),
+            crate::resources::icons::ZOOM_IN_ICON.to_image_widget(),
         );
     }
 }
@@ -156,7 +156,7 @@ impl ObjectImpl for ZoomOutToolInner {
         obj.set_property::<String>(ToolImpl::NAME, "ZoomOut".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
-            crate::resources::ZOOM_OUT_ICON.to_image_widget(),
+            crate::resources::icons::ZOOM_OUT_ICON.to_image_widget(),
         );
     }
 }
