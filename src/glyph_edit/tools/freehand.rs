@@ -21,8 +21,9 @@
 
 use nalgebra::base::{Matrix4, RowVector4, *};
 
-use super::{new_contour_action, tool_impl::*};
-use crate::glyphs::Contour;
+use super::tool_impl::*;
+
+use crate::utils::colors::*;
 use crate::utils::{curves::Bezier, distance_between_two_points, Point};
 use crate::views::canvas::{Canvas, Layer, LayerBuilder, UnitPoint, ViewPoint};
 use crate::GlyphEditView;
@@ -266,69 +267,109 @@ impl FreehandToolInner {
             .map(|(i, r)| Point::new(*r, cy.data.0[0][i]))
             .collect::<Vec<Point>>();
 
-        /*
-          const tm = this.formTMatrix(tvalues, n),
-                T = tm.T,
-                Tt = tm.Tt,
-                M = this.generateBasisMatrix(n),
-                M1 = M.invert(),
-                TtT1 = Tt.multiply(T).invert(),
-                step1 = TtT1.multiply(Tt),
-                step2 = M1.multiply(step1),
-                // almost there...
-                X = new Matrix(points.map((v) => [v.x])),
-                Cx = step2.multiply(X),
-                x = Cx.data,
-                // almost...
-                Y = new Matrix(points.map((v) => [v.y])),
-                Cy = step2.multiply(Y),
-                y = Cy.data,
-                // last step!
-                bpoints = x.map((r,i) => ({x: r[0], y: y[i][0]}));
-
-        formTMatrix(row, n) {
-                nalgebra::base::Matrix3
-                let m1 = Matrix3x3::from_rows(&[
-            RowVector3::new(1.1, 1.2, 1.3),
-            RowVector3::new(1.1, 1.2, 1.3),
-            RowVector3::new(2.1, 2.2, 2.3)
-        ]);
-          // it's actually easier to create the transposed
-          // version, and then (un)transpose that to get T!
-          let data = [];
-          for (var i = 0; i < n; i++) {
-            data.push(row.map((v) => v ** i));
-          }
-          const Tt = new Matrix(n, n, data);
-          const T = Tt.transpose();
-          return { T, Tt };
-        }
-
-        generateBasisMatrix(n) {
-          const M = new Matrix(n, n);
-
-          // populate the main diagonal
-          var k = n - 1;
-          for (let i = 0; i < n; i++) {
-            M.set(i, i, binomial(k, i));
-          }
-
-          // compute the remaining values
-          for (var c = 0, r; c < n; c++) {
-            for (r = c + 1; r < n; r++) {
-              var sign = (r + c) % 2 === 0 ? 1 : -1;
-              var value = binomial(r, c) * M.get(r, r);
-              M.set(r, c, sign * value);
-            }
-          }
-
-          return M;
-        }
-                fn form_tmatrix(
-
-                 */
-
         Bezier::new(bpoints)
+    }
+
+    fn ms06(cr: &Context, pts: &[UnitPoint]) {
+        /*
+         * Three rectangles:
+         * - R1 = 2 * L * 2 * W
+         * - R2 = L * 2 * W
+         * - R3 = L * W
+         *
+         * They lie on the slope S of curve with center at contour point C_i.
+         *
+         * Slope of C_i is a straight line between two points (P1, P2) obtained by taking the mean
+         * of k + 1 points (including C_i) on both sides of C_i.
+         *
+         * P1 = (1 / (k + 1)) (Σ^{i-k}_{i} C_i), k = 4
+         * P2 = (1 / (k + 1)) (Σ^{i}_{i + k} C_i), k = 4
+         */
+        let mut counts: Vec<(usize, (usize, usize))> = Vec::with_capacity(pts.len());
+        fn point_in_r(p: Point, (A, B, C, _D): (Point, Point, Point, Point)) -> bool {
+            let ab = A - B;
+            let ap = A - p;
+            let bc = B - C;
+            let bp = B - p;
+            let abap = ab.dot(ap);
+            let abab = ab.dot(ab);
+            let bcbp = bc.dot(bp);
+            let bcbc = bc.dot(bc);
+            0.0 <= abap && abap <= abab && 0.0 <= bcbp && bcbp <= bcbc
+        }
+        fn draw_rect(cr: &gtk::cairo::Context, (A, B, C, D): (Point, Point, Point, Point)) {
+            cr.set_source_color(Color::BLUE);
+            cr.move_to(A.x, A.y);
+            cr.line_to(B.x, B.y);
+            cr.line_to(C.x, C.y);
+            cr.line_to(D.x, D.y);
+            cr.line_to(A.x, A.y);
+            cr.stroke();
+        }
+        //const L: f64 = 100.0;
+        //const W: f64 = 40.0;
+        let k: usize = 4;
+        const L: f64 = 3.0 * 16.0;
+        const W: f64 = L / 8.0;
+        const HETA: f64 = 3.0 * L / 4.0;
+
+        for (window, j) in pts.windows(2 * k + 1).zip(0usize..) {
+            let i = j + k - 1;
+            let c_i = window[k - 1].0;
+            assert_eq!(c_i, pts[i].0);
+
+            let mut p1 = Point::new(0.0, 0.0);
+            for i in (i + 1 - k)..=(i + 1) {
+                p1 += pts[i].0;
+            }
+            p1 /= 1.0 + k as f64;
+            let mut p2 = Point::new(0.0, 0.0);
+            for i in i..=(i + k) {
+                p2 += pts[i].0;
+            }
+            p2 /= 1.0 + k as f64;
+            let s = (p2.y - p1.y) / (p2.x - p1.x);
+            let angle = s.atan();
+            let mut m = gtk::cairo::Matrix::identity();
+            m.translate(c_i.x, c_i.y);
+            m.rotate(angle + std::f64::consts::FRAC_PI_2);
+            let l = L.ceil() as usize;
+            if j >= l {
+                let mut r1_count = 0;
+                let mut r2_count = 0;
+                // R1:
+                let a: Point = (-W, -L).into();
+                let b: Point = (W, -L).into();
+                let c: Point = (W, L).into();
+                let d: Point = (-W, L).into();
+                for i in (j - l)..std::cmp::min(j + l + 1, pts.len()) {
+                    let p = pts[i].0;
+                    if point_in_r(p, (m * a, m * b, m * c, m * d)) {
+                        r1_count += 1;
+                    }
+                }
+                // R2:
+                let a_: Point = (-W, -L / 2.0).into();
+                let b_: Point = (W, -L / 2.0).into();
+                let c_: Point = (W, L / 2.0).into();
+                let d_: Point = (-W, L / 2.0).into();
+                for i in (j - l)..std::cmp::min(j + l + 1, pts.len()) {
+                    let p = pts[i].0;
+                    if point_in_r(p, (m * a_, m * b_, m * c_, m * d_)) {
+                        r2_count += 1;
+                    }
+                }
+                counts.push((i, (r1_count, r2_count)));
+                if r1_count == r2_count && r1_count > 1 {
+                    draw_rect(cr, (m * a, m * b, m * c, m * d));
+                    draw_rect(cr, (m * a_, m * b_, m * c_, m * d_));
+                    cr.set_source_color(Color::RED);
+                    cr.arc(c_i.x, c_i.y, 6.0 / 2.0, 0.0, 2.0 * std::f64::consts::PI);
+                    cr.fill_preserve().unwrap();
+                    cr.stroke().unwrap();
+                }
+            }
+        }
     }
 }
 
@@ -355,7 +396,7 @@ impl FreehandTool {
     pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
         use crate::utils::colors::*;
 
-        let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
         if FreehandTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
         }
@@ -375,15 +416,15 @@ impl FreehandTool {
             .property::<f64>(crate::Settings::LINE_WIDTH);
         let outline = Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 });
         let matrix = viewport.imp().transformation.matrix();
-        let handle_size: f64 = 3.0;
+        let handle_size: f64 = 1.0;
 
         cr.save().expect("Invalid cairo surface state");
         cr.transform(matrix);
         cr.set_line_width(line_width);
         cr.set_source_color_alpha(outline);
 
-        let mut i = 0;
-        let mut points = t.imp().points.borrow_mut();
+        let points = t.imp().points.borrow();
+        /*
         let contour_index = glyph_state.glyph.borrow().contours.len();
         let contour = if contour_index == 0
             || !glyph_state.glyph.borrow().contours[contour_index - 1]
@@ -408,10 +449,11 @@ impl FreehandTool {
         }
         if points.len() > 4 {
             let last_point = &points[points.len() - 1];
-            if dbg!(distance_between_two_points(last_point.0, points[0].0)) < 4.0 {
+            if distance_between_two_points(last_point.0, points[0].0) < 4.0 {
                 contour.close();
             }
         }
+        */
 
         let draw_point = |p: Point| {
             if inner_fill {
@@ -435,7 +477,21 @@ impl FreehandTool {
         for p in points.iter() {
             draw_point(p.0);
         }
-        points.drain(0..i.saturating_sub(3));
+        FreehandToolInner::ms06(cr, &points);
+        let mut m = gtk::cairo::Matrix::identity();
+        m.translate(0.0, -1350.0);
+        if points.len() > 0 {
+            let mut prev = points[0].0;
+            draw_point(m * prev);
+            for p in points.iter().skip(1) {
+                if distance_between_two_points(prev, p.0) < 40.0 {
+                    continue;
+                }
+                prev = p.0;
+                draw_point(m * p.0);
+            }
+        }
+        //points.drain(0..i.saturating_sub(3));
         cr.restore().expect("Invalid cairo surface state");
 
         Inhibit(true)

@@ -283,7 +283,7 @@ impl Transformation {
     pub fn move_camera_by_delta(&self, delta: ViewPoint) -> ViewPoint {
         self.set_property::<bool>(Self::CENTERED, false);
         let mut camera = self.camera();
-        camera.0 = camera.0 + delta.0;
+        camera.0 += delta.0;
         self.set_camera(camera)
     }
 

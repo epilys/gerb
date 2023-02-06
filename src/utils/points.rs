@@ -159,6 +159,10 @@ impl Point {
     pub fn norm(&self) -> f64 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
+
+    pub fn dot(self, rhs: Point) -> f64 {
+        self.x * rhs.x + self.y * rhs.y
+    }
 }
 
 impl From<Point> for (f64, f64) {
@@ -178,6 +182,13 @@ impl Add<Self> for Point {
 
     fn add(self, rhs: Self) -> Self::Output {
         (self.x + rhs.x, self.y + rhs.y).into()
+    }
+}
+
+impl std::ops::AddAssign<Self> for Point {
+    fn add_assign(&mut self, rhs: Self) {
+        self.x += rhs.x;
+        self.y += rhs.y;
     }
 }
 
