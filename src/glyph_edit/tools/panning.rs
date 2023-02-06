@@ -580,7 +580,7 @@ impl ToolImplImpl for PanningToolInner {
                 delta.y *= -1.0;
                 let mut m = Matrix::identity();
                 m.translate(delta.x, delta.y);
-                glyph_state.transform_selection(m, false);
+                glyph_state.transform_selection(m, true);
             }
             Mode::DragGuideline(idx) => {
                 let mouse: ViewPoint = viewport.get_mouse();

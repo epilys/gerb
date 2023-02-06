@@ -642,8 +642,23 @@ impl Glyph {
 }
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug, Default, Copy)]
+#[repr(C)]
 pub struct GlyphPointIndex {
     pub contour_index: usize,
     pub curve_index: usize,
     pub uuid: Uuid,
+}
+
+impl GlyphPointIndex {
+    const U: usize = std::mem::size_of::<Uuid>();
+    const USZ: usize = std::mem::size_of::<usize>();
+    const N: usize = Self::USZ * 2 + Self::U;
+
+    pub fn as_bytes(&self) -> [u8; Self::N] {
+        let mut ret: [u8; Self::N] = [0; Self::N];
+        ret[..Self::USZ].copy_from_slice(&self.contour_index.to_le_bytes());
+        ret[Self::USZ..(Self::USZ * 2)].copy_from_slice(&self.curve_index.to_le_bytes());
+        ret[(Self::USZ * 2)..].copy_from_slice(self.uuid.as_bytes().as_slice());
+        ret
+    }
 }

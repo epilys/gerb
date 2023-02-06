@@ -207,7 +207,7 @@ impl GlyphState {
                 property: "guideline",
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
             },
-            compress: false,
+            compress: true,
             redo: Box::new(
                 clone!(@weak self.glyph as glyph, @weak viewport => move || {
                     let glyph = glyph.borrow();
@@ -249,14 +249,19 @@ impl GlyphState {
         self.add_undo_action(action);
     }
 
-    fn transform_points(&self, idxs: &[GlyphPointIndex], m: Matrix) -> crate::Action {
+    fn transform_points(&self, idxs_: &[GlyphPointIndex], m: Matrix) -> crate::Action {
         let viewport = self.viewport.clone();
-        let idxs = Rc::new(idxs.to_vec());
+        let idxs = Rc::new(idxs_.to_vec());
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: "point",
-                id: unsafe { std::mem::transmute::<&[GlyphPointIndex], &[u8]>(&idxs).into() },
+                id: idxs_
+                    .iter()
+                    .map(GlyphPointIndex::as_bytes)
+                    .flat_map(<_>::into_iter)
+                    .collect::<Vec<u8>>()
+                    .into(),
             },
             compress: false,
             redo: Box::new(

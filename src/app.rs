@@ -352,12 +352,15 @@ impl GerbApp {
         redo.connect_activate(glib::clone!(@weak self as _self => move |_, _| {
             _self.imp().undo_db.borrow_mut().redo();
         }));
-        undo.bind_property("enabled", &*self.imp().undo_db.borrow(), "can-undo")
-            .flags(glib::BindingFlags::BIDIRECTIONAL)
-            .build();
-        redo.bind_property("enabled", &*self.imp().undo_db.borrow(), "can-redo")
-            .flags(glib::BindingFlags::BIDIRECTIONAL)
-            .build();
+        {
+            let db = self.imp().undo_db.borrow();
+            db.bind_property(UndoDatabase::CAN_UNDO, &undo, "enabled")
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+            db.bind_property(UndoDatabase::CAN_REDO, &redo, "enabled")
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
 
         let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
         project_properties.connect_activate(glib::clone!(@weak application as app => move |_, _| {

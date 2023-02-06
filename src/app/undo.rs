@@ -23,101 +23,22 @@ use glib::{ParamFlags, ParamSpec, ParamSpecBoolean};
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
-use imp::Event;
 use std::cell::RefCell;
 
 glib::wrapper! {
-    pub struct UndoDatabase(ObjectSubclass<imp::UndoDatabase>);
+    pub struct UndoDatabase(ObjectSubclass<UndoDatabaseInner>);
 }
 
-mod imp {
-    use super::*;
-    #[derive(Debug)]
-    pub struct Event {
-        pub timestamp: u64,
-        pub action: super::Action,
-    }
-
-    #[derive(Debug, Default)]
-    pub struct UndoDatabase {
-        pub database: RefCell<Vec<Event>>,
-        pub timestamp: RefCell<u64>,
-        pub cursor: RefCell<usize>,
-    }
-
-    #[glib::object_subclass]
-    impl ObjectSubclass for UndoDatabase {
-        const NAME: &'static str = "UndoDatabase";
-        type Type = super::UndoDatabase;
-        type ParentType = glib::Object;
-        type Interfaces = ();
-    }
-
-    impl ObjectImpl for UndoDatabase {
-        fn properties() -> &'static [ParamSpec] {
-            static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-                once_cell::sync::Lazy::new(|| {
-                    vec![
-                        ParamSpecBoolean::new(
-                            "can-undo",
-                            "can-undo",
-                            "can-undo",
-                            false,
-                            ParamFlags::READWRITE,
-                        ),
-                        ParamSpecBoolean::new(
-                            "can-redo",
-                            "can-redo",
-                            "can-redo",
-                            false,
-                            ParamFlags::READWRITE,
-                        ),
-                    ]
-                });
-            PROPERTIES.as_ref()
-        }
-
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
-            match pspec.name() {
-                "can-undo" => {
-                    let db = self.database.borrow();
-                    let cursor = self.cursor.borrow();
-                    (!(db.is_empty() || *cursor == 0)).to_value()
-                }
-                "can-redo" => {
-                    let db = self.database.borrow();
-                    let cursor = self.cursor.borrow();
-                    (*cursor < db.len()).to_value()
-                }
-                _ => unimplemented!("{}", pspec.name()),
-            }
-        }
-
-        fn set_property(
-            &self,
-            _obj: &Self::Type,
-            _id: usize,
-            _value: &glib::Value,
-            pspec: &ParamSpec,
-        ) {
-            match pspec.name() {
-                "can-undo" => { /* ignore value*/ }
-                "can-redo" => { /* ignore value*/ }
-                _ => unimplemented!("{}", pspec.name()),
-            }
-        }
-    }
+#[derive(Debug)]
+pub struct Event {
+    pub timestamp: u64,
+    pub action: Action,
 }
 
-impl Default for UndoDatabase {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
+#[derive(Debug)]
+#[repr(C)]
 pub struct EventStamp {
     pub t: std::any::TypeId,
-    //FIXME: add also a weak object ref here
     pub property: &'static str,
     pub id: Box<[u8]>,
 }
@@ -129,81 +50,6 @@ impl PartialEq for EventStamp {
 }
 
 impl Eq for EventStamp {}
-
-impl UndoDatabase {
-    pub fn new() -> Self {
-        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        ret
-    }
-
-    pub fn event(&self, action: Action) {
-        self.set_property("can-undo", true);
-        self.set_property("can-redo", false);
-        let mut cursor = self.imp().cursor.borrow_mut();
-        let mut db = self.imp().database.borrow_mut();
-        let mut timestamp = self.imp().timestamp.borrow_mut();
-        *timestamp += 1;
-        let timestamp = *timestamp - 1;
-        db.drain(*cursor..);
-        db.push(Event { timestamp, action });
-        *cursor = db.len();
-    }
-
-    pub fn undo(&self) {
-        let mut did_undo = false;
-        {
-            let mut cursor = self.imp().cursor.borrow_mut();
-            let mut db = self.imp().database.borrow_mut();
-            while let Some(last) = db[..*cursor].last_mut() {
-                (last.action.undo)();
-                did_undo |= true;
-                if *cursor == 0 {
-                    break;
-                }
-                *cursor -= 1;
-                match (db[..*cursor].last(), db[..*cursor + 1].last()) {
-                    (Some(prev), Some(cur))
-                        if prev.action.stamp == cur.action.stamp
-                            && prev.action.compress
-                            && cur.action.compress => {}
-                    _ => break,
-                }
-            }
-        }
-        if did_undo {
-            self.set_property("can-undo", false);
-            self.set_property("can-redo", true);
-        }
-    }
-
-    pub fn redo(&self) {
-        let mut did_redo = false;
-        {
-            let mut cursor = self.imp().cursor.borrow_mut();
-            let mut db = self.imp().database.borrow_mut();
-            while let Some(last) = db.get_mut(*cursor) {
-                (last.action.redo)();
-                did_redo |= true;
-                *cursor += 1;
-                if *cursor >= db.len() {
-                    *cursor = std::cmp::min(db.len(), *cursor);
-                    break;
-                }
-                match (db.get(*cursor - 1), db.get(*cursor)) {
-                    (Some(prev), Some(cur))
-                        if prev.action.stamp == cur.action.stamp
-                            && prev.action.compress
-                            && cur.action.compress => {}
-                    _ => break,
-                }
-            }
-        }
-        if did_redo {
-            self.set_property("can-undo", true);
-            self.set_property("can-redo", false);
-        }
-    }
-}
 
 pub struct Action {
     pub stamp: EventStamp,
@@ -224,5 +70,146 @@ impl std::fmt::Debug for Action {
                 ),
             )
             .finish()
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct UndoDatabaseInner {
+    pub database: RefCell<Vec<Event>>,
+    pub timestamp: RefCell<u64>,
+    pub cursor: RefCell<usize>,
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for UndoDatabaseInner {
+    const NAME: &'static str = "UndoDatabase";
+    type Type = UndoDatabase;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+impl ObjectImpl for UndoDatabaseInner {
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    ParamSpecBoolean::new(
+                        UndoDatabase::CAN_UNDO,
+                        UndoDatabase::CAN_UNDO,
+                        UndoDatabase::CAN_UNDO,
+                        false,
+                        ParamFlags::READABLE,
+                    ),
+                    ParamSpecBoolean::new(
+                        UndoDatabase::CAN_REDO,
+                        UndoDatabase::CAN_REDO,
+                        UndoDatabase::CAN_REDO,
+                        false,
+                        ParamFlags::READABLE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+        match pspec.name() {
+            UndoDatabase::CAN_UNDO => {
+                let db = self.database.borrow();
+                let cursor = self.cursor.borrow();
+                (!(db.is_empty() || *cursor == 0)).to_value()
+            }
+            UndoDatabase::CAN_REDO => {
+                let db = self.database.borrow();
+                let cursor = self.cursor.borrow();
+                (*cursor < db.len()).to_value()
+            }
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+}
+
+impl Default for UndoDatabase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl UndoDatabase {
+    pub const CAN_UNDO: &str = "can-undo";
+    pub const CAN_REDO: &str = "can-redo";
+
+    pub fn new() -> Self {
+        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
+        ret
+    }
+
+    pub fn event(&self, action: Action) {
+        {
+            let mut cursor = self.imp().cursor.borrow_mut();
+            let mut db = self.imp().database.borrow_mut();
+            let mut timestamp = self.imp().timestamp.borrow_mut();
+            *timestamp += 1;
+            let timestamp = *timestamp - 1;
+            db.drain(*cursor..);
+            db.push(Event { timestamp, action });
+            *cursor = db.len();
+        }
+        self.notify(Self::CAN_UNDO);
+    }
+
+    pub fn undo(&self) {
+        let mut did = false;
+        {
+            let mut cursor = self.imp().cursor.borrow_mut();
+            let mut db = self.imp().database.borrow_mut();
+            while let Some(last) = db.get_mut(..*cursor).and_then(<[Event]>::last_mut) {
+                (last.action.undo)();
+                did |= true;
+                if *cursor == 0 {
+                    break;
+                }
+                *cursor -= 1;
+                match (db[..*cursor].last(), db[..*cursor + 1].last()) {
+                    (Some(prev), Some(cur))
+                        if prev.action.stamp == cur.action.stamp
+                            && prev.action.compress
+                            && cur.action.compress => {}
+                    _ => break,
+                }
+            }
+        }
+        if did {
+            self.notify(Self::CAN_UNDO);
+            self.notify(Self::CAN_REDO);
+        }
+    }
+
+    pub fn redo(&self) {
+        let mut did = false;
+        {
+            let mut cursor = self.imp().cursor.borrow_mut();
+            let mut db = self.imp().database.borrow_mut();
+            while let Some(last) = db.get_mut(*cursor) {
+                (last.action.redo)();
+                did |= true;
+                *cursor += 1;
+                if *cursor >= db.len() {
+                    *cursor = std::cmp::min(db.len(), *cursor);
+                    break;
+                }
+                match (db.get(*cursor - 1), db.get(*cursor)) {
+                    (Some(prev), Some(cur))
+                        if prev.action.stamp == cur.action.stamp
+                            && prev.action.compress
+                            && cur.action.compress => {}
+                    _ => break,
+                }
+            }
+        }
+        if did {
+            self.notify(Self::CAN_UNDO);
+            self.notify(Self::CAN_REDO);
+        }
     }
 }
