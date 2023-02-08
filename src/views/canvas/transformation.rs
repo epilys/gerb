@@ -40,6 +40,8 @@ pub struct TransformationInner {
     view_height: Cell<f64>,
     view_width: Cell<f64>,
     centered: Cell<bool>,
+    fit_view: Cell<bool>,
+    content_width: Cell<f64>,
 }
 
 impl TransformationInner {
@@ -67,6 +69,7 @@ impl ObjectImpl for TransformationInner {
         self.camera_x.set(Self::INIT_CAMERA_X_VAL);
         self.camera_y.set(Self::INIT_CAMERA_Y_VAL);
         self.centered.set(true);
+        self.fit_view.set(true);
         self.units_per_em.set(Self::INIT_UNITS_PER_EM_VAL);
         self.pixels_per_unit.set(Self::INIT_PIXELS_PER_UNIT_VAL);
         self.view_width.set(Self::INIT_VIEW_WIDTH_VAL);
@@ -147,6 +150,22 @@ impl ObjectImpl for TransformationInner {
                         true,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        Transformation::FIT_VIEW,
+                        Transformation::FIT_VIEW,
+                        Transformation::FIT_VIEW,
+                        true,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
+                        Transformation::CONTENT_WIDTH,
+                        Transformation::CONTENT_WIDTH,
+                        Transformation::CONTENT_WIDTH,
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        0.0,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -162,6 +181,8 @@ impl ObjectImpl for TransformationInner {
             Transformation::VIEW_WIDTH => self.view_width.get().to_value(),
             Transformation::UNITS_PER_EM => self.units_per_em.get().to_value(),
             Transformation::CENTERED => self.centered.get().to_value(),
+            Transformation::FIT_VIEW => self.fit_view.get().to_value(),
+            Transformation::CONTENT_WIDTH => self.content_width.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -187,15 +208,30 @@ impl ObjectImpl for TransformationInner {
                 if self.centered.get() {
                     self.instance().center_camera();
                 }
+                if self.fit_view.get() {
+                    self.instance().fit_view();
+                }
             }
             Transformation::VIEW_HEIGHT => {
                 self.view_height.set(value.get().unwrap());
                 if self.centered.get() {
                     self.instance().center_camera();
                 }
+                if self.fit_view.get() {
+                    self.instance().fit_view();
+                }
             }
             Transformation::VIEW_WIDTH => {
                 self.view_width.set(value.get().unwrap());
+                if self.centered.get() {
+                    self.instance().center_camera();
+                }
+                if self.fit_view.get() {
+                    self.instance().fit_view();
+                }
+            }
+            Transformation::CONTENT_WIDTH => {
+                self.content_width.set(value.get().unwrap());
                 if self.centered.get() {
                     self.instance().center_camera();
                 }
@@ -204,8 +240,21 @@ impl ObjectImpl for TransformationInner {
                 let val = value.get().unwrap();
                 if val {
                     self.instance().center_camera();
+                    if self.fit_view.get() {
+                        self.instance().fit_view();
+                    }
                 }
                 self.centered.set(val);
+            }
+            Transformation::FIT_VIEW => {
+                let val = value.get().unwrap();
+                if val {
+                    self.instance().fit_view();
+                    if self.centered.get() {
+                        self.instance().center_camera();
+                    }
+                }
+                self.fit_view.set(val);
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -218,8 +267,10 @@ glib::wrapper! {
 
 impl Transformation {
     pub const CENTERED: &str = "centered";
+    pub const FIT_VIEW: &str = "fit-view";
     pub const VIEW_HEIGHT: &str = super::Canvas::VIEW_HEIGHT;
     pub const VIEW_WIDTH: &str = super::Canvas::VIEW_WIDTH;
+    pub const CONTENT_WIDTH: &str = "content-width";
     pub const SCALE: &str = "scale";
     pub const CAMERA_X: &str = "camera-x";
     pub const CAMERA_Y: &str = "camera-y";
@@ -231,21 +282,26 @@ impl Transformation {
         ret
     }
 
-    pub fn center_camera(&self) {
+    fn center_camera(&self) {
         let width: f64 = self.property::<f64>(Self::VIEW_WIDTH);
         let height: f64 = self.property::<f64>(Self::VIEW_HEIGHT);
         let units_per_em = self.property::<f64>(Self::UNITS_PER_EM);
+        let content_width = self.property::<f64>(Self::CONTENT_WIDTH);
         let ppu = self.property::<f64>(Self::PIXELS_PER_UNIT);
-        let half_unit = (ppu * units_per_em / 4.0, ppu * units_per_em / 4.0);
-        let (x, y) = (
-            width / 2.0 - half_unit.0 * 1.5,
-            height / 2.0 + half_unit.1 * 2.0,
-        );
+        let half_unit = (ppu * content_width, ppu * units_per_em / 4.0);
+        let (x, y) = (width / 2.0 - half_unit.0, height / 2.0 + half_unit.1 * 2.0);
         if !x.is_finite() || !y.is_finite() {
             return;
         }
         self.set_property::<f64>(Self::CAMERA_X, x);
         self.set_property::<f64>(Self::CAMERA_Y, y);
+    }
+
+    fn fit_view(&self) {
+        let height: f64 = self.property::<f64>(Self::VIEW_HEIGHT);
+        let units_per_em = self.property::<f64>(Self::UNITS_PER_EM);
+        let ppu = self.property::<f64>(Self::PIXELS_PER_UNIT);
+        _ = self.try_set_property::<f64>(Self::SCALE, 0.8 * height / (units_per_em * ppu));
     }
 
     pub fn matrix(&self) -> Matrix {
@@ -274,6 +330,7 @@ impl Transformation {
 
     pub fn set_camera(&self, ViewPoint(new_value): ViewPoint) -> ViewPoint {
         self.set_property::<bool>(Self::CENTERED, false);
+        self.set_property::<bool>(Self::FIT_VIEW, false);
         let oldval = self.camera();
         self.set_property::<f64>(Self::CAMERA_X, new_value.x);
         self.set_property::<f64>(Self::CAMERA_Y, new_value.y);
@@ -282,6 +339,7 @@ impl Transformation {
 
     pub fn move_camera_by_delta(&self, delta: ViewPoint) -> ViewPoint {
         self.set_property::<bool>(Self::CENTERED, false);
+        self.set_property::<bool>(Self::FIT_VIEW, false);
         let mut camera = self.camera();
         camera.0 = camera.0 + delta.0;
         self.set_camera(camera)
@@ -297,10 +355,12 @@ impl Transformation {
     }
 
     pub fn zoom_in(&self) -> bool {
+        self.set_property::<bool>(Self::FIT_VIEW, false);
         self.set_zoom(self.property::<f64>(Transformation::SCALE) + 0.1)
     }
 
     pub fn zoom_out(&self) -> bool {
+        self.set_property::<bool>(Self::FIT_VIEW, false);
         self.set_zoom(self.property::<f64>(Transformation::SCALE) - 0.1)
     }
 

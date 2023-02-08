@@ -716,6 +716,13 @@ impl GlyphEditView {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
+        ret.imp().viewport.imp().transformation.set_property(
+            Transformation::CONTENT_WIDTH,
+            glyph
+                .borrow()
+                .width
+                .unwrap_or_else(|| ret.property::<f64>(GlyphEditView::UNITS_PER_EM)),
+        );
         for property in [
             GlyphEditView::ASCENDER,
             GlyphEditView::CAP_HEIGHT,

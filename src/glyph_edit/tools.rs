@@ -216,13 +216,6 @@ impl Tool {
                                 }),
                             )
                             .add_button_cb(
-                                "reset camera",
-                                clone!(@strong obj => move |_| {
-                                    let t = &obj.imp().viewport.imp().transformation;
-                                    t.center_camera();
-                                }),
-                            )
-                            .add_button_cb(
                                 "set zoom value",
                                 clone!(@strong obj, @weak _self => move |_| {
                                     let t = &obj.imp().viewport.imp().transformation;
@@ -285,6 +278,20 @@ impl Tool {
                                         }),
                                     );
                                     dialog.show_all();
+                                }),
+                            )
+                            .add_button_cb(
+                                "fit to page",
+                                clone!(@strong obj => move |_| {
+                                    let t = &obj.imp().viewport.imp().transformation;
+                                    t.set_property(Transformation::FIT_VIEW, true);
+                                }),
+                            )
+                            .add_button_cb(
+                                "reset camera",
+                                clone!(@strong obj => move |_| {
+                                    let t = &obj.imp().viewport.imp().transformation;
+                                    t.set_property(Transformation::CENTERED, true);
                                 }),
                             ).popup(event.time());
                         Inhibit(true)

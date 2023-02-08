@@ -91,12 +91,8 @@ pub fn draw_glyph_layer(
         } else {
             (None, None)
         };
-        let direction_options = if viewport.property::<bool>(Canvas::SHOW_DIRECTION) {
-            Some(
-                viewport
-                    .property::<DrawOptions>(Canvas::DIRECTION_OPTIONS)
-                    .scale(scale * ppu),
-            )
+        let direction_arrow = if viewport.property::<bool>(Canvas::SHOW_DIRECTION) {
+            Some(viewport.property::<DrawOptions>(Canvas::DIRECTION_OPTIONS))
         } else {
             None
         };
@@ -123,7 +119,7 @@ pub fn draw_glyph_layer(
             handle,
             corner: handle,
             smooth_corner: handle,
-            direction_arrow: direction_options,
+            direction_arrow,
             selection: Some(glyph_state.get_selection()),
         };
         glyph_state.glyph.borrow().draw(cr, options);
