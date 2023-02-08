@@ -47,9 +47,13 @@ pub struct ViewPoint(pub Point);
 
 #[derive(Debug, Default)]
 pub struct CanvasInner {
+    pub handle_size: Cell<f64>,
+    pub line_width: Cell<f64>,
     pub show_grid: Cell<bool>,
     pub show_guidelines: Cell<bool>,
     pub show_handles: Cell<bool>,
+    pub show_direction: Cell<bool>,
+    pub show_outline: Cell<bool>,
     pub inner_fill: Cell<bool>,
     pub transformation: Transformation,
     pub show_total_area: Cell<bool>,
@@ -67,13 +71,22 @@ pub struct CanvasInner {
     pub ruler_fg_color: Cell<Color>,
     pub ruler_indicator_color: Cell<Color>,
     pub ruler_bg_color: Cell<Color>,
+    pub outline_options: Cell<DrawOptions>,
+    pub handle_options: Cell<DrawOptions>,
+    pub smooth_corner_options: Cell<DrawOptions>,
+    pub corner_options: Cell<DrawOptions>,
+    pub direction_options: Cell<DrawOptions>,
+    pub handle_connection_options: Cell<DrawOptions>,
 }
 
 impl CanvasInner {
+    pub const HANDLE_SIZE_INIT_VAL: f64 = 5.0;
+    pub const LINE_WIDTH_INIT_VAL: f64 = 0.85;
     pub const RULER_BREADTH: f64 = 13.0;
     pub const SHOW_GRID_INIT_VAL: bool = false;
     pub const SHOW_GUIDELINES_INIT_VAL: bool = true;
     pub const SHOW_HANDLES_INIT_VAL: bool = true;
+    pub const SHOW_DIRECTION_INIT_VAL: bool = true;
     pub const INNER_FILL_INIT_VAL: bool = false;
     pub const SHOW_TOTAL_AREA_INIT_VAL: bool = true;
     pub const SHOW_RULERS_INIT_VAL: bool = true;
@@ -81,6 +94,17 @@ impl CanvasInner {
     pub const RULER_FG_COLOR_INIT_VAL: Color = Color::BLACK;
     pub const RULER_BG_COLOR_INIT_VAL: Color = Color::WHITE;
     pub const RULER_INDICATOR_COLOR_INIT_VAL: Color = Color::RED;
+
+    fn get_opts(&self, retval: DrawOptions) -> DrawOptions {
+        if let Some((inherit, true)) = retval.inherit_size {
+            DrawOptions {
+                size: self.instance().property(inherit),
+                ..retval
+            }
+        } else {
+            retval
+        }
+    }
 }
 
 #[glib::object_subclass]
@@ -93,6 +117,8 @@ impl ObjectSubclass for CanvasInner {
 impl ObjectImpl for CanvasInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        self.handle_size.set(CanvasInner::HANDLE_SIZE_INIT_VAL);
+        self.line_width.set(CanvasInner::LINE_WIDTH_INIT_VAL);
         self.show_grid.set(CanvasInner::SHOW_GRID_INIT_VAL);
         self.show_guidelines
             .set(CanvasInner::SHOW_GUIDELINES_INIT_VAL);
@@ -101,6 +127,47 @@ impl ObjectImpl for CanvasInner {
         self.show_total_area
             .set(CanvasInner::SHOW_TOTAL_AREA_INIT_VAL);
         self.show_rulers.set(CanvasInner::SHOW_RULERS_INIT_VAL);
+        self.show_direction
+            .set(CanvasInner::SHOW_DIRECTION_INIT_VAL);
+        self.direction_options
+            .set((Color::try_from_hex("#0478A2").unwrap().with_alpha(0.9), 2.0).into());
+        self.handle_connection_options.set(DrawOptions::from((
+            Color::BLACK.with_alpha(0.9),
+            1.0,
+            Canvas::LINE_WIDTH,
+        )));
+        self.handle_options.set(
+            DrawOptions::from((
+                Color::new_alpha(0.2, 0.2, 0.2, 0.6),
+                5.0,
+                Canvas::HANDLE_SIZE,
+            ))
+            .with_bg(Color::WHITE),
+        );
+        self.smooth_corner_options.set(
+            (
+                Color::new_alpha(0.2, 0.2, 0.2, 0.6),
+                5.0,
+                Canvas::HANDLE_SIZE,
+            )
+                .into(),
+        );
+        self.corner_options.set(
+            (
+                Color::new_alpha(0.2, 0.2, 0.2, 0.6),
+                5.0,
+                Canvas::HANDLE_SIZE,
+            )
+                .into(),
+        );
+        self.outline_options.set(
+            (
+                Color::new_alpha(0.2, 0.2, 0.2, 0.6),
+                5.0,
+                Canvas::LINE_WIDTH,
+            )
+                .into(),
+        );
         self.warp_cursor.set(CanvasInner::WARP_CURSOR_INIT_VAL);
         self.bg_color.set(Color::WHITE);
         self.bg_color.set(Color::try_from_hex("#EEF8F8").unwrap());
@@ -111,7 +178,7 @@ impl ObjectImpl for CanvasInner {
             0.6,
         ));
         self.glyph_inner_fill_color
-            .set(Color::try_from_hex("#3B93EB").unwrap());
+            .set(Color::try_from_hex("#D0E3F7").unwrap());
         self.ruler_fg_color
             .set(CanvasInner::RULER_FG_COLOR_INIT_VAL);
         self.ruler_bg_color
@@ -168,6 +235,24 @@ impl ObjectImpl for CanvasInner {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
+                    ParamSpecDouble::new(
+                        Canvas::HANDLE_SIZE,
+                        Canvas::HANDLE_SIZE,
+                        Canvas::HANDLE_SIZE,
+                        0.0001,
+                        10.0,
+                        CanvasInner::HANDLE_SIZE_INIT_VAL,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecDouble::new(
+                        Canvas::LINE_WIDTH,
+                        Canvas::LINE_WIDTH,
+                        Canvas::LINE_WIDTH,
+                        0.0001,
+                        10.0,
+                        CanvasInner::LINE_WIDTH_INIT_VAL,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GRID,
                         Canvas::SHOW_GRID,
@@ -215,6 +300,13 @@ impl ObjectImpl for CanvasInner {
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
                         CanvasInner::SHOW_RULERS_INIT_VAL,
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoolean::new(
+                        Canvas::SHOW_DIRECTION,
+                        Canvas::SHOW_DIRECTION,
+                        Canvas::SHOW_DIRECTION,
+                        CanvasInner::SHOW_DIRECTION_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
@@ -293,6 +385,48 @@ impl ObjectImpl for CanvasInner {
                         Color::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
+                    ParamSpecBoxed::new(
+                        Canvas::DIRECTION_OPTIONS,
+                        Canvas::DIRECTION_OPTIONS,
+                        Canvas::DIRECTION_OPTIONS,
+                        DrawOptions::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::HANDLE_CONNECTION_OPTIONS,
+                        Canvas::HANDLE_CONNECTION_OPTIONS,
+                        Canvas::HANDLE_CONNECTION_OPTIONS,
+                        DrawOptions::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::HANDLE_OPTIONS,
+                        Canvas::HANDLE_OPTIONS,
+                        Canvas::HANDLE_OPTIONS,
+                        DrawOptions::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::SMOOTH_CORNER_OPTIONS,
+                        Canvas::SMOOTH_CORNER_OPTIONS,
+                        Canvas::SMOOTH_CORNER_OPTIONS,
+                        DrawOptions::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::CORNER_OPTIONS,
+                        Canvas::CORNER_OPTIONS,
+                        Canvas::CORNER_OPTIONS,
+                        DrawOptions::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::OUTLINE_OPTIONS,
+                        Canvas::OUTLINE_OPTIONS,
+                        Canvas::OUTLINE_OPTIONS,
+                        DrawOptions::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -300,6 +434,8 @@ impl ObjectImpl for CanvasInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
         match pspec.name() {
+            Canvas::HANDLE_SIZE => self.handle_size.get().to_value(),
+            Canvas::LINE_WIDTH => self.line_width.get().to_value(),
             Canvas::SHOW_GRID => self.show_grid.get().to_value(),
             Canvas::SHOW_GUIDELINES => self.show_guidelines.get().to_value(),
             Canvas::SHOW_HANDLES => self.show_handles.get().to_value(),
@@ -317,6 +453,17 @@ impl ObjectImpl for CanvasInner {
             Canvas::RULER_FG_COLOR => self.ruler_fg_color.get().to_value(),
             Canvas::RULER_BG_COLOR => self.ruler_bg_color.get().to_value(),
             Canvas::RULER_INDICATOR_COLOR => self.ruler_indicator_color.get().to_value(),
+            Canvas::SHOW_DIRECTION => self.show_direction.get().to_value(),
+            Canvas::HANDLE_OPTIONS => { self.get_opts(self.handle_options.get()) }.to_value(),
+            Canvas::SMOOTH_CORNER_OPTIONS => {
+                { self.get_opts(self.smooth_corner_options.get()) }.to_value()
+            }
+            Canvas::CORNER_OPTIONS => { self.get_opts(self.corner_options.get()) }.to_value(),
+            Canvas::DIRECTION_OPTIONS => { self.get_opts(self.direction_options.get()) }.to_value(),
+            Canvas::HANDLE_CONNECTION_OPTIONS => {
+                { self.get_opts(self.handle_connection_options.get()) }.to_value()
+            }
+            Canvas::OUTLINE_OPTIONS => { self.get_opts(self.outline_options.get()) }.to_value(),
             /*Canvas::RULER_BREADTH_UNITS => {
                 let ppu = self
                     .transformation
@@ -331,6 +478,12 @@ impl ObjectImpl for CanvasInner {
     fn set_property(&self, obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         obj.queue_draw();
         match pspec.name() {
+            Canvas::HANDLE_SIZE => {
+                self.handle_size.set(value.get().unwrap());
+            }
+            Canvas::LINE_WIDTH => {
+                self.line_width.set(value.get().unwrap());
+            }
             Canvas::SHOW_GRID => {
                 self.show_grid.set(value.get().unwrap());
             }
@@ -377,6 +530,27 @@ impl ObjectImpl for CanvasInner {
             Canvas::RULER_INDICATOR_COLOR => {
                 self.ruler_indicator_color.set(value.get().unwrap());
             }
+            Canvas::SHOW_DIRECTION => {
+                self.show_direction.set(value.get().unwrap());
+            }
+            Canvas::HANDLE_OPTIONS => {
+                self.handle_options.set(value.get().unwrap());
+            }
+            Canvas::SMOOTH_CORNER_OPTIONS => {
+                self.smooth_corner_options.set(value.get().unwrap());
+            }
+            Canvas::CORNER_OPTIONS => {
+                self.corner_options.set(value.get().unwrap());
+            }
+            Canvas::DIRECTION_OPTIONS => {
+                self.direction_options.set(value.get().unwrap());
+            }
+            Canvas::HANDLE_CONNECTION_OPTIONS => {
+                self.handle_connection_options.set(value.get().unwrap());
+            }
+            Canvas::OUTLINE_OPTIONS => {
+                self.outline_options.set(value.get().unwrap());
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -391,12 +565,21 @@ glib::wrapper! {
 }
 
 impl Canvas {
+    pub const HANDLE_SIZE: &str = "handle-size";
+    pub const LINE_WIDTH: &str = "line-width";
     pub const INNER_FILL: &str = "inner-fill";
     pub const VIEW_HEIGHT: &str = "view-height";
     pub const VIEW_WIDTH: &str = "view-width";
     pub const SHOW_GRID: &str = "show-grid";
     pub const SHOW_GUIDELINES: &str = "show-guidelines";
     pub const SHOW_HANDLES: &str = "show-handles";
+    pub const SHOW_DIRECTION: &str = "show-direction";
+    pub const HANDLE_OPTIONS: &str = "handle-options";
+    pub const SMOOTH_CORNER_OPTIONS: &str = "smooth-corner-options";
+    pub const CORNER_OPTIONS: &str = "corner-options";
+    pub const DIRECTION_OPTIONS: &str = "direction-options";
+    pub const HANDLE_CONNECTION_OPTIONS: &str = "handle-connection-options";
+    pub const OUTLINE_OPTIONS: &str = "outline-options";
     pub const SHOW_TOTAL_AREA: &str = "show-total-area";
     pub const SHOW_RULERS: &str = "show-rules";
     pub const TRANSFORMATION: &str = "transformation";

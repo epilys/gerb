@@ -111,26 +111,37 @@ impl Default for Glyph {
 
 #[derive(Clone, Copy)]
 pub struct GlyphDrawingOptions<'a> {
-    pub outline: Color,
-    pub inner_fill: Option<Color>,
+    pub outline: DrawOptions,
+    pub inner_fill: Option<DrawOptions>,
     pub highlight: Option<(usize, usize)>,
     pub matrix: Matrix,
     pub units_per_em: f64,
-    pub line_width: f64,
-    pub handle_size: Option<f64>,
+    pub handle_connection: Option<DrawOptions>,
+    pub handle: Option<DrawOptions>,
+    pub corner: Option<DrawOptions>,
+    pub smooth_corner: Option<DrawOptions>,
+    pub direction_arrow: Option<DrawOptions>,
     pub selection: Option<&'a HashSet<Uuid>>,
 }
 
 impl Default for GlyphDrawingOptions<'_> {
     fn default() -> Self {
         Self {
-            outline: Color::WHITE,
+            outline: DrawOptions {
+                color: Color::BLACK,
+                bg: None,
+                size: 4.0,
+                inherit_size: None,
+            },
             inner_fill: None,
             highlight: None,
             matrix: Matrix::identity(),
             units_per_em: 1000.,
-            line_width: 4.0,
-            handle_size: None,
+            handle_connection: None,
+            handle: None,
+            corner: None,
+            smooth_corner: None,
+            direction_arrow: None,
             selection: None,
         }
     }
@@ -220,17 +231,19 @@ impl Glyph {
             highlight,
             matrix,
             units_per_em: _,
-            line_width,
-            handle_size,
+            handle_connection,
+            handle,
+            corner,
+            smooth_corner: _,
+            direction_arrow,
             selection,
         } = options;
-        let tangent_color = Color::BLACK.with_alpha(0.8);
 
         cr.save().expect("Invalid cairo surface state");
         cr.transform(matrix);
-        cr.set_line_width(line_width);
+        cr.set_line_width(outline.size);
         //cr.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
-        cr.set_source_color_alpha(outline);
+        cr.set_source_color_alpha(outline.color);
         let mut pen_position: Option<Point> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
             let curves = contour.imp().curves.borrow();
@@ -309,7 +322,7 @@ impl Glyph {
         if let Some(inner_fill) = inner_fill {
             cr.save().unwrap();
             cr.close_path();
-            cr.set_source_color_alpha(inner_fill);
+            cr.set_source_color_alpha(inner_fill.color);
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.restore().expect("Invalid cairo surface state");
         }
@@ -373,25 +386,27 @@ impl Glyph {
             }
             cr.stroke().expect("Invalid cairo surface state");
         }
-        if let Some(handle_size) = handle_size {
-            let draw_oncurve = |p: &CurvePoint, corner: Option<bool>| {
+        if let Some(handle) = handle {
+            let draw_oncurve = |p: &CurvePoint, is_corner: Option<bool>| {
                 if selection.map(|s| s.contains(&p.uuid)).unwrap_or(false) {
-                    cr.set_source_color(Color::RED);
+                    cr.set_draw_opts((Color::RED, outline.size).into());
+                } else if let (Some(opts), true) = (corner, is_corner.unwrap_or(true)) {
+                    cr.set_draw_opts((opts.color, outline.size).into());
                 } else {
-                    cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                    cr.set_draw_opts((handle.color, outline.size).into());
                 }
-                if corner.unwrap_or(true) {
+                if is_corner.unwrap_or(true) {
                     cr.rectangle(
-                        p.position.x - handle_size / 2.0,
-                        p.position.y - handle_size / 2.0,
-                        handle_size,
-                        handle_size,
+                        p.position.x - handle.size / 2.0,
+                        p.position.y - handle.size / 2.0,
+                        handle.size,
+                        handle.size,
                     );
                 } else {
                     cr.arc(
                         p.position.x,
                         p.position.y,
-                        handle_size / 2.0,
+                        handle.size / 2.0,
                         0.0,
                         2.0 * std::f64::consts::PI,
                     );
@@ -400,62 +415,58 @@ impl Glyph {
             };
             let draw_handle = |p: &CurvePoint| {
                 if selection.map(|s| s.contains(&p.uuid)).unwrap_or(false) {
-                    cr.set_source_color(Color::RED);
-                } else if inner_fill.is_some() {
-                    cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
+                    cr.set_draw_opts((Color::RED, outline.size).into());
                 } else {
-                    cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
+                    cr.set_draw_opts((handle.color, outline.size).into());
                 }
                 cr.arc(
                     p.position.x,
                     p.position.y,
-                    handle_size / 2.0,
+                    handle.size / 2.0,
                     0.0,
                     2.0 * std::f64::consts::PI,
                 );
-                cr.fill().unwrap();
-                cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-                cr.arc(
-                    p.position.x,
-                    p.position.y,
-                    handle_size / 2.0 + 1.0,
-                    0.0,
-                    2.0 * std::f64::consts::PI,
-                );
-                cr.stroke().unwrap();
+                cr.stroke_preserve().unwrap();
+                if let Some(bg) = handle.bg {
+                    cr.set_source_color_alpha(bg);
+                    cr.fill().unwrap();
+                }
             };
             let draw_handle_connection = |h: Point, ep: Point| {
-                cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-                cr.move_to(h.x, h.y);
-                cr.line_to(ep.x, ep.y);
-                cr.stroke().unwrap();
+                if let Some(opts) = handle_connection {
+                    cr.set_draw_opts(opts);
+                    cr.move_to(h.x, h.y);
+                    cr.line_to(ep.x, ep.y);
+                    cr.stroke().unwrap();
+                }
             };
             let draw_tangent = |curv: &Bezier| {
-                let t = 0.3;
-                let p = curv.compute(t);
-                let tangent = curv.tangent(t);
-                cr.save().unwrap();
-                cr.set_source_color_alpha(tangent_color);
-                cr.translate(p.x, p.y);
-                cr.rotate(tangent.atan2());
-                cr.scale(3.0, 3.0);
-                const H: f64 = 1.0;
-                const V: f64 = 2.0;
+                if let Some(opts) = direction_arrow {
+                    let t = 0.3;
+                    let p = curv.compute(t);
+                    let tangent = curv.tangent(t);
+                    cr.save().unwrap();
+                    cr.set_source_color_alpha(opts.color);
+                    cr.set_line_width(outline.size);
+                    cr.translate(p.x, p.y);
+                    cr.rotate(tangent.atan2());
+                    let h: f64 = opts.size * 3.0;
+                    let v: f64 = opts.size * 6.0;
 
-                cr.set_line_width(0.5);
-                cr.move_to(-H, V);
+                    cr.move_to(-h, v);
 
-                cr.line_to(-H, V / 2.0);
-                cr.line_to(-H * 3.0, V / 2.0);
-                cr.line_to(-H * 3.0, -V / 2.0);
-                cr.line_to(-H, -V / 2.0);
+                    cr.line_to(-h, v / 2.0);
+                    cr.line_to(-h * 3.0, v / 2.0);
+                    cr.line_to(-h * 3.0, -v / 2.0);
+                    cr.line_to(-h, -v / 2.0);
 
-                cr.line_to(-H, -V);
-                cr.line_to(H, 0.0);
-                cr.line_to(-H, V);
-                cr.close_path();
-                cr.stroke().unwrap();
-                cr.restore().unwrap();
+                    cr.line_to(-h, -v);
+                    cr.line_to(h, 0.0);
+                    cr.line_to(-h, v);
+                    cr.close_path();
+                    cr.stroke().unwrap();
+                    cr.restore().unwrap();
+                }
             };
             for contour in self.contours.iter() {
                 let curves = contour.curves().borrow();
@@ -547,7 +558,10 @@ impl Glyph {
                     cr,
                     GlyphDrawingOptions {
                         matrix,
-                        handle_size: None,
+                        handle: None,
+                        corner: None,
+                        smooth_corner: None,
+                        direction_arrow: None,
                         selection: None,
                         ..options
                     },
@@ -616,9 +630,6 @@ impl Glyph {
         let ctx = gtk::cairo::Context::new(&surface)?;
 
         let options = GlyphDrawingOptions {
-            outline: Color::BLACK,
-            inner_fill: None,
-            highlight: None,
             matrix: Matrix::new(1.0, 0.0, 0.0, -1.0, 0.0, 0.0),
             ..Default::default()
         };

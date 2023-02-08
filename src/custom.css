@@ -112,10 +112,6 @@ label.zoom-label {
 
 .project-label {
   padding: 5px;
-  /*
-  background: #a8a8a8;
-  color: #2d2d2d;
-   */
 }
 
 .sidebar {
@@ -193,7 +189,7 @@ button.toggle{
 }
 
 notebook header {
-  box-shadow: 0px 1px #a9a9a9;
+  /*box-shadow: 0px 1px #a9a9a9;*/
 }
 
 scrollbar {
@@ -209,4 +205,61 @@ scrollbar slider {
 
     /* Padding around the slider */
     border: 0px solid transparent;
+}
+
+tab {
+  border: 1px solid darkgray;
+
+  border-radius: 3px;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+  border-right: none;
+  border-left: none;
+  border-bottom: none;
+  background: white;
+  font-weight:bold;
+  padding: 0px 6px;
+  margin: 0 2px
+}
+
+tab:checked {
+  border-color: black;
+  background: #5094FF;
+  color: white;
+}
+
+tabs {
+  background: #DDDDDD;
+  margin-left: 0px;
+}
+
+box.workspace {
+  border:none;
+  margin:0;
+}
+
+statusbar {
+  background: #DDDDDD;
+  border-top: 1px solid black;
+}
+
+window>box>notebook{
+  border:0px;
+}
+
+window>box>notebook>stack>box{
+  background:white;
+  outline:0;
+  padding:0;
+  margin:0;
+  border:none;
+}
+
+header {
+  border:none; 
+}
+
+window>box>notebook>stack{
+  border:0px solid black;
+  border-top:3px solid black;
 }

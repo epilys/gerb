@@ -142,7 +142,7 @@ impl ObjectImpl for WindowInner {
         let vbox = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .expand(true)
-            .spacing(5)
+            .spacing(0)
             .visible(true)
             .can_focus(true)
             .build();

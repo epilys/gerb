@@ -112,6 +112,7 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
 pub trait ColorExt {
     fn set_source_color(&self, color: Color);
     fn set_source_color_alpha(&self, color: Color);
+    fn set_draw_opts(&self, opts: DrawOptions);
     fn show_text_with_bg(&self, text: &str, margin: f64, fg: Color, bg: Color);
 }
 
@@ -127,6 +128,11 @@ impl ColorExt for gtk::cairo::Context {
             color.0.blue(),
             color.0.alpha(),
         );
+    }
+
+    fn set_draw_opts(&self, opts: DrawOptions) {
+        self.set_source_color_alpha(opts.color);
+        self.set_line_width(opts.size);
     }
 
     fn show_text_with_bg(&self, text: &str, margin: f64, fg: Color, bg: Color) {
@@ -167,5 +173,48 @@ mod rgba_serde {
     {
         let vals: (f64, f64, f64, f64) = (val.red(), val.green(), val.blue(), val.alpha());
         vals.serialize(se)
+    }
+}
+
+#[derive(Clone, Default, Debug, Copy, glib::Boxed)]
+#[boxed_type(name = "DrawOptions")]
+pub struct DrawOptions {
+    pub color: Color,
+    pub bg: Option<Color>,
+    pub size: f64,
+    pub inherit_size: Option<(&'static str, bool)>,
+}
+
+impl DrawOptions {
+    pub fn scale(mut self, f: f64) -> Self {
+        self.size /= f;
+        self
+    }
+
+    pub fn with_bg(mut self, bg: Color) -> Self {
+        self.bg = Some(bg);
+        self
+    }
+}
+
+impl From<(Color, f64)> for DrawOptions {
+    fn from((color, size): (Color, f64)) -> DrawOptions {
+        DrawOptions {
+            color,
+            bg: None,
+            size,
+            inherit_size: None,
+        }
+    }
+}
+
+impl From<(Color, f64, &'static str)> for DrawOptions {
+    fn from((color, size, inherit_size): (Color, f64, &'static str)) -> DrawOptions {
+        DrawOptions {
+            color,
+            bg: None,
+            size,
+            inherit_size: Some((inherit_size, true)),
+        }
     }
 }

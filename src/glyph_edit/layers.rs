@@ -68,94 +68,67 @@ pub fn draw_glyph_layer(
     /* Draw the glyph */
 
     {
+        let line_width = obj
+            .imp()
+            .settings
+            .get()
+            .unwrap()
+            .property::<f64>(Settings::LINE_WIDTH)
+            / (scale * ppu);
+        let (handle, handle_connection) = if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
+            (
+                Some(
+                    viewport
+                        .property::<DrawOptions>(Canvas::HANDLE_OPTIONS)
+                        .scale(scale * ppu),
+                ),
+                Some(
+                    viewport
+                        .property::<DrawOptions>(Canvas::HANDLE_CONNECTION_OPTIONS)
+                        .scale(scale * ppu),
+                ),
+            )
+        } else {
+            (None, None)
+        };
+        let direction_options = if viewport.property::<bool>(Canvas::SHOW_DIRECTION) {
+            Some(
+                viewport
+                    .property::<DrawOptions>(Canvas::DIRECTION_OPTIONS)
+                    .scale(scale * ppu),
+            )
+        } else {
+            None
+        };
+
         let options = GlyphDrawingOptions {
-            outline: Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 }),
-            inner_fill: if inner_fill {
-                Some(Color::BLACK)
-            } else {
-                Some(viewport.property::<Color>(Canvas::GLYPH_INNER_FILL_COLOR))
-            },
+            outline: viewport
+                .property::<DrawOptions>(Canvas::OUTLINE_OPTIONS)
+                .scale(scale * ppu),
+            inner_fill: Some(
+                <DrawOptions>::from((
+                    if inner_fill {
+                        Color::BLACK
+                    } else {
+                        viewport.property::<Color>(Canvas::GLYPH_INNER_FILL_COLOR)
+                    },
+                    line_width,
+                ))
+                .scale(scale * ppu),
+            ),
             highlight: obj.imp().hovering.get(),
             matrix: Matrix::identity(),
             units_per_em,
-            line_width: obj
-                .imp()
-                .settings
-                .get()
-                .unwrap()
-                .property::<f64>(Settings::LINE_WIDTH)
-                / (scale * ppu),
-            handle_size: if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
-                Some(
-                    obj.imp()
-                        .settings
-                        .get()
-                        .unwrap()
-                        .property::<f64>(Settings::HANDLE_SIZE)
-                        / (scale * ppu),
-                )
-            } else {
-                None
-            },
+            handle_connection,
+            handle,
+            corner: handle,
+            smooth_corner: handle,
+            direction_arrow: direction_options,
             selection: Some(glyph_state.get_selection()),
         };
         glyph_state.glyph.borrow().draw(cr, options);
     }
 
-    if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
-        /*
-        for (key, cp) in glyph_state.points.borrow().iter() {
-            let p = cp.position;
-            if crate::utils::distance_between_two_points(p, unit_mouse.0) <= 10.0 / (scale * ppu)
-                || glyph_state.selection.contains(key)
-            {
-                cr.set_source_rgba(1.0, 0.0, 0.0, 0.8);
-            } else if inner_fill {
-                cr.set_source_rgba(0.9, 0.9, 0.9, 1.0);
-            } else {
-                cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
-            }
-            match &cp.kind {
-                OnCurve { .. } => {
-                    cr.rectangle(
-                        p.x - handle_size / 2.0,
-                        p.y - handle_size / 2.0,
-                        handle_size,
-                        handle_size,
-                    );
-                    cr.stroke().unwrap();
-                    cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
-                    cr.rectangle(
-                        p.x - handle_size / 2.0,
-                        p.y - handle_size / 2.0,
-                        handle_size,
-                        handle_size + 1.0,
-                    );
-                    cr.stroke().unwrap();
-                }
-                Handle { ref end_points } => {
-                    cr.arc(p.x, p.y, handle_size / 2.0, 0.0, 2.0 * std::f64::consts::PI);
-                    cr.fill().unwrap();
-                    for ep in end_points {
-                        let ep = glyph_state.points.borrow()[ep].position;
-                        cr.move_to(p.x, p.y);
-                        cr.line_to(ep.x, ep.y);
-                        cr.stroke().unwrap();
-                    }
-                    cr.set_source_rgba(0.0, 0.0, 0.0, 1.0);
-                    cr.arc(
-                        p.x,
-                        p.y,
-                        handle_size / 2.0 + 1.0,
-                        0.0,
-                        2.0 * std::f64::consts::PI,
-                    );
-                    cr.stroke().unwrap();
-                }
-            }
-        }
-        */
-    }
     cr.restore().unwrap();
 
     Inhibit(false)
@@ -284,6 +257,7 @@ impl GlyphEditViewInner {
             .tooltip_text("layers")
             .halign(gtk::Align::Start)
             .valign(gtk::Align::End)
+            .selection_mode(gtk::SelectionMode::None)
             .build();
         let label = gtk::Label::new(Some("layers"));
         label.set_visible(true);

@@ -49,6 +49,7 @@ impl ObjectSubclass for WorkspaceInner {
 impl ObjectImpl for WorkspaceInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        obj.style_context().add_class("workspace");
         self.reorderable.set(Self::REORDERABLE_INIT_VAL);
         self.closeable.set(Self::CLOSEABLE_INIT_VAL);
         self.is_menu_visible.set(Self::IS_MENU_VISIBLE_INIT_VAL);

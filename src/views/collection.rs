@@ -71,8 +71,8 @@ impl ObjectImpl for CollectionInner {
         self.flow_box.set_expand(true);
         self.flow_box.set_visible(true);
         self.flow_box.set_can_focus(true);
-        self.flow_box.set_column_spacing(5);
-        self.flow_box.set_row_spacing(5);
+        self.flow_box.set_column_spacing(0);
+        self.flow_box.set_row_spacing(0);
 
         let overlay = gtk::Overlay::builder()
             .expand(true)
@@ -676,8 +676,8 @@ impl ObjectImpl for GlyphBoxInner {
                 matrix.translate((width - glyph_width) / 2., vh / 2.0);
                 matrix.scale((width * 0.8) / units_per_em, -(width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
-                    outline: Color::new_alpha(0., 0., 0., 0.),
-                    inner_fill: Some(Color::new(0.35, 0.35, 0.35)),
+                    outline: (Color::new_alpha(0., 0., 0., 0.), 1.5).into(),
+                    inner_fill: Some((Color::new(0.35, 0.35, 0.35), 1.5).into()),
                     highlight: None,
                     matrix,
                     units_per_em,

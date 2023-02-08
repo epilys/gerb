@@ -134,28 +134,39 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
         2,
         1,
     );
-    for (row, prop) in obj
-        .list_properties()
-        .as_slice()
-        .iter()
-        .filter(|p| {
-            p.flags()
-                .contains(glib::ParamFlags::READWRITE | glib::ParamFlags::USER_1)
-                && p.owner_type() == obj.type_()
-        })
-        .enumerate()
-    {
+    let mut row: i32 = 2;
+    for prop in obj.list_properties().as_slice().iter().filter(|p| {
+        p.flags()
+            .contains(glib::ParamFlags::READWRITE | glib::ParamFlags::USER_1)
+            && p.owner_type() == obj.type_()
+    }) {
         grid.attach(
             &gtk::Label::builder()
                 .label(prop.name())
                 .visible(true)
                 .build(),
             0,
-            row as i32 + 2,
+            row,
             1,
             1,
         );
-        grid.attach(&get_widget_for_value(&obj, prop), 1, row as i32 + 2, 1, 1);
+        grid.attach(&get_widget_for_value(&obj, prop), 1, row, 1, 1);
+        grid.attach(
+            &gtk::Separator::builder()
+                .expand(true)
+                .visible(true)
+                .vexpand(false)
+                .valign(gtk::Align::Start)
+                .build(),
+            0,
+            row + 1,
+            2,
+            1,
+        );
+        row += 2;
+    }
+    if row != 2 {
+        grid.remove_row(row - 1);
     }
     grid
 }
@@ -198,20 +209,29 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
         }
         "gint64" => {
             let val = val.get::<i64>().unwrap();
-            let entry = gtk::Entry::builder()
-                .sensitive(readwrite)
-                .input_purpose(gtk::InputPurpose::Number)
-                .visible(true)
-                .build();
-            entry.buffer().set_text(&val.to_string());
-            obj.bind_property(property.name(), &entry.buffer(), "text")
-                .transform_from(|_, value| {
-                    let number = value.get::<String>().ok()?;
-                    Some(number.parse::<i64>().ok()?.to_value())
-                })
+            let (min, max) = if let Some(spec) = property.downcast_ref::<glib::ParamSpecInt64>() {
+                (spec.minimum(), spec.maximum())
+            } else {
+                (i64::MIN, i64::MAX)
+            };
+            let entry = gtk::SpinButton::new(
+                Some(&gtk::Adjustment::new(
+                    val as f64, min as f64, max as f64, 1.00, 1.00, 1.00,
+                )),
+                1.0,
+                0,
+            );
+            entry.set_input_purpose(gtk::InputPurpose::Digits);
+            entry.set_sensitive(readwrite);
+            entry.set_visible(true);
+            obj.bind_property(property.name(), &entry, "value")
                 .transform_to(|_, value| {
-                    let number = value.get::<i64>().ok()?;
-                    Some(number.to_string().to_value())
+                    let val = value.get::<i64>().ok()?;
+                    Some((val as f64).to_value())
+                })
+                .transform_from(|_, value| {
+                    let val = value.get::<f64>().ok()?;
+                    Some((val as i64).to_value())
                 })
                 .flags(flags)
                 .build();
@@ -219,20 +239,29 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
         }
         "guint64" => {
             let val = val.get::<u64>().unwrap();
-            let entry = gtk::Entry::builder()
-                .sensitive(readwrite)
-                .input_purpose(gtk::InputPurpose::Number)
-                .visible(true)
-                .build();
-            entry.buffer().set_text(&val.to_string());
-            obj.bind_property(property.name(), &entry.buffer(), "text")
-                .transform_from(|_, value| {
-                    let number = value.get::<String>().ok()?;
-                    Some(number.parse::<u64>().ok()?.to_value())
-                })
+            let (min, max) = if let Some(spec) = property.downcast_ref::<glib::ParamSpecUInt64>() {
+                (0, spec.maximum())
+            } else {
+                (0, u64::MAX)
+            };
+            let entry = gtk::SpinButton::new(
+                Some(&gtk::Adjustment::new(
+                    val as f64, min as f64, max as f64, 1.00, 1.00, 1.00,
+                )),
+                1.0,
+                0,
+            );
+            entry.set_input_purpose(gtk::InputPurpose::Digits);
+            entry.set_sensitive(readwrite);
+            entry.set_visible(true);
+            obj.bind_property(property.name(), &entry, "value")
                 .transform_to(|_, value| {
-                    let number = value.get::<u64>().ok()?;
-                    Some(number.to_string().to_value())
+                    let val = value.get::<u64>().ok()?;
+                    Some((val as f64).to_value())
+                })
+                .transform_from(|_, value| {
+                    let val = value.get::<f64>().ok()?;
+                    Some((val as u64).to_value())
                 })
                 .flags(flags)
                 .build();
@@ -240,21 +269,20 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
         }
         "gdouble" => {
             let val = val.get::<f64>().unwrap();
-            let entry = gtk::Entry::builder()
-                .input_purpose(gtk::InputPurpose::Number)
-                .sensitive(readwrite)
-                .visible(true)
-                .build();
-            entry.buffer().set_text(&val.to_string());
-            obj.bind_property(property.name(), &entry.buffer(), "text")
-                .transform_from(|_, value| {
-                    let number = value.get::<String>().ok()?;
-                    Some(number.parse::<f64>().ok()?.to_value())
-                })
-                .transform_to(|_, value| {
-                    let number = value.get::<f64>().ok()?;
-                    Some(number.to_string().to_value())
-                })
+            let (min, max) = if let Some(spec) = property.downcast_ref::<glib::ParamSpecDouble>() {
+                (spec.minimum(), spec.maximum())
+            } else {
+                (f64::MIN, f64::MAX)
+            };
+            let entry = gtk::SpinButton::new(
+                Some(&gtk::Adjustment::new(val, min, max, 0.05, 0.01, 0.01)),
+                1.0,
+                2,
+            );
+            entry.set_input_purpose(gtk::InputPurpose::Number);
+            entry.set_sensitive(readwrite);
+            entry.set_visible(true);
+            obj.bind_property(property.name(), &entry, "value")
                 .flags(flags)
                 .build();
             entry.upcast()
@@ -275,6 +303,183 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 _ = obj.try_set_property::<Color>(property.name(), new_val.into());
             }));
             entry.upcast()
+        }
+        "DrawOptions" => {
+            let opts = val.get::<DrawOptions>().unwrap();
+            let grid = gtk::Grid::builder()
+                .expand(true)
+                .visible(true)
+                .sensitive(readwrite)
+                .column_spacing(5)
+                .margin(10)
+                .row_spacing(5)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Start)
+                .build();
+            let has_bg = opts.bg.is_some();
+
+            let fg_entry = gtk::ColorButton::builder()
+                .rgba(&opts.color.into())
+                .sensitive(readwrite)
+                .visible(true)
+                .halign(gtk::Align::Fill)
+                .valign(gtk::Align::Start)
+                .use_alpha(true)
+                .show_editor(true)
+                .build();
+            fg_entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
+                let opts = obj.property::<DrawOptions>(property.name());
+                let new_val = self_.rgba();
+                _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { color: new_val.into(), ..opts });
+            }));
+            grid.attach(
+                &gtk::Label::builder()
+                    .label(if has_bg { "fg color" } else { "color" })
+                    .visible(true)
+                    .build(),
+                0,
+                0,
+                1,
+                1,
+            );
+            grid.attach(&fg_entry, 1, 0, 1, 1);
+            if let Some(bg) = opts.bg {
+                let bg_entry = gtk::ColorButton::builder()
+                    .rgba(&bg.into())
+                    .sensitive(readwrite)
+                    .visible(true)
+                    .halign(gtk::Align::Fill)
+                    .valign(gtk::Align::Start)
+                    .use_alpha(true)
+                    .show_editor(true)
+                    .build();
+                bg_entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
+                    let opts = obj.property::<DrawOptions>(property.name());
+                    let new_val = self_.rgba();
+                    _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { bg: Some(new_val.into()), ..opts });
+                }));
+                grid.attach(
+                    &gtk::Label::builder()
+                        .label("bg color")
+                        .visible(true)
+                        .build(),
+                    0,
+                    1,
+                    1,
+                    1,
+                );
+                grid.attach(&bg_entry, 1, 1, 1, 1);
+            }
+            let listbox = gtk::ListBox::builder()
+                .visible(true)
+                .expand(true)
+                .sensitive(readwrite)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Start)
+                .build();
+            let size_entry = gtk::SpinButton::new(
+                Some(&gtk::Adjustment::new(
+                    opts.size,
+                    0.0,
+                    f64::MAX,
+                    0.05,
+                    0.01,
+                    0.01,
+                )),
+                1.0,
+                2,
+            );
+            size_entry.set_input_purpose(gtk::InputPurpose::Number);
+            size_entry.set_sensitive(readwrite);
+            size_entry.set_visible(true);
+            size_entry.connect_value_notify(clone!(@weak obj, @strong property => move |self_| {
+                let opts = obj.property::<DrawOptions>(property.name());
+                let size = self_.value();
+                obj.set_property(property.name(), DrawOptions { size, ..opts });
+            }));
+            obj.bind_property(property.name(), &size_entry, "value")
+                .transform_to(|_, value| {
+                    let opts = value.get::<DrawOptions>().ok()?;
+                    Some(opts.size.to_value())
+                })
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+            listbox.add(&size_entry);
+            if let Some((from, val)) = opts.inherit_size {
+                if val {
+                    size_entry.set_sensitive(false);
+                }
+                let inherit_entry = widgets::ToggleButton::new();
+                inherit_entry.set_label("Inherit global value");
+                inherit_entry.set_visible(true);
+                inherit_entry.set_active(val);
+                inherit_entry.set_relief(gtk::ReliefStyle::None);
+                inherit_entry.set_sensitive(readwrite);
+                inherit_entry.set_halign(gtk::Align::Start);
+                inherit_entry.set_valign(gtk::Align::Center);
+                obj.bind_property(property.name(), &inherit_entry, "active")
+                    .transform_to(|_, value| {
+                        let opts = value.get::<DrawOptions>().ok()?;
+                        opts.inherit_size.map(|(_, b)| b.to_value())
+                    })
+                    .flags(glib::BindingFlags::SYNC_CREATE)
+                    .build();
+                let inherit_value = gtk::Label::builder()
+                    .label(&format!("{:.2}", obj.property::<f64>(from)))
+                    .visible(val)
+                    .width_chars(5)
+                    .halign(gtk::Align::Center)
+                    .valign(gtk::Align::Center)
+                    .sensitive(false)
+                    .wrap(true)
+                    .build();
+                inherit_entry.connect_clicked(clone!(@weak obj, @strong property, @weak inherit_value, @weak size_entry => move |_| {
+                    let opts = obj.property::<DrawOptions>(property.name());
+                    if let Some((from, b)) = opts.inherit_size {
+                        inherit_value.set_visible(!b);
+                        size_entry.set_sensitive(b);
+                        obj.set_property(property.name(), DrawOptions { inherit_size: Some((from, !b)), ..opts });
+                    }
+                }));
+                let inherit_box = gtk::Box::builder()
+                    .visible(true)
+                    .expand(true)
+                    .sensitive(readwrite)
+                    .halign(gtk::Align::Start)
+                    .valign(gtk::Align::Start)
+                    .orientation(gtk::Orientation::Horizontal)
+                    .build();
+                inherit_box.add(
+                    &gtk::ListBoxRow::builder()
+                        .child(&inherit_entry)
+                        .activatable(false)
+                        .selectable(false)
+                        .visible(true)
+                        .build(),
+                );
+                inherit_box.add(
+                    &gtk::ListBoxRow::builder()
+                        .child(&inherit_value)
+                        .activatable(false)
+                        .selectable(false)
+                        .visible(true)
+                        .build(),
+                );
+                listbox.add(&inherit_box);
+            }
+            listbox.set_selection_mode(gtk::SelectionMode::None);
+            grid.attach(
+                &gtk::Label::builder()
+                    .label("width/length")
+                    .visible(true)
+                    .build(),
+                0,
+                if has_bg { 2 } else { 1 },
+                1,
+                1,
+            );
+            grid.attach(&listbox, 1, if has_bg { 2 } else { 1 }, 1, 1);
+            grid.upcast()
         }
         _other => gtk::Label::builder()
             .label(&format!("{:?}", val))
