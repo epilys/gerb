@@ -39,6 +39,7 @@ pub fn draw_glyph_layer(
     let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
     let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
+    let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
     let matrix = viewport.imp().transformation.matrix();
 
     let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
@@ -52,14 +53,16 @@ pub fn draw_glyph_layer(
     cr.transform(matrix);
     cr.save().unwrap();
     cr.set_line_width(2.5);
-    cr.arc(
-        camera.x,
-        camera.y,
-        5.0 + 1.0,
-        0.,
-        2.0 * std::f64::consts::PI,
-    );
-    cr.stroke().unwrap();
+    if !preview {
+        cr.arc(
+            camera.x,
+            camera.y,
+            5.0 + 1.0,
+            0.,
+            2.0 * std::f64::consts::PI,
+        );
+        cr.stroke().unwrap();
+    }
 
     obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
 
@@ -97,30 +100,41 @@ pub fn draw_glyph_layer(
             None
         };
 
-        let options = GlyphDrawingOptions {
-            outline: viewport
-                .property::<DrawOptions>(Canvas::OUTLINE_OPTIONS)
-                .scale(scale * ppu),
-            inner_fill: Some(
-                <DrawOptions>::from((
-                    if inner_fill {
-                        Color::BLACK
-                    } else {
-                        viewport.property::<Color>(Canvas::GLYPH_INNER_FILL_COLOR)
-                    },
-                    line_width,
-                ))
-                .scale(scale * ppu),
-            ),
-            highlight: obj.imp().hovering.get(),
-            matrix: Matrix::identity(),
-            units_per_em,
-            handle_connection,
-            handle,
-            corner: handle,
-            smooth_corner: handle,
-            direction_arrow,
-            selection: Some(glyph_state.get_selection()),
+        let options = if preview {
+            GlyphDrawingOptions {
+                outline: (Color::BLACK, 0.0).into(),
+                inner_fill: Some((Color::BLACK, line_width).into()),
+                highlight: None,
+                matrix: Matrix::identity(),
+                units_per_em,
+                ..Default::default()
+            }
+        } else {
+            GlyphDrawingOptions {
+                outline: viewport
+                    .property::<DrawOptions>(Canvas::OUTLINE_OPTIONS)
+                    .scale(scale * ppu),
+                inner_fill: Some(
+                    <DrawOptions>::from((
+                        if inner_fill {
+                            Color::BLACK
+                        } else {
+                            viewport.property::<Color>(Canvas::GLYPH_INNER_FILL_COLOR)
+                        },
+                        line_width,
+                    ))
+                    .scale(scale * ppu),
+                ),
+                highlight: obj.imp().hovering.get(),
+                matrix: Matrix::identity(),
+                units_per_em,
+                handle_connection,
+                handle,
+                corner: handle,
+                smooth_corner: handle,
+                direction_arrow,
+                selection: Some(glyph_state.get_selection()),
+            }
         };
         glyph_state.glyph.borrow().draw(cr, options);
     }
@@ -134,6 +148,10 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
     let glyph_state = obj.imp().glyph_state.get().unwrap();
     let matrix = viewport.imp().transformation.matrix();
     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
+    let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
+    if preview {
+        return Inhibit(false);
+    }
     cr.save().unwrap();
 
     if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {

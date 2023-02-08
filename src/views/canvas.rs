@@ -734,14 +734,6 @@ impl Canvas {
         cr.set_source_color_alpha(ruler_fg);
         cr.stroke().unwrap();
 
-        cr.arc(
-            camera.x,
-            camera.y,
-            5.0 + 1.0,
-            0.,
-            2.0 * std::f64::consts::PI,
-        );
-        cr.stroke().unwrap();
         let step: f64 = 200.0 * (scale * ppu);
         let mut x = camera.x.rem_euclid(step).floor() + 0.5;
         while x < width {

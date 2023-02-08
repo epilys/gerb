@@ -15,7 +15,7 @@ futures = "0.3"
 futures-util = "0.3"
 generational-arena = "0.2"
 glib = { version = "^0.15" }
-gtk = { version = "^0.15", features = [ "v3_20" ] }
+gtk = { version = "^0.15", features = [ "v3_20", "v3_24" ] }
 image = { version = "0.24", default-features = false, features = ["png"], optional = true }
 indexmap = { version = "1.9" }
 notify-rust = { version = "4", optional = true, features = ["images"] }

@@ -348,6 +348,8 @@ pub struct GlyphEditViewInner {
     show_metrics_guidelines: Cell<bool>,
     settings: OnceCell<Settings>,
     menubar: gtk::MenuBar,
+    preview: Cell<bool>,
+    ctrl: OnceCell<gtk::EventControllerKey>,
 }
 
 #[glib::object_subclass]
@@ -361,6 +363,23 @@ impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         self.lock_guidelines.set(true);
+        let ctrl = gtk::EventControllerKey::new(obj);
+        ctrl.connect_key_pressed(
+            clone!(@weak obj => @default-return false, move |_self, keyval, _, _| {
+                if gtk::gdk::keys::Key::from(keyval) == gtk::gdk::keys::constants::grave {
+                    obj.set_property(GlyphEditView::PREVIEW, true);
+                    true
+                } else {
+                    false
+                }
+            }),
+        );
+        ctrl.connect_key_released(clone!(@weak obj => move |_self, keyval, _,  _| {
+            if gtk::gdk::keys::Key::from(keyval) == gtk::gdk::keys::constants::grave {
+                obj.set_property(GlyphEditView::PREVIEW, false);
+            }
+        }));
+        self.ctrl.set(ctrl).unwrap();
         self.show_glyph_guidelines.set(true);
         self.show_project_guidelines.set(true);
         self.show_metrics_guidelines.set(true);
@@ -467,6 +486,13 @@ impl ObjectImpl for GlyphEditViewInner {
                         GlyphEditView::CLOSEABLE,
                         true,
                         ParamFlags::READABLE,
+                    ),
+                    ParamSpecBoolean::new(
+                        GlyphEditView::PREVIEW,
+                        GlyphEditView::PREVIEW,
+                        GlyphEditView::PREVIEW,
+                        false,
+                        ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
                         GlyphEditView::IS_MENU_VISIBLE,
@@ -589,6 +615,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 }
             }
             GlyphEditView::CLOSEABLE => true.to_value(),
+            GlyphEditView::PREVIEW => self.preview.get().to_value(),
             GlyphEditView::IS_MENU_VISIBLE => true.to_value(),
             GlyphEditView::UNITS_PER_EM => self.units_per_em.get().to_value(),
             GlyphEditView::X_HEIGHT => self.x_height.get().to_value(),
@@ -643,6 +670,10 @@ impl ObjectImpl for GlyphEditViewInner {
             GlyphEditView::SHOW_METRICS_GUIDELINES => {
                 self.show_metrics_guidelines.set(value.get().unwrap());
             }
+            GlyphEditView::PREVIEW => {
+                self.preview.set(value.get().unwrap());
+                self.viewport.queue_draw();
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -693,6 +724,7 @@ impl GlyphEditView {
     pub const ASCENDER: &str = Project::ASCENDER;
     pub const CAP_HEIGHT: &str = Project::CAP_HEIGHT;
     pub const CLOSEABLE: &str = "closeable";
+    pub const PREVIEW: &str = "preview";
     pub const DESCENDER: &str = Project::DESCENDER;
     pub const TITLE: &str = "title";
     pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
