@@ -224,6 +224,7 @@ impl Glyph {
             handle_size,
             selection,
         } = options;
+        let tangent_color = Color::BLACK.with_alpha(0.8);
 
         cr.save().expect("Invalid cairo surface state");
         cr.transform(matrix);
@@ -373,29 +374,29 @@ impl Glyph {
             cr.stroke().expect("Invalid cairo surface state");
         }
         if let Some(handle_size) = handle_size {
-            let draw_oncurve = |p: &CurvePoint| {
+            let draw_oncurve = |p: &CurvePoint, corner: Option<bool>| {
                 if selection.map(|s| s.contains(&p.uuid)).unwrap_or(false) {
                     cr.set_source_color(Color::RED);
                 } else {
                     cr.set_source_rgba(0.0, 0.0, 1.0, 0.5);
                 }
-                cr.rectangle(
-                    p.position.x - handle_size / 2.0,
-                    p.position.y - handle_size / 2.0,
-                    handle_size,
-                    handle_size,
-                );
+                if corner.unwrap_or(true) {
+                    cr.rectangle(
+                        p.position.x - handle_size / 2.0,
+                        p.position.y - handle_size / 2.0,
+                        handle_size,
+                        handle_size,
+                    );
+                } else {
+                    cr.arc(
+                        p.position.x,
+                        p.position.y,
+                        handle_size / 2.0,
+                        0.0,
+                        2.0 * std::f64::consts::PI,
+                    );
+                }
                 cr.stroke().unwrap();
-                /*
-                cr.set_source_rgba(0.0, 0.0, 0.0, 0.0);
-                cr.rectangle(
-                    p.position.x - handle_size / 2.0,
-                    p.position.y - handle_size / 2.0,
-                    handle_size,
-                    handle_size + 1.0,
-                );
-                cr.stroke().unwrap();
-                */
             };
             let draw_handle = |p: &CurvePoint| {
                 if selection.map(|s| s.contains(&p.uuid)).unwrap_or(false) {
@@ -429,9 +430,38 @@ impl Glyph {
                 cr.line_to(ep.x, ep.y);
                 cr.stroke().unwrap();
             };
+            let draw_tangent = |curv: &Bezier| {
+                let t = 0.3;
+                let p = curv.compute(t);
+                let tangent = curv.tangent(t);
+                cr.save().unwrap();
+                cr.set_source_color_alpha(tangent_color);
+                cr.translate(p.x, p.y);
+                cr.rotate(tangent.atan2());
+                cr.scale(3.0, 3.0);
+                const H: f64 = 1.0;
+                const V: f64 = 2.0;
+
+                cr.set_line_width(0.5);
+                cr.move_to(-H, V);
+
+                cr.line_to(-H, V / 2.0);
+                cr.line_to(-H * 3.0, V / 2.0);
+                cr.line_to(-H * 3.0, -V / 2.0);
+                cr.line_to(-H, -V / 2.0);
+
+                cr.line_to(-H, -V);
+                cr.line_to(H, 0.0);
+                cr.line_to(-H, V);
+                cr.close_path();
+                cr.stroke().unwrap();
+                cr.restore().unwrap();
+            };
             for contour in self.contours.iter() {
-                let curves = contour.imp().curves.borrow();
-                for curv in curves.iter() {
+                let curves = contour.curves().borrow();
+                let continuities = contour.continuities().borrow();
+                let biggest = contour.property::<u64>(Contour::BIGGEST_CURVE) as usize;
+                for (i, curv) in curves.iter().enumerate() {
                     let degree = curv.degree();
                     let degree = if let Some(v) = degree {
                         v
@@ -442,26 +472,44 @@ impl Glyph {
                     match degree {
                         0 => {
                             /* Single point */
-                            draw_oncurve(&curv_points[0]);
+                            draw_oncurve(
+                                &curv_points[0],
+                                continuities.get(0).map(Continuity::is_positional),
+                            );
                         }
                         1 => {
                             /* Line. */
-                            draw_oncurve(&curv_points[0]);
-                            draw_oncurve(&curv_points[1]);
+                            if i == biggest {
+                                draw_tangent(curv);
+                            }
+                            draw_oncurve(
+                                &curv_points[0],
+                                continuities.get(0).map(Continuity::is_positional),
+                            );
+                            draw_oncurve(
+                                &curv_points[1],
+                                continuities.get(1).map(Continuity::is_positional),
+                            );
                         }
                         2 => {
                             /* Quadratic. */
+                            if i == biggest {
+                                draw_tangent(curv);
+                            }
                             let handle = &curv_points[1];
                             let ep1 = &curv_points[0];
                             let ep2 = &curv_points[2];
                             draw_handle_connection(handle.position, ep1.position);
                             draw_handle_connection(handle.position, ep2.position);
                             draw_handle(handle);
-                            draw_oncurve(ep1);
-                            draw_oncurve(ep2);
+                            draw_oncurve(ep1, continuities.get(0).map(Continuity::is_positional));
+                            draw_oncurve(ep2, continuities.get(2).map(Continuity::is_positional));
                         }
                         3 => {
                             /* Cubic */
+                            if i == biggest {
+                                draw_tangent(curv);
+                            }
                             let handle1 = &curv_points[1];
                             let handle2 = &curv_points[2];
                             let ep1 = &curv_points[0];
@@ -470,8 +518,8 @@ impl Glyph {
                             draw_handle_connection(handle2.position, ep2.position);
                             draw_handle(handle1);
                             draw_handle(handle2);
-                            draw_oncurve(ep1);
-                            draw_oncurve(ep2);
+                            draw_oncurve(ep1, continuities.get(0).map(Continuity::is_positional));
+                            draw_oncurve(ep2, continuities.get(3).map(Continuity::is_positional));
                         }
                         d => {
                             eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);

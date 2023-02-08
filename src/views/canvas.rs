@@ -103,22 +103,25 @@ impl ObjectImpl for CanvasInner {
         self.show_rulers.set(CanvasInner::SHOW_RULERS_INIT_VAL);
         self.warp_cursor.set(CanvasInner::WARP_CURSOR_INIT_VAL);
         self.bg_color.set(Color::WHITE);
-        self.bg_color.set(Color::try_from_hex("#E0DDDC").unwrap());
+        self.bg_color.set(Color::try_from_hex("#EEF8F8").unwrap());
         self.glyph_bbox_bg_color.set(Color::new_alpha(
             210.0 / 255.0,
             227.0 / 255.0,
             252.0 / 255.0,
             0.6,
         ));
-        self.glyph_bbox_bg_color.set(Color::WHITE);
         self.glyph_inner_fill_color
-            .set(Color::try_from_hex("#EBE8E7").unwrap());
+            .set(Color::try_from_hex("#3B93EB").unwrap());
         self.ruler_fg_color
             .set(CanvasInner::RULER_FG_COLOR_INIT_VAL);
         self.ruler_bg_color
             .set(CanvasInner::RULER_BG_COLOR_INIT_VAL);
         self.ruler_indicator_color
             .set(CanvasInner::RULER_INDICATOR_COLOR_INIT_VAL);
+        self.ruler_fg_color
+            .set(Color::try_from_hex("#8B9494").unwrap());
+        self.ruler_bg_color
+            .set(Color::try_from_hex("#F2F8F8").unwrap());
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))

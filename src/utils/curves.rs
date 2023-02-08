@@ -38,25 +38,6 @@ impl Bezier {
     }
 }
 
-/// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
-/// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
-#[derive(Clone, Debug, Default, Copy, glib::Boxed)]
-#[boxed_type(name = "Continuity", nullable)]
-pub enum Continuity {
-    /// C0 / G0 (positional continuity) requires that they meet at the same point, which all
-    /// Bézier splines do by definition. In this example, the shared point is P3
-    #[default]
-    Positional,
-    /// C1 (velocity continuity) requires the neighboring control points around the join to be
-    /// mirrors of each other. In other words, they must follow the constraint of P4 = 2P3 − P2
-    Velocity,
-    /// G1 (tangent continuity) requires the neighboring control points to be collinear with
-    /// the join. This is less strict than C1 continuity, leaving an extra degree of freedom
-    /// which can be parameterized using a scalar β. The constraint can then be expressed by P4
-    /// = P3 + (P3 − P2)β
-    Tangent { beta: f64 },
-}
-
 #[derive(Default)]
 pub struct BezierInner {
     pub smooth: Cell<bool>,
@@ -298,6 +279,87 @@ impl Bezier {
         dCpts[0].t = t;
         return dCpts[0];
             */
+    }
+
+    pub fn tangent(&self, t: f64) -> Point {
+        let points = self.points().borrow();
+        // shortcuts
+        if t == 0.0 {
+            return points[0].position;
+        }
+
+        let order = self.degree().unwrap();
+
+        if t == 1.0 {
+            return points[order].position;
+        }
+
+        if order == 0 {
+            return points[0].position;
+        }
+
+        // linear
+        if order == 1 {
+            return points[1].position - points[0].position;
+        }
+
+        let mt = 1.0 - t;
+
+        if order == 2 {
+            let d: [Point; 2] = [
+                (
+                    2.0 * (points[1].x - points[0].x),
+                    2.0 * (points[1].y - points[0].y),
+                )
+                    .into(),
+                (
+                    2.0 * (points[2].x - points[1].x),
+                    2.0 * (points[2].y - points[1].y),
+                )
+                    .into(),
+            ];
+
+            return (mt * d[0].x + t * d[1].x, mt * d[0].y + t * d[1].y).into();
+        } else if order == 3 {
+            let a = mt * mt;
+            let b = 2.0 * mt * t;
+            let c = t * t;
+            let d: [Point; 3] = [
+                (
+                    3.0 * (points[1].x - points[0].x),
+                    3.0 * (points[1].y - points[0].y),
+                )
+                    .into(),
+                (
+                    3.0 * (points[2].x - points[1].x),
+                    3.0 * (points[2].y - points[1].y),
+                )
+                    .into(),
+                (
+                    3.0 * (points[3].x - points[2].x),
+                    3.0 * (points[3].y - points[2].y),
+                )
+                    .into(),
+            ];
+
+            return (
+                a * d[0].x + b * d[1].x + c * d[2].x,
+                a * d[0].y + b * d[1].y + c * d[2].y,
+            )
+                .into();
+        }
+        todo!()
+    }
+
+    pub fn approx_length(&self) -> f64 {
+        let lut = self.get_lut(None);
+        let mut ret = 0.0;
+        for pair in lut.windows(2).skip(1) {
+            let p1 = pair[0];
+            let p2 = pair[1];
+            ret += p1.distance(p2);
+        }
+        ret
     }
 
     pub fn on_curve_query(&self, point: Point, error: Option<f64>) -> bool {

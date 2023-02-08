@@ -39,6 +39,7 @@ impl Contour {
     pub const OPEN: &str = "open";
     pub const CONTINUITIES: &str = "continuities";
     pub const CONTINUITY: &str = "continuity";
+    pub const BIGGEST_CURVE: &str = "biggest-curve";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -60,6 +61,14 @@ impl Contour {
         if curve.points().borrow().is_empty() {
             return;
         }
+        let new_len = curve.approx_length();
+        if matches!(
+            self.imp().biggest_curve.get().map(|(_, len)| new_len > len),
+            Some(true) | None
+        ) {
+            self.imp().biggest_curve.set(Some((curves.len(), new_len)));
+        }
+
         if curves.is_empty() {
             curves.push(curve);
             return;
@@ -150,6 +159,7 @@ impl Contour {
         idxs_slice: &[GlyphPointIndex],
         m: Matrix,
     ) -> Vec<(GlyphPointIndex, Point)> {
+        self.imp().biggest_curve.set(None);
         let uuids = idxs_slice
             .iter()
             .filter(|i| i.contour_index == contour_index)
@@ -359,6 +369,7 @@ mod imp {
         pub open: Cell<bool>,
         pub curves: RefCell<Vec<Bezier>>,
         pub continuities: RefCell<Vec<Continuity>>,
+        pub biggest_curve: Cell<Option<(usize, f64)>>,
     }
 
     impl std::fmt::Debug for Contour {
@@ -375,6 +386,7 @@ mod imp {
                         .collect::<Vec<_>>(),
                 )
                 .field("continuities", &self.continuities.borrow())
+                .field("biggest_curve", &self.biggest_curve.get())
                 .finish()
         }
     }
@@ -412,6 +424,15 @@ mod imp {
                             true,
                             glib::ParamFlags::READABLE,
                         ),
+                        glib::ParamSpecUInt64::new(
+                            super::Contour::BIGGEST_CURVE,
+                            super::Contour::BIGGEST_CURVE,
+                            super::Contour::BIGGEST_CURVE,
+                            0,
+                            u64::MAX,
+                            0,
+                            glib::ParamFlags::READABLE,
+                        ),
                     ]
                 });
             PROPERTIES.as_ref()
@@ -428,6 +449,25 @@ mod imp {
                     ret.to_value()
                 }
                 super::Contour::OPEN => self.open.get().to_value(),
+                super::Contour::BIGGEST_CURVE => {
+                    if let Some((ret, _)) = self.biggest_curve.get() {
+                        return (ret as u64).to_value();
+                    }
+                    let curves = self.curves.borrow();
+                    let ret = curves
+                        .iter()
+                        .enumerate()
+                        .map(|(i, c)| (i, c.approx_length()))
+                        .fold((0, f64::NEG_INFINITY), |(prev, acc), (i, len)| {
+                            if len > acc {
+                                (i, len)
+                            } else {
+                                (prev, acc)
+                            }
+                        });
+                    self.biggest_curve.set(Some(ret));
+                    (ret.0 as u64).to_value()
+                }
                 _ => unimplemented!("{}", pspec.name()),
             }
         }
@@ -445,5 +485,30 @@ mod imp {
                 _ => unimplemented!("{}", pspec.name()),
             }
         }
+    }
+}
+
+/// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
+/// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
+#[derive(Clone, Debug, Default, Copy, glib::Boxed)]
+#[boxed_type(name = "Continuity", nullable)]
+pub enum Continuity {
+    /// C0 / G0 (positional continuity) requires that they meet at the same point, which all
+    /// Bézier splines do by definition. In this example, the shared point is P3
+    #[default]
+    Positional,
+    /// C1 (velocity continuity) requires the neighboring control points around the join to be
+    /// mirrors of each other. In other words, they must follow the constraint of P4 = 2P3 − P2
+    Velocity,
+    /// G1 (tangent continuity) requires the neighboring control points to be collinear with
+    /// the join. This is less strict than C1 continuity, leaving an extra degree of freedom
+    /// which can be parameterized using a scalar β. The constraint can then be expressed by P4
+    /// = P3 + (P3 − P2)β
+    Tangent { beta: f64 },
+}
+
+impl Continuity {
+    pub fn is_positional(&self) -> bool {
+        matches!(self, Self::Positional)
     }
 }

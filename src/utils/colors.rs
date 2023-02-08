@@ -44,6 +44,10 @@ impl Color {
         Self(gdk::RGBA::new(red, green, blue, alpha))
     }
 
+    pub fn with_alpha(self, new_alpha: f64) -> Self {
+        Self::new_alpha(self.0.red(), self.0.green(), self.0.blue(), new_alpha)
+    }
+
     pub fn try_parse(s: &str) -> Option<Self> {
         Some(Self(gdk::RGBA::parse(s).ok()?))
     }

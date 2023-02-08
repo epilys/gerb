@@ -155,6 +155,22 @@ impl Point {
     pub fn norm(&self) -> f64 {
         (self.x.powi(2) + self.y.powi(2)).sqrt()
     }
+
+    pub fn angle(&self, rhs: Self) -> f64 {
+        let a = rhs.x * self.y - self.x * rhs.y;
+        let b = self.x * self.y + rhs.x * rhs.y;
+        a.atan2(b)
+    }
+
+    pub fn atan2(&self) -> f64 {
+        self.y.atan2(self.x)
+    }
+
+    pub fn distance(&self, rhs: Self) -> f64 {
+        let xlk = rhs.x - self.x;
+        let ylk = rhs.y - self.y;
+        (xlk * xlk + ylk * ylk).sqrt()
+    }
 }
 
 impl From<Point> for (f64, f64) {
