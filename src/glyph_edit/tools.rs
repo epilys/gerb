@@ -353,3 +353,176 @@ pub fn new_contour_action(
         ),
     }
 }
+
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
+pub enum SelectionModifier {
+    #[default]
+    Replace,
+    Add,
+    Remove,
+}
+
+impl From<gtk::gdk::ModifierType> for SelectionModifier {
+    fn from(modifier: gtk::gdk::ModifierType) -> SelectionModifier {
+        if modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
+            if modifier.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
+                SelectionModifier::Remove
+            } else {
+                SelectionModifier::Add
+            }
+        } else {
+            SelectionModifier::default()
+        }
+    }
+}
+
+pub mod constraints {
+    use crate::GlyphEditView;
+
+    #[derive(Default)]
+    #[glib::flags(name = "Lock")]
+    pub enum Lock {
+        #[default]
+        #[flags_skip]
+        EMPTY = 0,
+        #[flags_value(name = "Lock transformation to X axis.", nick = "x")]
+        X = 0b00000001,
+        #[flags_value(name = "Lock transformation to Y axis.", nick = "y")]
+        Y = 0b00000010,
+        #[flags_value(name = "Lock transformation to local coordinates.", nick = "local")]
+        LOCAL = 0b00000100,
+        #[flags_value(name = "Lock transformation to control point axis.", nick = "controls")]
+        CONTROLS = 0b00001000,
+    }
+
+    impl Lock {
+        const ACTION_NAME: &str = GlyphEditView::LOCK_ACTION;
+
+        pub fn as_str(&self) -> &'static str {
+            match *self {
+                Lock::EMPTY => "",
+                v if v == (Lock::X | Lock::LOCAL) => "Locked X axis. | Local coordinates.",
+                v if v == (Lock::X | Lock::CONTROLS) => {
+                    "Locked X axis. | Control point axis coordinates."
+                }
+                v if v == Lock::X => "Locked X axis.",
+                v if v == (Lock::Y | Lock::LOCAL) => "Locked Y axis. | Local coordinates.",
+                v if v == (Lock::Y | Lock::CONTROLS) => {
+                    "Locked Y axis. | Control point axis coordinates."
+                }
+                v if v == Lock::Y => "Locked Y axis.",
+                other => unreachable!("{other:?}"),
+            }
+        }
+    }
+
+    #[glib::flags(name = "Precision")]
+    pub enum Precision {
+        //const _01           = 0b00000001;
+        //const _05           = 0b00000010;
+        //const _1            = 0b00000100;
+        #[flags_value(name = "Limit transformations to 0.5 units step size.", nick = "5")]
+        _5 = 0b00000001,
+    }
+
+    impl Precision {
+        const ACTION_NAME: &str = GlyphEditView::PRECISION_ACTION;
+    }
+
+    #[glib::flags(name = "Snap")]
+    pub enum Snap {
+        #[flags_value(name = "Snap to angle", nick = "angle")]
+        ANGLE = 0b00000001,
+    }
+
+    impl Snap {
+        const ACTION_NAME: &str = GlyphEditView::SNAP_ACTION;
+    }
+
+    macro_rules! impl_methods {
+        ($($ty:ty),*) => {
+            $(
+                impl glib::variant::StaticVariantType for $ty {
+                    fn static_variant_type() -> std::borrow::Cow<'static, glib::VariantTy> {
+                        u32::static_variant_type()
+                    }
+                }
+
+                impl glib::variant::ToVariant for $ty {
+                    fn to_variant(&self) -> glib::Variant {
+                        self.bits().to_variant()
+                    }
+                }
+
+                impl glib::variant::FromVariant for $ty {
+                    fn from_variant(variant: &glib::Variant) -> Option<$ty> {
+                        <$ty>::from_bits(variant.get::<u32>()?)
+                    }
+                }
+
+                impl $ty {
+                    pub fn clear(view: &GlyphEditView) {
+                        use gtk::prelude::ActionGroupExt;
+                        use gtk::glib::subclass::types::ObjectSubclassIsExt;
+                        use crate::glib::ToVariant;
+
+                        view.imp()
+                            .action_group
+                            .change_action_state(Self::ACTION_NAME, &<$ty>::empty().to_variant());
+                    }
+                }
+            )*
+        };
+    }
+
+    impl_methods!(Lock, Precision, Snap);
+
+    pub fn create_constraint_actions(obj: &GlyphEditView) {
+        use gtk::gio;
+        use gtk::prelude::*;
+        use gtk::subclass::prelude::*;
+
+        let lock = gio::PropertyAction::new(GlyphEditView::LOCK_ACTION, obj, GlyphEditView::LOCK);
+        for (name, (axis, complement)) in [
+            (GlyphEditView::LOCK_X_ACTION, (Lock::X, Lock::Y)),
+            (GlyphEditView::LOCK_Y_ACTION, (Lock::Y, Lock::X)),
+        ] {
+            let toggle_axis = gio::SimpleAction::new(name, None);
+            toggle_axis.connect_activate(glib::clone!(@weak obj, @weak lock => move |_, _| {
+                let Some(state) = lock.state() else { return; };
+                let Some(mut lock_flags) = state.get::<Lock>() else { return; };
+                if lock_flags.intersects(axis) {
+                    lock.change_state(&Lock::empty().to_variant());
+                } else {
+                    lock_flags.set(complement, false);
+                    lock_flags.set(axis, true);
+                    lock.change_state(&lock_flags.to_variant());
+                }
+            }));
+            obj.imp().action_group.add_action(&toggle_axis);
+        }
+        for (name, opt) in [
+            (GlyphEditView::LOCK_LOCAL_ACTION, Lock::LOCAL),
+            (GlyphEditView::LOCK_CONTROLS_ACTION, Lock::CONTROLS),
+        ] {
+            let change_opt = gio::SimpleAction::new(name, None);
+            change_opt.connect_activate(glib::clone!(@weak obj, @weak lock => move |_, _| {
+                let Some(state) = lock.state() else { return; };
+                let Some(mut lock_flags) = state.get::<Lock>() else { return; };
+                if lock_flags.intersection(Lock::X | Lock::Y).is_empty() {
+                    return;
+                }
+                if lock_flags.intersects(opt) {
+                    lock_flags.set(opt, false);
+                    lock.change_state(&lock_flags.to_variant());
+                } else {
+                    lock_flags.set(Lock::LOCAL|Lock::CONTROLS, false);
+                    lock_flags.set(opt, true);
+                    lock.change_state(&lock_flags.to_variant());
+                }
+            }));
+            obj.imp().action_group.add_action(&change_opt);
+        }
+        obj.imp().action_group.add_action(&lock);
+    }
+}

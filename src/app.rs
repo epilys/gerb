@@ -35,11 +35,11 @@ mod settings;
 pub use settings::*;
 
 glib::wrapper! {
-    pub struct GerbApp(ObjectSubclass<Application>)
+    pub struct Application(ObjectSubclass<ApplicationInner>)
         @extends gio::Application, gtk::Application;
 }
 
-impl GerbApp {
+impl Application {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         glib::Object::new(&[
@@ -51,7 +51,7 @@ impl GerbApp {
 }
 
 #[derive(Debug, Default)]
-pub struct Application {
+pub struct ApplicationInner {
     pub window: Window,
     pub settings: RefCell<Settings>,
     pub undo_db: RefCell<undo::UndoDatabase>,
@@ -59,19 +59,19 @@ pub struct Application {
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for Application {
+impl ObjectSubclass for ApplicationInner {
     const NAME: &'static str = "Application";
-    type Type = super::GerbApp;
+    type Type = Application;
     type ParentType = gtk::Application;
 }
 
-impl ObjectImpl for Application {}
+impl ObjectImpl for ApplicationInner {}
 
 /// When our application starts, the `startup` signal will be fired.
 /// This gives us a chance to perform initialisation tasks that are not directly
 /// related to showing a new window. After this, depending on how
 /// the application is started, either `activate` or `open` will be called next.
-impl ApplicationImpl for Application {
+impl ApplicationImpl for ApplicationInner {
     /// `gio::Application::activate` is what gets called when the
     /// application is launched by the desktop environment and
     /// asked to present itself.
@@ -93,8 +93,9 @@ impl ApplicationImpl for Application {
     fn startup(&self, app: &Self::Type) {
         self.parent_startup(app);
         self.window.set_application(Some(app));
-        self.instance().add_actions();
-        self.instance().build_system_menu();
+        self.add_actions(app);
+        self.window.imp().setup_actions();
+        self.build_system_menu(app);
 
         let css_provider = gtk::CssProvider::new();
         css_provider
@@ -113,23 +114,32 @@ impl ApplicationImpl for Application {
     }
 }
 
-impl GtkApplicationImpl for Application {}
+impl GtkApplicationImpl for ApplicationInner {}
 
-impl GerbApp {
-    fn add_actions(&self) {
-        let application = self.upcast_ref::<gtk::Application>();
-        application.set_accels_for_action("app.quit", &["<Primary>Q", "Q"]);
+impl ApplicationInner {
+    fn add_actions(&self, obj: &Application) {
+        let application = obj.upcast_ref::<gtk::Application>();
+        application.set_accels_for_action("app.quit", &["<Primary>Q"]);
         application.set_accels_for_action("app.about", &["question", "F1"]);
         application.set_accels_for_action("app.undo", &["<Primary>Z"]);
         application.set_accels_for_action("app.redo", &["<Primary>R"]);
-        application.set_accels_for_action("view.show-grid", &["<Primary>G"]);
-        application.set_accels_for_action("view.show-guidelines", &["<Primary><Shift>G"]);
-        application.set_accels_for_action("view.show-handles", &["<Primary><Shift>H"]);
-        application.set_accels_for_action("view.inner-fill", &["<Primary><Shift>I"]);
-        application.set_accels_for_action("view.show-total-area", &["<Primary><Shift>T"]);
+        application.set_accels_for_action("app.project.open", &["<Primary>O"]);
+        application.set_accels_for_action("app.project.new", &["<Primary>N"]);
+        application.set_accels_for_action("app.project.properties", &["<Primary><Shift>D"]);
+        application
+            .set_accels_for_action("win.next_tab", &["<Primary>Page_Down", "<Primary>greater"]);
+        application.set_accels_for_action("win.prev_tab", &["<Primary>Page_Up", "<Primary>less"]);
+        application.set_accels_for_action("glyph.show.grid", &["<Primary>G"]);
+        application.set_accels_for_action("glyph.show.guideline", &["<Primary><Shift>G"]);
+        application.set_accels_for_action("glyph.show.handles", &["<Primary><Shift>H"]);
+        application.set_accels_for_action("glyph.show.inner-fill", &["<Primary><Shift>I"]);
+        application.set_accels_for_action("glyph.show.total-area", &["<Primary><Shift>T"]);
         application.set_accels_for_action("view.zoom.in", &["<Primary>plus", "plus"]);
         application.set_accels_for_action("view.zoom.out", &["<Primary>minus", "minus"]);
-        let window = self.imp().window.upcast_ref::<gtk::Window>();
+        application.set_accels_for_action("glyph.show.guideline.metrics", &["F2"]);
+        application.set_accels_for_action("glyph.show.guideline.inner-fill", &["F3"]);
+        application.set_accels_for_action("view.preview", &["grave"]);
+        let window = self.window.upcast_ref::<gtk::Window>();
         let quit = gtk::gio::SimpleAction::new("quit", None);
         quit.connect_activate(glib::clone!(@weak window => move |_, _| {
             window.close();
@@ -156,12 +166,13 @@ impl GerbApp {
         }));
 
         let settings = gtk::gio::SimpleAction::new("settings", None);
-        settings.connect_activate(glib::clone!(@weak application as app => move |_, _| {
-            let gapp = app.downcast_ref::<super::GerbApp>().unwrap();
-            let obj: glib::Object = gapp.imp().settings.borrow().clone().upcast();
-            let w = crate::utils::new_property_window(obj, "Settings");
-            w.present();
-        }));
+        settings.connect_activate(
+            glib::clone!(@strong self.settings as settings => move |_, _| {
+                let obj: glib::Object = settings.borrow().clone().upcast();
+                let w = crate::utils::new_property_window(obj, "Settings");
+                w.present();
+            }),
+        );
         let import_glyphs = gtk::gio::SimpleAction::new("project.import.glyphs", None);
 
         import_glyphs.connect_activate(glib::clone!(@weak window => move |_, _| {
@@ -280,7 +291,7 @@ impl GerbApp {
                     ),
                 ) {
                     Ok(instance) => {
-                        GerbApp::show_notification(
+                        ApplicationInner::show_notification(
                             &format!("Succesfully converted {} to UFOv3.", &instance.family_name),
                             &format!("Project saved at {}", instance.full_path.display()),
                         );
@@ -337,23 +348,22 @@ impl GerbApp {
         }));
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
-            let window = &self.imp().window;
-            new_project.connect_activate(glib::clone!(@weak window => move |_, _| {
+            new_project.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
                 window.imp().load_project(crate::project::Project::default());
             }));
         }
         let undo = gtk::gio::SimpleAction::new("undo", None);
         undo.set_enabled(false);
-        undo.connect_activate(glib::clone!(@weak self as _self => move |_, _| {
+        undo.connect_activate(glib::clone!(@weak obj as _self => move |_, _| {
             _self.imp().undo_db.borrow_mut().undo();
         }));
         let redo = gtk::gio::SimpleAction::new("redo", None);
         redo.set_enabled(false);
-        redo.connect_activate(glib::clone!(@weak self as _self => move |_, _| {
+        redo.connect_activate(glib::clone!(@weak obj as _self => move |_, _| {
             _self.imp().undo_db.borrow_mut().redo();
         }));
         {
-            let db = self.imp().undo_db.borrow();
+            let db = self.undo_db.borrow();
             db.bind_property(UndoDatabase::CAN_UNDO, &undo, "enabled")
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
@@ -363,12 +373,13 @@ impl GerbApp {
         }
 
         let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
-        project_properties.connect_activate(glib::clone!(@weak application as app => move |_, _| {
-            let gapp = app.downcast_ref::<super::GerbApp>().unwrap();
-            let obj: glib::Object = gapp.imp().window.imp().project.borrow().clone().upcast();
-            let w = crate::utils::new_property_window(obj, "Project");
-            w.present();
-        }));
+        project_properties.connect_activate(
+            glib::clone!(@weak self.window as window => move |_, _| {
+                let obj: glib::Object = window.imp().project.borrow().clone().upcast();
+                let w = crate::utils::new_property_window(obj, "Project");
+                w.present();
+            }),
+        );
         application.add_action(&project_properties);
         application.add_action(&import_glyphs);
         application.add_action(&import_ufo2);
@@ -381,48 +392,61 @@ impl GerbApp {
         application.add_action(&quit);
     }
 
-    fn build_system_menu(&self) {
-        let application = self.upcast_ref::<gtk::Application>();
+    fn build_system_menu(&self, obj: &Application) {
+        let application = obj.upcast_ref::<gtk::Application>();
         let menu_bar = gio::Menu::new();
-        let meta_menu = gio::Menu::new();
-        let file_menu = gio::Menu::new();
-        let import_menu = gio::Menu::new();
-        let edit_menu = gio::Menu::new();
 
-        file_menu.append(Some("New"), Some("app.project.new"));
-        file_menu.append(Some("Open"), Some("app.project.open"));
-        import_menu.append(
-            Some("Import Glyphs file"),
-            Some("app.project.import.glyphs"),
-        );
-        import_menu.append(
-            Some("Import UFOv2 directory"),
-            Some("app.project.import.ufo2"),
-        );
-        file_menu.append_submenu(Some("Import"), &import_menu);
-        let project_section = gio::Menu::new();
-        project_section.append(Some("Properties"), Some("app.project.properties"));
-        file_menu.append_section(Some("Project"), &project_section);
-        file_menu.append(Some("Quit"), Some("app.quit"));
-        menu_bar.append_submenu(Some("_File"), &file_menu);
+        {
+            let file_menu = gio::Menu::new();
+            let import_menu = gio::Menu::new();
+            file_menu.append(Some("New"), Some("app.project.new"));
+            file_menu.append(Some("Open"), Some("app.project.open"));
+            import_menu.append(
+                Some("Import Glyphs file"),
+                Some("app.project.import.glyphs"),
+            );
+            import_menu.append(
+                Some("Import UFOv2 directory"),
+                Some("app.project.import.ufo2"),
+            );
+            file_menu.append_submenu(Some("Import"), &import_menu);
+            let project_section = gio::Menu::new();
+            project_section.append(Some("Properties"), Some("app.project.properties"));
+            file_menu.append_section(Some("Project"), &project_section);
+            file_menu.append(Some("Quit"), Some("app.quit"));
+            menu_bar.append_submenu(Some("_File"), &file_menu);
+        }
 
-        edit_menu.append(Some("Settings"), Some("app.settings"));
-        let undo_section = gio::Menu::new();
-        undo_section.append(Some("Undo"), Some("app.undo"));
-        undo_section.append(Some("Redo"), Some("app.redo"));
-        edit_menu.append_section(Some("Action history"), &undo_section);
-        menu_bar.append_submenu(Some("_Edit"), &edit_menu);
+        {
+            let edit_menu = gio::Menu::new();
+            edit_menu.append(Some("Settings"), Some("app.settings"));
+            let undo_section = gio::Menu::new();
+            undo_section.append(Some("Undo"), Some("app.undo"));
+            undo_section.append(Some("Redo"), Some("app.redo"));
+            edit_menu.append_section(Some("Action history"), &undo_section);
+            menu_bar.append_submenu(Some("_Edit"), &edit_menu);
+        }
 
-        meta_menu.append(Some("Report issue"), Some("app.bug_report"));
-        meta_menu.append(Some("About"), Some("app.about"));
-        menu_bar.append_submenu(Some("Gerb"), &meta_menu);
+        {
+            let win_menu = gio::Menu::new();
+            win_menu.append(Some("Next tab"), Some("win.next_tab"));
+            win_menu.append(Some("Previous tab"), Some("win.prev_tab"));
+            menu_bar.append_submenu(Some("_Window"), &win_menu);
+        }
+
+        {
+            let meta_menu = gio::Menu::new();
+            meta_menu.append(Some("Report issue"), Some("app.bug_report"));
+            meta_menu.append(Some("About"), Some("app.about"));
+            menu_bar.append_submenu(Some("Gerb"), &meta_menu);
+        }
 
         //application.set_app_menu(Some(&menu));
         application.set_menubar(Some(&menu_bar));
     }
 
     pub fn statusbar(&self) -> gtk::Statusbar {
-        self.imp().window.imp().statusbar.clone()
+        self.window.imp().statusbar.clone()
     }
 
     #[cfg(not(feature = "notifications"))]

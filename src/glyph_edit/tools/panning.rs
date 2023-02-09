@@ -19,8 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::super::SelectionModifier;
-use super::tool_impl::*;
+use super::{constraints::*, tool_impl::*, SelectionModifier};
 
 use crate::GlyphEditView;
 use crate::{
@@ -181,6 +180,9 @@ impl ToolImplImpl for PanningToolInner {
             m @ Mode::Drag | m @ Mode::DragGuideline(_)
                 if event_button == gtk::gdk::BUTTON_PRIMARY =>
             {
+                Lock::clear(&view);
+                Snap::clear(&view);
+                Precision::clear(&view);
                 self.mode.set(Mode::None);
                 view.imp().hovering.set(None);
                 viewport.queue_draw();
@@ -227,15 +229,14 @@ impl ToolImplImpl for PanningToolInner {
                         };
                         let mut action = glyph_state.new_guideline(angle, position);
                         (action.redo)();
-                        let app: &crate::Application = crate::Application::from_instance(
-                            view.imp()
-                                .app
-                                .get()
-                                .unwrap()
-                                .downcast_ref::<crate::GerbApp>()
-                                .unwrap(),
-                        );
-                        let undo_db = app.undo_db.borrow_mut();
+                        let app: &crate::Application = view
+                            .imp()
+                            .app
+                            .get()
+                            .unwrap()
+                            .downcast_ref::<crate::Application>()
+                            .unwrap();
+                        let undo_db = app.imp().undo_db.borrow_mut();
                         undo_db.event(action);
                     }
                 }
@@ -443,6 +444,9 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
             }
             Mode::Drag if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                view.imp()
+                    .action_group
+                    .change_action_state(GlyphEditView::LOCK_ACTION, &Lock::empty().to_variant());
                 self.mode.set(Mode::None);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -560,9 +564,8 @@ impl ToolImplImpl for PanningToolInner {
                 view.imp().hovering.set(None);
                 viewport.queue_draw();
             }
-            if let Some(((i, j), curve)) = glyph.on_curve_query(position, &pts) {
+            if let Some(((i, j), _curve)) = glyph.on_curve_query(position, &pts) {
                 viewport.set_cursor("grab");
-                view.imp().new_statusbar_message(&format!("{:?}", curve));
                 view.imp().hovering.set(Some((i, j)));
                 viewport.queue_draw();
             } else {
@@ -578,6 +581,15 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
+                match Lock::from_bits(view.property(GlyphEditView::LOCK)) {
+                    Some(Lock::X) => {
+                        delta.y = 0.0;
+                    }
+                    Some(Lock::Y) => {
+                        delta.x = 0.0;
+                    }
+                    _ => {}
+                }
                 let mut m = Matrix::identity();
                 m.translate(delta.x, delta.y);
                 glyph_state.transform_selection(m, true);
@@ -587,6 +599,15 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
+                match Lock::from_bits(view.property(GlyphEditView::LOCK)) {
+                    Some(Lock::X) => {
+                        delta.y = 0.0;
+                    }
+                    Some(Lock::Y) => {
+                        delta.x = 0.0;
+                    }
+                    _ => {}
+                }
                 let mut m = gtk::cairo::Matrix::identity();
                 m.translate(delta.x, delta.y);
                 glyph_state.transform_guideline(idx, m, 0.0);

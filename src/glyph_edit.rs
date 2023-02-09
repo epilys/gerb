@@ -46,29 +46,7 @@ mod layers;
 mod menu;
 mod tools;
 
-use tools::{PanningTool, Tool, ToolImpl};
-
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
-pub enum SelectionModifier {
-    #[default]
-    Replace,
-    Add,
-    Remove,
-}
-
-impl From<gtk::gdk::ModifierType> for SelectionModifier {
-    fn from(modifier: gtk::gdk::ModifierType) -> SelectionModifier {
-        if modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
-            if modifier.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
-                SelectionModifier::Remove
-            } else {
-                SelectionModifier::Add
-            }
-        } else {
-            SelectionModifier::default()
-        }
-    }
-}
+use tools::{PanningTool, SelectionModifier, Tool, ToolImpl};
 
 #[derive(Debug, Clone)]
 pub struct GlyphState {
@@ -109,7 +87,7 @@ impl GlyphState {
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: "contour",
+                property: Contour::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
             },
             compress: false,
@@ -148,7 +126,7 @@ impl GlyphState {
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
+                property: Guideline::static_type().name(),
                 id: Box::new([]),
             },
             compress: false,
@@ -174,7 +152,7 @@ impl GlyphState {
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
+                property: Guideline::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
             },
             compress: false,
@@ -194,9 +172,8 @@ impl GlyphState {
     }
 
     fn add_undo_action(&self, action: crate::Action) {
-        let app: &crate::Application =
-            crate::Application::from_instance(self.app.downcast_ref::<crate::GerbApp>().unwrap());
-        app.undo_db.borrow_mut().event(action);
+        let app: &crate::Application = self.app.downcast_ref::<crate::Application>().unwrap();
+        app.imp().undo_db.borrow_mut().event(action);
     }
 
     fn transform_guideline(&self, idx: usize, m: Matrix, dangle: f64) {
@@ -204,7 +181,7 @@ impl GlyphState {
         let mut action = crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: "guideline",
+                property: Guideline::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
             },
             compress: true,
@@ -255,7 +232,7 @@ impl GlyphState {
         crate::Action {
             stamp: crate::EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: "point",
+                property: Point::static_type().name(),
                 id: idxs_
                     .iter()
                     .map(GlyphPointIndex::as_bytes)
@@ -326,6 +303,8 @@ impl GlyphState {
     }
 }
 
+type StatusBarMessage = u32;
+
 #[derive(Debug, Default)]
 pub struct GlyphEditViewInner {
     app: OnceCell<gtk::Application>,
@@ -348,8 +327,10 @@ pub struct GlyphEditViewInner {
     show_metrics_guidelines: Cell<bool>,
     settings: OnceCell<Settings>,
     menubar: gtk::MenuBar,
-    preview: Cell<bool>,
+    preview: Cell<Option<StatusBarMessage>>,
     ctrl: OnceCell<gtk::EventControllerKey>,
+    action_group: gio::SimpleActionGroup,
+    lock: Cell<(Option<StatusBarMessage>, tools::constraints::Lock)>,
 }
 
 #[glib::object_subclass]
@@ -365,20 +346,34 @@ impl ObjectImpl for GlyphEditViewInner {
         self.lock_guidelines.set(true);
         let ctrl = gtk::EventControllerKey::new(obj);
         ctrl.connect_key_pressed(
-            clone!(@weak obj => @default-return false, move |_self, keyval, _, _| {
-                if gtk::gdk::keys::Key::from(keyval) == gtk::gdk::keys::constants::grave {
-                    obj.set_property(GlyphEditView::PREVIEW, true);
-                    true
-                } else {
-                    false
+            clone!(@weak self.action_group as action_group => @default-return false, move |_self, keyval, _, _| {
+                let key = gtk::gdk::keys::Key::from(keyval);
+                match key {
+                    gtk::gdk::keys::constants::grave if action_group.is_action_enabled(GlyphEditView::PREVIEW_ACTION) => {
+                        action_group.change_action_state(GlyphEditView::PREVIEW_ACTION, &true.to_variant());
+                    },
+                    gtk::gdk::keys::constants::X if action_group.is_action_enabled(GlyphEditView::LOCK_ACTION) => {
+                        action_group.activate_action(GlyphEditView::LOCK_X_ACTION, None);
+                    }
+                    gtk::gdk::keys::constants::Y if action_group.is_action_enabled(GlyphEditView::LOCK_ACTION) => {
+                        action_group.activate_action(GlyphEditView::LOCK_Y_ACTION, None);
+                    }
+                    _ => return false,
+                }
+                true
+            }),
+        );
+        ctrl.connect_key_released(
+            clone!(@weak self.action_group as action_group => move |_self, keyval, _,  _| {
+                let key = gtk::gdk::keys::Key::from(keyval);
+                match key {
+                    gtk::gdk::keys::constants::grave if action_group.is_action_enabled(GlyphEditView::PREVIEW_ACTION) => {
+                        action_group.change_action_state(GlyphEditView::PREVIEW_ACTION, &false.to_variant());
+                    },
+                    _ => {},
                 }
             }),
         );
-        ctrl.connect_key_released(clone!(@weak obj => move |_self, keyval, _,  _| {
-            if gtk::gdk::keys::Key::from(keyval) == gtk::gdk::keys::constants::grave {
-                obj.set_property(GlyphEditView::PREVIEW, false);
-            }
-        }));
         self.ctrl.set(ctrl).unwrap();
         self.show_glyph_guidelines.set(true);
         self.show_project_guidelines.set(true);
@@ -466,7 +461,6 @@ impl ObjectImpl for GlyphEditViewInner {
         obj.set_visible(true);
         obj.set_expand(true);
         obj.set_can_focus(true);
-        self.setup_menu(obj);
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -595,6 +589,15 @@ impl ObjectImpl for GlyphEditViewInner {
                         gtk::MenuBar::static_type(),
                         ParamFlags::READWRITE,
                     ),
+                    glib::ParamSpecUInt::new(
+                        GlyphEditView::LOCK,
+                        GlyphEditView::LOCK,
+                        "Lock transformation movement to specific axes.",
+                        0,
+                        u32::MAX,
+                        0,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -615,7 +618,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 }
             }
             GlyphEditView::CLOSEABLE => true.to_value(),
-            GlyphEditView::PREVIEW => self.preview.get().to_value(),
+            GlyphEditView::PREVIEW => self.preview.get().is_some().to_value(),
             GlyphEditView::IS_MENU_VISIBLE => true.to_value(),
             GlyphEditView::UNITS_PER_EM => self.units_per_em.get().to_value(),
             GlyphEditView::X_HEIGHT => self.x_height.get().to_value(),
@@ -637,6 +640,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 state.tools.get(&panning_tool).map(Clone::clone).to_value()
             }
             GlyphEditView::MENUBAR => Some(self.menubar.clone()).to_value(),
+            GlyphEditView::LOCK => self.lock.get().1.bits().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -671,8 +675,39 @@ impl ObjectImpl for GlyphEditViewInner {
                 self.show_metrics_guidelines.set(value.get().unwrap());
             }
             GlyphEditView::PREVIEW => {
-                self.preview.set(value.get().unwrap());
+                let v: bool = value.get().unwrap();
+                if let Some(mid) = self.preview.get() {
+                    if v {
+                        return;
+                    }
+                    self.pop_statusbar_message(Some(mid));
+                    self.preview.set(None);
+                } else {
+                    if !v {
+                        return;
+                    }
+                    self.preview.set(self.new_statusbar_message("Preview."));
+                }
                 self.viewport.queue_draw();
+            }
+            GlyphEditView::LOCK => {
+                if let Some(v) = value
+                    .get::<u32>()
+                    .ok()
+                    .and_then(tools::constraints::Lock::from_bits)
+                {
+                    let (msg, _) = self.lock.get();
+                    if msg.is_some() {
+                        self.pop_statusbar_message(msg);
+                    }
+                    let new_msg = if v.is_empty() {
+                        None
+                    } else {
+                        self.new_statusbar_message(v.as_str())
+                    };
+                    self.lock.set((new_msg, v));
+                    self.viewport.queue_draw();
+                }
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -684,13 +719,13 @@ impl ContainerImpl for GlyphEditViewInner {}
 impl BinImpl for GlyphEditViewInner {}
 
 impl GlyphEditViewInner {
-    fn new_statusbar_message(&self, msg: &str) {
+    fn new_statusbar_message(&self, msg: &str) -> Option<StatusBarMessage> {
         if let Some(app) = self
             .app
             .get()
-            .and_then(|app| app.downcast_ref::<crate::GerbApp>())
+            .and_then(|app| app.downcast_ref::<crate::Application>())
         {
-            let statusbar = app.statusbar();
+            let statusbar = app.imp().statusbar();
             if self.statusbar_context_id.get().is_none() {
                 self.statusbar_context_id.set(Some(
                     statusbar
@@ -698,7 +733,25 @@ impl GlyphEditViewInner {
                 ));
             }
             if let Some(cid) = self.statusbar_context_id.get().as_ref() {
-                statusbar.push(*cid, msg);
+                return Some(statusbar.push(*cid, msg));
+            }
+        }
+        None
+    }
+
+    fn pop_statusbar_message(&self, msg: Option<StatusBarMessage>) {
+        if let Some(app) = self
+            .app
+            .get()
+            .and_then(|app| app.downcast_ref::<crate::Application>())
+        {
+            let statusbar = app.imp().statusbar();
+            if let Some(cid) = self.statusbar_context_id.get().as_ref() {
+                if let Some(mid) = msg {
+                    gtk::prelude::StatusbarExt::remove(&statusbar, *cid, mid);
+                } else {
+                    statusbar.pop(*cid);
+                }
             }
         }
     }
@@ -707,7 +760,7 @@ impl GlyphEditViewInner {
         if let Some(_app) = self
             .app
             .get()
-            .and_then(|app| app.downcast_ref::<crate::GerbApp>())
+            .and_then(|app| app.downcast_ref::<crate::Application>())
         {
             //let tabinfo = app.tabinfo();
             //tabinfo.set_object(new_obj);
@@ -737,6 +790,17 @@ impl GlyphEditView {
     pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
+    pub const LOCK: &str = "lock";
+    pub const PREVIEW_ACTION: &str = Self::PREVIEW;
+    pub const ZOOM_IN_ACTION: &str = "zoom.in";
+    pub const ZOOM_OUT_ACTION: &str = "zoom.out";
+    pub const LOCK_ACTION: &str = Self::LOCK;
+    pub const LOCK_X_ACTION: &str = "lock.x";
+    pub const LOCK_Y_ACTION: &str = "lock.y";
+    pub const LOCK_LOCAL_ACTION: &str = "lock.local";
+    pub const LOCK_CONTROLS_ACTION: &str = "lock.controls";
+    pub const PRECISION_ACTION: &str = "precision";
+    pub const SNAP_ACTION: &str = "snap";
 
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
@@ -768,7 +832,7 @@ impl GlyphEditView {
                 .build();
         }
         let settings = app
-            .downcast_ref::<crate::GerbApp>()
+            .downcast_ref::<crate::Application>()
             .unwrap()
             .imp()
             .settings
@@ -791,7 +855,6 @@ impl GlyphEditView {
             );
         }
         ret.imp().settings.set(settings).unwrap();
-        let action_map = gio::SimpleActionGroup::new();
         for prop in [
             Canvas::SHOW_GRID,
             Canvas::SHOW_GUIDELINES,
@@ -800,26 +863,31 @@ impl GlyphEditView {
             Canvas::SHOW_TOTAL_AREA,
         ] {
             let prop_action = gio::PropertyAction::new(prop, &ret.imp().viewport, prop);
-            action_map.add_action(&prop_action);
+            ret.imp().action_group.add_action(&prop_action);
+        }
+        {
+            let prop_action = gio::PropertyAction::new(Self::PREVIEW_ACTION, &ret, Self::PREVIEW);
+            ret.imp().action_group.add_action(&prop_action);
         }
         for (zoom_action, tool_func) in [
             (
-                "zoom.in",
+                Self::ZOOM_IN_ACTION,
                 &Transformation::zoom_in as &dyn Fn(&Transformation) -> bool,
             ),
-            ("zoom.out", &Transformation::zoom_out),
+            (Self::ZOOM_OUT_ACTION, &Transformation::zoom_out),
         ] {
             let action = gio::SimpleAction::new(zoom_action, None);
             action.connect_activate(glib::clone!(@weak ret as obj => move |_, _| {
                 let t = &obj.imp().viewport.imp().transformation;
                 tool_func(t);
             }));
-            action_map.add_action(&action);
+            ret.imp().action_group.add_action(&action);
         }
-        ret.insert_action_group("view", Some(&action_map));
+        tools::constraints::create_constraint_actions(&ret);
+        ret.insert_action_group("view", Some(&ret.imp().action_group));
         ret.imp()
             .menubar
-            .insert_action_group("view", Some(&action_map));
+            .insert_action_group("view", Some(&ret.imp().action_group));
         ret.imp()
             .glyph_state
             .set(Rc::new(RefCell::new(GlyphState::new(
@@ -830,6 +898,7 @@ impl GlyphEditView {
             .expect("Failed to create glyph state");
         Tool::setup_toolbox(&ret);
         ret.imp().project.set(project).unwrap();
+        ret.imp().setup_menu(&ret);
         ret
     }
 }

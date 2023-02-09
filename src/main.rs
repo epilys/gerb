@@ -37,7 +37,7 @@ pub mod utils;
 pub(crate) use utils::UI_EDITABLE;
 pub mod views;
 pub mod window;
-use app::GerbApp;
+use app::Application;
 use gtk::subclass::prelude::ObjectSubclassIsExt;
 pub use window::Workspace;
 
@@ -47,7 +47,7 @@ pub const APPLICATION_ID: &str = "com.epilys.gerb";
 fn main() {
     gtk::init().expect("Failed to initialize gtk");
 
-    let app = GerbApp::new();
+    let app = Application::new();
     app.add_main_option(
         "ufo",
         gtk::glib::Char('u' as i8),

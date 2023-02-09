@@ -822,7 +822,7 @@ impl GlyphBox {
             .app
             .get()
             .unwrap()
-            .downcast_ref::<crate::GerbApp>()
+            .downcast_ref::<crate::Application>()
             .unwrap()
             .imp()
             .window

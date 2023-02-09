@@ -114,6 +114,7 @@ pub struct WindowInner {
     pub headerbar: gtk::HeaderBar,
     pub statusbar: gtk::Statusbar,
     pub notebook: gtk::Notebook,
+    pub action_group: gtk::gio::SimpleActionGroup,
 }
 
 #[glib::object_subclass]
@@ -206,7 +207,6 @@ impl ObjectImpl for WindowInner {
 
             None
         }));
-
         *self.project.borrow_mut() = Project::new();
     }
 
@@ -278,17 +278,47 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
         notebook.set_tab_label(widget, Some(&tab_label));
     }
     notebook.set_tab_reorderable(widget, reorderable);
-    let mut children_no = 0;
-    notebook.foreach(|_| {
-        children_no += 1;
-    });
-    notebook.set_page(children_no - 1);
+    notebook.set_page(notebook.n_pages() as i32 - 1);
     widget.grab_focus();
     notebook.queue_draw();
     widget.queue_draw();
 }
 
 impl WindowInner {
+    pub fn setup_actions(&self) {
+        let action_group = &self.action_group;
+        let next_tab = gtk::gio::SimpleAction::new("next_tab", None);
+        next_tab.connect_activate(glib::clone!(@weak self.notebook as obj => move |_, _| {
+            let Some(cur) = obj.current_page() else { return; };
+            let n = obj.n_pages() as i32;
+            obj.set_page((cur as i32 + 1) % n);
+        }));
+        action_group.add_action(&next_tab);
+        let prev_tab = gtk::gio::SimpleAction::new("prev_tab", None);
+        prev_tab.connect_activate(glib::clone!(@weak self.notebook as obj => move |_, _| {
+            let Some(cur) = obj.current_page() else { return; };
+            let n = obj.n_pages() as i32;
+            obj.set_page((cur as i32 + n - 1) % n);
+        }));
+        self.notebook.connect_page_added(
+            clone!(@weak next_tab, @weak prev_tab => move |self_, _, _| {
+                let enabled = self_.n_pages() as i32 > 1;
+                next_tab.set_enabled(enabled);
+                prev_tab.set_enabled(enabled);
+            }),
+        );
+        self.notebook.connect_page_removed(
+            clone!(@weak next_tab, @weak prev_tab => move |self_, _, _| {
+                let enabled = self_.n_pages() as i32 > 1;
+                next_tab.set_enabled(enabled);
+                prev_tab.set_enabled(enabled);
+            }),
+        );
+        action_group.add_action(&prev_tab);
+        self.instance()
+            .insert_action_group("win", Some(action_group));
+    }
+
     pub fn load_project(&self, project: Project) {
         project
             .bind_property("name", &self.headerbar, "subtitle")

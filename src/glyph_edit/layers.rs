@@ -36,16 +36,11 @@ pub fn draw_glyph_layer(
         .imp()
         .transformation
         .property::<f64>(Transformation::PIXELS_PER_UNIT);
-    let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
-    let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
     let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
     let matrix = viewport.imp().transformation.matrix();
 
     let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-    let mouse = viewport.get_mouse();
-    let unit_mouse = viewport.view_to_unit_point(mouse);
-    let ViewPoint(view_camera) = viewport.imp().transformation.camera();
     let UnitPoint(camera) = viewport.view_to_unit_point(viewport.imp().transformation.camera());
 
     cr.save().unwrap();
@@ -64,7 +59,16 @@ pub fn draw_glyph_layer(
         cr.stroke().unwrap();
     }
 
-    obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
+    /*
+        {
+            let mouse = viewport.get_mouse();
+            let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
+            let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
+            let unit_mouse = viewport.view_to_unit_point(mouse);
+            let ViewPoint(view_camera) = viewport.imp().transformation.camera();
+            obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
+        }
+    */
 
     cr.restore().unwrap();
 
