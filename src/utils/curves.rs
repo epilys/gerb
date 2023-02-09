@@ -43,6 +43,7 @@ pub struct BezierInner {
     pub smooth: Cell<bool>,
     pub points: Rc<RefCell<Vec<CurvePoint>>>,
     pub lut: Rc<RefCell<Vec<Point>>>,
+    pub emptiest_t: Cell<Option<(f64, Point)>>,
 }
 
 impl std::fmt::Debug for BezierInner {
@@ -409,5 +410,59 @@ impl Bezier {
             }
             _ => {}
         }
+    }
+
+    pub fn emptiest_t(&self, starting_t: f64) -> (f64, Point) {
+        use rand::distributions::{Distribution, Uniform};
+
+        if let Some(ret) = self.imp().emptiest_t.get() {
+            return ret;
+        }
+
+        // Evaluate candidate𝑡 by trying to minimise the difference of distances of the two closest
+        // control points to the on-curve point of𝑡.
+        fn eval(curv: &Bezier, p: Point) -> f64 {
+            let pts = curv.points().borrow();
+            let mut ds = pts
+                .iter()
+                .map(|cp| p.distance(cp.position))
+                .collect::<Vec<f64>>();
+            ds.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            (ds[0] - ds[1]).abs()
+        }
+
+        let mut curr_t = starting_t;
+        let mut curr_p = self.compute(starting_t);
+        let mut curr_eval = eval(self, curr_p);
+        let mut best = curr_eval;
+
+        let mut rng = rand::thread_rng();
+        let die = Uniform::from(0.0..=1.0);
+        let step_size = 0.1;
+
+        let initial_temp = 10.0;
+
+        for i in 1..1001 {
+            let throw = die.sample(&mut rng);
+            let candidate = (curr_t + throw * step_size).clamp(0.0, 1.0);
+            let c_point = self.compute(candidate);
+            let c_eval = eval(self, c_point);
+
+            if c_eval < best {
+                best = c_eval;
+            }
+
+            let diff = c_eval - curr_eval;
+            let temperature = initial_temp / (i as f64);
+            let metropolis = (-diff / temperature).exp();
+            if diff < 0.0 || rand::random::<f64>() < metropolis {
+                curr_t = candidate;
+                curr_eval = c_eval;
+                curr_p = c_point;
+            }
+        }
+
+        self.imp().emptiest_t.set(Some((curr_t, curr_p)));
+        (curr_t, curr_p)
     }
 }

@@ -442,8 +442,7 @@ impl Glyph {
             };
             let draw_tangent = |curv: &Bezier| {
                 if let Some(opts) = direction_arrow {
-                    let t = 0.3;
-                    let p = curv.compute(t);
+                    let (t, p) = curv.emptiest_t(0.3);
                     let tangent = curv.tangent(t);
                     cr.save().unwrap();
                     cr.set_source_color_alpha(opts.color);
