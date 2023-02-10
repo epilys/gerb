@@ -331,6 +331,7 @@ pub struct GlyphEditViewInner {
     ctrl: OnceCell<gtk::EventControllerKey>,
     action_group: gio::SimpleActionGroup,
     lock: Cell<(Option<StatusBarMessage>, tools::constraints::Lock)>,
+    snap: Cell<(Option<StatusBarMessage>, tools::constraints::Snap)>,
 }
 
 #[glib::object_subclass]
@@ -346,17 +347,32 @@ impl ObjectImpl for GlyphEditViewInner {
         self.lock_guidelines.set(true);
         let ctrl = gtk::EventControllerKey::new(obj);
         ctrl.connect_key_pressed(
-            clone!(@weak self.action_group as action_group => @default-return false, move |_self, keyval, _, _| {
-                let key = gtk::gdk::keys::Key::from(keyval);
+            clone!(@weak self.action_group as group => @default-return false, move |_self, keyval, _, _| {
+                use gtk::gdk::keys::{Key, constants as c};
+                use GlyphEditView as A;
+
+                let key = Key::from(keyval);
                 match key {
-                    gtk::gdk::keys::constants::grave if action_group.is_action_enabled(GlyphEditView::PREVIEW_ACTION) => {
-                        action_group.change_action_state(GlyphEditView::PREVIEW_ACTION, &true.to_variant());
+                    c::grave if group.is_action_enabled(A::PREVIEW_ACTION) => {
+                        group.change_action_state(A::PREVIEW_ACTION, &true.to_variant());
                     },
-                    gtk::gdk::keys::constants::X if action_group.is_action_enabled(GlyphEditView::LOCK_ACTION) => {
-                        action_group.activate_action(GlyphEditView::LOCK_X_ACTION, None);
+                    c::x if group.is_action_enabled(A::LOCK_ACTION) => {
+                        group.activate_action(A::LOCK_X_ACTION, None);
                     }
-                    gtk::gdk::keys::constants::Y if action_group.is_action_enabled(GlyphEditView::LOCK_ACTION) => {
-                        action_group.activate_action(GlyphEditView::LOCK_Y_ACTION, None);
+                    c::y if group.is_action_enabled(A::LOCK_ACTION) => {
+                        group.activate_action(A::LOCK_Y_ACTION, None);
+                    }
+                    c::A if group.is_action_enabled(A::SNAP_ACTION) => {
+                        group.activate_action(A::SNAP_ANGLE_ACTION, None);
+                    }
+                    c::G if group.is_action_enabled(A::SNAP_ACTION) => {
+                        group.activate_action(A::SNAP_GRID_ACTION, None);
+                    }
+                    c::L if group.is_action_enabled(A::SNAP_ACTION) => {
+                        group.activate_action(A::SNAP_GUIDELINES_ACTION, None);
+                    }
+                    c::M if group.is_action_enabled(A::SNAP_ACTION) => {
+                        group.activate_action(A::SNAP_METRICS_ACTION, None);
                     }
                     _ => return false,
                 }
@@ -364,11 +380,14 @@ impl ObjectImpl for GlyphEditViewInner {
             }),
         );
         ctrl.connect_key_released(
-            clone!(@weak self.action_group as action_group => move |_self, keyval, _,  _| {
-                let key = gtk::gdk::keys::Key::from(keyval);
+            clone!(@weak self.action_group as group => move |_self, keyval, _,  _| {
+                use gtk::gdk::keys::{Key, constants as c};
+                use GlyphEditView as A;
+
+                let key = Key::from(keyval);
                 match key {
-                    gtk::gdk::keys::constants::grave if action_group.is_action_enabled(GlyphEditView::PREVIEW_ACTION) => {
-                        action_group.change_action_state(GlyphEditView::PREVIEW_ACTION, &false.to_variant());
+                    c::grave if group.is_action_enabled(A::PREVIEW_ACTION) => {
+                        group.change_action_state(A::PREVIEW_ACTION, &false.to_variant());
                     },
                     _ => {},
                 }
@@ -598,6 +617,15 @@ impl ObjectImpl for GlyphEditViewInner {
                         0,
                         ParamFlags::READWRITE,
                     ),
+                    glib::ParamSpecUInt::new(
+                        GlyphEditView::SNAP,
+                        GlyphEditView::SNAP,
+                        "Snap transformation movement to specific references.",
+                        0,
+                        u32::MAX,
+                        0,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -641,6 +669,7 @@ impl ObjectImpl for GlyphEditViewInner {
             }
             GlyphEditView::MENUBAR => Some(self.menubar.clone()).to_value(),
             GlyphEditView::LOCK => self.lock.get().1.bits().to_value(),
+            GlyphEditView::SNAP => self.snap.get().1.bits().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -706,6 +735,25 @@ impl ObjectImpl for GlyphEditViewInner {
                         self.new_statusbar_message(v.as_str())
                     };
                     self.lock.set((new_msg, v));
+                    self.viewport.queue_draw();
+                }
+            }
+            GlyphEditView::SNAP => {
+                if let Some(v) = value
+                    .get::<u32>()
+                    .ok()
+                    .and_then(tools::constraints::Snap::from_bits)
+                {
+                    let (msg, _) = self.snap.get();
+                    if msg.is_some() {
+                        self.pop_statusbar_message(msg);
+                    }
+                    let new_msg = if v.is_empty() {
+                        None
+                    } else {
+                        self.new_statusbar_message(v.as_str())
+                    };
+                    self.snap.set((new_msg, v));
                     self.viewport.queue_draw();
                 }
             }
@@ -791,6 +839,7 @@ impl GlyphEditView {
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
     pub const LOCK: &str = "lock";
+    pub const SNAP: &str = "snap";
     pub const PREVIEW_ACTION: &str = Self::PREVIEW;
     pub const ZOOM_IN_ACTION: &str = "zoom.in";
     pub const ZOOM_OUT_ACTION: &str = "zoom.out";
@@ -800,7 +849,12 @@ impl GlyphEditView {
     pub const LOCK_LOCAL_ACTION: &str = "lock.local";
     pub const LOCK_CONTROLS_ACTION: &str = "lock.controls";
     pub const PRECISION_ACTION: &str = "precision";
-    pub const SNAP_ACTION: &str = "snap";
+    pub const SNAP_ACTION: &str = Self::SNAP;
+    pub const SNAP_CLEAR_ACTION: &str = "snap.clear";
+    pub const SNAP_ANGLE_ACTION: &str = "snap.angle";
+    pub const SNAP_GRID_ACTION: &str = "snap.grid";
+    pub const SNAP_GUIDELINES_ACTION: &str = "snap.guidelines";
+    pub const SNAP_METRICS_ACTION: &str = "snap.metrics";
 
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();

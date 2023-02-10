@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{constraints::*, tool_impl::*, SelectionModifier};
+use super::{constraints::*, tool_impl::*, GlyphState, SelectionModifier};
 
 use crate::GlyphEditView;
 use crate::{
@@ -181,7 +181,6 @@ impl ToolImplImpl for PanningToolInner {
                 if event_button == gtk::gdk::BUTTON_PRIMARY =>
             {
                 Lock::clear(&view);
-                Snap::clear(&view);
                 Precision::clear(&view);
                 self.mode.set(Mode::None);
                 view.imp().hovering.set(None);
@@ -591,7 +590,23 @@ impl ToolImplImpl for PanningToolInner {
                     _ => {}
                 }
                 let mut m = Matrix::identity();
-                m.translate(delta.x, delta.y);
+                if let Some(snap_delta) = Snap::from_bits(view.property(GlyphEditView::SNAP))
+                    .filter(|s| !s.is_empty())
+                    .and_then(|snap| {
+                        snap_to_closest_anchor(
+                            &glyph_state,
+                            viewport.view_to_unit_point(mouse).0, // We want to check the
+                            // transformed point's distance
+                            // from guidelines etc... what's
+                            // the best way to do that? FIXME
+                            snap,
+                        )
+                    })
+                {
+                    m.translate(snap_delta.x, snap_delta.y);
+                } else {
+                    m.translate(delta.x, delta.y);
+                }
                 glyph_state.transform_selection(m, true);
             }
             Mode::DragGuideline(idx) => {
@@ -828,4 +843,50 @@ impl PanningTool {
 
         Inhibit(true)
     }
+}
+
+fn snap_to_closest_anchor(glyph_state: &GlyphState, mouse_pos: Point, snap: Snap) -> Option<Point> {
+    type Distance = f64;
+
+    if snap == Snap::EMPTY {
+        return None;
+    }
+
+    let mut candidates: Vec<(Point, Distance)> = vec![];
+    if snap.intersects(Snap::ANGLE) {
+        //todo
+    }
+    if snap.intersects(Snap::GRID) {
+        //todo
+    }
+    if snap.intersects(Snap::GUIDELINES) {
+        // d = |cos(θˆ)⋅(Pₗᵧ - yₚ) - sin(θˆ)⋅(Pₗₓ - Pₓ)|
+        // FIXME: broken.
+        for g in glyph_state.glyph.borrow().guidelines.iter() {
+            let angle = g.imp().angle.get().to_radians();
+            let (x, y) = (g.imp().x.get(), g.imp().y.get());
+            let (sin, cos) = angle.sin_cos();
+            let d = (cos * (y - mouse_pos.y) - sin * (x - mouse_pos.x)).abs();
+            if d <= 10.0 {
+                let slope = angle.tan();
+                let (a, b, c) = (slope, -1.0, -slope * x - y);
+                if a == 0.0 {
+                    let mx = mouse_pos.x;
+                    let my = y;
+                    candidates.push(((mx, my).into(), d));
+                } else {
+                    let b2a = (b * b) / a;
+                    let mx = (b2a * x as f64 - c - b * y as f64) / (a + b2a);
+                    let my = (-a * mx - c) / b;
+                    candidates.push(((mx, my).into(), d));
+                }
+            }
+            //eprintln!("Guideline {:?} distance = {d}", g.imp().identifier);
+        }
+    }
+    if snap.intersects(Snap::METRICS) {
+        //todo
+    }
+    candidates.sort_by(|(_, a), (_, b)| a.total_cmp(b));
+    candidates.get(0).map(|(p, _)| *p - mouse_pos)
 }

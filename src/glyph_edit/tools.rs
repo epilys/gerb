@@ -429,14 +429,56 @@ pub mod constraints {
         const ACTION_NAME: &str = GlyphEditView::PRECISION_ACTION;
     }
 
+    #[derive(Default)]
     #[glib::flags(name = "Snap")]
     pub enum Snap {
+        #[default]
+        #[flags_skip]
+        EMPTY = 0,
         #[flags_value(name = "Snap to angle", nick = "angle")]
         ANGLE = 0b00000001,
+        #[flags_value(name = "Snap to grid", nick = "grid")]
+        GRID = 0b00000010,
+        #[flags_value(name = "Snap to guidelines", nick = "guideline")]
+        GUIDELINES = 0b00000100,
+        #[flags_value(name = "Snap to metrics", nick = "metrics")]
+        METRICS = 0b00001000,
     }
 
     impl Snap {
         const ACTION_NAME: &str = GlyphEditView::SNAP_ACTION;
+
+        pub fn as_str(&self) -> &'static str {
+            match *self {
+                Self::EMPTY => "",
+                Self::ANGLE => "Snap to angles.",
+                v if v == Self::ANGLE | Self::GRID => "Snap to angles, grid.",
+                v if v == Self::ANGLE | Self::GUIDELINES => "Snap to angles, guidelines.",
+                v if v == Self::ANGLE | Self::GRID | Self::GUIDELINES => {
+                    "Snap to angles, grid, guidelines."
+                }
+                v if v == Self::ANGLE | Self::GRID | Self::GUIDELINES | Self::METRICS => {
+                    "Snap to angles, grid, guidelines, glyph metrics."
+                }
+                v if v == Self::ANGLE | Self::GRID | Self::METRICS => {
+                    "Snap to angles, grid, glyph metrics."
+                }
+                v if v == Self::ANGLE | Self::GUIDELINES | Self::METRICS => {
+                    "Snap to angles, guidelines, glyph metrics."
+                }
+                v if v == Self::ANGLE | Self::METRICS => "Snap to angles, glyph metrics.",
+                v if v == Self::GRID | Self::GUIDELINES | Self::METRICS => {
+                    "Snap to grid, guidelines, glyph metrics."
+                }
+                v if v == Self::GRID | Self::GUIDELINES => "Snap to grid, guidelines.",
+                v if v == Self::GRID | Self::METRICS => "Snap to grid, glyph metrics.",
+                v if v == Self::GRID => "Snap to grid.",
+                v if v == Self::GUIDELINES | Self::METRICS => "Snap to guidelines, glyph metrics.",
+                v if v == Self::GUIDELINES => "Snap to guidelines.",
+                v if v == Self::METRICS => "Snap to glyph metrics.",
+                other => unreachable!("{other:?}"),
+            }
+        }
     }
 
     macro_rules! impl_methods {
@@ -524,5 +566,28 @@ pub mod constraints {
             obj.imp().action_group.add_action(&change_opt);
         }
         obj.imp().action_group.add_action(&lock);
+
+        let snap = gio::PropertyAction::new(GlyphEditView::SNAP_ACTION, obj, GlyphEditView::SNAP);
+        for (name, anchor) in [
+            (GlyphEditView::SNAP_ANGLE_ACTION, Snap::ANGLE),
+            (GlyphEditView::SNAP_GRID_ACTION, Snap::GRID),
+            (GlyphEditView::SNAP_GUIDELINES_ACTION, Snap::GUIDELINES),
+            (GlyphEditView::SNAP_METRICS_ACTION, Snap::METRICS),
+        ] {
+            let toggle_anchor = gio::SimpleAction::new(name, None);
+            toggle_anchor.connect_activate(glib::clone!(@weak obj, @weak snap => move |_, _| {
+                let Some(state) = snap.state() else { return; };
+                let Some(mut snap_flags) = state.get::<Snap>() else { return; };
+                snap_flags.toggle(anchor);
+                snap.change_state(&snap_flags.to_variant());
+            }));
+            obj.imp().action_group.add_action(&toggle_anchor);
+        }
+        let clear_snap = gio::SimpleAction::new(GlyphEditView::SNAP_CLEAR_ACTION, None);
+        clear_snap.connect_activate(glib::clone!(@weak obj => move |_, _| {
+            Snap::clear(&obj);
+        }));
+        obj.imp().action_group.add_action(&clear_snap);
+        obj.imp().action_group.add_action(&snap);
     }
 }
