@@ -7,6 +7,8 @@
 
 `gerb` is an experimental, developed for fun GUI font editor. Still in prototype phase, it opens fonts in [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) format but hasn't implemented saving modifications or exporting to `otf`/`ttf` files yet.
 
+![./screenshot-small.png](./screenshot-small.png)
+
 ### Goals
 
 - Fun
@@ -22,16 +24,20 @@
 - [ ] be able to add/remove glyphs
 - [x] create new projects ([Tracking issue #4](https://github.com/epilys/gerb/issues/4))
 - [x] {un,re}do (event sourcing) ([Tracking issue #2](https://github.com/epilys/gerb/issues/2))
+- [x] import UFOv2
+- [x] import Glyphs
+- [ ] work with designspaces
 
 ## Running the demo
 
-Expects a folder "font.ufo" to be defined in the command line:
+You can open a UFOv3 project from the GUI or directly in the command line.
+Assuming the project directory is "/path/to/font.ufo":
 
 ```shell
-cargo run --release -- -u ./font.ufo
+cargo run --release -- -u /path/to/font.ufo
 ```
 
-I got mine from the `Regular` instance at the [Source Sans repository](https://github.com/adobe-fonts/source-sans).
+The screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).
 
 ![./screenshot.png](./screenshot.png)
 
