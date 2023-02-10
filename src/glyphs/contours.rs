@@ -230,6 +230,7 @@ impl Contour {
                 }
                 pts[i].position *= m;
                 updated!(curr_idx, pts[i]);
+                curr.imp().emptiest_t.set(None);
                 if i == 0 {
                     // Point is first oncurve point.
                     // also transform prev last oncurve point and its handle
@@ -249,6 +250,7 @@ impl Contour {
                             if !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 1].uuid)) {
                                 prev_points[pts_len - 1].position *= m;
                                 updated!(prev_idx, prev_points[pts_len - 1]);
+                                prev.imp().emptiest_t.set(None);
                             }
                             /* previous curve's last handle if it's not quadratic */
                             if pts_len > 2
@@ -256,6 +258,7 @@ impl Contour {
                             {
                                 prev_points[pts_len - 2].position *= m;
                                 updated!(prev_idx, prev_points[pts_len - 2]);
+                                prev.imp().emptiest_t.set(None);
                             }
                         }
                     }
@@ -278,6 +281,7 @@ impl Contour {
                             if !extra_uuids.contains(&(next_idx, next_points[0].uuid)) {
                                 next_points[0].position *= m;
                                 updated!(next_idx, next_points[0]);
+                                next.imp().emptiest_t.set(None);
                             }
                             /* next curve's first handle if it's not quadratic */
                             if pts_len > 2
@@ -285,6 +289,7 @@ impl Contour {
                             {
                                 next_points[1].position *= m;
                                 updated!(next_idx, next_points[1]);
+                                next.imp().emptiest_t.set(None);
                             }
                         }
                     }
@@ -312,6 +317,7 @@ impl Contour {
                             if pts_len > 2
                                 && !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 2].uuid))
                             {
+                                prev.imp().emptiest_t.set(None);
                                 match cont!(between (curr_idx) and next) {
                                     Continuity::Positional => {}
                                     Continuity::Velocity => {
@@ -335,6 +341,7 @@ impl Contour {
                         let pts_len = next_points.len();
                         assert!(!next_points.is_empty());
                         if pts_len > 2 && !extra_uuids.contains(&(next_idx, next_points[1].uuid)) {
+                            next.imp().emptiest_t.set(None);
                             match cont!(between (next_idx) and next) {
                                 Continuity::Positional => {}
                                 Continuity::Velocity => {
