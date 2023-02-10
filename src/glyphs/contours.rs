@@ -26,7 +26,7 @@ use std::cell::Cell;
 use std::collections::BTreeSet;
 
 glib::wrapper! {
-    pub struct Contour(ObjectSubclass<imp::Contour>);
+    pub struct Contour(ObjectSubclass<ContourInner>);
 }
 
 impl Default for Contour {
@@ -62,11 +62,23 @@ impl Contour {
             return;
         }
         let new_len = curve.approx_length();
-        if matches!(
-            self.imp().biggest_curve.get().map(|(_, len)| new_len > len),
-            Some(true) | None
-        ) {
-            self.imp().biggest_curve.set(Some((curves.len(), new_len)));
+        if let Some(mut b) = self
+            .imp()
+            .biggest_curve
+            .get()
+            .filter(
+                |&BiggestCurve {
+                     approx_length: len, ..
+                 }| new_len > len && (new_len - len).abs() < 0.05,
+            )
+            .or(Some(BiggestCurve {
+                index: curves.len(),
+                approx_length: new_len,
+                is_contour_modified: false,
+            }))
+        {
+            b.is_contour_modified = false;
+            self.imp().biggest_curve.set(Some(b));
         }
 
         if curves.is_empty() {
@@ -159,7 +171,17 @@ impl Contour {
         idxs_slice: &[GlyphPointIndex],
         m: Matrix,
     ) -> Vec<(GlyphPointIndex, Point)> {
-        self.imp().biggest_curve.set(None);
+        if let Some(
+            mut b @ BiggestCurve {
+                is_contour_modified: false,
+                ..
+            },
+        ) = self.imp().biggest_curve.get()
+        {
+            b.is_contour_modified = true;
+            self.imp().biggest_curve.set(Some(b));
+        }
+
         let uuids = idxs_slice
             .iter()
             .filter(|i| i.contour_index == contour_index)
@@ -230,7 +252,7 @@ impl Contour {
                 }
                 pts[i].position *= m;
                 updated!(curr_idx, pts[i]);
-                curr.imp().emptiest_t.set(None);
+                curr.set_modified();
                 if i == 0 {
                     // Point is first oncurve point.
                     // also transform prev last oncurve point and its handle
@@ -250,7 +272,7 @@ impl Contour {
                             if !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 1].uuid)) {
                                 prev_points[pts_len - 1].position *= m;
                                 updated!(prev_idx, prev_points[pts_len - 1]);
-                                prev.imp().emptiest_t.set(None);
+                                prev.set_modified();
                             }
                             /* previous curve's last handle if it's not quadratic */
                             if pts_len > 2
@@ -258,7 +280,7 @@ impl Contour {
                             {
                                 prev_points[pts_len - 2].position *= m;
                                 updated!(prev_idx, prev_points[pts_len - 2]);
-                                prev.imp().emptiest_t.set(None);
+                                prev.set_modified();
                             }
                         }
                     }
@@ -281,7 +303,7 @@ impl Contour {
                             if !extra_uuids.contains(&(next_idx, next_points[0].uuid)) {
                                 next_points[0].position *= m;
                                 updated!(next_idx, next_points[0]);
-                                next.imp().emptiest_t.set(None);
+                                next.set_modified();
                             }
                             /* next curve's first handle if it's not quadratic */
                             if pts_len > 2
@@ -289,7 +311,7 @@ impl Contour {
                             {
                                 next_points[1].position *= m;
                                 updated!(next_idx, next_points[1]);
-                                next.imp().emptiest_t.set(None);
+                                next.set_modified();
                             }
                         }
                     }
@@ -317,7 +339,7 @@ impl Contour {
                             if pts_len > 2
                                 && !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 2].uuid))
                             {
-                                prev.imp().emptiest_t.set(None);
+                                prev.set_modified();
                                 match cont!(between (curr_idx) and next) {
                                     Continuity::Positional => {}
                                     Continuity::Velocity => {
@@ -341,7 +363,7 @@ impl Contour {
                         let pts_len = next_points.len();
                         assert!(!next_points.is_empty());
                         if pts_len > 2 && !extra_uuids.contains(&(next_idx, next_points[1].uuid)) {
-                            next.imp().emptiest_t.set(None);
+                            next.set_modified();
                             match cont!(between (next_idx) and next) {
                                 Continuity::Positional => {}
                                 Continuity::Velocity => {
@@ -369,128 +391,156 @@ impl Contour {
     }
 }
 
-mod imp {
-    use super::*;
-    #[derive(Default)]
-    pub struct Contour {
-        pub open: Cell<bool>,
-        pub curves: RefCell<Vec<Bezier>>,
-        pub continuities: RefCell<Vec<Continuity>>,
-        pub biggest_curve: Cell<Option<(usize, f64)>>,
-    }
+#[derive(Copy, Clone, Debug)]
+struct BiggestCurve {
+    index: usize,
+    approx_length: f64,
+    is_contour_modified: bool,
+}
 
-    impl std::fmt::Debug for Contour {
-        fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-            fmt.debug_struct("Contour")
-                .field("open", &self.open.get())
-                .field(
-                    "curves",
-                    &self
-                        .curves
-                        .borrow()
-                        .iter()
-                        .map(Bezier::imp)
-                        .collect::<Vec<_>>(),
-                )
-                .field("continuities", &self.continuities.borrow())
-                .field("biggest_curve", &self.biggest_curve.get())
-                .finish()
-        }
-    }
+#[derive(Default)]
+pub struct ContourInner {
+    pub open: Cell<bool>,
+    pub curves: RefCell<Vec<Bezier>>,
+    pub continuities: RefCell<Vec<Continuity>>,
+    biggest_curve: Cell<Option<BiggestCurve>>,
+}
 
-    #[glib::object_subclass]
-    impl ObjectSubclass for Contour {
-        const NAME: &'static str = "Contour";
-        type Type = super::Contour;
-        type ParentType = glib::Object;
-        type Interfaces = ();
+impl std::fmt::Debug for ContourInner {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("Contour")
+            .field("open", &self.open.get())
+            .field(
+                "curves",
+                &self
+                    .curves
+                    .borrow()
+                    .iter()
+                    .map(Bezier::imp)
+                    .collect::<Vec<_>>(),
+            )
+            .field("continuities", &self.continuities.borrow())
+            .field("biggest_curve", &self.biggest_curve.get())
+            .finish()
     }
+}
 
-    impl ObjectImpl for Contour {
-        fn properties() -> &'static [ParamSpec] {
-            static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-                once_cell::sync::Lazy::new(|| {
-                    vec![
-                        glib::ParamSpecValueArray::new(
-                            super::Contour::CONTINUITIES,
-                            super::Contour::CONTINUITIES,
-                            super::Contour::CONTINUITIES,
-                            &glib::ParamSpecBoxed::new(
-                                super::Contour::CONTINUITY,
-                                super::Contour::CONTINUITY,
-                                super::Contour::CONTINUITY,
-                                Continuity::static_type(),
-                                glib::ParamFlags::READWRITE,
-                            ),
+#[glib::object_subclass]
+impl ObjectSubclass for ContourInner {
+    const NAME: &'static str = "Contour";
+    type Type = Contour;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+impl ObjectImpl for ContourInner {
+    fn properties() -> &'static [ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    glib::ParamSpecValueArray::new(
+                        Contour::CONTINUITIES,
+                        Contour::CONTINUITIES,
+                        Contour::CONTINUITIES,
+                        &glib::ParamSpecBoxed::new(
+                            Contour::CONTINUITY,
+                            Contour::CONTINUITY,
+                            Contour::CONTINUITY,
+                            Continuity::static_type(),
                             glib::ParamFlags::READWRITE,
                         ),
-                        glib::ParamSpecBoolean::new(
-                            super::Contour::OPEN,
-                            super::Contour::OPEN,
-                            super::Contour::OPEN,
-                            true,
-                            glib::ParamFlags::READABLE,
-                        ),
-                        glib::ParamSpecUInt64::new(
-                            super::Contour::BIGGEST_CURVE,
-                            super::Contour::BIGGEST_CURVE,
-                            super::Contour::BIGGEST_CURVE,
-                            0,
-                            u64::MAX,
-                            0,
-                            glib::ParamFlags::READABLE,
-                        ),
-                    ]
-                });
-            PROPERTIES.as_ref()
-        }
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        Contour::OPEN,
+                        Contour::OPEN,
+                        Contour::OPEN,
+                        true,
+                        glib::ParamFlags::READABLE,
+                    ),
+                    glib::ParamSpecUInt64::new(
+                        Contour::BIGGEST_CURVE,
+                        Contour::BIGGEST_CURVE,
+                        Contour::BIGGEST_CURVE,
+                        0,
+                        u64::MAX,
+                        0,
+                        glib::ParamFlags::READABLE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
+    }
 
-        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
-            match pspec.name() {
-                super::Contour::CONTINUITIES => {
-                    let continuities = self.continuities.borrow();
-                    let mut ret = glib::ValueArray::new(continuities.len() as u32);
-                    for c in continuities.iter() {
-                        ret.append(&c.to_value());
-                    }
-                    ret.to_value()
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+        match pspec.name() {
+            Contour::CONTINUITIES => {
+                let continuities = self.continuities.borrow();
+                let mut ret = glib::ValueArray::new(continuities.len() as u32);
+                for c in continuities.iter() {
+                    ret.append(&c.to_value());
                 }
-                super::Contour::OPEN => self.open.get().to_value(),
-                super::Contour::BIGGEST_CURVE => {
-                    if let Some((ret, _)) = self.biggest_curve.get() {
-                        return (ret as u64).to_value();
-                    }
-                    let curves = self.curves.borrow();
-                    let ret = curves
-                        .iter()
-                        .enumerate()
-                        .map(|(i, c)| (i, c.approx_length()))
-                        .fold((0, f64::NEG_INFINITY), |(prev, acc), (i, len)| {
-                            if len > acc {
-                                (i, len)
-                            } else {
-                                (prev, acc)
-                            }
-                        });
-                    self.biggest_curve.set(Some(ret));
-                    (ret.0 as u64).to_value()
-                }
-                _ => unimplemented!("{}", pspec.name()),
+                ret.to_value()
             }
-        }
+            Contour::OPEN => self.open.get().to_value(),
+            Contour::BIGGEST_CURVE => {
+                let prev = match self.biggest_curve.get() {
+                    Some(BiggestCurve {
+                        index: ret,
+                        is_contour_modified: false,
+                        ..
+                    }) => return (ret as u64).to_value(),
+                    Some(BiggestCurve {
+                        index: ret,
+                        approx_length: d,
+                        is_contour_modified: true,
+                        ..
+                    }) => Some((ret, d)),
+                    None => None,
+                };
+                let curves = self.curves.borrow();
+                let ret = curves
+                    .iter()
+                    .enumerate()
+                    .map(|(i, c)| (i, c.approx_length()))
+                    .fold((0, f64::NEG_INFINITY), |(prev, acc), (i, len)| {
+                        if len > acc {
+                            (i, len)
+                        } else {
+                            (prev, acc)
+                        }
+                    });
 
-        fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
-            match pspec.name() {
-                super::Contour::CONTINUITIES => {
-                    let arr: glib::ValueArray = value.get().unwrap();
-                    let mut continuities = self.continuities.borrow_mut();
-                    continuities.clear();
-                    for c in arr.iter() {
-                        continuities.push(c.get().unwrap());
-                    }
+                if let Some((ret, d)) = prev.filter(|&(_, prev)| (prev - ret.1).abs() < 20.00) {
+                    self.biggest_curve.set(Some(BiggestCurve {
+                        index: ret,
+                        approx_length: d,
+                        is_contour_modified: false,
+                    }));
+                    return (ret as u64).to_value();
                 }
-                _ => unimplemented!("{}", pspec.name()),
+                self.biggest_curve.set(Some(BiggestCurve {
+                    index: ret.0,
+                    approx_length: ret.1,
+                    is_contour_modified: false,
+                }));
+                (ret.0 as u64).to_value()
             }
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            Contour::CONTINUITIES => {
+                let arr: glib::ValueArray = value.get().unwrap();
+                let mut continuities = self.continuities.borrow_mut();
+                continuities.clear();
+                for c in arr.iter() {
+                    continuities.push(c.get().unwrap());
+                }
+            }
+            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }

@@ -43,7 +43,7 @@ pub struct BezierInner {
     pub smooth: Cell<bool>,
     pub points: Rc<RefCell<Vec<CurvePoint>>>,
     pub lut: Rc<RefCell<Vec<Point>>>,
-    pub emptiest_t: Cell<Option<(f64, Point)>>,
+    pub emptiest_t: Cell<Option<(f64, Point, bool)>>,
 }
 
 impl std::fmt::Debug for BezierInner {
@@ -415,8 +415,26 @@ impl Bezier {
     pub fn emptiest_t(&self, starting_t: f64) -> (f64, Point) {
         use rand::distributions::{Distribution, Uniform};
 
-        if let Some(ret) = self.imp().emptiest_t.get() {
-            return ret;
+        match self.imp().emptiest_t.get() {
+            Some((t, _, true)) => {
+                // Curve has been modified, look for new optimal and use it if it's significantly
+                // far away from the previous optimal (otherwise the optimal point will jump around
+                // in the UI erratically while the user is transforming the curve).
+                self.imp().emptiest_t.set(None);
+                let (new_t, new_p) = self.emptiest_t(starting_t);
+                if (new_t - t).abs() < 0.05 {
+                    // reject new optimal𝑡
+                    let new_p = self.compute(t);
+                    self.imp().emptiest_t.set(Some((t, new_p, false)));
+                    return (t, new_p);
+                } else {
+                    return (new_t, new_p);
+                }
+            }
+            Some((t, point, false)) => {
+                return (t, point);
+            }
+            None => {}
         }
 
         // Evaluate candidate𝑡 by trying to minimise the difference of distances of the two closest
@@ -462,7 +480,14 @@ impl Bezier {
             }
         }
 
-        self.imp().emptiest_t.set(Some((curr_t, curr_p)));
+        self.imp().emptiest_t.set(Some((curr_t, curr_p, false)));
         (curr_t, curr_p)
+    }
+
+    pub fn set_modified(&self) {
+        if let Some((distance, point, _)) = self.imp().emptiest_t.get() {
+            self.imp().emptiest_t.set(Some((distance, point, true)));
+        }
+        self.imp().lut.borrow_mut().clear();
     }
 }
