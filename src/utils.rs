@@ -114,7 +114,13 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
         .build();
     grid.attach(
         &gtk::Label::builder()
-            .label(obj.type_().name())
+            .label(&format!(
+                "<big>Options for <i>{}</i></big>",
+                obj.type_().name()
+            ))
+            .use_markup(true)
+            .margin_top(5)
+            .halign(gtk::Align::Start)
             .visible(true)
             .build(),
         0,
@@ -127,6 +133,7 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
             .expand(true)
             .visible(true)
             .vexpand(false)
+            .margin_bottom(10)
             .valign(gtk::Align::Start)
             .build(),
         0,
@@ -142,8 +149,31 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
     }) {
         grid.attach(
             &gtk::Label::builder()
-                .label(prop.name())
+                .label(&{
+                    let blurb = prop.blurb();
+                    let name = prop.name();
+                    let type_name: &str = match prop.value_type().name() {
+                        "gboolean" => "bool",
+                        "gchararray" => "string",
+                        "guint64"|"gint64" => "int",
+                        "gdouble"=> "float",
+                        "Color" => "color",
+                        "DrawOptions" => "theme options",
+                        _other => _other,
+                    };
+                    if blurb == name {
+                        format!("Key: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+                    } else {
+                        format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+                    }
+                })
                 .visible(true)
+                .selectable(true)
+                .wrap_mode(gtk::pango::WrapMode::Char)
+                .use_markup(true)
+                .max_width_chars(30)
+                .halign(gtk::Align::Start)
+                .wrap(true)
                 .build(),
             0,
             row,
@@ -199,6 +229,8 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
             let entry = gtk::Entry::builder()
                 .visible(true)
                 .sensitive(readwrite)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Center)
                 .build();
             entry.buffer().set_text(&val);
             obj.bind_property(property.name(), &entry.buffer(), "text")
@@ -221,6 +253,8 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 1.0,
                 0,
             );
+            entry.set_halign(gtk::Align::Start);
+            entry.set_valign(gtk::Align::Center);
             entry.set_input_purpose(gtk::InputPurpose::Digits);
             entry.set_sensitive(readwrite);
             entry.set_visible(true);
@@ -251,6 +285,8 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 1.0,
                 0,
             );
+            entry.set_halign(gtk::Align::Start);
+            entry.set_valign(gtk::Align::Center);
             entry.set_input_purpose(gtk::InputPurpose::Digits);
             entry.set_sensitive(readwrite);
             entry.set_visible(true);
@@ -279,6 +315,8 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 1.0,
                 2,
             );
+            entry.set_halign(gtk::Align::Start);
+            entry.set_valign(gtk::Align::Center);
             entry.set_input_purpose(gtk::InputPurpose::Number);
             entry.set_sensitive(readwrite);
             entry.set_visible(true);
@@ -335,6 +373,7 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
             grid.attach(
                 &gtk::Label::builder()
                     .label(if has_bg { "fg color" } else { "color" })
+                    .halign(gtk::Align::End)
                     .visible(true)
                     .build(),
                 0,
@@ -362,6 +401,7 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                     &gtk::Label::builder()
                         .label("bg color")
                         .visible(true)
+                        .halign(gtk::Align::End)
                         .build(),
                     0,
                     1,
@@ -389,6 +429,8 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 1.0,
                 2,
             );
+            size_entry.set_halign(gtk::Align::Start);
+            size_entry.set_valign(gtk::Align::Center);
             size_entry.set_input_purpose(gtk::InputPurpose::Number);
             size_entry.set_sensitive(readwrite);
             size_entry.set_visible(true);
@@ -428,7 +470,7 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                     .label(&format!("{:.2}", obj.property::<f64>(from)))
                     .visible(val)
                     .width_chars(5)
-                    .halign(gtk::Align::Center)
+                    .halign(gtk::Align::Start)
                     .valign(gtk::Align::Center)
                     .sensitive(false)
                     .wrap(true)

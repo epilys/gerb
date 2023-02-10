@@ -232,13 +232,13 @@ impl ObjectImpl for CanvasInner {
     }
 
     fn properties() -> &'static [ParamSpec] {
-        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-            once_cell::sync::Lazy::new(|| {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> = once_cell::sync::Lazy::new(
+            || {
                 vec![
                     ParamSpecDouble::new(
                         Canvas::HANDLE_SIZE,
                         Canvas::HANDLE_SIZE,
-                        Canvas::HANDLE_SIZE,
+                        "Diameter of round control point handle.",
                         0.0001,
                         10.0,
                         CanvasInner::HANDLE_SIZE_INIT_VAL,
@@ -247,7 +247,7 @@ impl ObjectImpl for CanvasInner {
                     ParamSpecDouble::new(
                         Canvas::LINE_WIDTH,
                         Canvas::LINE_WIDTH,
-                        Canvas::LINE_WIDTH,
+                        "Width of lines in pixels.",
                         0.0001,
                         10.0,
                         CanvasInner::LINE_WIDTH_INIT_VAL,
@@ -256,28 +256,28 @@ impl ObjectImpl for CanvasInner {
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GRID,
                         Canvas::SHOW_GRID,
-                        Canvas::SHOW_GRID,
+                        "Show/hide grid.",
                         CanvasInner::SHOW_GRID_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GUIDELINES,
                         Canvas::SHOW_GUIDELINES,
-                        Canvas::SHOW_GUIDELINES,
+                        "Show/hide all guidelines.",
                         CanvasInner::SHOW_GUIDELINES_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_HANDLES,
                         Canvas::SHOW_HANDLES,
-                        Canvas::SHOW_HANDLES,
+                        "Show/hide handles.",
                         CanvasInner::SHOW_HANDLES_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::INNER_FILL,
                         Canvas::INNER_FILL,
-                        Canvas::INNER_FILL,
+                        "Show/hide inner glyph fill.",
                         CanvasInner::INNER_FILL_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
@@ -291,21 +291,21 @@ impl ObjectImpl for CanvasInner {
                     ParamSpecBoolean::new(
                         Canvas::SHOW_TOTAL_AREA,
                         Canvas::SHOW_TOTAL_AREA,
-                        Canvas::SHOW_TOTAL_AREA,
+                        "Show/hide total glyph area.",
                         CanvasInner::SHOW_TOTAL_AREA_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
-                        Canvas::SHOW_RULERS,
+                        "Show/hide canvas rulers.",
                         CanvasInner::SHOW_RULERS_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_DIRECTION,
                         Canvas::SHOW_DIRECTION,
-                        Canvas::SHOW_DIRECTION,
+                        "Show/hide contour direction arrows.",
                         CanvasInner::SHOW_DIRECTION_INIT_VAL,
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
@@ -346,89 +346,90 @@ impl ObjectImpl for CanvasInner {
                     ParamSpecBoxed::new(
                         Canvas::BG_COLOR,
                         Canvas::BG_COLOR,
-                        Canvas::BG_COLOR,
+                        "Background color of canvas.",
                         Color::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::GLYPH_INNER_FILL_COLOR,
                         Canvas::GLYPH_INNER_FILL_COLOR,
-                        Canvas::GLYPH_INNER_FILL_COLOR,
+                        "Color of glyph's inner fill.",
                         Color::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::GLYPH_BBOX_BG_COLOR,
                         Canvas::GLYPH_BBOX_BG_COLOR,
-                        Canvas::GLYPH_BBOX_BG_COLOR,
-                        Color::static_type(),
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
-                    ),
-                    ParamSpecBoxed::new(
-                        Canvas::RULER_BG_COLOR,
-                        Canvas::RULER_BG_COLOR,
-                        Canvas::RULER_BG_COLOR,
+                        "Background color of glyph's bounding box (total area).",
                         Color::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::RULER_FG_COLOR,
                         Canvas::RULER_FG_COLOR,
-                        Canvas::RULER_FG_COLOR,
+                        "Foreground color of canvas rulers.",
+                        Color::static_type(),
+                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                    ),
+                    ParamSpecBoxed::new(
+                        Canvas::RULER_BG_COLOR,
+                        Canvas::RULER_BG_COLOR,
+                        "Background color of canvas rulers.",
                         Color::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::RULER_INDICATOR_COLOR,
                         Canvas::RULER_INDICATOR_COLOR,
-                        Canvas::RULER_INDICATOR_COLOR,
+                        "Color of mouse pointer in ruler.",
                         Color::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::DIRECTION_OPTIONS,
                         Canvas::DIRECTION_OPTIONS,
-                        Canvas::DIRECTION_OPTIONS,
+                        "Theming options of contour direction arrow.",
                         DrawOptions::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::HANDLE_CONNECTION_OPTIONS,
                         Canvas::HANDLE_CONNECTION_OPTIONS,
-                        Canvas::HANDLE_CONNECTION_OPTIONS,
+                        "Theming options of handle connections (lines between handle and on-curve points).",
                         DrawOptions::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::HANDLE_OPTIONS,
                         Canvas::HANDLE_OPTIONS,
-                        Canvas::HANDLE_OPTIONS,
+                        "Theming options of handles.",
                         DrawOptions::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::SMOOTH_CORNER_OPTIONS,
                         Canvas::SMOOTH_CORNER_OPTIONS,
-                        Canvas::SMOOTH_CORNER_OPTIONS,
+                        "Theming options of smooth (non-positional continuity) on-curve points.",
                         DrawOptions::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::CORNER_OPTIONS,
                         Canvas::CORNER_OPTIONS,
-                        Canvas::CORNER_OPTIONS,
+                        "Theming options of positional continuity on-curve points.",
                         DrawOptions::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Canvas::OUTLINE_OPTIONS,
                         Canvas::OUTLINE_OPTIONS,
-                        Canvas::OUTLINE_OPTIONS,
+                        "Theming options of glyph outline.",
                         DrawOptions::static_type(),
                         ParamFlags::READWRITE | crate::UI_EDITABLE,
                     ),
                 ]
-            });
+            },
+        );
         PROPERTIES.as_ref()
     }
 
