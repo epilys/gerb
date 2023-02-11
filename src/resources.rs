@@ -113,6 +113,9 @@ pub mod icons {
     decl_icon! {ELLIPSE_ICON, "./resources/ellipse-icon"}
     decl_icon! {CHECKBOX_ICON, "./resources/icons/checkbox"}
     decl_icon! {CHECKBOX_CHECKED_ICON, "./resources/icons/checkbox-checked"}
+    decl_icon! {RIGHT_MOUSE_BUTTON, "./resources/icons/right_mouse_button"}
+    decl_icon! {LEFT_MOUSE_BUTTON, "./resources/icons/left_mouse_button"}
+    decl_icon! {ESC_BUTTON, "./resources/icons/esc_button"}
 }
 
 pub mod cursors {

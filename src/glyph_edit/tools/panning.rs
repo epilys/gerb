@@ -23,7 +23,10 @@ use super::{constraints::*, tool_impl::*, GlyphState, SelectionModifier};
 
 use crate::GlyphEditView;
 use crate::{
-    utils::points::Point,
+    utils::{
+        colors::{Color, ColorExt},
+        points::Point,
+    },
     views::{
         canvas::{Layer, LayerBuilder},
         Canvas, Transformation, UnitPoint, ViewPoint,
@@ -36,12 +39,13 @@ use once_cell::sync::OnceCell;
 use std::cell::Cell;
 use std::collections::HashSet;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Mode {
     None,
     Pan,
     Drag,
     DragGuideline(usize),
+    ResizeDimensions { previous_value: Option<f64> },
     Select,
 }
 
@@ -303,6 +307,23 @@ impl ToolImplImpl for PanningToolInner {
                         view.imp().hovering.set(None);
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
+                        if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
+                            let previous_value = glyph_state.glyph.borrow().width;
+                            let glyph_width = previous_value.unwrap_or(0.0);
+                            let (x, y) = (position.x, position.y);
+                            let units_per_em = viewport
+                                .imp()
+                                .transformation
+                                .property::<f64>(Transformation::UNITS_PER_EM);
+
+                            if (x - glyph_width).abs() <= 6.0 && (0.0..=units_per_em).contains(&y) {
+                                self.instance()
+                                    .set_property::<bool>(PanningTool::ACTIVE, true);
+                                self.mode.set(Mode::ResizeDimensions { previous_value });
+                                viewport.set_cursor("grab");
+                                return Inhibit(true);
+                            }
+                        }
                         self.is_selection_active.set(true);
                         self.is_selection_empty.set(true);
                         self.selection_upper_left.set(uposition);
@@ -384,6 +405,16 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
                 self.set_default_cursor(&view);
                 self.mode.set(Mode::None);
+            }
+            Mode::ResizeDimensions { previous_value: _ }
+                if event_button == gtk::gdk::BUTTON_PRIMARY =>
+            {
+                // TODO: add an undo action.
+
+                self.mode.set(Mode::None);
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                self.set_default_cursor(&view);
             }
             _ => return Inhibit(false),
         }
@@ -470,6 +501,17 @@ impl ToolImplImpl for PanningToolInner {
                 } else {
                     return Inhibit(false);
                 }
+            }
+            Mode::ResizeDimensions { previous_value }
+                if event_button == gtk::gdk::BUTTON_SECONDARY =>
+            {
+                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+                let mut glyph = glyph_state.glyph.borrow_mut();
+                glyph.width = previous_value;
+                self.mode.set(Mode::None);
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, false);
+                self.set_default_cursor(&view);
             }
             _ if event_button == gtk::gdk::BUTTON_MIDDLE => {
                 self.instance()
@@ -689,6 +731,30 @@ impl ToolImplImpl for PanningToolInner {
                     Inhibit(false)
                 };
             }
+            Mode::ResizeDimensions { previous_value: _ } => {
+                let mouse: ViewPoint = viewport.get_mouse();
+
+                if viewport
+                    .view_to_unit_point(ViewPoint(event.position().into()))
+                    .0
+                    .x
+                    > 0.0
+                {
+                    let delta =
+                        (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
+                    let width = {
+                        let glyph = glyph_state.glyph.borrow();
+                        glyph.width.unwrap_or(0.0)
+                    };
+                    if width + delta.x >= 0.0 {
+                        let mut glyph = glyph_state.glyph.borrow_mut();
+                        glyph.width = Some(width + delta.x);
+                    }
+                } else {
+                    let mut glyph = glyph_state.glyph.borrow_mut();
+                    glyph.width = Some(0.0);
+                }
+            }
         }
         Inhibit(true)
     }
@@ -764,16 +830,20 @@ impl PanningTool {
             .clone()
             .downcast::<PanningTool>()
             .unwrap();
-        if !t.imp().active.get() || t.imp().mode.get() != Mode::Select {
+        if !t.imp().active.get()
+            || !matches!(
+                t.imp().mode.get(),
+                Mode::Select | Mode::ResizeDimensions { .. }
+            )
+        {
             return Inhibit(false);
         }
+        let resize = matches!(t.imp().mode.get(), Mode::ResizeDimensions { .. });
         let active = t.imp().is_selection_active.get();
         let empty = t.imp().is_selection_empty.get();
-        if empty && !active {
+        if empty && !active && !resize {
             return Inhibit(false);
         }
-        let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
-        let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
 
         let scale: f64 = viewport
             .imp()
@@ -791,16 +861,114 @@ impl PanningTool {
         let line_width = if active { 2.0 } else { 1.5 } * f;
 
         let matrix = viewport.imp().transformation.matrix();
-        let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
-        if width == 0.0 || height == 0.0 {
-            return Inhibit(false);
-        }
 
         cr.save().unwrap();
 
         cr.set_line_width(line_width);
         cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
         cr.transform(matrix);
+
+        if resize {
+            let units_per_em = viewport
+                .imp()
+                .transformation
+                .property::<f64>(Transformation::UNITS_PER_EM);
+            let glyph_width = glyph_state.glyph.borrow().width.unwrap_or(0.0);
+
+            cr.set_source_color(Color::BLACK);
+            cr.set_dash(&[], 0.0);
+            cr.set_line_width(1.0);
+            cr.rectangle(0.0, 0.0, glyph_width, units_per_em);
+            cr.stroke().unwrap();
+            cr.set_line_width(2.0);
+            cr.move_to(glyph_width, 0.0);
+            cr.line_to(glyph_width, units_per_em);
+            cr.stroke().unwrap();
+
+            cr.restore().unwrap();
+            cr.save().unwrap();
+
+            let extents = cr.text_extents("Cancel").unwrap();
+            let ViewPoint(mouse) = viewport.get_mouse();
+            let scale_factor = viewport.scale_factor();
+            // FIXME remove unwraps
+            // FIXME don't allocate a pixbuf in every draw call
+            /*
+            let esc = crate::resources::icons::ESC_BUTTON
+                .to_pixbuf()
+                .unwrap()
+                .scale_simple(64, 64, gtk::gdk_pixbuf::InterpType::Bilinear)
+                .unwrap();
+            */
+            let rmb = crate::resources::icons::RIGHT_MOUSE_BUTTON
+                .to_pixbuf()
+                .unwrap()
+                .scale_simple(64, 64, gtk::gdk_pixbuf::InterpType::Bilinear)
+                .unwrap();
+            let mut x = mouse.x + (rmb.width() as f64) * 0.1;
+            let mut y = mouse.y;
+            let mut row_height = 0.0;
+            let (h, w) = (
+                (rmb.height() as f64) / (scale_factor as f64),
+                (rmb.width() as f64) / (scale_factor as f64),
+            );
+            if h > row_height {
+                row_height = h;
+            }
+            cr.set_source_surface(
+                &rmb.create_surface(scale_factor, viewport.window().as_ref())
+                    .unwrap(),
+                x + 0.5,
+                y + 0.5,
+            )
+            .unwrap();
+            cr.paint().unwrap();
+            x += w;
+            cr.set_source_color(Color::BLACK);
+            cr.move_to(
+                x + (rmb.width() as f64) * 0.1 + 0.5,
+                mouse.y + row_height * 0.5 + extents.height * 0.5 + 0.5,
+            );
+            cr.show_text("Cancel").unwrap();
+
+            y += row_height * 1.1;
+
+            let i = crate::resources::icons::LEFT_MOUSE_BUTTON
+                .to_pixbuf()
+                .unwrap()
+                .scale_simple(64, 64, gtk::gdk_pixbuf::InterpType::Bilinear)
+                .unwrap();
+            let (h, w) = (
+                (i.height() as f64) / (scale_factor as f64),
+                (i.width() as f64) / (scale_factor as f64),
+            );
+            cr.set_source_surface(
+                &i.create_surface(scale_factor, viewport.window().as_ref())
+                    .unwrap(),
+                x - w + 0.5,
+                y + 0.5,
+            )
+            .unwrap();
+            cr.paint().unwrap();
+
+            cr.set_source_color(Color::BLACK);
+            cr.move_to(
+                x + (rmb.width() as f64) * 0.1 + 0.5,
+                y + h * 0.5 + extents.height * 0.5 + 0.5,
+            );
+            cr.show_text("Apply").unwrap();
+
+            cr.restore().unwrap();
+            return Inhibit(true);
+        }
+
+        let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
+        let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
+        let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
+        if width == 0.0 || height == 0.0 {
+            cr.restore().unwrap();
+            return Inhibit(false);
+        }
 
         cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
         cr.rectangle(upper_left.x, upper_left.y, width, height);
