@@ -78,7 +78,7 @@ impl ToolImplImpl for ZoomInToolInner {
         if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             let (_dx, dy) = event.delta();
             if dy.is_normal() && dy.is_sign_negative() {
-                viewport.imp().transformation.zoom_in();
+                viewport.transformation.zoom_in();
                 viewport.queue_draw();
                 return Inhibit(true);
             }
@@ -116,7 +116,7 @@ impl ToolImplImpl for ZoomInToolInner {
     }
 
     fn on_activate(&self, _obj: &ToolImpl, view: &GlyphEditView) {
-        let t = &view.imp().viewport.imp().transformation;
+        let t = &view.viewport.transformation;
         t.zoom_in();
     }
 }
@@ -192,7 +192,7 @@ impl ToolImplImpl for ZoomOutToolInner {
         if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             let (_dx, dy) = event.delta();
             if dy.is_normal() && dy.is_sign_positive() {
-                viewport.imp().transformation.zoom_out();
+                viewport.transformation.zoom_out();
                 viewport.queue_draw();
                 return Inhibit(true);
             }
@@ -230,7 +230,7 @@ impl ToolImplImpl for ZoomOutToolInner {
     }
 
     fn on_activate(&self, _obj: &ToolImpl, view: &GlyphEditView) {
-        let t = &view.imp().viewport.imp().transformation;
+        let t = &view.viewport.transformation;
         t.zoom_out();
     }
 }

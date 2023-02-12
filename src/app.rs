@@ -39,6 +39,13 @@ glib::wrapper! {
         @extends gio::Application, gtk::Application;
 }
 
+impl std::ops::Deref for Application {
+    type Target = ApplicationInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl Application {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
@@ -47,6 +54,14 @@ impl Application {
             ("flags", &ApplicationFlags::empty()), //&(ApplicationFlags::HANDLES_OPEN | ApplicationFlags::HANDLES_COMMAND_LINE)),
         ])
         .expect("Failed to create App")
+    }
+
+    pub fn warp_cursor(&self, device: Option<gtk::gdk::Device>, delta: (i32, i32)) -> Option<()> {
+        let device = device?;
+        let (screen, rootx, rooty) = device.position();
+        let (x, y) = (rootx + delta.0, rooty + delta.1);
+        device.warp(&screen, x, y);
+        Some(())
     }
 }
 
@@ -94,7 +109,7 @@ impl ApplicationImpl for ApplicationInner {
         self.parent_startup(app);
         self.window.set_application(Some(app));
         self.add_actions(app);
-        self.window.imp().setup_actions();
+        self.window.setup_actions();
         self.build_system_menu(app);
 
         let css_provider = gtk::CssProvider::new();
@@ -349,18 +364,18 @@ impl ApplicationInner {
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
             new_project.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
-                window.imp().load_project(crate::project::Project::default());
+                window.load_project(crate::project::Project::default());
             }));
         }
         let undo = gtk::gio::SimpleAction::new("undo", None);
         undo.set_enabled(false);
         undo.connect_activate(glib::clone!(@weak obj as _self => move |_, _| {
-            _self.imp().undo_db.borrow_mut().undo();
+            _self.undo_db.borrow_mut().undo();
         }));
         let redo = gtk::gio::SimpleAction::new("redo", None);
         redo.set_enabled(false);
         redo.connect_activate(glib::clone!(@weak obj as _self => move |_, _| {
-            _self.imp().undo_db.borrow_mut().redo();
+            _self.undo_db.borrow_mut().redo();
         }));
         {
             let db = self.undo_db.borrow();
@@ -375,7 +390,7 @@ impl ApplicationInner {
         let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
         project_properties.connect_activate(
             glib::clone!(@weak self.window as window => move |_, _| {
-                let obj: glib::Object = window.imp().project.borrow().clone().upcast();
+                let obj: glib::Object = window.project.borrow().clone().upcast();
                 let w = crate::utils::new_property_window(obj, "Project");
                 w.present();
             }),
@@ -446,7 +461,7 @@ impl ApplicationInner {
     }
 
     pub fn statusbar(&self) -> gtk::Statusbar {
-        self.window.imp().statusbar.clone()
+        self.window.statusbar.clone()
     }
 
     #[cfg(not(feature = "notifications"))]

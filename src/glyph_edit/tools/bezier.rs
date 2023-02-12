@@ -184,7 +184,7 @@ impl ToolImplImpl for BezierToolInner {
             let mut c = self.contour.borrow_mut();
             let UnitPoint(point) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
             if c.is_none() {
-                let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
                 let current_curve = Bezier::new(vec![point]);
                 current_curve.set_property(Bezier::SMOOTH, true);
                 let contour_index = glyph_state.glyph.borrow().contours.len();
@@ -547,7 +547,7 @@ impl ToolImplImpl for BezierToolInner {
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
         self.layer.set(layer.clone()).unwrap();
-        view.imp().viewport.add_post_layer(layer);
+        view.viewport.add_post_layer(layer);
 
         self.parent_setup_toolbox(obj, toolbar, view)
     }
@@ -556,9 +556,9 @@ impl ToolImplImpl for BezierToolInner {
         self.instance()
             .set_property::<bool>(BezierTool::ACTIVE, true);
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
-            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+            view.viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
-            view.imp().viewport.set_cursor("grab");
+            view.viewport.set_cursor("grab");
         }
         self.parent_on_activate(obj, view)
     }
@@ -566,7 +566,7 @@ impl ToolImplImpl for BezierToolInner {
     fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
         self.instance()
             .set_property::<bool>(BezierTool::ACTIVE, false);
-        view.imp().viewport.set_cursor("default");
+        view.viewport.set_cursor("default");
         self.parent_on_deactivate(obj, view)
     }
 }
@@ -583,7 +583,7 @@ impl BezierToolInner {
         if let Some(mut state) = state_opt.as_mut() {
             let add_to_kdtree =
                 |state: &mut ContourState, curve_index: usize, curve_point: CurvePoint| {
-                    let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+                    let glyph_state = view.glyph_state.get().unwrap().borrow();
                     let contour_index = state.contour_index;
                     let uuid = curve_point.uuid;
                     let idx = GlyphPointIndex {
@@ -719,12 +719,7 @@ impl BezierToolInner {
     ) {
         if state_opt.as_ref().is_some() {
             drop(state_opt);
-            view.imp()
-                .glyph_state
-                .get()
-                .unwrap()
-                .borrow_mut()
-                .active_tool = glib::types::Type::INVALID;
+            view.glyph_state.get().unwrap().borrow_mut().active_tool = glib::types::Type::INVALID;
             self.on_deactivate(obj, view);
             self.contour.borrow_mut().take();
         }
@@ -738,7 +733,7 @@ impl BezierToolInner {
         curve_index: usize,
         curve_point_to_move: CurvePoint,
     ) {
-        let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = view.glyph_state.get().unwrap().borrow();
         let contour_index = state.contour_index;
         let uuid = curve_point_to_move.uuid;
         let idxs = [GlyphPointIndex {
@@ -779,7 +774,7 @@ impl BezierTool {
     pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
         use crate::utils::colors::*;
 
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if BezierTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
         }
@@ -797,24 +792,20 @@ impl BezierTool {
         let state = c.as_ref().unwrap();
         let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
         let line_width = obj
-            .imp()
             .settings
             .get()
             .unwrap()
             .property::<f64>(crate::Settings::LINE_WIDTH);
         let outline = Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 });
-        let matrix = viewport.imp().transformation.matrix();
+        let matrix = viewport.transformation.matrix();
         let scale: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let ppu: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let handle_size: f64 = if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
-            obj.imp()
-                .settings
+            obj.settings
                 .get()
                 .unwrap()
                 .property::<f64>(crate::Settings::HANDLE_SIZE)

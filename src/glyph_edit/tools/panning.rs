@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{constraints::*, tool_impl::*, GlyphState, SelectionModifier};
+use super::{constraints::*, tool_impl::*, SelectionModifier};
 
 use crate::GlyphEditView;
 use crate::{
@@ -157,19 +157,17 @@ impl ToolImplImpl for PanningToolInner {
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         let scale: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let ppu: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
-        let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+        let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
         let event_button = event.button();
         match self.mode.get() {
             Mode::Pan => {
                 self.mode.set(Mode::None);
-                view.imp().hovering.set(None);
+                view.hovering.set(None);
                 viewport.queue_draw();
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -187,7 +185,7 @@ impl ToolImplImpl for PanningToolInner {
                 Lock::clear(&view);
                 Precision::clear(&view);
                 self.mode.set(Mode::None);
-                view.imp().hovering.set(None);
+                view.hovering.set(None);
                 viewport.queue_draw();
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -233,13 +231,12 @@ impl ToolImplImpl for PanningToolInner {
                         let mut action = glyph_state.new_guideline(angle, position);
                         (action.redo)();
                         let app: &crate::Application = view
-                            .imp()
                             .app
                             .get()
                             .unwrap()
                             .downcast_ref::<crate::Application>()
                             .unwrap();
-                        let undo_db = app.imp().undo_db.borrow_mut();
+                        let undo_db = app.undo_db.borrow_mut();
                         undo_db.event(action);
                     }
                 }
@@ -248,9 +245,10 @@ impl ToolImplImpl for PanningToolInner {
                     if lock_guidelines {
                         break;
                     }
-                    if g.imp().on_line_query(position, None) {
-                        view.imp()
-                            .select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
+                    if g.on_line_query(position, None) {
+                        g.x.set(position.x);
+                        g.y.set(position.y);
+                        view.select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
                         self.mode.set(Mode::DragGuideline(i));
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
@@ -299,12 +297,12 @@ impl ToolImplImpl for PanningToolInner {
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
                                 self.mode.set(Mode::Drag);
-                                view.imp().hovering.set(Some((i, j)));
+                                view.hovering.set(Some((i, j)));
                                 viewport.set_cursor("grab");
                                 return Inhibit(true);
                             }
                         }
-                        view.imp().hovering.set(None);
+                        view.hovering.set(None);
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
@@ -312,7 +310,6 @@ impl ToolImplImpl for PanningToolInner {
                             let glyph_width = previous_value.unwrap_or(0.0);
                             let (x, y) = (position.x, position.y);
                             let units_per_em = viewport
-                                .imp()
                                 .transformation
                                 .property::<f64>(Transformation::UNITS_PER_EM);
 
@@ -359,30 +356,34 @@ impl ToolImplImpl for PanningToolInner {
                 let UnitPoint(position) =
                     viewport.view_to_unit_point(ViewPoint(event_position.into()));
                 for (i, g) in glyph_state.glyph.borrow().guidelines.iter().enumerate() {
-                    if g.imp().on_line_query(position, None) {
+                    if g.on_line_query(position, None) {
                         let menu = crate::utils::menu::Menu::new()
                             .title(Some(std::borrow::Cow::from(format!(
-                                    "{} - {}",
-                                    g.name().as_deref()
-                                        .unwrap_or("Anonymous guideline"),
-                                    g.identifier().as_deref()
-                                        .unwrap_or("No identifier")
-                                ))))
+                                "{} - {}",
+                                g.name().as_deref().unwrap_or("Anonymous guideline"),
+                                g.identifier().as_deref().unwrap_or("No identifier")
+                            ))))
                             .separator()
-                            .add_button_cb("Edit", clone!(@weak g =>  move |_| {
-                                let obj = g.upcast::<gtk::glib::Object>();
-                                let w = crate::utils::new_property_window(obj, "Settings");
-                                w.present();
-                            }))
-                            .add_button_cb("Delete", clone!(@weak view as obj, @weak viewport =>  move |_| {
-                                let glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
-                                if glyph_state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
-                                    let mut action = glyph_state.delete_guideline(i);
-                                    (action.redo)();
-                                    glyph_state.add_undo_action(action);
-                                    viewport.queue_draw();
-                                }
-                            }));
+                            .add_button_cb(
+                                "Edit",
+                                clone!(@weak g =>  move |_| {
+                                    let obj = g.upcast::<gtk::glib::Object>();
+                                    let w = crate::utils::new_property_window(obj, "Settings");
+                                    w.present();
+                                }),
+                            )
+                            .add_button_cb(
+                                "Delete",
+                                clone!(@weak view as obj, @weak viewport =>  move |_| {
+                                    let glyph_state = obj.glyph_state.get().unwrap().borrow_mut();
+                                    if glyph_state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
+                                        let mut action = glyph_state.delete_guideline(i);
+                                        (action.redo)();
+                                        glyph_state.add_undo_action(action);
+                                        viewport.queue_draw();
+                                    }
+                                }),
+                            );
                         menu.popup(event.time());
                         return Inhibit(true);
                     }
@@ -437,7 +438,7 @@ impl ToolImplImpl for PanningToolInner {
             self.instance()
                 .set_property::<bool>(PanningTool::ACTIVE, false);
             self.selection_bottom_right.set(bottom_right);
-            let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+            let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
             let pts = glyph_state
                 .kd_tree
                 .borrow()
@@ -474,8 +475,7 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
             }
             Mode::Drag if event_button == gtk::gdk::BUTTON_PRIMARY => {
-                view.imp()
-                    .action_group
+                view.action_group
                     .change_action_state(GlyphEditView::LOCK_ACTION, &Lock::empty().to_variant());
                 self.mode.set(Mode::None);
                 self.instance()
@@ -483,7 +483,7 @@ impl ToolImplImpl for PanningToolInner {
                 self.set_default_cursor(&view);
             }
             Mode::None if event_button == gtk::gdk::BUTTON_PRIMARY => {
-                let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
                 let glyph = glyph_state.glyph.borrow();
                 let UnitPoint(position) =
                     viewport.view_to_unit_point(ViewPoint(event.position().into()));
@@ -505,7 +505,7 @@ impl ToolImplImpl for PanningToolInner {
             Mode::ResizeDimensions { previous_value }
                 if event_button == gtk::gdk::BUTTON_SECONDARY =>
             {
-                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+                let glyph_state = view.glyph_state.get().unwrap().borrow();
                 let mut glyph = glyph_state.glyph.borrow_mut();
                 glyph.width = previous_value;
                 self.mode.set(Mode::None);
@@ -519,20 +519,21 @@ impl ToolImplImpl for PanningToolInner {
                 self.set_default_cursor(&view);
             }
             _ if event_button == gtk::gdk::BUTTON_SECONDARY => {
-                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+                let glyph_state = view.glyph_state.get().unwrap().borrow();
                 self.set_default_cursor(&view);
                 let glyph = glyph_state.glyph.borrow();
                 let UnitPoint(position) =
                     viewport.view_to_unit_point(ViewPoint(event.position().into()));
                 if let Some(((i, _), _curve)) = glyph.on_curve_query(position, &[]) {
                     crate::utils::menu::Menu::new()
-                            .add_button_cb(
-                                "reverse",
-                                clone!(@strong view => move |_| {
-                                    let glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
-                                    glyph_state.glyph.borrow().contours[i].reverse_direction();
-                                }),
-                            ).popup(event.time());
+                        .add_button_cb(
+                            "reverse",
+                            clone!(@strong view => move |_| {
+                                let glyph_state = view.glyph_state.get().unwrap().borrow_mut();
+                                glyph_state.glyph.borrow().contours[i].reverse_direction();
+                            }),
+                        )
+                        .popup(event.time());
                     return Inhibit(true);
                 }
                 return Inhibit(false);
@@ -560,7 +561,6 @@ impl ToolImplImpl for PanningToolInner {
                 dy = 0.0;
             }
             viewport
-                .imp()
                 .transformation
                 .move_camera_by_delta(ViewPoint(<_ as Into<Point>>::into((5.0 * dx, 5.0 * dy))));
             viewport.queue_draw();
@@ -569,9 +569,20 @@ impl ToolImplImpl for PanningToolInner {
             if let Mode::DragGuideline(idx) = self.mode.get() {
                 /* rotate guideline that is currently being dragged */
                 let (_dx, dy) = event.delta();
-                let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
-                glyph_state.transform_guideline(idx, Matrix::identity(), 1.5 * dy);
-                return Inhibit(true);
+                let glyph_state = view.glyph_state.get().unwrap().borrow();
+                if let Some(g) = glyph_state.glyph.borrow().guidelines.get(idx) {
+                    let (x, y) = (g.x.get(), g.y.get());
+                    let UnitPoint(u_p) =
+                        viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                    let mut delta = u_p - (x, y).into();
+                    delta.y *= -1.0;
+                    let mut m = Matrix::identity();
+                    m.translate(delta.x, delta.y);
+                    glyph_state.transform_guideline(idx, Matrix::identity(), 1.5 * dy);
+                    let mut m = Matrix::identity();
+                    m.translate(-delta.x, -delta.y);
+                    return Inhibit(true);
+                };
             }
         }
         Inhibit(false)
@@ -585,15 +596,13 @@ impl ToolImplImpl for PanningToolInner {
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
         let scale: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let ppu: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let warp_cursor = viewport.property::<bool>(Canvas::WARP_CURSOR);
-        let glyph_state = view.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = view.glyph_state.get().unwrap().borrow();
         let UnitPoint(position) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
         if !self.instance().property::<bool>(PanningTool::ACTIVE) {
             let glyph = glyph_state.glyph.borrow();
@@ -602,12 +611,12 @@ impl ToolImplImpl for PanningToolInner {
                 .borrow()
                 .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
             if pts.is_empty() {
-                view.imp().hovering.set(None);
+                view.hovering.set(None);
                 viewport.queue_draw();
             }
             if let Some(((i, j), _curve)) = glyph.on_curve_query(position, &pts) {
                 viewport.set_cursor("grab");
-                view.imp().hovering.set(Some((i, j)));
+                view.hovering.set(Some((i, j)));
                 viewport.queue_draw();
             } else {
                 self.set_default_cursor(&view);
@@ -636,15 +645,24 @@ impl ToolImplImpl for PanningToolInner {
                     .filter(|s| !s.is_empty())
                     .and_then(|snap| {
                         snap_to_closest_anchor(
-                            &glyph_state,
-                            viewport.view_to_unit_point(mouse).0, // We want to check the
-                            // transformed point's distance
-                            // from guidelines etc... what's
-                            // the best way to do that? FIXME
+                            &view,
+                            UnitPoint(delta),
+                            viewport.view_to_unit_point(mouse),
                             snap,
                         )
                     })
                 {
+                    let UnitPoint(position) = viewport.view_to_unit_point(mouse);
+                    let new_mouse = viewport.unit_to_view_point(UnitPoint(position + snap_delta));
+                    let delta = new_mouse.0 - mouse.0;
+                    view.app
+                        .get()
+                        .unwrap()
+                        .downcast_ref::<crate::Application>()
+                        .unwrap()
+                        .warp_cursor(event.device(), (delta.x as i32, delta.y as i32))
+                        .unwrap();
+                    viewport.set_mouse(new_mouse);
                     m.translate(snap_delta.x, snap_delta.y);
                 } else {
                     m.translate(delta.x, delta.y);
@@ -709,7 +727,6 @@ impl ToolImplImpl for PanningToolInner {
                 let mouse: ViewPoint = viewport.get_mouse();
                 let delta = <_ as Into<Point>>::into(event.position()) - mouse.0;
                 viewport
-                    .imp()
                     .transformation
                     .move_camera_by_delta(ViewPoint(delta));
             }
@@ -719,7 +736,7 @@ impl ToolImplImpl for PanningToolInner {
                     SelectionModifier::Remove => self.cursor_minus.get().unwrap().clone(),
                     SelectionModifier::Replace => self.cursor.get().unwrap().clone(),
                 } {
-                    view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+                    view.viewport.set_cursor_from_pixbuf(pixbuf);
                 }
                 return if self.is_selection_active.get() {
                     let event_position = event.position();
@@ -774,7 +791,7 @@ impl ToolImplImpl for PanningToolInner {
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
         self.layer.set(layer.clone()).unwrap();
-        view.imp().viewport.add_post_layer(layer);
+        view.viewport.add_post_layer(layer);
 
         self.parent_setup_toolbox(obj, toolbar, view)
     }
@@ -795,9 +812,9 @@ impl ToolImplImpl for PanningToolInner {
 impl PanningToolInner {
     fn set_default_cursor(&self, view: &GlyphEditView) {
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
-            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+            view.viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
-            view.imp().viewport.set_cursor("default");
+            view.viewport.set_cursor("default");
         }
     }
 }
@@ -825,7 +842,7 @@ impl PanningTool {
         cr: &gtk::cairo::Context,
         obj: GlyphEditView,
     ) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         let t = glyph_state.tools[&Self::static_type()]
             .clone()
             .downcast::<PanningTool>()
@@ -846,11 +863,9 @@ impl PanningTool {
         }
 
         let scale: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let ppu = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
 
@@ -860,7 +875,7 @@ impl PanningTool {
 
         let line_width = if active { 2.0 } else { 1.5 } * f;
 
-        let matrix = viewport.imp().transformation.matrix();
+        let matrix = viewport.transformation.matrix();
 
         cr.save().unwrap();
 
@@ -870,7 +885,6 @@ impl PanningTool {
 
         if resize {
             let units_per_em = viewport
-                .imp()
                 .transformation
                 .property::<f64>(Transformation::UNITS_PER_EM);
             let glyph_width = glyph_state.glyph.borrow().width.unwrap_or(0.0);
@@ -1013,7 +1027,13 @@ impl PanningTool {
     }
 }
 
-fn snap_to_closest_anchor(glyph_state: &GlyphState, mouse_pos: Point, snap: Snap) -> Option<Point> {
+fn snap_to_closest_anchor(
+    obj: &GlyphEditView,
+    UnitPoint(delta): UnitPoint,
+    UnitPoint(mouse): UnitPoint,
+    snap: Snap,
+) -> Option<Point> {
+    let point = mouse + delta;
     type Distance = f64;
 
     if snap == Snap::EMPTY {
@@ -1027,34 +1047,47 @@ fn snap_to_closest_anchor(glyph_state: &GlyphState, mouse_pos: Point, snap: Snap
     if snap.intersects(Snap::GRID) {
         //todo
     }
-    if snap.intersects(Snap::GUIDELINES) {
-        // d = |cos(θˆ)⋅(Pₗᵧ - yₚ) - sin(θˆ)⋅(Pₗₓ - Pₓ)|
-        // FIXME: broken.
-        for g in glyph_state.glyph.borrow().guidelines.iter() {
-            let angle = g.imp().angle.get().to_radians();
-            let (x, y) = (g.imp().x.get(), g.imp().y.get());
-            let (sin, cos) = angle.sin_cos();
-            let d = (cos * (y - mouse_pos.y) - sin * (x - mouse_pos.x)).abs();
-            if d <= 10.0 {
-                let slope = angle.tan();
-                let (a, b, c) = (slope, -1.0, -slope * x - y);
-                if a == 0.0 {
-                    let mx = mouse_pos.x;
-                    let my = y;
-                    candidates.push(((mx, my).into(), d));
-                } else {
-                    let b2a = (b * b) / a;
-                    let mx = (b2a * x as f64 - c - b * y as f64) / (a + b2a);
-                    let my = (-a * mx - c) / b;
-                    candidates.push(((mx, my).into(), d));
-                }
+
+    let (guidelines, metrics) = (
+        snap.intersects(Snap::GUIDELINES),
+        snap.intersects(Snap::METRICS),
+    );
+    if guidelines || metrics {
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
+        for g in glyph_state
+            .glyph
+            .borrow()
+            .guidelines
+            .iter()
+            .filter(|_| guidelines)
+            .chain(
+                obj.project
+                    .get()
+                    .unwrap()
+                    .guidelines
+                    .borrow()
+                    .iter()
+                    .filter(|_| guidelines),
+            )
+            .chain(
+                obj.project
+                    .get()
+                    .unwrap()
+                    .metric_guidelines
+                    .borrow()
+                    .iter()
+                    .filter(|_| metrics),
+            )
+        {
+            let d = g.distance_from_point(mouse);
+            if d <= 25.0 && g.distance_from_point(point) < d {
+                candidates.push((g.project_point(mouse) - mouse, d));
             }
-            //eprintln!("Guideline {:?} distance = {d}", g.imp().identifier);
         }
     }
     if snap.intersects(Snap::METRICS) {
         //todo
     }
     candidates.sort_by(|(_, a), (_, b)| a.total_cmp(b));
-    candidates.get(0).map(|(p, _)| *p - mouse_pos)
+    candidates.get(0).map(|(p, _)| *p)
 }

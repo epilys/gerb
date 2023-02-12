@@ -133,9 +133,12 @@ impl ObjectImpl for GuidelineInner {
                 *self.identifier.borrow_mut() = value.get().unwrap();
             }
             Guideline::ANGLE => {
-                let val: f64 = value.get().unwrap();
+                let mut val: f64 = value.get().unwrap();
                 if val.is_finite() {
-                    self.angle.set(val.rem_euclid(360.0));
+                    while val < 0.0 {
+                        val += 360.0;
+                    }
+                    self.angle.set(val % 180.0);
                 }
             }
             Guideline::X => {
@@ -153,13 +156,7 @@ impl ObjectImpl for GuidelineInner {
 }
 
 impl GuidelineInner {
-    pub fn draw(
-        &self,
-        cr: &Context,
-        matrix: Matrix,
-        (_width, height): (f64, f64),
-        highlight: bool,
-    ) {
+    pub fn draw(&self, cr: &Context, (_width, height): (f64, f64), highlight: bool) {
         fn move_point(p: (f64, f64), d: f64, r: f64) -> (f64, f64) {
             let (x, y) = p;
             (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
@@ -172,20 +169,13 @@ impl GuidelineInner {
         } else {
             cr.set_source_color_alpha(self.color.get());
         }
-        let p = matrix.transform_point(self.x.get(), self.y.get());
+        let p = (self.x.get(), self.y.get());
+        cr.arc(p.0, p.1, 8.0, 0.0, 2.0 * std::f64::consts::PI);
+        cr.stroke().unwrap();
         let r = self.angle.get() * 0.01745;
-        /*
-        if let Some(name) = self.name.borrow().as_ref() {
-            cr.save().unwrap();
-            cr.move_to(p.0, p.1);
-            cr.rotate(r);
-            cr.show_text(name).unwrap();
-            cr.restore().unwrap();
-        }
-        */
-        let top = move_point(p, height * 10., r);
+        let top = move_point(p, height * 10.0, r);
         cr.move_to(top.0, top.1);
-        let bottom = move_point(p, -height * 10., r);
+        let bottom = move_point(p, -height * 10.0, r);
         cr.line_to(bottom.0, bottom.1);
         cr.stroke().unwrap();
         cr.restore().unwrap();
@@ -195,9 +185,9 @@ impl GuidelineInner {
         let (xp, yp) = (p.x, p.y);
         // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
         //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
-        let r = -self.angle.get() * 0.01745;
-        let sin = f64::sin(r);
-        let cos = f64::cos(r);
+        // d = |cos(θˆ)⋅(Pₗᵧ - yₚ) - sin(θˆ)⋅(Pₗₓ - Pₓ)|
+        let r = self.angle.get() * 0.01745;
+        let (sin, cos) = r.sin_cos();
         (cos * (self.y.get() - yp) - sin * (self.x.get() - xp)).abs()
     }
 
@@ -205,10 +195,29 @@ impl GuidelineInner {
         let error = error.unwrap_or(5.0);
         self.distance_from_point(point) <= error
     }
+
+    pub fn project_point(&self, p: Point) -> Point {
+        let r = self.angle.get() * 0.01745;
+        let (sin, cos) = r.sin_cos();
+        let p1 = Point::from((self.x.get(), self.y.get()));
+        let p2 = Point::from((p1.x + 10.0 * cos, p1.y + 10.0 * sin));
+        let alpha = p - p1;
+        let beta = p2 - p1;
+        let bunit = beta / beta.norm();
+        let scalar = alpha.dot(beta) / beta.norm();
+        scalar * bunit + p1
+    }
 }
 
 glib::wrapper! {
     pub struct Guideline(ObjectSubclass<GuidelineInner>);
+}
+
+impl std::ops::Deref for Guideline {
+    type Target = GuidelineInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
 }
 
 impl Default for Guideline {
@@ -222,12 +231,12 @@ impl TryFrom<serde_json::Value> for Guideline {
     fn try_from(v: serde_json::Value) -> Result<Guideline, Self::Error> {
         let inner: GuidelineInner = serde_json::from_value(v)?;
         let ret = Self::new();
-        ret.imp().name.swap(&inner.name);
-        ret.imp().identifier.swap(&inner.identifier);
-        ret.imp().color.swap(&inner.color);
-        ret.imp().angle.swap(&inner.angle);
-        ret.imp().x.swap(&inner.x);
-        ret.imp().y.swap(&inner.y);
+        ret.name.swap(&inner.name);
+        ret.identifier.swap(&inner.identifier);
+        ret.color.swap(&inner.color);
+        ret.angle.swap(&inner.angle);
+        ret.x.swap(&inner.x);
+        ret.y.swap(&inner.y);
         Ok(ret)
     }
 }
@@ -248,22 +257,22 @@ impl TryFrom<ufo::GuidelineInfo> for Guideline {
         } = v;
 
         if let Some(x) = x {
-            ret.imp().x.set(x);
+            ret.x.set(x);
         }
         if let Some(y) = y {
-            ret.imp().y.set(y);
+            ret.y.set(y);
         }
         if let Some(name) = name {
-            *ret.imp().name.borrow_mut() = Some(name);
+            *ret.name.borrow_mut() = Some(name);
         }
         if let Some(identifier) = identifier {
-            *ret.imp().identifier.borrow_mut() = Some(identifier);
+            *ret.identifier.borrow_mut() = Some(identifier);
         }
         if let Some(_color) = color {
-            //ret.imp().color.swap(&inner.color);
+            //ret.color.swap(&inner.color);
         }
         if let Some(angle) = angle {
-            ret.imp().angle.set(angle);
+            ret.angle.set(angle);
         }
         Ok(ret)
     }
@@ -325,39 +334,39 @@ impl GuidelineBuilder {
     }
 
     pub fn name(self, name: Option<String>) -> Self {
-        *self.0.imp().name.borrow_mut() = name;
+        *self.0.name.borrow_mut() = name;
         self
     }
 
     pub fn identifier(self, identifier: Option<String>) -> Self {
-        *self.0.imp().identifier.borrow_mut() = identifier;
+        *self.0.identifier.borrow_mut() = identifier;
         self
     }
 
     pub fn with_random_identifier(self) -> Self {
-        *self.0.imp().identifier.borrow_mut() = Some(crate::ufo::make_random_identifier());
+        *self.0.identifier.borrow_mut() = Some(crate::ufo::make_random_identifier());
         self
     }
 
     pub fn color(self, color: Option<String>) -> Self {
         if let Some(color) = color.as_deref().and_then(Color::try_parse) {
-            self.0.imp().color.set(color);
+            self.0.color.set(color);
         }
         self
     }
 
     pub fn angle(self, angle: f64) -> Self {
-        self.0.imp().angle.set(angle);
+        self.0.angle.set(angle);
         self
     }
 
     pub fn x(self, x: f64) -> Self {
-        self.0.imp().x.set(x);
+        self.0.x.set(x);
         self
     }
 
     pub fn y(self, y: f64) -> Self {
-        self.0.imp().y.set(y);
+        self.0.y.set(y);
         self
     }
 

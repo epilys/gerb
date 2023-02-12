@@ -29,19 +29,17 @@ pub fn draw_glyph_layer(
 ) -> Inhibit {
     let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
     let scale: f64 = viewport
-        .imp()
         .transformation
         .property::<f64>(Transformation::SCALE);
     let ppu: f64 = viewport
-        .imp()
         .transformation
         .property::<f64>(Transformation::PIXELS_PER_UNIT);
     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
     let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
-    let matrix = viewport.imp().transformation.matrix();
+    let matrix = viewport.transformation.matrix();
 
-    let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
-    let UnitPoint(camera) = viewport.view_to_unit_point(viewport.imp().transformation.camera());
+    let glyph_state = obj.glyph_state.get().unwrap().borrow();
+    let UnitPoint(camera) = viewport.view_to_unit_point(viewport.transformation.camera());
 
     cr.save().unwrap();
 
@@ -53,7 +51,7 @@ pub fn draw_glyph_layer(
             camera.x,
             camera.y,
             5.0 + 1.0,
-            0.,
+            0.0,
             2.0 * std::f64::consts::PI,
         );
         cr.stroke().unwrap();
@@ -65,8 +63,8 @@ pub fn draw_glyph_layer(
             let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
             let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
             let unit_mouse = viewport.view_to_unit_point(mouse);
-            let ViewPoint(view_camera) = viewport.imp().transformation.camera();
-            obj.imp().new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
+            let ViewPoint(view_camera) = viewport.transformation.camera();
+            obj.new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
         }
     */
 
@@ -76,7 +74,6 @@ pub fn draw_glyph_layer(
 
     {
         let line_width = obj
-            .imp()
             .settings
             .get()
             .unwrap()
@@ -129,7 +126,7 @@ pub fn draw_glyph_layer(
                     ))
                     .scale(scale * ppu),
                 ),
-                highlight: obj.imp().hovering.get(),
+                highlight: obj.hovering.get(),
                 matrix: Matrix::identity(),
                 units_per_em,
                 handle_connection,
@@ -149,8 +146,8 @@ pub fn draw_glyph_layer(
 }
 
 pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
-    let glyph_state = obj.imp().glyph_state.get().unwrap();
-    let matrix = viewport.imp().transformation.matrix();
+    let glyph_state = obj.glyph_state.get().unwrap();
+    let matrix = viewport.transformation.matrix();
     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
     let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
     if preview {
@@ -180,6 +177,12 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
     }
 
     if viewport.property::<bool>(Canvas::SHOW_GUIDELINES) {
+        let scale: f64 = viewport
+            .transformation
+            .property::<f64>(Transformation::SCALE);
+        let ppu: f64 = viewport
+            .transformation
+            .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let show_glyph_guidelines = obj.property::<bool>(GlyphEditView::SHOW_GLYPH_GUIDELINES);
         let show_project_guidelines = obj.property::<bool>(GlyphEditView::SHOW_PROJECT_GUIDELINES);
         let show_metrics_guidelines = obj.property::<bool>(GlyphEditView::SHOW_METRICS_GUIDELINES);
@@ -188,11 +191,11 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
         cr.set_line_width(
-            obj.imp()
-                .settings
+            obj.settings
                 .get()
                 .unwrap()
-                .property(Settings::GUIDELINE_WIDTH),
+                .property::<f64>(Settings::GUIDELINE_WIDTH)
+                / (scale * ppu),
         );
         let glyph_state_ref = glyph_state.borrow();
         for g in glyph_state_ref
@@ -202,30 +205,29 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
             .iter()
             .filter(|_| show_glyph_guidelines)
             .chain(
-                obj.imp()
-                    .project
+                obj.project
                     .get()
                     .unwrap()
-                    .imp()
                     .guidelines
                     .borrow()
                     .iter()
                     .filter(|_| show_project_guidelines),
             )
             .chain(
-                obj.imp()
-                    .project
+                obj.project
                     .get()
                     .unwrap()
-                    .imp()
                     .metric_guidelines
                     .borrow()
                     .iter()
                     .filter(|_| show_metrics_guidelines),
             )
         {
-            let highlight = g.imp().on_line_query(unit_mouse, None);
-            g.imp().draw(cr, matrix, (width, height), highlight);
+            let highlight = g.on_line_query(unit_mouse, None);
+            cr.save().unwrap();
+            cr.transform(matrix);
+            g.draw(cr, (width, height), highlight);
+            cr.restore().unwrap();
             if highlight {
                 cr.move_to(mouse.0.x, mouse.0.y);
                 let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
@@ -283,12 +285,11 @@ impl GlyphEditViewInner {
         listbox.add(&label);
         for layer in self
             .viewport
-            .imp()
             .pre_layers
             .borrow()
             .iter()
-            .chain(self.viewport.imp().layers.borrow().iter())
-            .chain(self.viewport.imp().post_layers.borrow().iter())
+            .chain(self.viewport.layers.borrow().iter())
+            .chain(self.viewport.post_layers.borrow().iter())
         {
             let label = gtk::Label::new(Some(&layer.property::<String>(Layer::NAME)));
             label.set_visible(true);

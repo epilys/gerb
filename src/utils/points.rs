@@ -171,6 +171,10 @@ impl Point {
         let ylk = rhs.y - self.y;
         (xlk * xlk + ylk * ylk).sqrt()
     }
+
+    pub fn dot(&self, rhs: Self) -> f64 {
+        self.x * rhs.x + self.y * rhs.y
+    }
 }
 
 impl From<Point> for (f64, f64) {

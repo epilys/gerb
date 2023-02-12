@@ -100,7 +100,7 @@ impl ObjectImpl for BezierInner {
                             CurvePoint::static_type(),
                             glib::ParamFlags::READWRITE,
                         ),
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READABLE,
                     ),
                 ]
             });
@@ -132,14 +132,6 @@ impl ObjectImpl for BezierInner {
         match pspec.name() {
             Bezier::SMOOTH => {
                 self.smooth.set(value.get().unwrap());
-            }
-            Bezier::POINTS => {
-                let arr: glib::ValueArray = value.get().unwrap();
-                let mut points = self.points.borrow_mut();
-                points.clear();
-                for p in arr.iter() {
-                    points.push(p.get().unwrap());
-                }
             }
             _ => unimplemented!("{}", pspec.name()),
         }

@@ -265,6 +265,13 @@ glib::wrapper! {
     pub struct Transformation(ObjectSubclass<TransformationInner>);
 }
 
+impl std::ops::Deref for Transformation {
+    type Target = TransformationInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl Transformation {
     pub const CENTERED: &str = "centered";
     pub const FIT_VIEW: &str = "fit-view";
@@ -306,7 +313,7 @@ impl Transformation {
 
     pub fn matrix(&self) -> Matrix {
         let mut retval = Matrix::identity();
-        let factor = self.imp().pixels_per_unit.get() * self.imp().scale.get();
+        let factor = self.pixels_per_unit.get() * self.scale.get();
         retval.translate(
             self.property::<f64>(Self::CAMERA_X),
             self.property::<f64>(Self::CAMERA_Y),
@@ -365,7 +372,7 @@ impl Transformation {
     }
 
     pub fn reset_zoom(&self) {
-        let previous_value = self.imp().previous_scale.get();
+        let previous_value = self.previous_scale.get();
         let current_value = self.property::<f64>(Transformation::SCALE);
         match previous_value {
             None if current_value == 1.0 => {}
@@ -374,7 +381,7 @@ impl Transformation {
             }
             _ => {
                 self.set_zoom(1.0);
-                self.imp().previous_scale.set(Some(current_value));
+                self.previous_scale.set(Some(current_value));
             }
         }
     }

@@ -344,7 +344,7 @@ impl ObjectSubclass for GlyphEditViewInner {
 impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.lock_guidelines.set(true);
+        self.lock_guidelines.set(false);
         let ctrl = gtk::EventControllerKey::new(obj);
         ctrl.connect_key_pressed(
             clone!(@weak self.action_group as group => @default-return false, move |_self, keyval, _, _| {
@@ -412,32 +412,47 @@ impl ObjectImpl for GlyphEditViewInner {
 
         self.viewport.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
+                let prev_mouse = viewport.get_mouse();
                 let retval = Tool::on_button_press_event(obj, viewport, event);
                 if retval == Inhibit(true) {
                     viewport.queue_draw();
                 }
-                viewport.set_mouse(ViewPoint(event.position().into()));
+                if prev_mouse == viewport.get_mouse() {
+                    // Tool didn't update mouse position, so let's do it now. This is to prevent
+                    // overwriting any modifications to the mouse done by tools.
+                    viewport.set_mouse(ViewPoint(event.position().into()));
+                }
                 retval
             }),
         );
 
         self.viewport.connect_button_release_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
+                let prev_mouse = viewport.get_mouse();
                 let retval = Tool::on_button_release_event(obj, viewport, event);
                 if retval == Inhibit(true) {
                     viewport.queue_draw();
                 }
-                viewport.set_mouse(ViewPoint(event.position().into()));
+                if prev_mouse == viewport.get_mouse() {
+                    // Tool didn't update mouse position, so let's do it now. This is to prevent
+                    // overwriting any modifications to the mouse done by tools.
+                    viewport.set_mouse(ViewPoint(event.position().into()));
+                }
                 retval
             }),
         );
 
         self.viewport.connect_motion_notify_event(
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
+                let prev_mouse = viewport.get_mouse();
                 let retval = Tool::on_motion_notify_event(obj, viewport, event);
-                viewport.set_mouse(ViewPoint(event.position().into()));
                 if let Inhibit(true) = retval {
                     viewport.queue_draw();
+                }
+                if prev_mouse == viewport.get_mouse() {
+                    // Tool didn't update mouse position, so let's do it now. This is to prevent
+                    // overwriting any modifications to the mouse done by tools.
+                    viewport.set_mouse(ViewPoint(event.position().into()));
                 }
                 retval
             }),
@@ -635,7 +650,6 @@ impl ObjectImpl for GlyphEditViewInner {
         match pspec.name() {
             GlyphEditView::TITLE => {
                 if let Some(name) = obj
-                    .imp()
                     .glyph_state
                     .get()
                     .map(|s| s.borrow().glyph.borrow().name_markup())
@@ -821,6 +835,13 @@ glib::wrapper! {
         @extends gtk::Widget, gtk::Container, gtk::Bin;
 }
 
+impl std::ops::Deref for GlyphEditView {
+    type Target = GlyphEditViewInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl GlyphEditView {
     pub const ASCENDER: &str = Project::ASCENDER;
     pub const CAP_HEIGHT: &str = Project::CAP_HEIGHT;
@@ -858,15 +879,15 @@ impl GlyphEditView {
 
     pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
-        ret.imp().glyph.set(glyph.clone()).unwrap();
-        ret.imp().app.set(app.clone()).unwrap();
+        ret.glyph.set(glyph.clone()).unwrap();
+        ret.app.set(app.clone()).unwrap();
         {
             let property = GlyphEditView::UNITS_PER_EM;
-            ret.bind_property(property, &ret.imp().viewport.imp().transformation, property)
+            ret.bind_property(property, &ret.viewport.transformation, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
-        ret.imp().viewport.imp().transformation.set_property(
+        ret.viewport.transformation.set_property(
             Transformation::CONTENT_WIDTH,
             glyph
                 .borrow()
@@ -893,22 +914,18 @@ impl GlyphEditView {
             .borrow()
             .clone();
         settings
-            .bind_property(
-                Canvas::WARP_CURSOR,
-                &ret.imp().viewport,
-                Canvas::WARP_CURSOR,
-            )
+            .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
         for prop in [Settings::HANDLE_SIZE, Settings::LINE_WIDTH] {
             settings.connect_notify_local(
                 Some(prop),
                 clone!(@strong ret => move |_self, _| {
-                    ret.imp().viewport.queue_draw();
+                    ret.viewport.queue_draw();
                 }),
             );
         }
-        ret.imp().settings.set(settings).unwrap();
+        ret.settings.set(settings).unwrap();
         for prop in [
             Canvas::SHOW_GRID,
             Canvas::SHOW_GUIDELINES,
@@ -916,12 +933,12 @@ impl GlyphEditView {
             Canvas::INNER_FILL,
             Canvas::SHOW_TOTAL_AREA,
         ] {
-            let prop_action = gio::PropertyAction::new(prop, &ret.imp().viewport, prop);
-            ret.imp().action_group.add_action(&prop_action);
+            let prop_action = gio::PropertyAction::new(prop, &ret.viewport, prop);
+            ret.action_group.add_action(&prop_action);
         }
         {
             let prop_action = gio::PropertyAction::new(Self::PREVIEW_ACTION, &ret, Self::PREVIEW);
-            ret.imp().action_group.add_action(&prop_action);
+            ret.action_group.add_action(&prop_action);
         }
         for (zoom_action, tool_func) in [
             (
@@ -932,27 +949,25 @@ impl GlyphEditView {
         ] {
             let action = gio::SimpleAction::new(zoom_action, None);
             action.connect_activate(glib::clone!(@weak ret as obj => move |_, _| {
-                let t = &obj.imp().viewport.imp().transformation;
+                let t = &obj.viewport.transformation;
                 tool_func(t);
             }));
-            ret.imp().action_group.add_action(&action);
+            ret.action_group.add_action(&action);
         }
         tools::constraints::create_constraint_actions(&ret);
-        ret.insert_action_group("view", Some(&ret.imp().action_group));
-        ret.imp()
-            .menubar
-            .insert_action_group("view", Some(&ret.imp().action_group));
-        ret.imp()
-            .glyph_state
+        ret.insert_action_group("view", Some(&ret.action_group));
+        ret.menubar
+            .insert_action_group("view", Some(&ret.action_group));
+        ret.glyph_state
             .set(Rc::new(RefCell::new(GlyphState::new(
                 &glyph,
                 app,
-                ret.imp().viewport.clone(),
+                ret.viewport.clone(),
             ))))
             .expect("Failed to create glyph state");
         Tool::setup_toolbox(&ret);
-        ret.imp().project.set(project).unwrap();
-        ret.imp().setup_menu(&ret);
+        ret.project.set(project).unwrap();
+        ret.setup_menu(&ret);
         ret
     }
 }

@@ -42,7 +42,7 @@ impl Tool {
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         let active_tools = glyph_state
             .tools
             .get(&glyph_state.active_tool)
@@ -69,7 +69,7 @@ impl Tool {
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         let active_tools = glyph_state
             .tools
             .get(&glyph_state.active_tool)
@@ -96,7 +96,7 @@ impl Tool {
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         let (panning_tool, active_tool) = (glyph_state.panning_tool, glyph_state.active_tool);
         let active_tools = glyph_state
             .tools
@@ -131,7 +131,7 @@ impl Tool {
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         let active_tools = glyph_state
             .tools
             .get(&glyph_state.active_tool)
@@ -154,17 +154,15 @@ impl Tool {
     }
 
     pub fn setup_toolbox(obj: &GlyphEditView) {
-        obj.imp()
-            .toolbar_box
-            .set_orientation(gtk::Orientation::Vertical);
-        obj.imp().toolbar_box.set_expand(false);
-        obj.imp().toolbar_box.set_halign(gtk::Align::Start);
-        obj.imp().toolbar_box.set_valign(gtk::Align::Start);
-        obj.imp().toolbar_box.set_spacing(5);
-        obj.imp().toolbar_box.set_border_width(0);
-        obj.imp().toolbar_box.set_visible(true);
-        obj.imp().toolbar_box.set_tooltip_text(Some("Tools"));
-        obj.imp().toolbar_box.set_can_focus(true);
+        obj.toolbar_box.set_orientation(gtk::Orientation::Vertical);
+        obj.toolbar_box.set_expand(false);
+        obj.toolbar_box.set_halign(gtk::Align::Start);
+        obj.toolbar_box.set_valign(gtk::Align::Start);
+        obj.toolbar_box.set_spacing(5);
+        obj.toolbar_box.set_border_width(0);
+        obj.toolbar_box.set_visible(true);
+        obj.toolbar_box.set_tooltip_text(Some("Tools"));
+        obj.toolbar_box.set_can_focus(true);
         let toolbar = gtk::Toolbar::builder()
             .orientation(gtk::Orientation::Vertical)
             .expand(false)
@@ -175,7 +173,7 @@ impl Tool {
             .visible(true)
             .can_focus(true)
             .build();
-        let mut glyph_state = obj.imp().glyph_state.get().unwrap().borrow_mut();
+        let mut glyph_state = obj.glyph_state.get().unwrap().borrow_mut();
         for t in [
             PanningTool::new().upcast::<ToolImpl>(),
             BezierTool::new().upcast::<ToolImpl>(),
@@ -211,14 +209,14 @@ impl Tool {
                             .add_button_cb(
                                 "reset zoom",
                                 clone!(@strong obj => move |_| {
-                                    let t = &obj.imp().viewport.imp().transformation;
+                                    let t = &obj.viewport.transformation;
                                     t.reset_zoom();
                                 }),
                             )
                             .add_button_cb(
                                 "set zoom value",
                                 clone!(@strong obj, @weak _self => move |_| {
-                                    let t = &obj.imp().viewport.imp().transformation;
+                                    let t = &obj.viewport.transformation;
                                     let dialog = gtk::Dialog::with_buttons(
                                         Some("set zoom value"),
                                         gtk::Window::NONE,
@@ -283,21 +281,21 @@ impl Tool {
                             .add_button_cb(
                                 "fit to page",
                                 clone!(@strong obj => move |_| {
-                                    let t = &obj.imp().viewport.imp().transformation;
+                                    let t = &obj.viewport.transformation;
                                     t.set_property(Transformation::FIT_VIEW, true);
                                 }),
                             )
                             .add_button_cb(
                                 "reset camera",
                                 clone!(@strong obj => move |_| {
-                                    let t = &obj.imp().viewport.imp().transformation;
+                                    let t = &obj.viewport.transformation;
                                     t.set_property(Transformation::CENTERED, true);
                                 }),
                             ).popup(event.time());
                         Inhibit(true)
                     }
                     gtk::gdk::BUTTON_PRIMARY => {
-                        let t = &obj.imp().viewport.imp().transformation;
+                        let t = &obj.viewport.transformation;
                         t.reset_zoom();
                         Inhibit(true)
                     }
@@ -305,9 +303,7 @@ impl Tool {
                 }
             }),
         );
-        obj.imp()
-            .viewport
-            .imp()
+        obj.viewport
             .transformation
             .bind_property(Transformation::SCALE, &zoom_percent_label, "label")
             .transform_to(|_, scale: &Value| {
@@ -315,12 +311,10 @@ impl Tool {
                 Some(format!("{:.0}%", scale * 100.).to_value())
             })
             .build();
-        obj.imp().toolbar_box.pack_start(&toolbar, false, false, 0);
-        obj.imp()
-            .toolbar_box
+        obj.toolbar_box.pack_start(&toolbar, false, false, 0);
+        obj.toolbar_box
             .pack_start(&zoom_percent_label, false, false, 0);
-        obj.imp()
-            .toolbar_box
+        obj.toolbar_box
             .style_context()
             .add_class("glyph-edit-toolbox");
     }
@@ -505,10 +499,9 @@ pub mod constraints {
                 impl $ty {
                     pub fn clear(view: &GlyphEditView) {
                         use gtk::prelude::ActionGroupExt;
-                        use gtk::glib::subclass::types::ObjectSubclassIsExt;
                         use crate::glib::ToVariant;
 
-                        view.imp()
+                        view
                             .action_group
                             .change_action_state(Self::ACTION_NAME, &<$ty>::empty().to_variant());
                     }
@@ -522,7 +515,6 @@ pub mod constraints {
     pub fn create_constraint_actions(obj: &GlyphEditView) {
         use gtk::gio;
         use gtk::prelude::*;
-        use gtk::subclass::prelude::*;
 
         let lock = gio::PropertyAction::new(GlyphEditView::LOCK_ACTION, obj, GlyphEditView::LOCK);
         for (name, (axis, complement)) in [
@@ -541,7 +533,7 @@ pub mod constraints {
                     lock.change_state(&lock_flags.to_variant());
                 }
             }));
-            obj.imp().action_group.add_action(&toggle_axis);
+            obj.action_group.add_action(&toggle_axis);
         }
         for (name, opt) in [
             (GlyphEditView::LOCK_LOCAL_ACTION, Lock::LOCAL),
@@ -563,9 +555,9 @@ pub mod constraints {
                     lock.change_state(&lock_flags.to_variant());
                 }
             }));
-            obj.imp().action_group.add_action(&change_opt);
+            obj.action_group.add_action(&change_opt);
         }
-        obj.imp().action_group.add_action(&lock);
+        obj.action_group.add_action(&lock);
 
         let snap = gio::PropertyAction::new(GlyphEditView::SNAP_ACTION, obj, GlyphEditView::SNAP);
         for (name, anchor) in [
@@ -581,13 +573,13 @@ pub mod constraints {
                 snap_flags.toggle(anchor);
                 snap.change_state(&snap_flags.to_variant());
             }));
-            obj.imp().action_group.add_action(&toggle_anchor);
+            obj.action_group.add_action(&toggle_anchor);
         }
         let clear_snap = gio::SimpleAction::new(GlyphEditView::SNAP_CLEAR_ACTION, None);
         clear_snap.connect_activate(glib::clone!(@weak obj => move |_, _| {
             Snap::clear(&obj);
         }));
-        obj.imp().action_group.add_action(&clear_snap);
-        obj.imp().action_group.add_action(&snap);
+        obj.action_group.add_action(&clear_snap);
+        obj.action_group.add_action(&snap);
     }
 }

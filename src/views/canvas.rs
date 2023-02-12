@@ -37,11 +37,11 @@ use gtk::subclass::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct UnitPoint(pub Point);
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
 pub struct ViewPoint(pub Point);
 
@@ -216,12 +216,11 @@ impl ObjectImpl for CanvasInner {
             move |viewport: &Canvas, cr: &gtk::cairo::Context| -> Inhibit {
                 let mut retval = Inhibit(false);
                 for layer in viewport
-                    .imp()
                     .pre_layers
                     .borrow()
                     .iter()
-                    .chain(viewport.imp().layers.borrow().iter())
-                    .chain(viewport.imp().post_layers.borrow().iter())
+                    .chain(viewport.layers.borrow().iter())
+                    .chain(viewport.post_layers.borrow().iter())
                     .filter(Layer::is_active)
                 {
                     retval = (layer.get_callback())(viewport, cr);
@@ -565,6 +564,13 @@ glib::wrapper! {
         @extends gtk::DrawingArea, gtk::Widget;
 }
 
+impl std::ops::Deref for Canvas {
+    type Target = CanvasInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl Canvas {
     pub const HANDLE_SIZE: &str = "handle-size";
     pub const LINE_WIDTH: &str = "line-width";
@@ -597,7 +603,7 @@ impl Canvas {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
         for prop in [Self::VIEW_WIDTH, Self::VIEW_HEIGHT] {
-            ret.bind_property(prop, &ret.imp().transformation, prop)
+            ret.bind_property(prop, &ret.transformation, prop)
                 .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
                 .build();
         }
@@ -605,15 +611,15 @@ impl Canvas {
     }
 
     pub fn add_pre_layer(&self, new_layer: Layer) {
-        self.imp().pre_layers.borrow_mut().push(new_layer);
+        self.pre_layers.borrow_mut().push(new_layer);
     }
 
     pub fn add_layer(&self, new_layer: Layer) {
-        self.imp().layers.borrow_mut().push(new_layer);
+        self.layers.borrow_mut().push(new_layer);
     }
 
     pub fn add_post_layer(&self, new_layer: Layer) {
-        self.imp().post_layers.borrow_mut().push(new_layer);
+        self.post_layers.borrow_mut().push(new_layer);
     }
 
     pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {
@@ -622,17 +628,13 @@ impl Canvas {
         cr.paint().unwrap();
 
         if self.property::<bool>(Canvas::SHOW_GRID) {
-            let scale: f64 = self
-                .imp()
-                .transformation
-                .property::<f64>(Transformation::SCALE);
+            let scale: f64 = self.transformation.property::<f64>(Transformation::SCALE);
             let ppu = self
-                .imp()
                 .transformation
                 .property::<f64>(Transformation::PIXELS_PER_UNIT);
             let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
             let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
-            let ViewPoint(camera) = self.imp().transformation.camera();
+            let ViewPoint(camera) = self.transformation.camera();
 
             cr.set_line_width(1.5);
 
@@ -659,18 +661,14 @@ impl Canvas {
     }
 
     pub fn draw_rulers(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        if !self.imp().show_rulers.get() {
+        if !self.show_rulers.get() {
             return Inhibit(false);
         }
         let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
         let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
         let ruler_breadth: f64 = self.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
-        let scale = self
-            .imp()
-            .transformation
-            .property::<f64>(Transformation::SCALE);
+        let scale = self.transformation.property::<f64>(Transformation::SCALE);
         let ppu = self
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let (ruler_fg, ruler_bg, ruler_indicator_color) = (
@@ -678,7 +676,7 @@ impl Canvas {
             self.property::<Color>(Canvas::RULER_BG_COLOR),
             self.property::<Color>(Canvas::RULER_INDICATOR_COLOR),
         );
-        let ViewPoint(camera) = self.imp().transformation.camera();
+        let ViewPoint(camera) = self.transformation.camera();
 
         cr.save().unwrap();
         cr.set_line_width(1.0);
@@ -768,15 +766,14 @@ impl Canvas {
     }
 
     pub fn view_to_unit_point(&self, ViewPoint(viewpoint): ViewPoint) -> UnitPoint {
-        let mut matrix = self.imp().transformation.matrix();
+        let mut matrix = self.transformation.matrix();
         matrix.invert();
         UnitPoint(matrix.transform_point(viewpoint.x, viewpoint.y).into())
     }
 
     pub fn unit_to_view_point(&self, UnitPoint(unitpoint): UnitPoint) -> ViewPoint {
         ViewPoint(
-            self.imp()
-                .transformation
+            self.transformation
                 .matrix()
                 .transform_point(unitpoint.x, unitpoint.y)
                 .into(),
@@ -784,11 +781,11 @@ impl Canvas {
     }
 
     pub fn set_mouse(&self, new_value: ViewPoint) {
-        self.imp().mouse.set(new_value);
+        self.mouse.set(new_value);
     }
 
     pub fn get_mouse(&self) -> ViewPoint {
-        self.imp().mouse.get()
+        self.mouse.get()
     }
 
     pub fn set_cursor(&self, name: &str) {

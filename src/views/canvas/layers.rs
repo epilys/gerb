@@ -117,6 +117,13 @@ glib::wrapper! {
     pub struct Layer(ObjectSubclass<LayerInner>);
 }
 
+impl std::ops::Deref for Layer {
+    type Target = LayerInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl Layer {
     pub const ACTIVE: &str = "active";
     pub const HIDDEN: &str = "hidden";
@@ -133,15 +140,15 @@ impl Layer {
     }
 
     pub fn set_callback(&self, callback: Box<LayerCallback>) {
-        *self.imp().callback.borrow_mut() = callback.into();
+        *self.callback.borrow_mut() = callback.into();
     }
 
     pub fn get_callback(&self) -> std::cell::Ref<Rc<LayerCallback>> {
-        self.imp().callback.borrow()
+        self.callback.borrow()
     }
 
     pub fn reset_callback(&self) {
-        *self.imp().callback.borrow_mut() = Rc::new(|_canvas, _context| Inhibit(false));
+        *self.callback.borrow_mut() = Rc::new(|_canvas, _context| Inhibit(false));
     }
 }
 
@@ -192,7 +199,7 @@ impl LayerBuilder {
         retval.set_property::<bool>(Layer::ACTIVE, self.active);
         retval.set_property::<bool>(Layer::HIDDEN, self.hidden);
         if let Some(name) = self.name {
-            *retval.imp().name.borrow_mut() = name;
+            *retval.name.borrow_mut() = name;
         }
         if let Some(cb) = self.cb {
             retval.set_callback(cb);

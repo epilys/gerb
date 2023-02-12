@@ -180,7 +180,7 @@ impl ObjectImpl for WindowInner {
 
         obj.connect_local("open-glyph-edit", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
             let glyph_box = v[1].get::<crate::views::GlyphBox>().unwrap();
-            obj.imp().edit_glyph(glyph_box.imp().glyph.get().unwrap());
+            obj.edit_glyph(glyph_box.imp().glyph.get().unwrap());
 
             None
         }));
@@ -188,7 +188,7 @@ impl ObjectImpl for WindowInner {
         obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
             match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::from_path(&path)) {
                 Ok(project) => {
-                    obj.imp().load_project(project);
+                    obj.load_project(project);
                     obj.queue_draw();
                 }
                 Err(err) => {
@@ -416,6 +416,13 @@ impl ApplicationWindowImpl for WindowInner {}
 glib::wrapper! {
     pub struct Window(ObjectSubclass<WindowInner>)
         @extends gtk::Widget, gtk::Container, gtk::Bin, gtk::Window, gtk::ApplicationWindow;
+}
+
+impl std::ops::Deref for Window {
+    type Target = WindowInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
 }
 
 impl Default for Window {

@@ -281,10 +281,9 @@ impl ToolImplInner {
 
     fn on_activate(&self, view: &GlyphEditView) {
         let t = self.instance().type_();
-        let active_tool = view.imp().glyph_state.get().unwrap().borrow().active_tool;
+        let active_tool = view.glyph_state.get().unwrap().borrow().active_tool;
         if active_tool != t {
             if let Some(previous_tool) = view
-                .imp()
                 .glyph_state
                 .get()
                 .unwrap()
@@ -296,12 +295,7 @@ impl ToolImplInner {
                 previous_tool.on_deactivate(view);
             }
 
-            view.imp()
-                .glyph_state
-                .get()
-                .unwrap()
-                .borrow_mut()
-                .active_tool = t;
+            view.glyph_state.get().unwrap().borrow_mut().active_tool = t;
         }
     }
 

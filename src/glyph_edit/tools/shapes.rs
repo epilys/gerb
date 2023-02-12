@@ -167,7 +167,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
                         contour.push_curve(c);
                     }
                     contour.close();
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
                     let contour_index = glyph_state.glyph.borrow().contours.len();
                     let subaction = glyph_state.add_contour(&contour, contour_index);
                     let mut action =
@@ -184,7 +184,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
                     self.upper_left.set(None);
                     self.instance()
                         .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
                     glyph_state.active_tool = glib::types::Type::INVALID;
                     viewport.set_cursor("default");
                 }
@@ -262,7 +262,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
         self.layer.set(layer.clone()).unwrap();
-        view.imp().viewport.add_post_layer(layer);
+        view.viewport.add_post_layer(layer);
 
         self.parent_setup_toolbox(obj, toolbar, view)
     }
@@ -271,9 +271,9 @@ impl ToolImplImpl for QuadrilateralToolInner {
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, true);
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
-            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+            view.viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
-            view.imp().viewport.set_cursor("grab");
+            view.viewport.set_cursor("grab");
         }
         self.parent_on_activate(obj, view)
     }
@@ -282,7 +282,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
         self.upper_left.set(None);
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
-        view.imp().viewport.set_cursor("default");
+        view.viewport.set_cursor("default");
         self.parent_on_deactivate(obj, view)
     }
 }
@@ -308,7 +308,7 @@ impl QuadrilateralTool {
     }
 
     pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if QuadrilateralTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
         }
@@ -323,23 +323,20 @@ impl QuadrilateralTool {
             return Inhibit(false);
         }
         let scale: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let ppu: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let curves = t.imp().curves.borrow();
         let line_width = obj
-            .imp()
             .settings
             .get()
             .unwrap()
             .property::<f64>(Settings::LINE_WIDTH)
             / (scale * ppu);
         cr.save().expect("Invalid cairo surface state");
-        cr.transform(viewport.imp().transformation.matrix());
+        cr.transform(viewport.transformation.matrix());
         cr.set_line_width(line_width);
         let outline = (0.2, 0.2, 0.2, 0.6);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
@@ -497,7 +494,7 @@ impl ToolImplImpl for EllipseToolInner {
                         contour.push_curve(c);
                     }
                     contour.close();
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
                     let contour_index = glyph_state.glyph.borrow().contours.len();
                     let subaction = glyph_state.add_contour(&contour, contour_index);
                     let mut action =
@@ -514,7 +511,7 @@ impl ToolImplImpl for EllipseToolInner {
                     self.center.set(None);
                     self.instance()
                         .set_property::<bool>(EllipseTool::ACTIVE, false);
-                    let mut glyph_state = view.imp().glyph_state.get().unwrap().borrow_mut();
+                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
                     glyph_state.active_tool = glib::types::Type::INVALID;
                     viewport.set_cursor("default");
                 }
@@ -583,7 +580,7 @@ impl ToolImplImpl for EllipseToolInner {
             .flags(glib::BindingFlags::SYNC_CREATE)
             .build();
         self.layer.set(layer.clone()).unwrap();
-        view.imp().viewport.add_post_layer(layer);
+        view.viewport.add_post_layer(layer);
 
         self.parent_setup_toolbox(obj, toolbar, view)
     }
@@ -592,9 +589,9 @@ impl ToolImplImpl for EllipseToolInner {
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, true);
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
-            view.imp().viewport.set_cursor_from_pixbuf(pixbuf);
+            view.viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
-            view.imp().viewport.set_cursor("grab");
+            view.viewport.set_cursor("grab");
         }
         self.parent_on_activate(obj, view)
     }
@@ -603,7 +600,7 @@ impl ToolImplImpl for EllipseToolInner {
         self.center.set(None);
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, false);
-        view.imp().viewport.set_cursor("default");
+        view.viewport.set_cursor("default");
         self.parent_on_deactivate(obj, view)
     }
 }
@@ -629,7 +626,7 @@ impl EllipseTool {
     }
 
     pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
-        let glyph_state = obj.imp().glyph_state.get().unwrap().borrow();
+        let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if EllipseTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
         }
@@ -644,23 +641,20 @@ impl EllipseTool {
             return Inhibit(false);
         }
         let scale: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::SCALE);
         let ppu: f64 = viewport
-            .imp()
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let curves = t.imp().curves.borrow();
         let line_width = obj
-            .imp()
             .settings
             .get()
             .unwrap()
             .property::<f64>(Settings::LINE_WIDTH)
             / (scale * ppu);
         cr.save().expect("Invalid cairo surface state");
-        cr.transform(viewport.imp().transformation.matrix());
+        cr.transform(viewport.transformation.matrix());
         cr.set_line_width(line_width);
         let outline = (0.2, 0.2, 0.2, 0.6);
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);

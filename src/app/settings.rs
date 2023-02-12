@@ -37,6 +37,13 @@ glib::wrapper! {
     pub struct Settings(ObjectSubclass<SettingsInner>);
 }
 
+impl std::ops::Deref for Settings {
+    type Target = SettingsInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct SettingsInner {
     pub handle_size: Cell<f64>,

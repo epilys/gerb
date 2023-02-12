@@ -289,6 +289,13 @@ glib::wrapper! {
     pub struct Project(ObjectSubclass<ProjectInner>);
 }
 
+impl std::ops::Deref for Project {
+    type Target = ProjectInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl Project {
     pub const ASCENDER: &str = "ascender";
     pub const CAP_HEIGHT: &str = "cap-height";
@@ -361,19 +368,19 @@ impl Project {
         let ret: Self = Self::new();
         ret.set_property(Project::NAME, fontinfo.family_name.clone());
         ret.set_property(Project::MODIFIED, false);
-        *ret.imp().last_saved.borrow_mut() = None;
-        *ret.imp().glyphs.borrow_mut() = glyphs?;
-        *ret.imp().path.borrow_mut() = Some(path);
-        *ret.imp().family_name.borrow_mut() = fontinfo.family_name.clone();
-        *ret.imp().style_name.borrow_mut() = fontinfo.style_name.clone();
+        *ret.last_saved.borrow_mut() = None;
+        *ret.glyphs.borrow_mut() = glyphs?;
+        *ret.path.borrow_mut() = Some(path);
+        *ret.family_name.borrow_mut() = fontinfo.family_name.clone();
+        *ret.style_name.borrow_mut() = fontinfo.style_name.clone();
         if let Some(v) = version_major {
             ret.set_property(Project::VERSION_MAJOR, v);
         }
         if let Some(v) = version_minor {
             ret.set_property(Project::VERSION_MINOR, v);
         }
-        *ret.imp().copyright.borrow_mut() = fontinfo.copyright.clone();
-        *ret.imp().trademark.borrow_mut() = fontinfo.trademark.clone();
+        *ret.copyright.borrow_mut() = fontinfo.copyright.clone();
+        *ret.trademark.borrow_mut() = fontinfo.trademark.clone();
         if let Some(v) = units_per_em {
             ret.set_property(Project::UNITS_PER_EM, v);
         }
@@ -392,24 +399,24 @@ impl Project {
         if let Some(v) = italic_angle {
             ret.set_property(Project::ITALIC_ANGLE, v);
         }
-        *ret.imp().note.borrow_mut() = String::new();
-        *ret.imp().guidelines.borrow_mut() = fontinfo
+        *ret.note.borrow_mut() = String::new();
+        *ret.guidelines.borrow_mut() = fontinfo
             .guidelines
             .clone()
             .into_iter()
             .map(Guideline::try_from)
             .collect::<Result<Vec<Guideline>, String>>()?;
-        *ret.imp().fontinfo.borrow_mut() = fontinfo;
-        *ret.imp().metainfo.borrow_mut() = metainfo;
-        *ret.imp().contents.borrow_mut() = contents;
-        *ret.imp().layercontents.borrow_mut() = layercontents;
+        *ret.fontinfo.borrow_mut() = fontinfo;
+        *ret.metainfo.borrow_mut() = metainfo;
+        *ret.contents.borrow_mut() = contents;
+        *ret.layercontents.borrow_mut() = layercontents;
         {
-            let mut metric_guidelines = ret.imp().metric_guidelines.borrow_mut();
+            let mut metric_guidelines = ret.metric_guidelines.borrow_mut();
             for (name, field) in [
-                (Project::X_HEIGHT, ret.imp().x_height.get()),
-                (Project::ASCENDER, ret.imp().ascender.get()),
-                (Project::DESCENDER, ret.imp().descender.get()),
-                (Project::CAP_HEIGHT, ret.imp().cap_height.get()),
+                (Project::X_HEIGHT, ret.x_height.get()),
+                (Project::ASCENDER, ret.ascender.get()),
+                (Project::DESCENDER, ret.descender.get()),
+                (Project::CAP_HEIGHT, ret.cap_height.get()),
             ] {
                 metric_guidelines.push(
                     Guideline::builder()
@@ -428,15 +435,15 @@ impl Project {
 impl Default for Project {
     fn default() -> Self {
         let ret: Self = Self::new();
-        *ret.imp().last_saved.borrow_mut() = None;
-        *ret.imp().glyphs.borrow_mut() = HashMap::default();
-        *ret.imp().path.borrow_mut() = None;
-        *ret.imp().family_name.borrow_mut() = "New project".to_string();
-        *ret.imp().style_name.borrow_mut() = String::new();
-        *ret.imp().copyright.borrow_mut() = String::new();
-        *ret.imp().trademark.borrow_mut() = String::new();
-        *ret.imp().note.borrow_mut() = String::new();
-        *ret.imp().guidelines.borrow_mut() = vec![];
+        *ret.last_saved.borrow_mut() = None;
+        *ret.glyphs.borrow_mut() = HashMap::default();
+        *ret.path.borrow_mut() = None;
+        *ret.family_name.borrow_mut() = "New project".to_string();
+        *ret.style_name.borrow_mut() = String::new();
+        *ret.copyright.borrow_mut() = String::new();
+        *ret.trademark.borrow_mut() = String::new();
+        *ret.note.borrow_mut() = String::new();
+        *ret.guidelines.borrow_mut() = vec![];
         ret
     }
 }
