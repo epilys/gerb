@@ -21,15 +21,11 @@
 
 use super::{GlyphEditView, GlyphEditViewInner};
 use crate::glyphs::Contour;
+use crate::prelude::*;
 use crate::views::Canvas;
 use gtk::{gio, glib::subclass::prelude::*, prelude::*};
 
-fn new_accel_item(
-    menu: &gio::Menu,
-    app: &gtk::Application,
-    label: &str,
-    detailed_action_name: &str,
-) {
+fn new_accel_item(menu: &gio::Menu, app: &Application, label: &str, detailed_action_name: &str) {
     let item = gio::MenuItem::new(Some(label), Some(detailed_action_name));
     // https://stackoverflow.com/a/16860754
     if let Some(accel) = app

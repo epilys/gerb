@@ -26,16 +26,9 @@ pub use tabinfo::*;
 mod minimap;
 pub use minimap::*;
 
-use glib::clone;
-use gtk::glib;
 use gtk::glib::subclass::Signal;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
-use once_cell::sync::Lazy;
-use std::cell::RefCell;
-use std::rc::Rc;
 
-use crate::project::Project;
+use crate::prelude::*;
 
 #[derive(Debug)]
 pub struct WindowSidebar {
@@ -358,8 +351,7 @@ impl WindowInner {
             self.notebook.remove(tab);
         });
 
-        let collection =
-            crate::views::Collection::new(self.instance().application().unwrap(), project);
+        let collection = Collection::new(self.application(), project);
         add_tab(
             &self.notebook,
             Workspace::new(collection.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
@@ -371,8 +363,8 @@ impl WindowInner {
     }
 
     pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
-        let edit_view = crate::GlyphEditView::new(
-            self.instance().application().unwrap(),
+        let edit_view = GlyphEditView::new(
+            self.application(),
             self.project.borrow().clone(),
             glyph.clone(),
         );
@@ -404,6 +396,13 @@ impl WindowInner {
         */
         self.notebook.queue_draw();
         *self.project.borrow_mut() = Project::new();
+    }
+
+    pub fn application(&self) -> Application {
+        self.instance()
+            .application()
+            .and_then(|app| app.downcast::<Application>().ok())
+            .unwrap()
     }
 }
 

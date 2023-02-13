@@ -19,30 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#[macro_use]
-extern crate glib;
-
-use gtk::prelude::*;
-
-mod app;
-pub use app::*;
-mod glyph_edit;
-pub use glyph_edit::*;
-pub mod glyphs;
-pub mod project;
-pub mod resources;
-pub mod ufo;
-pub mod unicode;
-pub mod utils;
-pub(crate) use utils::UI_EDITABLE;
-pub mod views;
-pub mod window;
-use app::Application;
-use gtk::subclass::prelude::ObjectSubclassIsExt;
-pub use window::Workspace;
-
-pub const APPLICATION_NAME: &str = "gerb";
-pub const APPLICATION_ID: &str = "com.epilys.gerb";
+use gerb::prelude::*;
 
 fn main() {
     gtk::init().expect("Failed to initialize gtk");

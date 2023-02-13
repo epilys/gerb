@@ -19,11 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::views::Canvas;
-use crate::GlyphEditView;
-use gtk::{glib, prelude::*, subclass::prelude::*};
-use once_cell::sync::OnceCell;
-use std::borrow::Cow;
+use crate::prelude::*;
 
 pub type ToolImplInstance = ToolImpl;
 

@@ -23,26 +23,19 @@ use glib::{
     clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
 };
 use gtk::cairo::{Context, FontSlant, FontWeight};
-use gtk::glib;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::rc::Rc;
 
 use crate::glyphs::{Glyph, GlyphDrawingOptions, GlyphKind};
-use crate::project::Project;
+use crate::prelude::*;
 use crate::unicode::blocks::*;
-use crate::utils::colors::*;
-use crate::window::Workspace;
 
 const GLYPH_BOX_WIDTH: f64 = 110.0;
 const GLYPH_BOX_HEIGHT: f64 = 140.0;
 
 #[derive(Debug, Default)]
 pub struct CollectionInner {
-    app: OnceCell<gtk::Application>,
+    app: OnceCell<Application>,
     project: OnceCell<Project>,
     flow_box: gtk::FlowBox,
     tree: gtk::TreeView,
@@ -400,7 +393,7 @@ impl Collection {
     pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
     pub const ZOOM_FACTOR: &str = "zoom-factor";
 
-    pub fn new(app: gtk::Application, project: Project) -> Self {
+    pub fn new(app: Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         project
             .bind_property(Project::STYLE_NAME, &ret, Self::TITLE)
@@ -556,7 +549,7 @@ impl Collection {
 
 #[derive(Debug, Default)]
 pub struct GlyphBoxInner {
-    pub app: OnceCell<gtk::Application>,
+    pub app: OnceCell<Application>,
     pub project: OnceCell<Project>,
     pub glyph: OnceCell<Rc<RefCell<Glyph>>>,
     pub focused: Cell<bool>,
@@ -821,9 +814,6 @@ impl GlyphBox {
             .app
             .get()
             .unwrap()
-            .downcast_ref::<crate::Application>()
-            .unwrap()
-            .imp()
             .window
             .emit_by_name::<()>("open-glyph-edit", &[&self])
     }
@@ -835,7 +825,7 @@ glib::wrapper! {
 }
 
 impl GlyphBox {
-    pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
+    pub fn new(app: Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();

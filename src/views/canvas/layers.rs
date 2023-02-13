@@ -21,11 +21,8 @@
 
 use super::*;
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
-use gtk::glib;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
-use std::borrow::Cow;
-use std::cell::Cell;
+
+use crate::prelude::*;
 
 pub type LayerCallback = dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit;
 
@@ -73,21 +70,21 @@ impl ObjectImpl for LayerInner {
                         Layer::ACTIVE,
                         Layer::ACTIVE,
                         true,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Layer::HIDDEN,
                         Layer::HIDDEN,
                         Layer::HIDDEN,
                         false,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Layer::NAME,
                         Layer::NAME,
                         Layer::NAME,
                         None,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                 ]
             });

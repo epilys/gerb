@@ -20,11 +20,9 @@
  */
 
 use super::tool_impl::*;
-use crate::views::Canvas;
-use crate::GlyphEditView;
-use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::Inhibit;
-use gtk::{glib, prelude::*, subclass::prelude::*};
+
+use crate::prelude::*;
 
 #[derive(Default)]
 pub struct BSplineToolInner;

@@ -21,23 +21,11 @@
 
 use super::{constraints::*, tool_impl::*, SelectionModifier};
 
-use crate::GlyphEditView;
-use crate::{
-    utils::{
-        colors::{Color, ColorExt},
-        points::Point,
-    },
-    views::{
-        canvas::{Layer, LayerBuilder},
-        Canvas, Transformation, UnitPoint, ViewPoint,
-    },
-};
-use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
+use gtk::cairo::Matrix;
 use gtk::Inhibit;
-use gtk::{cairo::Matrix, glib, prelude::*, subclass::prelude::*};
-use once_cell::sync::OnceCell;
-use std::cell::Cell;
 use std::collections::HashSet;
+
+use crate::prelude::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Mode {
@@ -230,11 +218,11 @@ impl ToolImplImpl for PanningToolInner {
                         };
                         let mut action = glyph_state.new_guideline(angle, position);
                         (action.redo)();
-                        let app: &crate::Application = view
+                        let app: &Application = view
                             .app
                             .get()
                             .unwrap()
-                            .downcast_ref::<crate::Application>()
+                            .downcast_ref::<Application>()
                             .unwrap();
                         let undo_db = app.undo_db.borrow_mut();
                         undo_db.event(action);
@@ -248,7 +236,7 @@ impl ToolImplImpl for PanningToolInner {
                     if g.on_line_query(position, None) {
                         g.x.set(position.x);
                         g.y.set(position.y);
-                        view.select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
+                        //view.select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
                         self.mode.set(Mode::DragGuideline(i));
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
@@ -658,7 +646,7 @@ impl ToolImplImpl for PanningToolInner {
                     view.app
                         .get()
                         .unwrap()
-                        .downcast_ref::<crate::Application>()
+                        .downcast_ref::<Application>()
                         .unwrap()
                         .warp_cursor(event.device(), (delta.x as i32, delta.y as i32))
                         .unwrap();

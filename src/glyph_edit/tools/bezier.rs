@@ -20,19 +20,13 @@
  */
 
 use super::{new_contour_action, tool_impl::*};
-use crate::glyphs::{Contour, GlyphPointIndex};
-use crate::utils::{curves::Bezier, distance_between_two_points, CurvePoint, Point};
-use crate::views::{
-    canvas::{Layer, LayerBuilder, UnitPoint, ViewPoint},
-    Canvas, Transformation,
-};
-use crate::GlyphEditView;
-use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
 use gtk::cairo::{Context, Matrix};
 use gtk::Inhibit;
-use gtk::{glib, prelude::*, subclass::prelude::*};
-use once_cell::sync::OnceCell;
-use std::cell::{Cell, RefCell, RefMut};
+
+use crate::glyphs::{Contour, GlyphPointIndex};
+use crate::prelude::*;
+use crate::utils::{curves::Bezier, distance_between_two_points};
+
 ///```text
 ///   States                             Beginning                        Before transition
 ///==============================================================================================================
@@ -772,8 +766,6 @@ impl BezierTool {
     }
 
     pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
-        use crate::utils::colors::*;
-
         let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if BezierTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
@@ -795,7 +787,7 @@ impl BezierTool {
             .settings
             .get()
             .unwrap()
-            .property::<f64>(crate::Settings::LINE_WIDTH);
+            .property::<f64>(Settings::LINE_WIDTH);
         let outline = Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 });
         let matrix = viewport.transformation.matrix();
         let scale: f64 = viewport
@@ -808,7 +800,7 @@ impl BezierTool {
             obj.settings
                 .get()
                 .unwrap()
-                .property::<f64>(crate::Settings::HANDLE_SIZE)
+                .property::<f64>(Settings::HANDLE_SIZE)
                 / (scale * ppu)
         } else {
             0.0

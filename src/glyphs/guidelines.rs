@@ -20,13 +20,10 @@
  */
 
 use super::*;
-use crate::ufo;
-use crate::utils::colors::*;
 use glib::{ParamFlags, ParamSpec, ParamSpecBoxed, ParamSpecDouble, ParamSpecString, Value};
-use gtk::glib;
 
+use crate::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::cell::{Cell, RefCell};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GuidelineInner {
@@ -64,14 +61,14 @@ impl ObjectImpl for GuidelineInner {
                         Guideline::NAME,
                         Guideline::NAME,
                         None,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Guideline::IDENTIFIER,
                         Guideline::IDENTIFIER,
                         Guideline::IDENTIFIER,
                         None,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Guideline::ANGLE,
@@ -80,7 +77,7 @@ impl ObjectImpl for GuidelineInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Guideline::X,
@@ -89,7 +86,7 @@ impl ObjectImpl for GuidelineInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Guideline::Y,
@@ -98,14 +95,14 @@ impl ObjectImpl for GuidelineInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoxed::new(
                         Guideline::COLOR,
                         Guideline::COLOR,
                         Guideline::COLOR,
                         Color::static_type(),
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                 ]
             });
@@ -344,7 +341,7 @@ impl GuidelineBuilder {
     }
 
     pub fn with_random_identifier(self) -> Self {
-        *self.0.identifier.borrow_mut() = Some(crate::ufo::make_random_identifier());
+        *self.0.identifier.borrow_mut() = Some(ufo::make_random_identifier());
         self
     }
 

@@ -19,21 +19,16 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::ufo;
 use glib::{
     ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecInt64, ParamSpecString,
     ParamSpecUInt64, Value,
 };
-use gtk::glib;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
 
-use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
 use crate::glyphs::{Glyph, Guideline};
+use crate::prelude::*;
 
 #[derive(Debug)]
 pub struct ProjectInner {
@@ -124,21 +119,21 @@ impl ObjectImpl for ProjectInner {
                         Project::NAME,
                         Project::NAME,
                         Some("New project"),
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Project::FAMILY_NAME,
                         Project::FAMILY_NAME,
                         Project::FAMILY_NAME,
                         Some(""),
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecString::new(
                         Project::STYLE_NAME,
                         Project::STYLE_NAME,
                         Project::STYLE_NAME,
                         Some(""),
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Project::MODIFIED,
@@ -154,7 +149,7 @@ impl ObjectImpl for ProjectInner {
                         0,
                         std::i64::MAX,
                         1,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecUInt64::new(
                         Project::VERSION_MINOR,
@@ -163,7 +158,7 @@ impl ObjectImpl for ProjectInner {
                         0,
                         std::u64::MAX,
                         1,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::UNITS_PER_EM,
@@ -172,7 +167,7 @@ impl ObjectImpl for ProjectInner {
                         1.0,
                         std::f64::MAX,
                         1000.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::X_HEIGHT,
@@ -181,7 +176,7 @@ impl ObjectImpl for ProjectInner {
                         1.0,
                         std::f64::MAX,
                         450.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::ASCENDER,
@@ -190,7 +185,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         700.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::DESCENDER,
@@ -199,7 +194,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         -200.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::CAP_HEIGHT,
@@ -208,7 +203,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         650.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Project::ITALIC_ANGLE,
@@ -217,7 +212,7 @@ impl ObjectImpl for ProjectInner {
                         std::f64::MIN,
                         std::f64::MAX,
                         0.0,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                 ]
             });

@@ -21,19 +21,11 @@
 
 use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::Contour;
-use crate::utils::{curves::Bezier, CurvePoint, Point};
-use crate::views::{
-    canvas::{Layer, LayerBuilder, Transformation, UnitPoint, ViewPoint},
-    Canvas,
-};
-use crate::{GlyphEditView, Settings};
-use glib::subclass::prelude::{ObjectImpl, ObjectSubclass};
+use crate::utils::curves::Bezier;
 use gtk::cairo::Context;
 use gtk::Inhibit;
-use gtk::{glib, prelude::*, subclass::prelude::*};
-use once_cell::sync::OnceCell;
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+
+use crate::prelude::*;
 
 #[derive(Default)]
 pub struct QuadrilateralToolInner {

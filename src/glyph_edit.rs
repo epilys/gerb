@@ -23,24 +23,13 @@ use glib::{
     clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
 };
 use gtk::cairo::Matrix;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
-use gtk::{gio, glib};
 use indexmap::IndexMap;
 use once_cell::unsync::OnceCell;
-use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
-use std::rc::Rc;
 
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, GlyphPointIndex, Guideline};
-use crate::project::Project;
-use crate::utils::Point;
-use crate::views::{
-    canvas::{Layer, LayerBuilder},
-    overlay::Child,
-    Canvas, Overlay, Transformation, UnitPoint, ViewPoint,
-};
-use crate::{Settings, Workspace};
+use crate::prelude::*;
+use crate::views::overlay::Child;
 
 mod layers;
 mod menu;
@@ -50,7 +39,7 @@ use tools::{PanningTool, SelectionModifier, Tool, ToolImpl};
 
 #[derive(Debug, Clone)]
 pub struct GlyphState {
-    pub app: gtk::Application,
+    pub app: Application,
     pub glyph: Rc<RefCell<Glyph>>,
     pub reference: Rc<RefCell<Glyph>>,
     pub viewport: Canvas,
@@ -63,7 +52,7 @@ pub struct GlyphState {
 }
 
 impl GlyphState {
-    fn new(glyph: &Rc<RefCell<Glyph>>, app: gtk::Application, viewport: Canvas) -> Self {
+    fn new(glyph: &Rc<RefCell<Glyph>>, app: Application, viewport: Canvas) -> Self {
         let mut ret = Self {
             app,
             glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
@@ -83,9 +72,9 @@ impl GlyphState {
         ret
     }
 
-    fn add_contour(&mut self, contour: &Contour, contour_index: usize) -> crate::Action {
-        crate::Action {
-            stamp: crate::EventStamp {
+    fn add_contour(&mut self, contour: &Contour, contour_index: usize) -> Action {
+        Action {
+            stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: Contour::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
@@ -114,7 +103,7 @@ impl GlyphState {
         }
     }
 
-    fn new_guideline(&self, angle: f64, p: Point) -> crate::Action {
+    fn new_guideline(&self, angle: f64, p: Point) -> Action {
         let (x, y) = (p.x, p.y);
         let viewport = self.viewport.clone();
         let guideline = Guideline::builder()
@@ -123,8 +112,8 @@ impl GlyphState {
             .y(y)
             .with_random_identifier()
             .build();
-        crate::Action {
-            stamp: crate::EventStamp {
+        Action {
+            stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: Guideline::static_type().name(),
                 id: Box::new([]),
@@ -145,12 +134,12 @@ impl GlyphState {
         }
     }
 
-    fn delete_guideline(&self, idx: usize) -> crate::Action {
+    fn delete_guideline(&self, idx: usize) -> Action {
         let viewport = self.viewport.clone();
         let json: serde_json::Value =
             { serde_json::to_value(self.glyph.borrow().guidelines[idx].imp()).unwrap() };
-        crate::Action {
-            stamp: crate::EventStamp {
+        Action {
+            stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: Guideline::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
@@ -171,15 +160,14 @@ impl GlyphState {
         }
     }
 
-    fn add_undo_action(&self, action: crate::Action) {
-        let app: &crate::Application = self.app.downcast_ref::<crate::Application>().unwrap();
-        app.imp().undo_db.borrow_mut().event(action);
+    fn add_undo_action(&self, action: Action) {
+        self.app.undo_db.borrow_mut().event(action);
     }
 
     fn transform_guideline(&self, idx: usize, m: Matrix, dangle: f64) {
         let viewport = self.viewport.clone();
-        let mut action = crate::Action {
-            stamp: crate::EventStamp {
+        let mut action = Action {
+            stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: Guideline::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[idx]).into() },
@@ -226,11 +214,11 @@ impl GlyphState {
         self.add_undo_action(action);
     }
 
-    fn transform_points(&self, idxs_: &[GlyphPointIndex], m: Matrix) -> crate::Action {
+    fn transform_points(&self, idxs_: &[GlyphPointIndex], m: Matrix) -> Action {
         let viewport = self.viewport.clone();
         let idxs = Rc::new(idxs_.to_vec());
-        crate::Action {
-            stamp: crate::EventStamp {
+        Action {
+            stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
                 property: Point::static_type().name(),
                 id: idxs_
@@ -307,7 +295,7 @@ type StatusBarMessage = u32;
 
 #[derive(Debug, Default)]
 pub struct GlyphEditViewInner {
-    app: OnceCell<gtk::Application>,
+    app: OnceCell<Application>,
     project: OnceCell<Project>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
     glyph_state: OnceCell<Rc<RefCell<GlyphState>>>,
@@ -782,50 +770,26 @@ impl BinImpl for GlyphEditViewInner {}
 
 impl GlyphEditViewInner {
     fn new_statusbar_message(&self, msg: &str) -> Option<StatusBarMessage> {
-        if let Some(app) = self
-            .app
-            .get()
-            .and_then(|app| app.downcast_ref::<crate::Application>())
-        {
-            let statusbar = app.imp().statusbar();
-            if self.statusbar_context_id.get().is_none() {
-                self.statusbar_context_id.set(Some(
-                    statusbar
-                        .context_id(&format!("GlyphEditView-{:?}", &self.glyph.get().unwrap())),
-                ));
-            }
-            if let Some(cid) = self.statusbar_context_id.get().as_ref() {
-                return Some(statusbar.push(*cid, msg));
-            }
+        let statusbar = self.app.get().unwrap().statusbar();
+        if self.statusbar_context_id.get().is_none() {
+            self.statusbar_context_id.set(Some(
+                statusbar.context_id(&format!("GlyphEditView-{:?}", &self.glyph.get().unwrap())),
+            ));
+        }
+        if let Some(cid) = self.statusbar_context_id.get().as_ref() {
+            return Some(statusbar.push(*cid, msg));
         }
         None
     }
 
     fn pop_statusbar_message(&self, msg: Option<StatusBarMessage>) {
-        if let Some(app) = self
-            .app
-            .get()
-            .and_then(|app| app.downcast_ref::<crate::Application>())
-        {
-            let statusbar = app.imp().statusbar();
-            if let Some(cid) = self.statusbar_context_id.get().as_ref() {
-                if let Some(mid) = msg {
-                    gtk::prelude::StatusbarExt::remove(&statusbar, *cid, mid);
-                } else {
-                    statusbar.pop(*cid);
-                }
+        let statusbar = self.app.get().unwrap().statusbar();
+        if let Some(cid) = self.statusbar_context_id.get().as_ref() {
+            if let Some(mid) = msg {
+                gtk::prelude::StatusbarExt::remove(&statusbar, *cid, mid);
+            } else {
+                statusbar.pop(*cid);
             }
-        }
-    }
-
-    fn select_object(&self, _new_obj: Option<glib::Object>) {
-        if let Some(_app) = self
-            .app
-            .get()
-            .and_then(|app| app.downcast_ref::<crate::Application>())
-        {
-            //let tabinfo = app.tabinfo();
-            //tabinfo.set_object(new_obj);
         }
     }
 }
@@ -877,7 +841,7 @@ impl GlyphEditView {
     pub const SNAP_GUIDELINES_ACTION: &str = "snap.guidelines";
     pub const SNAP_METRICS_ACTION: &str = "snap.metrics";
 
-    pub fn new(app: gtk::Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
+    pub fn new(app: Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
         ret.glyph.set(glyph.clone()).unwrap();
         ret.app.set(app.clone()).unwrap();
@@ -906,13 +870,7 @@ impl GlyphEditView {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
-        let settings = app
-            .downcast_ref::<crate::Application>()
-            .unwrap()
-            .imp()
-            .settings
-            .borrow()
-            .clone();
+        let settings = app.settings.borrow().clone();
         settings
             .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)

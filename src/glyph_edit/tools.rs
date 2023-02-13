@@ -323,11 +323,11 @@ impl Tool {
 pub fn new_contour_action(
     glyph: Rc<RefCell<Glyph>>,
     contour: Contour,
-    subaction: crate::Action,
-) -> crate::Action {
+    subaction: Action,
+) -> Action {
     let subaction = Rc::new(RefCell::new(subaction));
-    crate::Action {
-        stamp: crate::EventStamp {
+    Action {
+        stamp: EventStamp {
             t: std::any::TypeId::of::<Contour>(),
             property: "create contour",
             id: Box::new([]),
@@ -371,7 +371,7 @@ impl From<gtk::gdk::ModifierType> for SelectionModifier {
 }
 
 pub mod constraints {
-    use crate::GlyphEditView;
+    use super::*;
 
     #[derive(Default)]
     #[glib::flags(name = "Lock")]
@@ -513,7 +513,6 @@ pub mod constraints {
     impl_methods!(Lock, Precision, Snap);
 
     pub fn create_constraint_actions(obj: &GlyphEditView) {
-        use gtk::gio;
         use gtk::prelude::*;
 
         let lock = gio::PropertyAction::new(GlyphEditView::LOCK_ACTION, obj, GlyphEditView::LOCK);

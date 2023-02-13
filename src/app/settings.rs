@@ -20,18 +20,14 @@
  */
 
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble};
-use gtk::glib;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
-use std::cell::Cell;
-use std::cell::RefCell;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::BufWriter;
 use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use toml_edit::{value as toml_value, Document, Item as TomlItem};
+
+use crate::prelude::*;
 
 glib::wrapper! {
     pub struct Settings(ObjectSubclass<SettingsInner>);
@@ -218,7 +214,7 @@ impl ObjectImpl for SettingsInner {
                         0.0001,
                         10.0,
                         SettingsInner::HANDLE_SIZE_INIT_VAL,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Settings::LINE_WIDTH,
@@ -227,7 +223,7 @@ impl ObjectImpl for SettingsInner {
                         0.0001,
                         10.0,
                         SettingsInner::LINE_WIDTH_INIT_VAL,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
                         Settings::GUIDELINE_WIDTH,
@@ -236,14 +232,14 @@ impl ObjectImpl for SettingsInner {
                         0.0001,
                         10.0,
                         SettingsInner::GUIDELINE_WIDTH_INIT_VAL,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         SettingsInner::WARP_CURSOR_INIT_VAL,
-                        ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                 ]
             });

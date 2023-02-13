@@ -19,13 +19,10 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::views::ViewPoint;
 use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, Value};
 use gtk::cairo::Matrix;
-use gtk::glib;
-use gtk::prelude::*;
-use gtk::subclass::prelude::*;
-use std::cell::Cell;
+
+use crate::prelude::*;
 
 #[derive(Debug, Default)]
 pub struct TransformationInner {
@@ -282,7 +279,7 @@ impl Transformation {
     pub const CAMERA_X: &str = "camera-x";
     pub const CAMERA_Y: &str = "camera-y";
     pub const PIXELS_PER_UNIT: &str = "pixels-per-unit";
-    pub const UNITS_PER_EM: &str = crate::project::Project::UNITS_PER_EM;
+    pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Transformation");

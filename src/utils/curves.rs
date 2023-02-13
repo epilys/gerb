@@ -19,14 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{CurvePoint, Point};
-use glib::prelude::*;
-use gtk::glib;
-use gtk::prelude::ToValue;
-use gtk::subclass::prelude::*;
-use std::cell::RefCell;
-use std::cell::{Cell, Ref};
-use std::rc::Rc;
+use crate::prelude::*;
 
 glib::wrapper! {
     pub struct Bezier(ObjectSubclass<BezierInner>);
@@ -87,7 +80,7 @@ impl ObjectImpl for BezierInner {
                         Bezier::SMOOTH,
                         Bezier::SMOOTH,
                         true,
-                        glib::ParamFlags::READWRITE | crate::UI_EDITABLE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecValueArray::new(
                         Bezier::POINTS,
