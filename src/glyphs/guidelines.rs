@@ -47,9 +47,8 @@ impl ObjectSubclass for GuidelineInner {
 impl ObjectImpl for GuidelineInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.color.set(Color::new_alpha(0.0, 0.0, 1.0, 0.5));
-        self.highlight_color
-            .set(Color::new_alpha(1.0, 0.0, 0.0, 0.5));
+        self.color.set(Self::COLOR);
+        self.highlight_color.set(Self::HIGHLIGHT_COLOR);
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -153,6 +152,9 @@ impl ObjectImpl for GuidelineInner {
 }
 
 impl GuidelineInner {
+    const COLOR: Color = Color::from_hex("#0000ff").with_alpha((0.5 * 255.0) as u8);
+    const HIGHLIGHT_COLOR: Color = Color::from_hex("#ff0000").with_alpha((0.5 * 255.0) as u8);
+
     pub fn draw(
         &self,
         cr: &Context,

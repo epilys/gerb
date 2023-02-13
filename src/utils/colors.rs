@@ -20,68 +20,108 @@
  */
 
 use gtk::{gdk, glib};
-use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
-#[derive(Clone, Deserialize, Serialize, Debug, Copy, Hash, glib::Boxed)]
+#[derive(Clone, Debug, Copy, Hash, glib::Boxed)]
 #[boxed_type(name = "Color", nullable)]
 #[repr(transparent)]
-pub struct Color(#[serde(with = "rgba_serde")] gdk::RGBA);
+pub struct Color((u8, u8, u8, u8));
 
 impl Color {
     // Constants re-exports
-    pub const BLACK: Self = Self(gdk::RGBA::BLACK);
-    pub const BLUE: Self = Self(gdk::RGBA::BLUE);
-    pub const GREEN: Self = Self(gdk::RGBA::GREEN);
-    pub const RED: Self = Self(gdk::RGBA::RED);
-    pub const WHITE: Self = Self(gdk::RGBA::WHITE);
+    pub const BLACK: Self = Self::from_hex("#000000");
+    pub const BLUE: Self = Self::from_hex("#0000ff");
+    pub const GREEN: Self = Self::from_hex("#00ff00");
+    pub const RED: Self = Self::from_hex("#ff0000");
+    pub const WHITE: Self = Self::from_hex("#ffffff");
 
-    pub fn new(red: f64, green: f64, blue: f64) -> Self {
-        Self::new_alpha(red, green, blue, 1.0)
+    pub const fn new(red: u8, green: u8, blue: u8) -> Self {
+        Self::new_alpha(red, green, blue, 255)
     }
 
-    pub fn new_alpha(red: f64, green: f64, blue: f64, alpha: f64) -> Self {
-        Self(gdk::RGBA::new(red, green, blue, alpha))
+    pub const fn new_alpha(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
+        Self((red, green, blue, alpha))
     }
 
-    pub fn with_alpha(self, new_alpha: f64) -> Self {
-        Self::new_alpha(self.0.red(), self.0.green(), self.0.blue(), new_alpha)
+    pub const fn with_alpha(self, new_alpha: u8) -> Self {
+        Self::new_alpha((self.0).0, (self.0).1, (self.0).2, new_alpha)
+    }
+
+    pub const fn new_alpha_f64(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
+        Self((red, green, blue, alpha))
+    }
+
+    pub fn with_alpha_f64(self, new_alpha: f64) -> Self {
+        Self::new_alpha(
+            (self.0).0,
+            (self.0).1,
+            (self.0).2,
+            (new_alpha * 255.0) as u8,
+        )
     }
 
     pub fn try_parse(s: &str) -> Option<Self> {
-        Some(Self(gdk::RGBA::parse(s).ok()?))
+        let val = gdk::RGBA::parse(s).ok()?;
+        Some(Self::from(val))
     }
 
     pub fn try_from_hex(s: &str) -> Option<Self> {
         hex_color_to_rgb(s).map(|(r, g, b)| Color::new(r, g, b))
     }
+
+    pub const fn from_hex(s: &str) -> Self {
+        Self(hex(s))
+    }
 }
 
 impl Default for Color {
     fn default() -> Self {
-        Self(gdk::RGBA::BLACK)
+        Self::BLACK
     }
 }
 
 impl From<gdk::RGBA> for Color {
     fn from(val: gdk::RGBA) -> Color {
-        Color(val)
+        Color((
+            (val.red() * 255.0) as u8,
+            (val.green() * 255.0) as u8,
+            (val.blue() * 255.0) as u8,
+            (val.alpha() * 255.0) as u8,
+        ))
     }
 }
 
 impl From<Color> for gdk::RGBA {
-    fn from(val: Color) -> gdk::RGBA {
-        val.0
+    fn from(color: Color) -> gdk::RGBA {
+        gdk::RGBA::new(
+            (color.0).0 as f64 / 255.0,
+            (color.0).1 as f64 / 255.0,
+            (color.0).2 as f64 / 255.0,
+            (color.0).3 as f64 / 255.0,
+        )
     }
 }
 
 impl From<&Color> for gdk::RGBA {
-    fn from(val: &Color) -> gdk::RGBA {
-        val.0
+    fn from(color: &Color) -> gdk::RGBA {
+        gdk::RGBA::new(
+            (color.0).0 as f64 / 255.0,
+            (color.0).1 as f64 / 255.0,
+            (color.0).2 as f64 / 255.0,
+            (color.0).3 as f64 / 255.0,
+        )
     }
 }
 
-pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
+impl std::fmt::Display for Color {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let (r, g, b, a) = self.0;
+        let [r, g, b, _] = [r as u64, g as u64, b as u64, a as u64];
+        write!(fmt, "#{r:02X}{g:02X}{b:02X}")
+    }
+}
+
+pub fn hex_color_to_rgb(s: &str) -> Option<(u8, u8, u8)> {
     if s.starts_with('#')
         && s.len() == 7
         && s[1..].as_bytes().iter().all(|&b| {
@@ -89,9 +129,9 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
         })
     {
         Some((
-            u8::from_str_radix(&s[1..3], 16).ok()? as f64 / 255.0,
-            u8::from_str_radix(&s[3..5], 16).ok()? as f64 / 255.0,
-            u8::from_str_radix(&s[5..7], 16).ok()? as f64 / 255.0,
+            u8::from_str_radix(&s[1..3], 16).ok()?,
+            u8::from_str_radix(&s[3..5], 16).ok()?,
+            u8::from_str_radix(&s[5..7], 16).ok()?,
         ))
     } else if s.starts_with('#')
         && s.len() == 4
@@ -100,12 +140,66 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(f64, f64, f64)> {
         })
     {
         Some((
-            (17 * u8::from_str_radix(&s[1..2], 16).ok()?) as f64 / 255.0,
-            (17 * u8::from_str_radix(&s[2..3], 16).ok()?) as f64 / 255.0,
-            (17 * u8::from_str_radix(&s[3..4], 16).ok()?) as f64 / 255.0,
+            (17 * u8::from_str_radix(&s[1..2], 16).ok()?),
+            (17 * u8::from_str_radix(&s[2..3], 16).ok()?),
+            (17 * u8::from_str_radix(&s[3..4], 16).ok()?),
         ))
     } else {
         None
+    }
+}
+
+pub(crate) const fn hex(s: &str) -> (u8, u8, u8, u8) {
+    let s = s.as_bytes();
+
+    if s.len() != 7
+        || s[0] != b'#'
+        || !s[1].is_ascii_hexdigit()
+        || !s[2].is_ascii_hexdigit()
+        || !s[3].is_ascii_hexdigit()
+        || !s[4].is_ascii_hexdigit()
+        || !s[5].is_ascii_hexdigit()
+        || !s[6].is_ascii_hexdigit()
+    {
+        panic!("not a valid hex color value.");
+    }
+
+    let mut arr = [0, 0, 0];
+    let mut i = 1;
+    while i < 7 {
+        let a = (i - 1) / 2;
+        if s[i] >= b'A' && s[i] <= b'F' {
+            arr[a] += s[i] - b'A' + 10;
+        } else if s[i] >= b'a' && s[i] <= b'f' {
+            arr[a] += s[i] - b'a' + 10;
+        } else if s[i] >= b'0' && s[i] <= b'9' {
+            arr[a] += s[i] - b'0';
+        }
+        if i % 2 == 1 && arr[a] != 0 {
+            arr[a] = ((arr[a]) as u32 * 16) as u8;
+        }
+        i += 1;
+    }
+    (arr[0], arr[1], arr[2], 255)
+}
+
+#[test]
+#[ignore]
+fn test_const_color() {
+    for a in ('0'..='9').chain('a'..='f') {
+        for b in ('0'..='9').chain('a'..='f') {
+            for c in ('0'..='9').chain('a'..='f') {
+                for d in ('0'..='9').chain('a'..='f') {
+                    for e in ('0'..='9').chain('a'..='f') {
+                        for f in ('0'..='9').chain('a'..='f') {
+                            let s = format!("#{a}{b}{c}{d}{e}{f}");
+                            let (r, g, b) = hex_color_to_rgb(&s).unwrap();
+                            assert_eq!(hex(&s), (r, g, b, 255), "{s}");
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -118,15 +212,19 @@ pub trait ColorExt {
 
 impl ColorExt for gtk::cairo::Context {
     fn set_source_color(&self, color: Color) {
-        self.set_source_rgb(color.0.red(), color.0.green(), color.0.blue());
+        self.set_source_rgb(
+            (color.0).0 as f64 / 255.0,
+            (color.0).1 as f64 / 255.0,
+            (color.0).2 as f64 / 255.0,
+        );
     }
 
     fn set_source_color_alpha(&self, color: Color) {
         self.set_source_rgba(
-            color.0.red(),
-            color.0.green(),
-            color.0.blue(),
-            color.0.alpha(),
+            (color.0).0 as f64 / 255.0,
+            (color.0).1 as f64 / 255.0,
+            (color.0).2 as f64 / 255.0,
+            (color.0).3 as f64 / 255.0,
         );
     }
 
@@ -156,23 +254,42 @@ impl ColorExt for gtk::cairo::Context {
 }
 
 mod rgba_serde {
-    use gtk::gdk;
+    use super::Color;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub(super) fn deserialize<'de, D>(de: D) -> Result<gdk::RGBA, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let (r, g, b, a): (f64, f64, f64, f64) = <(f64, f64, f64, f64)>::deserialize(de)?;
-        Ok(gdk::RGBA::new(r, g, b, a))
+    impl Serialize for Color {
+        fn serialize<S>(&self, se: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            se.serialize_str(&self.to_string())
+        }
     }
 
-    pub(super) fn serialize<S>(val: &gdk::RGBA, se: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let vals: (f64, f64, f64, f64) = (val.red(), val.green(), val.blue(), val.alpha());
-        vals.serialize(se)
+    impl<'de> Deserialize<'de> for Color {
+        fn deserialize<D>(de: D) -> Result<Color, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            #[derive(Deserialize, Serialize)]
+            enum Val {
+                Raw((f64, f64, f64, f64)),
+                Hex(String),
+            }
+            let val = <Val>::deserialize(de)?;
+            match val {
+                Val::Raw((r, g, b, a)) => Ok(Color::new_alpha(
+                    (r * 255.0) as u8,
+                    (g * 255.0) as u8,
+                    (b * 255.0) as u8,
+                    (a * 255.0) as u8,
+                )),
+                Val::Hex(ref s) => Ok(Color::try_from_hex(s).ok_or_else(|| {
+                    use serde::de::Error;
+                    D::Error::custom(format!("{:?} is not a valid hex color value.", s))
+                })?),
+            }
+        }
     }
 }
 

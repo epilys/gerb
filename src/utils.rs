@@ -145,7 +145,7 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
     let mut row: i32 = 2;
     for prop in obj.list_properties().as_slice().iter().filter(|p| {
         p.flags()
-            .contains(glib::ParamFlags::READWRITE | glib::ParamFlags::USER_1)
+            .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
             && p.owner_type() == obj.type_()
     }) {
         grid.attach(

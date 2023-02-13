@@ -19,6 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use crate::prelude::*;
 use gtk::cairo::{Context, FontSlant, FontWeight};
 use gtk::glib::{self, clone};
 use gtk::prelude::*;
@@ -43,8 +44,8 @@ impl ObjectImpl for MinimapInner {
 
         obj.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &Minimap, cr: &Context| {
             const PANGRAM: &str = "A wizard's job is to vex chumps quickly in fog.";
-            let (red, green, blue) = crate::utils::hex_color_to_rgb("#959595").unwrap();
-            cr.set_source_rgb(red, green, blue);
+            const C: Color = Color::from_hex("#959595");
+            cr.set_source_color(C);
             cr.paint().expect("Invalid cairo surface state");
             cr.select_font_face("Inter", FontSlant::Normal, FontWeight::Normal);
             cr.set_source_rgb(1., 1., 1.);

@@ -669,8 +669,8 @@ impl ObjectImpl for GlyphBoxInner {
                 matrix.translate((width - glyph_width) / 2.0, vh / 2.0);
                 matrix.scale((width * 0.8) / units_per_em, -(width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
-                    outline: (Color::new_alpha(0.0, 0.0, 0.0, 0.0), 1.5).into(),
-                    inner_fill: Some((Color::new(0.35, 0.35, 0.35), 1.5).into()),
+                    outline: (Color::new_alpha(0, 0, 0, 0), 1.5).into(),
+                    inner_fill: Some((Color::new(89, 89, 89), 1.5).into()),
                     highlight: None,
                     matrix,
                     units_per_em,

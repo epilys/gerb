@@ -788,7 +788,8 @@ impl BezierTool {
             .get()
             .unwrap()
             .property::<f64>(Settings::LINE_WIDTH);
-        let outline = Color::new_alpha(0.2, 0.2, 0.2, if inner_fill { 0.0 } else { 0.6 });
+        let outline =
+            Color::from_hex("#3333FF").with_alpha(if inner_fill { 0 } else { (0.6 * 255.0) as u8 });
         let matrix = viewport.transformation.matrix();
         let scale: f64 = viewport
             .transformation
