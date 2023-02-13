@@ -198,12 +198,13 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 / (scale * ppu),
         );
         let glyph_state_ref = glyph_state.borrow();
-        for g in glyph_state_ref
+        for (show_origin, g) in glyph_state_ref
             .glyph
             .borrow()
             .guidelines
             .iter()
             .filter(|_| show_glyph_guidelines)
+            .map(|g| (true, g))
             .chain(
                 obj.project
                     .get()
@@ -211,7 +212,8 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                     .guidelines
                     .borrow()
                     .iter()
-                    .filter(|_| show_project_guidelines),
+                    .filter(|_| show_project_guidelines)
+                    .map(|g| (false, g)),
             )
             .chain(
                 obj.project
@@ -220,13 +222,14 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                     .metric_guidelines
                     .borrow()
                     .iter()
-                    .filter(|_| show_metrics_guidelines),
+                    .filter(|_| show_metrics_guidelines)
+                    .map(|g| (false, g)),
             )
         {
             let highlight = g.on_line_query(unit_mouse, None);
             cr.save().unwrap();
             cr.transform(matrix);
-            g.draw(cr, (width, height), highlight);
+            g.draw(cr, (width, height), highlight, show_origin);
             cr.restore().unwrap();
             if highlight {
                 cr.move_to(mouse.0.x, mouse.0.y);
@@ -258,7 +261,6 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 cr.move_to(width - 2.5 - extents.width, y - 0.5);
                 cr.show_text(&label).unwrap();
                 cr.restore().unwrap();
-            } else if g.angle() == 90.0 {
             }
             cr.stroke().unwrap();
         }

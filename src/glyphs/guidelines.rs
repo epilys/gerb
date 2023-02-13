@@ -153,7 +153,13 @@ impl ObjectImpl for GuidelineInner {
 }
 
 impl GuidelineInner {
-    pub fn draw(&self, cr: &Context, (_width, height): (f64, f64), highlight: bool) {
+    pub fn draw(
+        &self,
+        cr: &Context,
+        (_width, height): (f64, f64),
+        highlight: bool,
+        show_origin: bool,
+    ) {
         fn move_point(p: (f64, f64), d: f64, r: f64) -> (f64, f64) {
             let (x, y) = p;
             (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
@@ -167,8 +173,10 @@ impl GuidelineInner {
             cr.set_source_color_alpha(self.color.get());
         }
         let p = (self.x.get(), self.y.get());
-        cr.arc(p.0, p.1, 8.0, 0.0, 2.0 * std::f64::consts::PI);
-        cr.stroke().unwrap();
+        if show_origin {
+            cr.arc(p.0, p.1, 8.0, 0.0, 2.0 * std::f64::consts::PI);
+            cr.stroke().unwrap();
+        }
         let r = self.angle.get() * 0.01745;
         let top = move_point(p, height * 10.0, r);
         cr.move_to(top.0, top.1);
