@@ -47,6 +47,7 @@ pub mod prelude {
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
     pub use project::Project;
     pub use utils::points::*;
+    pub use utils::shortcuts::{Shortcut, ShortcutAction};
     pub use utils::UI_EDITABLE;
     pub use views::{
         canvas::{Layer, LayerBuilder},

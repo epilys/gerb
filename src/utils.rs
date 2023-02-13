@@ -29,6 +29,7 @@ pub mod curves;
 pub mod menu;
 pub mod points;
 pub mod range_query;
+pub mod shortcuts;
 pub mod widgets;
 pub use colors::*;
 pub use points::{CurvePoint, IPoint, Point};

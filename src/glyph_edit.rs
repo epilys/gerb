@@ -33,6 +33,7 @@ use crate::views::overlay::Child;
 
 mod layers;
 mod menu;
+mod shortcuts;
 mod tools;
 
 use tools::{PanningTool, SelectionModifier, Tool, ToolImpl};
@@ -320,6 +321,8 @@ pub struct GlyphEditViewInner {
     action_group: gio::SimpleActionGroup,
     lock: Cell<(Option<StatusBarMessage>, tools::constraints::Lock)>,
     snap: Cell<(Option<StatusBarMessage>, tools::constraints::Snap)>,
+    shortcuts: Rc<RefCell<Vec<ShortcutAction>>>,
+    shortcut_status: gtk::Box,
 }
 
 #[glib::object_subclass]
@@ -333,55 +336,7 @@ impl ObjectImpl for GlyphEditViewInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         self.lock_guidelines.set(false);
-        let ctrl = gtk::EventControllerKey::new(obj);
-        ctrl.connect_key_pressed(
-            clone!(@weak self.action_group as group => @default-return false, move |_self, keyval, _, _| {
-                use gtk::gdk::keys::{Key, constants as c};
-                use GlyphEditView as A;
-
-                let key = Key::from(keyval);
-                match key {
-                    c::grave if group.is_action_enabled(A::PREVIEW_ACTION) => {
-                        group.change_action_state(A::PREVIEW_ACTION, &true.to_variant());
-                    },
-                    c::x if group.is_action_enabled(A::LOCK_ACTION) => {
-                        group.activate_action(A::LOCK_X_ACTION, None);
-                    }
-                    c::y if group.is_action_enabled(A::LOCK_ACTION) => {
-                        group.activate_action(A::LOCK_Y_ACTION, None);
-                    }
-                    c::A if group.is_action_enabled(A::SNAP_ACTION) => {
-                        group.activate_action(A::SNAP_ANGLE_ACTION, None);
-                    }
-                    c::G if group.is_action_enabled(A::SNAP_ACTION) => {
-                        group.activate_action(A::SNAP_GRID_ACTION, None);
-                    }
-                    c::L if group.is_action_enabled(A::SNAP_ACTION) => {
-                        group.activate_action(A::SNAP_GUIDELINES_ACTION, None);
-                    }
-                    c::M if group.is_action_enabled(A::SNAP_ACTION) => {
-                        group.activate_action(A::SNAP_METRICS_ACTION, None);
-                    }
-                    _ => return false,
-                }
-                true
-            }),
-        );
-        ctrl.connect_key_released(
-            clone!(@weak self.action_group as group => move |_self, keyval, _,  _| {
-                use gtk::gdk::keys::{Key, constants as c};
-                use GlyphEditView as A;
-
-                let key = Key::from(keyval);
-                match key {
-                    c::grave if group.is_action_enabled(A::PREVIEW_ACTION) => {
-                        group.change_action_state(A::PREVIEW_ACTION, &false.to_variant());
-                    },
-                    _ => {},
-                }
-            }),
-        );
-        self.ctrl.set(ctrl).unwrap();
+        self.setup_shortcuts(obj);
         self.show_glyph_guidelines.set(true);
         self.show_project_guidelines.set(true);
         self.show_metrics_guidelines.set(true);
@@ -845,6 +800,14 @@ impl GlyphEditView {
         let ret: Self = glib::Object::new(&[]).unwrap();
         ret.glyph.set(glyph.clone()).unwrap();
         ret.app.set(app.clone()).unwrap();
+        ret.connect_map(|self_| {
+            let status = self_.app.get().unwrap().statusbar().message_area().unwrap();
+            status.pack_end(&self_.shortcut_status, false, false, 1);
+        });
+        ret.connect_unmap(|self_| {
+            let status = self_.app.get().unwrap().statusbar().message_area().unwrap();
+            status.remove(&self_.shortcut_status);
+        });
         {
             let property = GlyphEditView::UNITS_PER_EM;
             ret.bind_property(property, &ret.viewport.transformation, property)
