@@ -73,6 +73,19 @@ impl GlyphEditViewInner {
                 None,
             ));
             sh.push(ShortcutAction::new(
+                "lock local".into(),
+                Shortcut::empty().char('l'),
+                Box::new(|group| {
+                    if group.is_action_enabled(A::LOCK_ACTION) {
+                        group.activate_action(A::LOCK_LOCAL_ACTION, None);
+                        true
+                    } else {
+                        false
+                    }
+                }),
+                None,
+            ));
+            sh.push(ShortcutAction::new(
                 "snap angle".into(),
                 Shortcut::empty().char('A'),
                 Box::new(|group| {

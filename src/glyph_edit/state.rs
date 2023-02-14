@@ -270,7 +270,11 @@ impl GlyphState {
         }
     }
 
-    pub fn get_selection(&self) -> &HashSet<uuid::Uuid> {
+    pub fn get_selection_set(&self) -> &HashSet<uuid::Uuid> {
         &self.selection_set
+    }
+
+    pub fn get_selection(&self) -> &[GlyphPointIndex] {
+        &self.selection
     }
 }

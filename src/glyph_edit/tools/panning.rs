@@ -254,7 +254,7 @@ impl ToolImplImpl for PanningToolInner {
                         .kd_tree
                         .borrow()
                         .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
-                    let current_selection = glyph_state.get_selection();
+                    let current_selection = glyph_state.get_selection_set();
                     let is_empty = if current_selection.is_empty()
                         || !pts.iter().any(|i| current_selection.contains(&i.uuid))
                     {
@@ -273,7 +273,7 @@ impl ToolImplImpl for PanningToolInner {
                                 .collect::<HashSet<_>>();
                             if !pts.is_empty() {
                                 self.is_selection_empty.set(false);
-                                if !glyph_state.get_selection().is_superset(&pts) {
+                                if !glyph_state.get_selection_set().is_superset(&pts) {
                                     let pts = curve
                                         .points()
                                         .borrow()
@@ -625,6 +625,76 @@ impl ToolImplImpl for PanningToolInner {
                     }
                     Some(Lock::Y) => {
                         delta.x = 0.0;
+                    }
+                    Some(Lock::LOCAL) => {
+                        // FIXME ugly, wobbly but mostly works
+                        let selection = glyph_state.get_selection();
+                        if !selection.is_empty() {
+                            let UnitPoint(upos) = viewport
+                                .view_to_unit_point(ViewPoint(Point::from(event.position())));
+                            let lock_delta = {
+                                let glyph = glyph_state.glyph.borrow();
+                                let curves =
+                                    glyph.contours[selection[0].contour_index].curves().borrow();
+                                let curv = &curves[selection[0].curve_index];
+                                let degree = curv.degree().unwrap();
+                                let points = curv.points().borrow();
+                                let p1 =
+                                    &points.iter().find(|p| p.uuid == selection[0].uuid).unwrap();
+                                let p2 = match degree {
+                                    0 => unimplemented!(),
+                                    1 => {
+                                        if points[0].uuid == p1.uuid {
+                                            &points[1]
+                                        } else {
+                                            &points[0]
+                                        }
+                                    }
+                                    2 => {
+                                        if points[0].uuid == p1.uuid {
+                                            &points[1]
+                                        } else if points[1].uuid == p1.uuid {
+                                            &points[2]
+                                        } else {
+                                            &points[1]
+                                        }
+                                    }
+                                    3 => {
+                                        if points[0].uuid == p1.uuid {
+                                            &points[1]
+                                        } else if points[1].uuid == p1.uuid {
+                                            &points[0]
+                                        } else if points[2].uuid == p1.uuid {
+                                            &points[3]
+                                        } else {
+                                            &points[2]
+                                        }
+                                    }
+                                    _ => unimplemented!(),
+                                };
+
+                                let alpha = upos - p1.position;
+                                let beta = p2.position - p1.position;
+                                let bunit = beta / beta.norm();
+                                let scalar = alpha.dot(beta) / beta.norm();
+                                (scalar * bunit + p1.position) - p1.position
+                            };
+                            let new_mouse =
+                                viewport.unit_to_view_point(UnitPoint(upos + lock_delta));
+                            let delta = new_mouse.0 - ViewPoint(Point::from(event.position())).0;
+                            view.app
+                                .get()
+                                .unwrap()
+                                .downcast_ref::<Application>()
+                                .unwrap()
+                                .warp_cursor(event.device(), (delta.x as i32, delta.y as i32))
+                                .unwrap();
+                            viewport.set_mouse(new_mouse);
+                            let mut m = Matrix::identity();
+                            m.translate(lock_delta.x, lock_delta.y);
+                            glyph_state.transform_selection(m, true);
+                            return Inhibit(true);
+                        }
                     }
                     _ => {}
                 }

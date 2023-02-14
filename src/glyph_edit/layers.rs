@@ -134,7 +134,7 @@ pub fn draw_glyph_layer(
                 corner: handle,
                 smooth_corner: handle,
                 direction_arrow,
-                selection: Some(glyph_state.get_selection()),
+                selection: Some(glyph_state.get_selection_set()),
             }
         };
         glyph_state.glyph.borrow().draw(cr, options);

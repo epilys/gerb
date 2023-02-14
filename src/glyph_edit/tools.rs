@@ -405,6 +405,8 @@ pub mod constraints {
                     "Locked Y axis. | Control point axis coordinates."
                 }
                 v if v == Lock::Y => "Locked Y axis.",
+                v if v == Lock::LOCAL => "Local coordinates.",
+                v if v == Lock::CONTROLS => "Control point axis coordinates.",
                 other => unreachable!("{other:?}"),
             }
         }
@@ -542,7 +544,7 @@ pub mod constraints {
             change_opt.connect_activate(glib::clone!(@weak obj, @weak lock => move |_, _| {
                 let Some(state) = lock.state() else { return; };
                 let Some(mut lock_flags) = state.get::<Lock>() else { return; };
-                if lock_flags.intersection(Lock::X | Lock::Y).is_empty() {
+                if !lock_flags.intersection(Lock::X | Lock::Y).is_empty() {
                     return;
                 }
                 if lock_flags.intersects(opt) {
