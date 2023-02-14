@@ -45,6 +45,7 @@ pub mod prelude {
     pub use glyph_edit::*;
     pub use gtk::prelude::*;
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
+    pub use indexmap::{IndexMap, IndexSet};
     pub use project::Project;
     pub use utils::points::*;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};

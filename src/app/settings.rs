@@ -46,6 +46,7 @@ pub struct SettingsInner {
     pub line_width: Cell<f64>,
     pub guideline_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
+    pub entries: RefCell<IndexMap<String, glib::Object>>,
     #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
@@ -136,14 +137,43 @@ impl SettingsInner {
     pub fn save_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some((_, file)) = self.file.borrow_mut().as_mut() {
             let mut document = self.document.borrow_mut();
+            for (type_name, obj) in self.entries.borrow().iter() {
+                document.insert_formatted(
+                    &type_name.as_str().into(),
+                    toml_edit::Item::Table(toml_edit::Table::new()),
+                );
+                for prop in glib::Object::list_properties(obj)
+                    .as_slice()
+                    .iter()
+                    .filter(|p| {
+                        p.flags()
+                            .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+                            && p.owner_type() == obj.type_()
+                    })
+                {
+                    if prop.value_type() == bool::static_type() {
+                        document[type_name][prop.name()] =
+                            toml_value(obj.property::<bool>(prop.name()));
+                    } else if prop.value_type() == f64::static_type() {
+                        document[type_name][prop.name()] =
+                            toml_value(obj.property::<f64>(prop.name()));
+                    } else if prop.value_type() == Color::static_type() {
+                        document[type_name][prop.name()] =
+                            toml_value(obj.property::<Color>(prop.name()).to_string());
+                    } else if prop.value_type() == i64::static_type() {
+                        document[type_name][prop.name()] =
+                            toml_value(obj.property::<i64>(prop.name()));
+                    }
+                }
+            }
             document[Settings::HANDLE_SIZE] = toml_value(self.handle_size.get());
             document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
             document[Settings::GUIDELINE_WIDTH] = toml_value(self.guideline_width.get());
             document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
             file.rewind()?;
+            file.get_mut().set_len(0)?;
             file.write_all(document.to_string().as_bytes())?;
             file.flush()?;
-            file.rewind()?;
         }
         Ok(())
     }
@@ -179,6 +209,59 @@ impl SettingsInner {
             self.save_settings()?;
         }
         Ok(())
+    }
+
+    pub fn register_obj(&self, obj: glib::Object) {
+        let document = self.document.borrow();
+        let type_name = obj.type_().name().to_ascii_lowercase();
+        if document.contains_key(&type_name) {
+            for prop in glib::Object::list_properties(&obj)
+                .as_slice()
+                .iter()
+                .filter(|p| {
+                    p.flags()
+                        .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+                        && p.owner_type() == obj.type_()
+                })
+            {
+                if document[&type_name].get(prop.name()).is_some() {
+                    if prop.value_type() == bool::static_type() {
+                        obj.set_property(
+                            prop.name(),
+                            document[&type_name][prop.name()].as_bool().unwrap(),
+                        );
+                    } else if prop.value_type() == f64::static_type() {
+                        obj.set_property(
+                            prop.name(),
+                            document[&type_name][prop.name()].as_float().unwrap(),
+                        );
+                    } else if prop.value_type() == Color::static_type() {
+                        obj.set_property(
+                            prop.name(),
+                            Color::from_hex(document[&type_name][prop.name()].as_str().unwrap()),
+                        );
+                    } else if prop.value_type() == i64::static_type() {
+                        obj.set_property(
+                            prop.name(),
+                            document[&type_name][prop.name()].as_integer().unwrap(),
+                        );
+                    }
+                }
+            }
+        }
+        let instance = self.instance();
+        obj.connect_notify_local(
+            None,
+            clone!(@strong instance as obj => move |self_, param| {
+                if param.flags()
+                    .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+                    && param.owner_type() == self_.type_() {
+                        _ = obj.save_settings();
+
+                }
+            }),
+        );
+        self.entries.borrow_mut().insert(type_name, obj);
     }
 }
 

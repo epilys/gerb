@@ -582,6 +582,7 @@ impl GlyphEditView {
                 .build();
         }
         let settings = app.settings.borrow().clone();
+        settings.register_obj(ret.viewport.clone().upcast());
         settings
             .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)
