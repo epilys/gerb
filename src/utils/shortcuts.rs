@@ -20,9 +20,9 @@
  */
 
 use gdk_sys::*;
-use gtk::gdk::ffi as gdk_sys;
 use gtk::prelude::StyleContextExt;
 use gtk::prelude::WidgetExt;
+use gtk::{gdk, gdk::ffi as gdk_sys};
 use std::borrow::Cow;
 
 use gtk::gdk::keys::{constants as key_constants, Key};
@@ -114,19 +114,75 @@ impl ShortcutAction {
         }
     }
 
-    pub fn try_press(&self, key: &Key, group: &gtk::gio::SimpleActionGroup) -> bool {
-        if Key::from(self.shortcut.keys[0]) == *key {
-            if let Some(f) = self.on_press_fn.as_ref() {
-                return (f)(group);
+    pub fn try_press(
+        &self,
+        key: &Key,
+        mut modifier_mask: gdk::ModifierType,
+        group: &gtk::gio::SimpleActionGroup,
+    ) -> bool {
+        for &k in self.shortcut.keys.iter() {
+            let k = Key::from(k);
+            if let Some(ch) = k.to_unicode() {
+                if ch.is_uppercase() && modifier_mask.contains(gdk::ModifierType::SHIFT_MASK) {
+                    modifier_mask.set(gdk::ModifierType::SHIFT_MASK, false);
+                }
+            }
+            match k {
+                key_constants::Control_L
+                    if modifier_mask.contains(gdk::ModifierType::CONTROL_MASK) =>
+                {
+                    modifier_mask.set(gdk::ModifierType::CONTROL_MASK, false);
+                }
+                key_constants::Meta_L if modifier_mask.contains(gdk::ModifierType::META_MASK) => {
+                    modifier_mask.set(gdk::ModifierType::META_MASK, false);
+                }
+                key_constants::Shift_L if modifier_mask.contains(gdk::ModifierType::SHIFT_MASK) => {
+                    modifier_mask.set(gdk::ModifierType::SHIFT_MASK, false);
+                }
+                key_constants::Shift_L | key_constants::Meta_L | key_constants::Control_L => break,
+                _ if k == *key && modifier_mask.is_empty() => {
+                    if let Some(f) = self.on_press_fn.as_ref() {
+                        return (f)(group);
+                    }
+                }
+                _ => break,
             }
         }
         false
     }
 
-    pub fn try_release(&self, key: &Key, group: &gtk::gio::SimpleActionGroup) -> bool {
-        if Key::from(self.shortcut.keys[0]) == *key {
-            if let Some(f) = self.on_release_fn.as_ref() {
-                return (f)(group);
+    pub fn try_release(
+        &self,
+        key: &Key,
+        mut modifier_mask: gdk::ModifierType,
+        group: &gtk::gio::SimpleActionGroup,
+    ) -> bool {
+        for &k in self.shortcut.keys.iter() {
+            let k = Key::from(k);
+            if let Some(ch) = k.to_unicode() {
+                if ch.is_uppercase() && modifier_mask.contains(gdk::ModifierType::SHIFT_MASK) {
+                    modifier_mask.set(gdk::ModifierType::SHIFT_MASK, false);
+                }
+            }
+            match k {
+                key_constants::Control_L
+                    if modifier_mask.contains(gdk::ModifierType::CONTROL_MASK) =>
+                {
+                    modifier_mask.set(gdk::ModifierType::CONTROL_MASK, false);
+                }
+                key_constants::Meta_L if modifier_mask.contains(gdk::ModifierType::META_MASK) => {
+                    modifier_mask.set(gdk::ModifierType::META_MASK, false);
+                }
+                key_constants::Shift_L if modifier_mask.contains(gdk::ModifierType::SHIFT_MASK) => {
+                    modifier_mask.set(gdk::ModifierType::SHIFT_MASK, false);
+                }
+                key_constants::Shift_L | key_constants::Meta_L | key_constants::Control_L => break,
+                _ if k == *key && modifier_mask.is_empty() => {
+                    if let Some(f) = self.on_release_fn.as_ref() {
+                        return (f)(group);
+                    }
+                }
+                _ => break,
             }
         }
         false
@@ -197,7 +253,20 @@ impl std::fmt::Display for Shortcut {
                 break;
             }
             let key = Key::from(*key);
-            if let Some(c) = key.to_unicode() {
+            if key == key_constants::Control_L {
+                fmt.write_fmt(format_args!("Ctrl+"))?;
+            } else if key == key_constants::Meta_L {
+                #[cfg(target_os = "macos")]
+                fmt.write_fmt(format_args!("Cmd+"))?;
+                #[cfg(unix)]
+                fmt.write_fmt(format_args!("Super+"))?;
+                #[cfg(target_os = "windows")]
+                fmt.write_fmt(format_args!("Win+"))?;
+                #[cfg(not(any(unix, target_os = "macos", target_os = "windows")))]
+                fmt.write_fmt(format_args!("Meta+"))?
+            } else if key == key_constants::Shift_L {
+                fmt.write_fmt(format_args!("Shift+"))?;
+            } else if let Some(c) = key.to_unicode() {
                 fmt.write_fmt(format_args!("{}", c))?;
             } else if let Some(name) = key.name() {
                 fmt.write_fmt(format_args!("{}", &name))?;
@@ -249,6 +318,12 @@ impl Shortcut {
     pub fn control(mut self) -> Self {
         self.trim();
         self.keys.push(*key_constants::Control_L);
+        self
+    }
+
+    pub fn shift(mut self) -> Self {
+        self.trim();
+        self.keys.push(*key_constants::Shift_L);
         self
     }
 

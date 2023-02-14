@@ -183,24 +183,24 @@ impl GlyphEditViewInner {
 
         let ctrl = gtk::EventControllerKey::new(obj);
         ctrl.connect_key_pressed(
-            clone!(@weak self.action_group as group, @weak self.shortcuts as shortcuts => @default-return false, move |_self, keyval, _, _| {
+            clone!(@weak self.action_group as group, @weak self.shortcuts as shortcuts => @default-return false, move |_self, keyval, _, modifier_type: gdk::ModifierType| {
                 use gtk::gdk::keys::Key;
 
                 let key = Key::from(keyval);
                 let sks = shortcuts.borrow();
-                if sks.iter().any(|s| s.try_press(&key, &group)) {
+                if sks.iter().any(|s| s.try_press(&key, modifier_type, &group)) {
                     return true;
                 }
                 false
             }),
         );
         ctrl.connect_key_released(
-            clone!(@weak self.action_group as group, @weak self.shortcuts as shortcuts  => move |_self, keyval, _,  _| {
+            clone!(@weak self.action_group as group, @weak self.shortcuts as shortcuts  => move |_self, keyval, _,  modifier_type: gdk::ModifierType| {
                 use gtk::gdk::keys::Key;
 
                 let key = Key::from(keyval);
                 let sks = shortcuts.borrow();
-                sks.iter().find(|s| s.try_release(&key, &group));
+                sks.iter().find(|s| s.try_release(&key, modifier_type, &group));
             }),
         );
         self.ctrl.set(ctrl).unwrap();
