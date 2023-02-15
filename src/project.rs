@@ -19,6 +19,10 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#[cfg(feature = "git")]
+use crate::git;
+
+use crate::ufo;
 use glib::{
     ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecInt64, ParamSpecString,
     ParamSpecUInt64, Value,
@@ -66,6 +70,7 @@ pub struct ProjectInner {
     pub contents: RefCell<ufo::Contents>,
     pub metainfo: RefCell<ufo::MetaInfo>,
     pub layercontents: RefCell<ufo::LayerContents>,
+    pub repository: git::Repository,
 }
 
 impl Default for ProjectInner {
@@ -95,6 +100,7 @@ impl Default for ProjectInner {
             contents: RefCell::new(ufo::Contents::default()),
             metainfo: RefCell::new(ufo::MetaInfo::default()),
             layercontents: RefCell::new(ufo::LayerContents::default()),
+            repository: git::Repository::default(),
         }
     }
 }
@@ -286,6 +292,7 @@ glib::wrapper! {
 
 impl std::ops::Deref for Project {
     type Target = ProjectInner;
+
     fn deref(&self) -> &Self::Target {
         self.imp()
     }

@@ -24,6 +24,8 @@ extern crate glib;
 
 pub mod app;
 pub mod editor;
+#[cfg(feature = "git")]
+pub mod git;
 pub mod glyphs;
 pub mod project;
 pub mod resources;
@@ -60,6 +62,7 @@ pub mod prelude {
     pub use window::Workspace;
 
     pub use glib::prelude::*;
+    pub use glib::ParamSpec;
     pub use gtk::prelude::ToValue;
     pub use gtk::subclass::prelude::*;
     pub use gtk::{cairo, gdk, gdk_pixbuf, gio, glib};
@@ -67,6 +70,7 @@ pub mod prelude {
     pub use std::cell::RefCell;
     pub use std::cell::{Cell, Ref, RefMut};
     pub use std::collections::HashSet;
+    pub use std::path::{Path, PathBuf};
     pub use std::rc::Rc;
     pub use std::str::FromStr;
 

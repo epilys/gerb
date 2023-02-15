@@ -35,6 +35,11 @@ version = "^0.15"
 optional = true
 features = ["svg", "png"]
 
+[dependencies.git2]
+version = "0.16"
+optional = true
+default-features = false
+
 [dependencies.pyo3]
 version = "0.18"
 optional = true
@@ -49,10 +54,11 @@ features = [
 ]
 
 [features]
-default = ["svg", "python"]
+default = ["svg", "python", "git"]
 svg = ["cairo-rs/svg", ]
 python = ["pyo3", ]
 notifications = ["notify-rust", "image"]
+git = ["git2", ]
 
 [profile.release]
 lto = "fat"

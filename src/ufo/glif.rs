@@ -419,8 +419,6 @@ impl From<Glif> for glyphs::Glyph {
             kinds,
             image,
             width: advance.map(|a| a.width),
-            contours: vec![],
-            components: vec![],
             guidelines: guidelines
                 .into_iter()
                 .map(|g| {
@@ -439,6 +437,7 @@ impl From<Glif> for glyphs::Glyph {
             anchors,
             glif_source: String::new(),
             //lib,
+            ..Glyph::default()
         };
 
         if let Some(outline) = outline {

@@ -42,6 +42,9 @@ pub use crate::ufo::glif::{self, Advance, Anchor, ImageRef, Unicode};
 mod contours;
 pub use contours::*;
 
+pub mod obj;
+pub use obj::GlyphState;
+
 #[derive(Debug, Clone)]
 pub struct Component {
     pub base_name: String,
@@ -75,6 +78,7 @@ pub struct Glyph {
     pub guidelines: Vec<Guideline>,
     pub glif_source: String,
     //pub lib: Option<plist::Dictionary>,
+    pub state: GlyphState,
 }
 
 impl Ord for Glyph {
@@ -224,6 +228,7 @@ impl Glyph {
             width: None,
             glif_source: String::new(),
             //lib: None,
+            state: GlyphState::new(),
         }
     }
 

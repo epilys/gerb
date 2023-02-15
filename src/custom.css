@@ -293,3 +293,10 @@ button.text-button.shortcuts-more label {
 button:hover.text-button.shortcuts-more label {
   box-shadow: -1px 1px black;
 }
+
+#layers {
+  background:white;
+  border: 1px solid black;
+  padding: 5px;
+  border-bottom-right-radius: 4px;
+}

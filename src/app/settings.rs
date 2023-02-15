@@ -19,7 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble};
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::BufWriter;
@@ -50,6 +49,7 @@ pub struct SettingsInner {
     #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
+    pub ui_font: Rc<RefCell<gtk::pango::FontDescription>>,
 }
 
 impl SettingsInner {
@@ -286,60 +286,74 @@ impl ObjectImpl for SettingsInner {
         self.load_settings().unwrap();
     }
 
-    fn properties() -> &'static [ParamSpec] {
-        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
-                    ParamSpecDouble::new(
+                    glib::ParamSpecDouble::new(
                         Settings::HANDLE_SIZE,
                         Settings::HANDLE_SIZE,
                         Settings::HANDLE_SIZE,
                         0.0001,
                         10.0,
                         SettingsInner::HANDLE_SIZE_INIT_VAL,
-                        ParamFlags::READWRITE | UI_EDITABLE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
-                    ParamSpecDouble::new(
+                    glib::ParamSpecDouble::new(
                         Settings::LINE_WIDTH,
                         Settings::LINE_WIDTH,
                         Settings::LINE_WIDTH,
                         0.0001,
                         10.0,
                         SettingsInner::LINE_WIDTH_INIT_VAL,
-                        ParamFlags::READWRITE | UI_EDITABLE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
-                    ParamSpecDouble::new(
+                    glib::ParamSpecDouble::new(
                         Settings::GUIDELINE_WIDTH,
                         Settings::GUIDELINE_WIDTH,
                         Settings::GUIDELINE_WIDTH,
                         0.0001,
                         10.0,
                         SettingsInner::GUIDELINE_WIDTH_INIT_VAL,
-                        ParamFlags::READWRITE | UI_EDITABLE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         Settings::WARP_CURSOR,
                         SettingsInner::WARP_CURSOR_INIT_VAL,
-                        ParamFlags::READWRITE | UI_EDITABLE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoxed::new(
+                        Settings::UI_FONT,
+                        Settings::UI_FONT,
+                        Settings::UI_FONT,
+                        gtk::pango::FontDescription::static_type(),
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                 ]
             });
         PROPERTIES.as_ref()
     }
 
-    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             Settings::HANDLE_SIZE => self.handle_size.get().to_value(),
             Settings::LINE_WIDTH => self.line_width.get().to_value(),
             Settings::GUIDELINE_WIDTH => self.guideline_width.get().to_value(),
             Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
+            Settings::UI_FONT => self.ui_font.borrow().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &glib::Value, pspec: &ParamSpec) {
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
         match pspec.name() {
             Settings::HANDLE_SIZE => {
                 self.handle_size.set(value.get().unwrap());
@@ -355,6 +369,10 @@ impl ObjectImpl for SettingsInner {
             }
             Settings::WARP_CURSOR => {
                 self.warp_cursor.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::UI_FONT => {
+                *self.ui_font.borrow_mut() = value.get().unwrap();
                 self.save_settings().unwrap();
             }
             _ => unimplemented!("{}", pspec.name()),
@@ -373,6 +391,7 @@ impl Settings {
     pub const LINE_WIDTH: &str = "line-width";
     pub const GUIDELINE_WIDTH: &str = "guideline-width";
     pub const WARP_CURSOR: &str = "warp-cursor";
+    pub const UI_FONT: &str = "ui-font";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()
