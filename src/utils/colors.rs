@@ -34,6 +34,7 @@ impl Color {
     pub const GREEN: Self = Self::from_hex("#00ff00");
     pub const RED: Self = Self::from_hex("#ff0000");
     pub const WHITE: Self = Self::from_hex("#ffffff");
+    pub const TRANSPARENT: Self = Self::new_alpha(255, 255, 255, 255);
 
     pub const fn new(red: u8, green: u8, blue: u8) -> Self {
         Self::new_alpha(red, green, blue, 255)
@@ -91,6 +92,10 @@ impl Color {
     #[inline(always)]
     pub fn alpha(&self) -> u8 {
         (self.0).3
+    }
+
+    pub fn is_visible(&self) -> bool {
+        *self != Self::TRANSPARENT
     }
 }
 

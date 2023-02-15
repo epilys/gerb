@@ -22,35 +22,40 @@
 use crate::prelude::*;
 
 #[derive(Debug, Default)]
-pub struct GlyphStateInner {
+pub struct GlyphMetadataInner {
     modified: Cell<bool>,
     mark_color: Cell<Color>,
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for GlyphStateInner {
+impl ObjectSubclass for GlyphMetadataInner {
     const NAME: &'static str = "Glyph";
-    type Type = GlyphState;
+    type Type = GlyphMetadata;
     type ParentType = glib::Object;
     type Interfaces = ();
 }
 
-impl ObjectImpl for GlyphStateInner {
+impl ObjectImpl for GlyphMetadataInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.mark_color.set(Color::TRANSPARENT);
+    }
+
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
                     glib::ParamSpecBoolean::new(
-                        GlyphState::MODIFIED,
-                        GlyphState::MODIFIED,
-                        GlyphState::MODIFIED,
+                        GlyphMetadata::MODIFIED,
+                        GlyphMetadata::MODIFIED,
+                        GlyphMetadata::MODIFIED,
                         false,
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecBoxed::new(
-                        GlyphState::MARK_COLOR,
-                        GlyphState::MARK_COLOR,
-                        GlyphState::MARK_COLOR,
+                        GlyphMetadata::MARK_COLOR,
+                        GlyphMetadata::MARK_COLOR,
+                        GlyphMetadata::MARK_COLOR,
                         Color::static_type(),
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
@@ -61,35 +66,49 @@ impl ObjectImpl for GlyphStateInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
         match pspec.name() {
+            GlyphMetadata::MARK_COLOR => self.mark_color.get().to_value(),
+            GlyphMetadata::MODIFIED => self.modified.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &glib::Value, pspec: &ParamSpec) {
+    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &glib::Value, pspec: &ParamSpec) {
         match pspec.name() {
+            GlyphMetadata::MARK_COLOR => {
+                self.mark_color.set(value.get().unwrap());
+            }
+            GlyphMetadata::MODIFIED => {
+                self.modified.set(value.get().unwrap());
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 }
 
 glib::wrapper! {
-    pub struct GlyphState(ObjectSubclass<GlyphStateInner>);
+    pub struct GlyphMetadata(ObjectSubclass<GlyphMetadataInner>);
 }
 
-impl std::ops::Deref for GlyphState {
-    type Target = GlyphStateInner;
+impl std::ops::Deref for GlyphMetadata {
+    type Target = GlyphMetadataInner;
 
     fn deref(&self) -> &Self::Target {
         self.imp()
     }
 }
 
-impl GlyphState {
+impl GlyphMetadata {
     pub const MODIFIED: &str = "modified";
     pub const MARK_COLOR: &str = "mark-color";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
+    }
+}
+
+impl Default for GlyphMetadata {
+    fn default() -> GlyphMetadata {
+        Self::new()
     }
 }

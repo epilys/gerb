@@ -402,9 +402,9 @@ impl ToolImplImpl for PanningToolInner {
                             .separator()
                             .add_button_cb(
                                 "Edit",
-                                clone!(@weak g =>  move |_| {
+                                clone!(@weak g, @weak view =>  move |_| {
                                     let obj = g.upcast::<gtk::glib::Object>();
-                                    let w = crate::utils::new_property_window(obj, "Settings");
+                                    let w = crate::utils::new_property_window(view.app.get().unwrap(), obj, "Settings");
                                     w.present();
                                 }),
                             )

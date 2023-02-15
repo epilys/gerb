@@ -535,17 +535,24 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
     }
 }
 
-pub fn new_property_window(obj: glib::Object, title: &str) -> gtk::Window {
+pub fn new_property_window(
+    app: &crate::prelude::Application,
+    obj: glib::Object,
+    title: &str,
+) -> gtk::Window {
     let w = gtk::Window::builder()
         .deletable(true)
+        .transient_for(&app.window)
+        .attached_to(&app.window)
+        .application(app)
         .destroy_with_parent(true)
         .focus_on_map(true)
         .resizable(true)
         .title(title)
         .visible(true)
         .expand(true)
-        .default_width(640)
-        .default_height(480)
+        .type_hint(gtk::gdk::WindowTypeHint::Utility)
+        .window_position(gtk::WindowPosition::CenterOnParent)
         .build();
     let scrolled_window = gtk::ScrolledWindow::builder()
         .expand(true)
@@ -553,7 +560,25 @@ pub fn new_property_window(obj: glib::Object, title: &str) -> gtk::Window {
         .can_focus(true)
         .build();
     let grid = crate::utils::object_to_property_grid(obj);
-    scrolled_window.set_child(Some(&grid));
+    let b = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .margin(5)
+        .margin_bottom(10)
+        .visible(true)
+        .build();
+    b.pack_start(&grid, true, true, 0);
+    let close_button = gtk::Button::builder()
+        .label("Close")
+        .relief(gtk::ReliefStyle::None)
+        .visible(true)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::Center)
+        .build();
+    close_button.connect_clicked(clone!(@weak w => move |_| {
+        w.close();
+    }));
+    b.pack_end(&close_button, false, false, 0);
+    scrolled_window.set_child(Some(&b));
     w.set_child(Some(&scrolled_window));
     w
 }

@@ -82,9 +82,9 @@ impl EditorInner {
             }
             let settings = gtk::gio::SimpleAction::new("open.settings", None);
             settings.connect_activate(
-                glib::clone!(@weak self.viewport as viewport => move |_, _| {
+                glib::clone!(@weak self.viewport as viewport, @weak app => move |_, _| {
                     let obj = viewport.upcast::<gtk::glib::Object>();
-                    let w = crate::utils::new_property_window(obj, "Settings");
+                    let w = crate::utils::new_property_window(&app, obj, "Settings");
                     w.present();
                 }),
             );
@@ -205,13 +205,10 @@ impl EditorInner {
             }));
             action_group.add_action(&save);
             let properties = gtk::gio::SimpleAction::new("properties", None);
-            properties.connect_activate(glib::clone!(@weak obj => move |_, _| {
-                /*
-                 * TODO: Glyph struct is not a GObject yet
-                let obj: glib::Object = obj.imp().glyph.get().unwrap().borrow().clone().upcast();
-                let w = crate::utils::new_property_window(obj, "Glyph properties");
+            properties.connect_activate(glib::clone!(@weak obj, @weak app => move |_, _| {
+                let metadata: glib::Object = obj.imp().glyph.get().unwrap().borrow().metadata.clone().upcast();
+                let w = crate::utils::new_property_window(&app, metadata, "Glyph properties");
                 w.present();
-                */
             }));
             action_group.add_action(&properties);
             let inspect = gtk::gio::SimpleAction::new("inspect", None);

@@ -372,6 +372,7 @@ impl Project {
         ret.set_property(Project::MODIFIED, false);
         *ret.last_saved.borrow_mut() = None;
         *ret.glyphs.borrow_mut() = glyphs?;
+        std::env::set_current_dir(&path).unwrap();
         *ret.path.borrow_mut() = path;
         *ret.family_name.borrow_mut() = fontinfo.family_name.clone();
         *ret.style_name.borrow_mut() = fontinfo.style_name.clone();

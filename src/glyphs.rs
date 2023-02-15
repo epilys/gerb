@@ -43,7 +43,7 @@ mod contours;
 pub use contours::*;
 
 pub mod obj;
-pub use obj::GlyphState;
+pub use obj::GlyphMetadata;
 
 #[derive(Debug, Clone)]
 pub struct Component {
@@ -78,7 +78,7 @@ pub struct Glyph {
     pub guidelines: Vec<Guideline>,
     pub glif_source: String,
     //pub lib: Option<plist::Dictionary>,
-    pub state: GlyphState,
+    pub metadata: GlyphMetadata,
 }
 
 impl Ord for Glyph {
@@ -159,12 +159,12 @@ impl Default for GlyphDrawingOptions<'_> {
 impl Glyph {
     #[allow(clippy::type_complexity)]
     pub fn from_ufo(
-        path: &Path,
+        root_path: &Path,
         contents: &ufo::Contents,
     ) -> Result<HashMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
         let mut ret: HashMap<String, Rc<RefCell<Glyph>>> = HashMap::default();
         let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
-        let mut path = path.to_path_buf();
+        let mut path = root_path.to_path_buf();
         path.push("glyphs");
 
         for (name, filename) in contents.glyphs.iter() {
@@ -228,7 +228,7 @@ impl Glyph {
             width: None,
             glif_source: String::new(),
             //lib: None,
-            state: GlyphState::new(),
+            metadata: GlyphMetadata::new(),
         }
     }
 

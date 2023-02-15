@@ -15,7 +15,6 @@ button {
 }
 
 menubar {
-  font-weight: bolder;
 }
 
 headerbar {
@@ -217,7 +216,6 @@ tab {
   border-left: none;
   border-bottom: none;
   background: white;
-  font-weight:bold;
   padding: 0px 6px;
   margin: 0 2px
 }
@@ -271,7 +269,6 @@ window>box>notebook>stack{
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 2px 0 0 rgba(255, 255, 255, 0.7) inset;
   color: #333;
   font-size: 0.85em;
-  font-weight: 700;
   padding: 2px 4px;
   font-family: monospace;
 }

@@ -93,23 +93,21 @@ impl Repository {
                 println!("git2 err: {}", err);
             }
             Ok(ref v) => {
-                println!("git2 succ: {:?}", v.status_file(&path));
+                println!("git2 succ: {:?}", v.status_file(path));
             }
         }
         *self.repository.borrow_mut() = Some(val);
     }
 
     pub fn status_file(&self, path: &Path) -> Option<git2::Status> {
-        Some(
-            dbg!(self
-                .repository
-                .borrow()
-                .as_ref()?
-                .as_ref()
-                .ok()?
-                .status_file(&path))
-            .ok()?,
-        )
+        dbg!(self
+            .repository
+            .borrow()
+            .as_ref()?
+            .as_ref()
+            .ok()?
+            .status_file(path))
+        .ok()
     }
 }
 

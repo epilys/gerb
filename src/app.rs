@@ -182,9 +182,9 @@ impl ApplicationInner {
 
         let settings = gtk::gio::SimpleAction::new("settings", None);
         settings.connect_activate(
-            glib::clone!(@strong self.settings as settings => move |_, _| {
+            glib::clone!(@strong self.settings as settings, @weak obj as app => move |_, _| {
                 let obj: glib::Object = settings.borrow().clone().upcast();
-                let w = crate::utils::new_property_window(obj, "Settings");
+                let w = crate::utils::new_property_window(&app, obj, "Settings");
                 w.present();
             }),
         );
@@ -389,9 +389,9 @@ impl ApplicationInner {
 
         let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
         project_properties.connect_activate(
-            glib::clone!(@weak self.window as window => move |_, _| {
+            glib::clone!(@weak self.window as window, @weak obj as app => move |_, _| {
                 let obj: glib::Object = window.project.borrow().clone().upcast();
-                let w = crate::utils::new_property_window(obj, "Project");
+                let w = crate::utils::new_property_window(&app, obj, "Project");
                 w.present();
             }),
         );

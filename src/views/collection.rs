@@ -551,6 +551,8 @@ pub struct GlyphBoxInner {
     pub project: OnceCell<Project>,
     pub glyph: OnceCell<Rc<RefCell<Glyph>>>,
     pub focused: Cell<bool>,
+    modified: Cell<bool>,
+    mark_color: Cell<Color>,
     pub zoom_factor: Cell<f64>,
     pub show_details: Cell<bool>,
     pub drawing_area: gtk::DrawingArea,
@@ -646,6 +648,12 @@ impl ObjectImpl for GlyphBoxInner {
             cr.stroke_preserve().expect("Invalid cairo surface state");
             cr.clip();
             cr.new_path();
+            let mark_color = obj.imp().mark_color.get();
+            if mark_color.is_visible() {
+                cr.set_source_color_alpha(mark_color);
+                cr.rectangle(width - width / 10.0, width / 10.0, width / 10.0, width / 10.0);
+                cr.fill().unwrap();
+            }
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.4);
             // View height.
             let vh = _drar.allocated_height() as f64;
@@ -772,6 +780,20 @@ impl ObjectImpl for GlyphBoxInner {
                         false,
                         ParamFlags::READABLE,
                     ),
+                    glib::ParamSpecBoxed::new(
+                        GlyphMetadata::MARK_COLOR,
+                        GlyphMetadata::MARK_COLOR,
+                        GlyphMetadata::MARK_COLOR,
+                        Color::static_type(),
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        GlyphMetadata::MODIFIED,
+                        GlyphMetadata::MODIFIED,
+                        GlyphMetadata::MODIFIED,
+                        false,
+                        glib::ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -782,6 +804,8 @@ impl ObjectImpl for GlyphBoxInner {
             GlyphBox::SHOW_DETAILS => self.show_details.get().to_value(),
             GlyphBox::ZOOM_FACTOR => self.zoom_factor.get().to_value(),
             GlyphBox::FOCUSED => self.focused.get().to_value(),
+            GlyphMetadata::MARK_COLOR => self.mark_color.get().to_value(),
+            GlyphMetadata::MODIFIED => self.modified.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -791,6 +815,12 @@ impl ObjectImpl for GlyphBoxInner {
             GlyphBox::SHOW_DETAILS => self.show_details.set(value.get().unwrap()),
             GlyphBox::ZOOM_FACTOR => self.zoom_factor.set(value.get().unwrap()),
             GlyphBox::FOCUSED => self.focused.set(value.get().unwrap()),
+            GlyphMetadata::MARK_COLOR => {
+                self.mark_color.set(value.get().unwrap());
+            }
+            GlyphMetadata::MODIFIED => {
+                self.modified.set(value.get().unwrap());
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -805,6 +835,8 @@ impl GlyphBox {
     pub const SHOW_DETAILS: &str = "show-details";
     pub const ZOOM_FACTOR: &str = Collection::ZOOM_FACTOR;
     pub const FOCUSED: &str = "focused";
+    pub const MODIFIED: &str = GlyphMetadata::MODIFIED;
+    pub const MARK_COLOR: &str = GlyphMetadata::MARK_COLOR;
 
     fn emit_open_glyph_edit(&self) {
         self.imp()
@@ -826,6 +858,17 @@ impl GlyphBox {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         ret.imp().app.set(app).unwrap();
         ret.imp().project.set(project).unwrap();
+        {
+            let metadata = &glyph.borrow().metadata;
+            metadata
+                .bind_property(GlyphMetadata::MARK_COLOR, &ret, Self::MARK_COLOR)
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+            metadata
+                .bind_property(GlyphMetadata::MODIFIED, &ret, Self::MODIFIED)
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
         ret.imp().glyph.set(glyph).unwrap();
         ret
     }
