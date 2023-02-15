@@ -658,6 +658,10 @@ impl ObjectImpl for GlyphBoxInner {
             // View height.
             let vh = _drar.allocated_height() as f64;
             cr.set_font_size(zoom_factor * 62.0);
+
+
+            /* Draw glyph. */
+
             let sextents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
@@ -666,7 +670,7 @@ impl ObjectImpl for GlyphBoxInner {
                 cr.show_text(&label).expect("Invalid cairo surface state");
             } else {
                 let mut matrix = gtk::cairo::Matrix::identity();
-                matrix.translate((width - glyph_width) / 2.0, vh / 2.0);
+                matrix.translate((width - glyph_width) / 2.0, 4.5 * vh / 8.0);
                 matrix.scale((width * 0.8) / units_per_em, -(width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
                     outline: (Color::new_alpha(0, 0, 0, 0), 1.5).into(),
@@ -679,6 +683,7 @@ impl ObjectImpl for GlyphBoxInner {
                 glyph.draw(cr, options);
             }
 
+            /* Draw glyph label */
 
             cr.set_line_width(2.0);
             cr.set_source_rgb(0.0, 0.0, 0.0);
