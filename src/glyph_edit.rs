@@ -154,8 +154,8 @@ impl ObjectImpl for GlyphEditViewInner {
                 .set_name(Some("glyph"))
                 .set_active(true)
                 .set_hidden(false)
-                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-                    layers::draw_glyph_layer(viewport, cr, obj)
+                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, mut cr: ContextRef<'_, '_>| {
+                    layers::draw_glyph_layer(viewport, cr.push(), obj)
                 }))))
                 .build(),
         );
@@ -164,8 +164,8 @@ impl ObjectImpl for GlyphEditViewInner {
                 .set_name(Some("guidelines"))
                 .set_active(true)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
-                    layers::draw_guidelines(viewport, cr, obj)
+                .set_callback(Some(Box::new(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &Canvas, mut cr: ContextRef<'_, '_>| {
+                    layers::draw_guidelines(viewport, cr.push(), obj)
                 }))))
                 .build(),
         );

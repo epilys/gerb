@@ -840,7 +840,7 @@ impl ToolImplImpl for PanningToolInner {
                 .set_name(Some("selection box"))
                 .set_active(false)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &gtk::cairo::Context| {
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: ContextRef| {
                     PanningTool::draw_select_box(viewport, cr, view)
                 }))))
                 .build();
@@ -895,11 +895,7 @@ impl PanningTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_select_box(
-        viewport: &Canvas,
-        cr: &gtk::cairo::Context,
-        obj: GlyphEditView,
-    ) -> Inhibit {
+    pub fn draw_select_box(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView) -> Inhibit {
         let glyph_state = obj.glyph_state.get().unwrap().borrow();
         let t = glyph_state.tools[&Self::static_type()]
             .clone()
@@ -935,11 +931,11 @@ impl PanningTool {
 
         let matrix = viewport.transformation.matrix();
 
-        cr.save().unwrap();
+        let cr1 = cr.push();
 
-        cr.set_line_width(line_width);
-        cr.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
-        cr.transform(matrix);
+        cr1.set_line_width(line_width);
+        cr1.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
+        cr1.transform(matrix);
 
         if resize {
             let units_per_em = viewport
@@ -947,20 +943,20 @@ impl PanningTool {
                 .property::<f64>(Transformation::UNITS_PER_EM);
             let glyph_width = glyph_state.glyph.borrow().width.unwrap_or(0.0);
 
-            cr.set_source_color(Color::BLACK);
-            cr.set_dash(&[], 0.0);
-            cr.set_line_width(1.0);
-            cr.rectangle(0.0, 0.0, glyph_width, units_per_em);
-            cr.stroke().unwrap();
-            cr.set_line_width(2.0);
-            cr.move_to(glyph_width, 0.0);
-            cr.line_to(glyph_width, units_per_em);
-            cr.stroke().unwrap();
+            cr1.set_source_color(Color::BLACK);
+            cr1.set_dash(&[], 0.0);
+            cr1.set_line_width(1.0);
+            cr1.rectangle(0.0, 0.0, glyph_width, units_per_em);
+            cr1.stroke().unwrap();
+            cr1.set_line_width(2.0);
+            cr1.move_to(glyph_width, 0.0);
+            cr1.line_to(glyph_width, units_per_em);
+            cr1.stroke().unwrap();
 
-            cr.restore().unwrap();
-            cr.save().unwrap();
+            drop(cr1);
+            let cr2 = cr.push();
 
-            let extents = cr.text_extents("Cancel").unwrap();
+            let extents = cr2.text_extents("Cancel").unwrap();
             let ViewPoint(mouse) = viewport.get_mouse();
             let scale_factor = viewport.scale_factor();
             // FIXME remove unwraps
@@ -987,21 +983,21 @@ impl PanningTool {
             if h > row_height {
                 row_height = h;
             }
-            cr.set_source_surface(
+            cr2.set_source_surface(
                 &rmb.create_surface(scale_factor, viewport.window().as_ref())
                     .unwrap(),
                 x + 0.5,
                 y + 0.5,
             )
             .unwrap();
-            cr.paint().unwrap();
+            cr2.paint().unwrap();
             x += w;
-            cr.set_source_color(Color::BLACK);
-            cr.move_to(
+            cr2.set_source_color(Color::BLACK);
+            cr2.move_to(
                 x + (rmb.width() as f64) * 0.1 + 0.5,
                 mouse.y + row_height * 0.5 + extents.height * 0.5 + 0.5,
             );
-            cr.show_text("Cancel").unwrap();
+            cr2.show_text("Cancel").unwrap();
 
             y += row_height * 1.1;
 
@@ -1014,23 +1010,22 @@ impl PanningTool {
                 (i.height() as f64) / (scale_factor as f64),
                 (i.width() as f64) / (scale_factor as f64),
             );
-            cr.set_source_surface(
+            cr2.set_source_surface(
                 &i.create_surface(scale_factor, viewport.window().as_ref())
                     .unwrap(),
                 x - w + 0.5,
                 y + 0.5,
             )
             .unwrap();
-            cr.paint().unwrap();
+            cr2.paint().unwrap();
 
-            cr.set_source_color(Color::BLACK);
-            cr.move_to(
+            cr2.set_source_color(Color::BLACK);
+            cr2.move_to(
                 x + (rmb.width() as f64) * 0.1 + 0.5,
                 y + h * 0.5 + extents.height * 0.5 + 0.5,
             );
-            cr.show_text("Apply").unwrap();
+            cr2.show_text("Apply").unwrap();
 
-            cr.restore().unwrap();
             return Inhibit(true);
         }
 
@@ -1038,47 +1033,44 @@ impl PanningTool {
         let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
         let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
         if width == 0.0 || height == 0.0 {
-            cr.restore().unwrap();
             return Inhibit(false);
         }
 
-        cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
-        cr.rectangle(upper_left.x, upper_left.y, width, height);
+        cr1.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+        cr1.rectangle(upper_left.x, upper_left.y, width, height);
         if active {
-            cr.stroke_preserve().unwrap();
+            cr1.stroke_preserve().unwrap();
             // turqoise, #278cac
-            cr.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
-            cr.fill().unwrap();
+            cr1.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
+            cr1.fill().unwrap();
         } else {
-            cr.stroke().unwrap();
+            cr1.stroke().unwrap();
         }
-        cr.restore().unwrap();
+        drop(cr1);
 
         if !active {
             let rectangle_dim = 5.0 * f;
 
-            cr.save().unwrap();
-            cr.set_line_width(line_width);
-            cr.transform(matrix);
+            let cr2 = cr.push();
+            cr2.set_line_width(line_width);
+            cr2.transform(matrix);
             for p in [
                 upper_left,
                 bottom_right,
                 upper_left + (width, 0.0).into(),
                 upper_left + (0.0, height).into(),
             ] {
-                cr.set_source_rgba(0.0, 0.0, 0.0, 0.9);
-                cr.rectangle(
+                cr2.set_source_rgba(0.0, 0.0, 0.0, 0.9);
+                cr2.rectangle(
                     p.x - rectangle_dim / 2.0,
                     p.y - rectangle_dim / 2.0,
                     rectangle_dim,
                     rectangle_dim,
                 );
-                cr.stroke_preserve().unwrap();
-                cr.set_source_rgba(1.0, 1.0, 1.0, 1.0);
-                cr.fill().unwrap();
+                cr2.stroke_preserve().unwrap();
+                cr2.set_source_rgba(1.0, 1.0, 1.0, 1.0);
+                cr2.fill().unwrap();
             }
-
-            cr.restore().unwrap();
         }
 
         Inhibit(true)

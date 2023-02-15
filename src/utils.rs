@@ -19,7 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use gtk::cairo::Context;
 use gtk::glib;
 use gtk::prelude::*;
 use std::f64::consts::PI;
@@ -39,7 +38,7 @@ pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstu
 pub const UI_EDITABLE: glib::ParamFlags = glib::ParamFlags::USER_1;
 
 pub fn draw_round_rectangle(
-    cr: &Context,
+    cr: ContextRef,
     p: Point,
     (width, height): (f64, f64),
     aspect_ratio: f64,
@@ -557,4 +556,67 @@ pub fn new_property_window(obj: glib::Object, title: &str) -> gtk::Window {
     scrolled_window.set_child(Some(&grid));
     w.set_child(Some(&scrolled_window));
     w
+}
+
+#[repr(transparent)]
+pub struct ContextRef<'a, 'b: 'a>(&'a mut &'b gtk::cairo::Context);
+
+impl std::ops::Deref for ContextRef<'_, '_> {
+    type Target = gtk::cairo::Context;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl Drop for ContextRef<'_, '_> {
+    fn drop(&mut self) {
+        self.0.restore().unwrap();
+    }
+}
+
+impl<'c, 'a: 'c, 'b: 'a> ContextRef<'a, 'b> {
+    pub fn save(&self) {}
+
+    pub fn restore(&self) {}
+
+    pub fn push(self: &'c mut ContextRef<'a, 'b>) -> ContextRef<'c, 'b> {
+        self.0.save().unwrap();
+        ContextRef(self.0)
+    }
+}
+
+impl<'a, 'b> From<&'a mut &'b gtk::cairo::Context> for ContextRef<'a, 'b> {
+    fn from(cr: &'a mut &'b gtk::cairo::Context) -> Self {
+        cr.save().unwrap();
+        ContextRef(cr)
+    }
+}
+
+pub trait ContextExt: colors::ColorExt {
+    fn push<'a, 'b: 'a>(self: &'a mut &'b Self) -> ContextRef<'a, 'b>;
+}
+
+impl<'a, 'b> ColorExt for ContextRef<'a, 'b> {
+    fn set_source_color(&self, color: Color) {
+        self.0.set_source_color(color)
+    }
+
+    fn set_source_color_alpha(&self, color: Color) {
+        self.0.set_source_color_alpha(color)
+    }
+
+    fn set_draw_opts(&self, opts: DrawOptions) {
+        self.0.set_draw_opts(opts)
+    }
+
+    fn show_text_with_bg(&self, text: &str, margin: f64, fg: Color, bg: Color) {
+        self.0.show_text_with_bg(text, margin, fg, bg)
+    }
+}
+
+impl ContextExt for gtk::cairo::Context {
+    fn push<'a, 'b: 'a>(self: &'a mut &'b Self) -> ContextRef<'a, 'b> {
+        self.save().unwrap();
+        ContextRef(self)
+    }
 }

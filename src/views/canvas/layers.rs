@@ -24,7 +24,7 @@ use glib::{ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecString, Value};
 
 use crate::prelude::*;
 
-pub type LayerCallback = dyn Fn(&Canvas, &gtk::cairo::Context) -> Inhibit;
+pub type LayerCallback = dyn Fn(&Canvas, ContextRef<'_, '_>) -> Inhibit;
 
 pub struct LayerInner {
     active: Cell<bool>,

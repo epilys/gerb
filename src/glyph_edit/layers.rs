@@ -22,11 +22,7 @@
 use super::*;
 use crate::utils::colors::*;
 
-pub fn draw_glyph_layer(
-    viewport: &Canvas,
-    cr: &gtk::cairo::Context,
-    obj: GlyphEditView,
-) -> Inhibit {
+pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView) -> Inhibit {
     let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
     let scale: f64 = viewport
         .transformation
@@ -41,22 +37,22 @@ pub fn draw_glyph_layer(
     let glyph_state = obj.glyph_state.get().unwrap().borrow();
     let UnitPoint(camera) = viewport.view_to_unit_point(viewport.transformation.camera());
 
-    cr.save().unwrap();
-
     cr.transform(matrix);
-    cr.save().unwrap();
-    cr.set_line_width(2.5);
-    if !preview {
-        cr.arc(
-            camera.x,
-            camera.y,
-            5.0 + 1.0,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        );
-        cr.stroke().unwrap();
-    }
+    {
+        let cr1 = cr.push();
 
+        cr1.set_line_width(2.5);
+        if !preview {
+            cr1.arc(
+                camera.x,
+                camera.y,
+                5.0 + 1.0,
+                0.0,
+                2.0 * std::f64::consts::PI,
+            );
+            cr1.stroke().unwrap();
+        }
+    }
     /*
         {
             let mouse = viewport.get_mouse();
@@ -67,8 +63,6 @@ pub fn draw_glyph_layer(
             obj.new_statusbar_message(&format!("Mouse: ({:.2}, {:.2}), Unit mouse: ({:.2}, {:.2}), Camera: ({:.2}, {:.2}), Unit Camera: ({:.2}, {:.2}), Size: ({width:.2}, {height:.2}), Scale: {scale:.2}", mouse.0.x, mouse.0.y, unit_mouse.0.x, unit_mouse.0.y, view_camera.x, view_camera.y, camera.x, camera.y));
         }
     */
-
-    cr.restore().unwrap();
 
     /* Draw the glyph */
 
@@ -137,15 +131,13 @@ pub fn draw_glyph_layer(
                 selection: Some(glyph_state.get_selection_set()),
             }
         };
-        glyph_state.glyph.borrow().draw(cr, options);
+        glyph_state.glyph.borrow().draw(cr.push(), options);
     }
-
-    cr.restore().unwrap();
 
     Inhibit(false)
 }
 
-pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEditView) -> Inhibit {
+pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView) -> Inhibit {
     let glyph_state = obj.glyph_state.get().unwrap();
     let matrix = viewport.transformation.matrix();
     let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
@@ -153,15 +145,15 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
     if preview {
         return Inhibit(false);
     }
-    cr.save().unwrap();
+    let mut cr1 = cr.push();
 
     if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
-        cr.save().unwrap();
-        cr.transform(matrix);
+        let cr2 = cr1.push();
+        cr2.transform(matrix);
 
         /* Draw em square of units_per_em units: */
-        cr.set_source_color_alpha(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
-        cr.rectangle(
+        cr2.set_source_color_alpha(viewport.property::<Color>(Canvas::GLYPH_BBOX_BG_COLOR));
+        cr2.rectangle(
             0.0,
             0.0,
             glyph_state
@@ -172,8 +164,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 .unwrap_or(units_per_em),
             1000.0,
         );
-        cr.fill().unwrap();
-        cr.restore().unwrap();
+        cr2.fill().unwrap();
     }
 
     if viewport.property::<bool>(Canvas::SHOW_GUIDELINES) {
@@ -190,7 +181,7 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
         let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
-        cr.set_line_width(
+        cr1.set_line_width(
             obj.settings
                 .get()
                 .unwrap()
@@ -227,14 +218,15 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
             )
         {
             let highlight = g.on_line_query(unit_mouse, None);
-            cr.save().unwrap();
-            cr.transform(matrix);
-            g.draw(cr, (width, height), highlight, show_origin);
-            cr.restore().unwrap();
+            {
+                let cr2 = cr1.push();
+                cr2.transform(matrix);
+                g.draw(cr2, (width, height), highlight, show_origin);
+            }
             if highlight {
-                cr.move_to(mouse.0.x, mouse.0.y);
-                let line_height = cr.text_extents("Guideline").unwrap().height * 1.5;
-                cr.show_text("Guideline").unwrap();
+                cr1.move_to(mouse.0.x, mouse.0.y);
+                let line_height = cr1.text_extents("Guideline").unwrap().height * 1.5;
+                cr1.show_text("Guideline").unwrap();
                 for (i, line) in [
                     format!("Name: {}", g.name().as_deref().unwrap_or("-")),
                     format!("Identifier: {}", g.identifier().as_deref().unwrap_or("-")),
@@ -244,12 +236,12 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 .into_iter()
                 .enumerate()
                 {
-                    cr.move_to(mouse.0.x, mouse.0.y + (i + 1) as f64 * line_height);
-                    cr.show_text(&line).unwrap();
+                    cr1.move_to(mouse.0.x, mouse.0.y + (i + 1) as f64 * line_height);
+                    cr1.show_text(&line).unwrap();
                 }
             } else if g.angle() == 0.0 {
-                cr.save().unwrap();
-                cr.set_source_color_alpha(Color::try_from_hex("#bbbaae").unwrap());
+                let cr2 = cr1.push();
+                cr2.set_source_color_alpha(Color::try_from_hex("#bbbaae").unwrap());
                 let ViewPoint(Point { y, .. }) =
                     viewport.unit_to_view_point(UnitPoint((0.0, g.y()).into()));
                 let label = if let Some(name) = g.name().as_deref() {
@@ -257,15 +249,13 @@ pub fn draw_guidelines(viewport: &Canvas, cr: &gtk::cairo::Context, obj: GlyphEd
                 } else {
                     format!("{}", g.y().ceil())
                 };
-                let extents = cr.text_extents(&label).unwrap();
-                cr.move_to(width - 2.5 - extents.width, y - 0.5);
-                cr.show_text(&label).unwrap();
-                cr.restore().unwrap();
+                let extents = cr2.text_extents(&label).unwrap();
+                cr2.move_to(width - 2.5 - extents.width, y - 0.5);
+                cr2.show_text(&label).unwrap();
             }
-            cr.stroke().unwrap();
+            cr1.stroke().unwrap();
         }
     }
-    cr.restore().unwrap();
     Inhibit(false)
 }
 

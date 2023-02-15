@@ -20,7 +20,7 @@
  */
 
 use super::{new_contour_action, tool_impl::*};
-use gtk::cairo::{Context, Matrix};
+use gtk::cairo::Matrix;
 use gtk::Inhibit;
 
 use crate::glyphs::{Contour, GlyphPointIndex};
@@ -532,7 +532,7 @@ impl ToolImplImpl for BezierToolInner {
                 .set_name(Some("bezier"))
                 .set_active(false)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &Context| {
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: ContextRef| {
                     BezierTool::draw_layer(viewport, cr, view)
                 }))))
                 .build();
@@ -765,7 +765,7 @@ impl BezierTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
         let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if BezierTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
@@ -808,12 +808,12 @@ impl BezierTool {
         };
 
         /*{
-            cr.save().expect("Invalid cairo surface state");
+            let cr1 = cr.push();
             let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
             let _height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
-            cr.set_font_size(9.5);
-            let line_height = cr.text_extents("BezierTool").unwrap().height * 1.5;
-            cr.show_text("BezierTool").unwrap();
+            cr1.set_font_size(9.5);
+            let line_height = cr1.text_extents("BezierTool").unwrap().height * 1.5;
+            cr1.show_text("BezierTool").unwrap();
             for (i, line) in Some(format!("state: {:?}", t.imp().inner))
                 .into_iter()
                 //.chain(Some(format!("snap_to_angle: {:?}", t.imp().snap_to_angle)).into_iter())
@@ -849,13 +849,11 @@ impl BezierTool {
                 )
                 .enumerate()
             {
-                cr.move_to(width / 2.0, 95.0 + (i + 1) as f64 * line_height);
-                cr.show_text(&line).unwrap();
+                cr1.move_to(width / 2.0, 95.0 + (i + 1) as f64 * line_height);
+                cr1.show_text(&line).unwrap();
             }
-            cr.restore().expect("Invalid cairo surface state");
         }
         */
-        cr.save().expect("Invalid cairo surface state");
         cr.transform(matrix);
         cr.set_line_width(line_width);
         cr.set_source_color_alpha(outline);
@@ -914,7 +912,6 @@ impl BezierTool {
             }
         }
 
-        cr.restore().expect("Invalid cairo surface state");
         Inhibit(true)
     }
 }

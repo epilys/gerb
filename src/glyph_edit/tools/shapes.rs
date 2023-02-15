@@ -22,7 +22,6 @@
 use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::Contour;
 use crate::utils::curves::Bezier;
-use gtk::cairo::Context;
 use gtk::Inhibit;
 
 use crate::prelude::*;
@@ -245,7 +244,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
                 .set_name(Some("quadrilateral"))
                 .set_active(false)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &Context| {
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: ContextRef| {
                     QuadrilateralTool::draw_layer(viewport, cr, view)
                 }))))
                 .build();
@@ -299,7 +298,7 @@ impl QuadrilateralTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
         let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if QuadrilateralTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
@@ -327,7 +326,6 @@ impl QuadrilateralTool {
             .unwrap()
             .property::<f64>(Settings::LINE_WIDTH)
             / (scale * ppu);
-        cr.save().expect("Invalid cairo surface state");
         cr.transform(viewport.transformation.matrix());
         cr.set_line_width(line_width);
         let outline = (0.2, 0.2, 0.2, 0.6);
@@ -340,7 +338,6 @@ impl QuadrilateralTool {
             cr.line_to(b.x, b.y);
         }
         cr.stroke().expect("Invalid cairo surface state");
-        cr.restore().expect("Invalid cairo surface state");
 
         Inhibit(true)
     }
@@ -563,7 +560,7 @@ impl ToolImplImpl for EllipseToolInner {
                 .set_name(Some("ellipse"))
                 .set_active(false)
                 .set_hidden(true)
-                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: &Context| {
+                .set_callback(Some(Box::new(clone!(@weak view => @default-return Inhibit(false), move |viewport: &Canvas, cr: ContextRef| {
                     EllipseTool::draw_layer(viewport, cr, view)
                 }))))
                 .build();
@@ -617,7 +614,7 @@ impl EllipseTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: &Context, obj: GlyphEditView) -> Inhibit {
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
         let glyph_state = obj.glyph_state.get().unwrap().borrow();
         if EllipseTool::static_type() != glyph_state.active_tool {
             return Inhibit(false);
@@ -645,7 +642,6 @@ impl EllipseTool {
             .unwrap()
             .property::<f64>(Settings::LINE_WIDTH)
             / (scale * ppu);
-        cr.save().expect("Invalid cairo surface state");
         cr.transform(viewport.transformation.matrix());
         cr.set_line_width(line_width);
         let outline = (0.2, 0.2, 0.2, 0.6);
@@ -666,7 +662,6 @@ impl EllipseTool {
             cr.curve_to(b.x, b.y, c.x, c.y, d.x, d.y);
         }
         cr.stroke().expect("Invalid cairo surface state");
-        cr.restore().expect("Invalid cairo surface state");
 
         Inhibit(true)
     }

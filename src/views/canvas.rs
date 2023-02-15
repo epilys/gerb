@@ -199,7 +199,7 @@ impl ObjectImpl for CanvasInner {
             self_.set_property::<f64>(Canvas::VIEW_WIDTH, self_.allocated_width() as f64);
         });
         obj.connect_draw(
-            move |viewport: &Canvas, cr: &gtk::cairo::Context| -> Inhibit {
+            move |viewport: &Canvas, mut cr: &gtk::cairo::Context| -> Inhibit {
                 let mut retval = Inhibit(false);
                 for layer in viewport
                     .pre_layers
@@ -209,7 +209,7 @@ impl ObjectImpl for CanvasInner {
                     .chain(viewport.post_layers.borrow().iter())
                     .filter(Layer::is_active)
                 {
-                    retval = (layer.get_callback())(viewport, cr);
+                    retval = (layer.get_callback())(viewport, cr.push());
                 }
                 retval
             },
@@ -608,8 +608,7 @@ impl Canvas {
         self.post_layers.borrow_mut().push(new_layer);
     }
 
-    pub fn draw_grid(&self, cr: &gtk::cairo::Context) -> Inhibit {
-        cr.save().unwrap();
+    pub fn draw_grid(&self, cr: ContextRef<'_, '_>) -> Inhibit {
         cr.set_source_color(self.property::<Color>(Canvas::BG_COLOR));
         cr.paint().unwrap();
 
@@ -642,11 +641,10 @@ impl Canvas {
                 cr.stroke().unwrap();
             }
         }
-        cr.restore().unwrap();
         Inhibit(false)
     }
 
-    pub fn draw_rulers(&self, cr: &gtk::cairo::Context) -> Inhibit {
+    pub fn draw_rulers(&self, mut cr: ContextRef<'_, '_>) -> Inhibit {
         if !self.show_rulers.get() {
             return Inhibit(false);
         }
@@ -664,7 +662,6 @@ impl Canvas {
         );
         let ViewPoint(camera) = self.transformation.camera();
 
-        cr.save().unwrap();
         cr.set_line_width(1.0);
 
         let font_size = 6.0;
@@ -673,80 +670,81 @@ impl Canvas {
 
         /* Draw rulers */
 
-        cr.save().unwrap();
+        let mut cr1 = cr.push();
 
-        cr.rectangle(0.0, ruler_breadth, ruler_breadth, height);
-        cr.set_source_color_alpha(ruler_bg);
-        cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_color_alpha(ruler_fg);
-        cr.stroke().unwrap();
+        cr1.rectangle(0.0, ruler_breadth, ruler_breadth, height);
+        cr1.set_source_color_alpha(ruler_bg);
+        cr1.fill_preserve().expect("Invalid cairo surface state");
+        cr1.set_source_color_alpha(ruler_fg);
+        cr1.stroke().unwrap();
 
         let step: f64 = 200.0 * (scale * ppu);
         let mut y = camera.y.rem_euclid(step).floor() + 0.5;
         while y < height {
-            cr.move_to(0.0, y);
-            cr.line_to(ruler_breadth, y);
+            cr1.move_to(0.0, y);
+            cr1.line_to(ruler_breadth, y);
             for i in 1..10 {
-                cr.move_to(ruler_breadth / 2.0, y + i as f64 * step / 10.0);
-                cr.line_to(ruler_breadth, y + i as f64 * step / 10.0);
+                cr1.move_to(ruler_breadth / 2.0, y + i as f64 * step / 10.0);
+                cr1.line_to(ruler_breadth, y + i as f64 * step / 10.0);
             }
             y += step;
         }
-        cr.stroke().unwrap();
+        cr1.stroke().unwrap();
 
-        cr.save().unwrap();
-        cr.move_to(2.0 * ruler_breadth / 3.0, view_mouse.y - 1.0);
-        cr.set_font_size(font_size);
-        cr.rotate(-std::f64::consts::FRAC_PI_2);
-        cr.set_source_color_alpha(ruler_fg);
-        cr.show_text_with_bg(&format!("{:.0}", mouse.y), 0.5, ruler_fg, ruler_bg);
-        cr.restore().unwrap();
+        {
+            let cr2 = cr1.push();
+            cr2.move_to(2.0 * ruler_breadth / 3.0, view_mouse.y - 1.0);
+            cr2.set_font_size(font_size);
+            cr2.rotate(-std::f64::consts::FRAC_PI_2);
+            cr2.set_source_color_alpha(ruler_fg);
+            cr2.show_text_with_bg(&format!("{:.0}", mouse.y), 0.5, ruler_fg, ruler_bg);
+        }
 
-        cr.save().unwrap();
-        cr.set_source_color_alpha(ruler_indicator_color);
-        cr.move_to(0.0, view_mouse.y);
-        cr.line_to(ruler_breadth, view_mouse.y);
-        cr.stroke().unwrap();
-        cr.restore().unwrap();
+        {
+            let cr3 = cr1.push();
+            cr3.set_source_color_alpha(ruler_indicator_color);
+            cr3.move_to(0.0, view_mouse.y);
+            cr3.line_to(ruler_breadth, view_mouse.y);
+            cr3.stroke().unwrap();
+        }
 
-        cr.restore().expect("Invalid cairo surface state");
+        drop(cr1);
 
-        cr.save().unwrap();
+        let mut cr4 = cr.push();
 
-        cr.rectangle(0.0, 0.0, width, ruler_breadth);
-        cr.set_source_color_alpha(ruler_bg);
-        cr.fill_preserve().expect("Invalid cairo surface state");
-        cr.set_source_color_alpha(ruler_fg);
-        cr.stroke().unwrap();
+        cr4.rectangle(0.0, 0.0, width, ruler_breadth);
+        cr4.set_source_color_alpha(ruler_bg);
+        cr4.fill_preserve().expect("Invalid cairo surface state");
+        cr4.set_source_color_alpha(ruler_fg);
+        cr4.stroke().unwrap();
 
         let step: f64 = 200.0 * (scale * ppu);
         let mut x = camera.x.rem_euclid(step).floor() + 0.5;
         while x < width {
-            cr.move_to(x, 0.0);
-            cr.line_to(x, ruler_breadth);
+            cr4.move_to(x, 0.0);
+            cr4.line_to(x, ruler_breadth);
             for i in 1..10 {
-                cr.move_to(x + i as f64 * step / 10.0, ruler_breadth / 2.0);
-                cr.line_to(x + i as f64 * step / 10.0, ruler_breadth);
+                cr4.move_to(x + i as f64 * step / 10.0, ruler_breadth / 2.0);
+                cr4.line_to(x + i as f64 * step / 10.0, ruler_breadth);
             }
             x += step;
         }
-        cr.stroke().unwrap();
+        cr4.stroke().unwrap();
 
-        cr.save().unwrap();
-        cr.move_to(view_mouse.x + 1.0, 2.0 * ruler_breadth / 3.0);
-        cr.set_font_size(font_size);
-        cr.show_text_with_bg(&format!("{:.0}", mouse.x), 0.5, ruler_fg, ruler_bg);
-        cr.restore().unwrap();
+        {
+            let cr5 = cr4.push();
+            cr5.move_to(view_mouse.x + 1.0, 2.0 * ruler_breadth / 3.0);
+            cr5.set_font_size(font_size);
+            cr5.show_text_with_bg(&format!("{:.0}", mouse.x), 0.5, ruler_fg, ruler_bg);
+        }
 
-        cr.save().unwrap();
-        cr.set_source_color_alpha(ruler_indicator_color);
-        cr.move_to(view_mouse.x, 0.0);
-        cr.line_to(view_mouse.x, ruler_breadth);
-        cr.stroke().unwrap();
-        cr.restore().unwrap();
-
-        cr.restore().unwrap();
-        cr.restore().unwrap();
+        {
+            let cr6 = cr4.push();
+            cr6.set_source_color_alpha(ruler_indicator_color);
+            cr6.move_to(view_mouse.x, 0.0);
+            cr6.line_to(view_mouse.x, ruler_breadth);
+            cr6.stroke().unwrap();
+        }
 
         Inhibit(false)
     }

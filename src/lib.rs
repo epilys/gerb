@@ -38,7 +38,6 @@ pub const APPLICATION_ID: &str = "com.epilys.gerb";
 
 pub mod prelude {
     pub use super::*;
-    pub use crate::utils::colors::*;
     pub use app::Application;
     pub use app::Settings;
     pub use app::*;
@@ -47,9 +46,11 @@ pub mod prelude {
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
     pub use indexmap::{IndexMap, IndexSet};
     pub use project::Project;
+    pub use utils::colors::*;
     pub use utils::points::*;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
     pub use utils::UI_EDITABLE;
+    pub use utils::{ContextExt, ContextRef};
     pub use views::{
         canvas::{Layer, LayerBuilder},
         Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint,

@@ -157,7 +157,7 @@ impl GuidelineInner {
 
     pub fn draw(
         &self,
-        cr: &Context,
+        cr: ContextRef,
         (_width, height): (f64, f64),
         highlight: bool,
         show_origin: bool,
@@ -166,7 +166,6 @@ impl GuidelineInner {
             let (x, y) = p;
             (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
         }
-        cr.save().unwrap();
         if highlight {
             cr.set_source_color_alpha(self.highlight_color.get());
             let curr_width = cr.line_width();
@@ -185,7 +184,6 @@ impl GuidelineInner {
         let bottom = move_point(p, -height * 10.0, r);
         cr.line_to(bottom.0, bottom.1);
         cr.stroke().unwrap();
-        cr.restore().unwrap();
     }
 
     pub fn distance_from_point(&self, p: Point) -> f64 {

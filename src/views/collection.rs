@@ -624,7 +624,8 @@ impl ObjectImpl for GlyphBoxInner {
                 }
                 true
             }));
-        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, cr: &Context| {
+        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, mut ctx: &Context| {
+            let mut cr = ctx.push();
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
@@ -642,7 +643,7 @@ impl ObjectImpl for GlyphBoxInner {
             };
             let label = label.replace('\0', "").trim().to_string();
             cr.set_line_width(1.5);
-            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr, (x, y).into(), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
+            let (point, (width, height)) = crate::utils::draw_round_rectangle(cr.push(), (x, y).into(), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
             let glyph_width = glyph.width.unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
             if is_focused {
                 cr.set_source_rgb(1.0, 250.0 / 255.0, 141.0 / 255.0);
@@ -680,7 +681,7 @@ impl ObjectImpl for GlyphBoxInner {
                     units_per_em,
                     ..Default::default()
                 };
-                glyph.draw(cr, options);
+                glyph.draw(cr.push(), options);
             }
 
             /* Draw glyph label */
