@@ -22,7 +22,7 @@
 use gtk::{gdk, glib};
 use std::hash::Hash;
 
-#[derive(Clone, Debug, Copy, Hash, glib::Boxed)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, Hash, glib::Boxed)]
 #[boxed_type(name = "Color", nullable)]
 #[repr(transparent)]
 pub struct Color((u8, u8, u8, u8));
@@ -271,10 +271,13 @@ mod rgba_serde {
         where
             D: Deserializer<'de>,
         {
+            use serde::de::Error;
+
             #[derive(Deserialize, Serialize)]
+            #[serde(untagged)]
             enum Val {
                 Raw((f64, f64, f64, f64)),
-                Hex(String),
+                Text(String),
             }
             let val = <Val>::deserialize(de)?;
             match val {
@@ -284,10 +287,34 @@ mod rgba_serde {
                     (b * 255.0) as u8,
                     (a * 255.0) as u8,
                 )),
-                Val::Hex(ref s) => Ok(Color::try_from_hex(s).ok_or_else(|| {
-                    use serde::de::Error;
-                    D::Error::custom(format!("{:?} is not a valid hex color value.", s))
-                })?),
+                Val::Text(ref s) => {
+                    if s.contains(',') {
+                        let mut acc = [0u8; 4];
+                        let mut i = 0;
+                        for c in s.split(',') {
+                            if let Ok(n) = c.parse::<f64>() {
+                                acc[i] = (n * 255.0) as u8;
+                            } else {
+                                return Err(D::Error::custom(format!(
+                                    "{:?} is not a valid RGB color value (i.e. `(0, 0, 1, .5)`).",
+                                    s
+                                )));
+                            }
+                            i += 1;
+                        }
+                        if i < acc.len() {
+                            return Err(D::Error::custom(format!(
+                                "{:?} is not a valid RGB color value (i.e. `(0, 0, 1, .5)`).",
+                                s
+                            )));
+                        }
+                        Ok(Color::new_alpha(acc[0], acc[1], acc[2], acc[3]))
+                    } else {
+                        Ok(Color::try_from_hex(s).ok_or_else(|| {
+                            D::Error::custom(format!("{:?} is not a valid hex color value.", s))
+                        })?)
+                    }
+                }
             }
         }
     }

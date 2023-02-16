@@ -23,12 +23,14 @@ use super::*;
 
 mod bezier;
 mod bspline;
+mod image;
 mod panning;
 mod shapes;
 mod tool_impl;
 mod zoom;
 pub use bezier::*;
 pub use bspline::*;
+pub use image::*;
 pub use panning::*;
 pub use shapes::*;
 pub use tool_impl::*;
@@ -153,7 +155,7 @@ impl Tool {
         Inhibit(false)
     }
 
-    pub fn setup_toolbox(obj: &GlyphEditView) {
+    pub fn setup_toolbox(obj: &GlyphEditView, glyph: Rc<RefCell<Glyph>>) {
         obj.toolbar_box.set_orientation(gtk::Orientation::Vertical);
         obj.toolbar_box.set_expand(false);
         obj.toolbar_box.set_halign(gtk::Align::Start);
@@ -180,6 +182,7 @@ impl Tool {
             BSplineTool::new().upcast::<ToolImpl>(),
             QuadrilateralTool::new().upcast::<ToolImpl>(),
             EllipseTool::new().upcast::<ToolImpl>(),
+            ImageTool::new(glyph, obj.project.get().unwrap().clone()).upcast::<ToolImpl>(),
             ZoomInTool::new().upcast::<ToolImpl>(),
             ZoomOutTool::new().upcast::<ToolImpl>(),
         ] {

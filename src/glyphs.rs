@@ -38,6 +38,7 @@ mod guidelines;
 pub use guidelines::*;
 
 mod glif;
+pub use glif::ImageRef;
 
 mod contours;
 pub use contours::*;
@@ -65,6 +66,7 @@ pub struct Glyph {
     pub name: Cow<'static, str>,
     pub name2: Option<crate::unicode::names::Name>,
     pub kind: GlyphKind,
+    pub image: Option<ImageRef>,
     pub width: Option<f64>,
     pub contours: Vec<Contour>,
     pub components: Vec<Component>,
@@ -209,6 +211,7 @@ impl Glyph {
             name: name.into(),
             name2: char.char_name(),
             kind: GlyphKind::Char(char),
+            image: None,
             contours: vec![contour],
             components: vec![],
             guidelines: vec![],

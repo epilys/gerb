@@ -635,8 +635,8 @@ impl GlyphEditView {
                 ret.viewport.clone(),
             ))))
             .expect("Failed to create glyph state");
-        Tool::setup_toolbox(&ret);
         ret.project.set(project).unwrap();
+        Tool::setup_toolbox(&ret, glyph);
         ret.setup_menu(&ret);
         ret
     }

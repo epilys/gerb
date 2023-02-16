@@ -32,8 +32,7 @@ pub struct GuidelineInner {
     pub angle: Cell<f64>,
     pub x: Cell<f64>,
     pub y: Cell<f64>,
-    pub color: Cell<Color>,
-    pub highlight_color: Cell<Color>,
+    pub color: Cell<Option<Color>>,
 }
 
 #[glib::object_subclass]
@@ -47,8 +46,6 @@ impl ObjectSubclass for GuidelineInner {
 impl ObjectImpl for GuidelineInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.color.set(Self::COLOR);
-        self.highlight_color.set(Self::HIGHLIGHT_COLOR);
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -115,7 +112,7 @@ impl ObjectImpl for GuidelineInner {
             Guideline::ANGLE => self.angle.get().to_value(),
             Guideline::X => self.x.get().to_value(),
             Guideline::Y => self.y.get().to_value(),
-            Guideline::COLOR => self.color.get().to_value(),
+            Guideline::COLOR => self.color.get().unwrap_or(Self::COLOR).to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -144,7 +141,7 @@ impl ObjectImpl for GuidelineInner {
                 self.y.set(value.get().unwrap());
             }
             Guideline::COLOR => {
-                self.color.set(value.get().unwrap());
+                self.color.set(Some(value.get().unwrap()));
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -167,11 +164,11 @@ impl GuidelineInner {
             (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
         }
         if highlight {
-            cr.set_source_color_alpha(self.highlight_color.get());
+            cr.set_source_color_alpha(Self::HIGHLIGHT_COLOR);
             let curr_width = cr.line_width();
             cr.set_line_width(curr_width + 1.0);
         } else {
-            cr.set_source_color_alpha(self.color.get());
+            cr.set_source_color_alpha(self.color.get().unwrap_or(Self::COLOR));
         }
         let p = (self.x.get(), self.y.get());
         if show_origin {
@@ -273,8 +270,8 @@ impl TryFrom<ufo::GuidelineInfo> for Guideline {
         if let Some(identifier) = identifier {
             *ret.identifier.borrow_mut() = Some(identifier);
         }
-        if let Some(_color) = color {
-            //ret.color.swap(&inner.color);
+        if let Some(color) = color {
+            ret.color.set(Some(color));
         }
         if let Some(angle) = angle {
             ret.angle.set(angle);
@@ -353,10 +350,8 @@ impl GuidelineBuilder {
         self
     }
 
-    pub fn color(self, color: Option<String>) -> Self {
-        if let Some(color) = color.as_deref().and_then(Color::try_parse) {
-            self.0.color.set(color);
-        }
+    pub fn color(self, color: Option<Color>) -> Self {
+        self.0.color.set(color);
         self
     }
 

@@ -24,7 +24,12 @@ extern crate serde;
 
 use crate::glib::ObjectExt;
 use crate::unicode::names::CharName;
+use crate::utils::colors::Color;
 use serde::Deserialize;
+
+const fn f64_one_val() -> f64 {
+    1.0
+}
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -133,7 +138,7 @@ struct Guideline {
     #[serde(default)]
     identifier: Option<String>,
     #[serde(default)]
-    color: Option<String>,
+    color: Option<Color>,
     #[serde(default)]
     angle: f64,
     #[serde(default)]
@@ -158,12 +163,35 @@ struct Advance {
     width: f64,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageRef {
+    #[serde(default)]
+    pub file_name: Option<String>,
+    #[serde(default = "f64_one_val")]
+    pub x_scale: f64,
+    #[serde(default)]
+    pub xy_scale: f64,
+    #[serde(default)]
+    pub yx_scale: f64,
+    #[serde(default = "f64_one_val")]
+    pub y_scale: f64,
+    #[serde(default)]
+    pub x_offset: f64,
+    #[serde(default)]
+    pub y_offset: f64,
+    #[serde(default)]
+    pub color: Option<Color>,
+}
+
 #[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct Glif {
     name: String,
     format: Option<String>,
     #[serde(default)]
     unicode: Vec<Unicode>,
+    #[serde(default)]
+    image: Option<ImageRef>,
     #[serde(default)]
     advance: Option<Advance>,
     #[serde(default)]
@@ -210,6 +238,7 @@ impl Iterator for GlifIterator {
             name,
             outline,
             advance,
+            image,
             anchors: _,
             guidelines,
             ..
@@ -218,6 +247,7 @@ impl Iterator for GlifIterator {
             name: name.into(),
             name2,
             kind,
+            image,
             width: advance.map(|a| a.width),
             contours: vec![],
             components: vec![],
@@ -453,6 +483,8 @@ const _LOWERCASE_B_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 const _UPPERCASE_A_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <glyph name="A" format="2">
 	<unicode hex="0041"/>
+  <image fileName="Sketch 1.png" xOffset="100" yOffset="200"
+    xScale=".75" yScale=".75" color="1,0,0,.5" />
 	<advance width="544"/>
 	<outline>
 		<contour>

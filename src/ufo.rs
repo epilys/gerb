@@ -97,7 +97,7 @@ pub struct GuidelineInfo {
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]
-    pub color: Option<String>,
+    pub color: Option<crate::prelude::Color>,
     #[serde(default)]
     pub identifier: Option<String>,
 }

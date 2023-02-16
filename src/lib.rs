@@ -42,6 +42,7 @@ pub mod prelude {
     pub use app::Settings;
     pub use app::*;
     pub use glyph_edit::*;
+    pub use glyphs::Glyph;
     pub use gtk::prelude::*;
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
     pub use indexmap::{IndexMap, IndexSet};

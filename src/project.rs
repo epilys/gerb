@@ -36,7 +36,7 @@ pub struct ProjectInner {
     modified: Cell<bool>,
     pub last_saved: RefCell<Option<u64>>,
     pub glyphs: RefCell<HashMap<String, Rc<RefCell<Glyph>>>>,
-    pub path: RefCell<Option<PathBuf>>,
+    pub path: RefCell<PathBuf>,
     pub family_name: RefCell<String>,
     pub style_name: RefCell<String>,
     version_major: Cell<i64>,
@@ -75,7 +75,7 @@ impl Default for ProjectInner {
             modified: Cell::new(false),
             last_saved: RefCell::new(None),
             glyphs: RefCell::new(HashMap::default()),
-            path: RefCell::new(None),
+            path: RefCell::new(std::env::current_dir().unwrap_or_default()),
             family_name: RefCell::new("New project".to_string()),
             style_name: RefCell::new(String::new()),
             version_major: Cell::new(0),
@@ -365,7 +365,7 @@ impl Project {
         ret.set_property(Project::MODIFIED, false);
         *ret.last_saved.borrow_mut() = None;
         *ret.glyphs.borrow_mut() = glyphs?;
-        *ret.path.borrow_mut() = Some(path);
+        *ret.path.borrow_mut() = path;
         *ret.family_name.borrow_mut() = fontinfo.family_name.clone();
         *ret.style_name.borrow_mut() = fontinfo.style_name.clone();
         if let Some(v) = version_major {
@@ -418,12 +418,23 @@ impl Project {
                         .name(Some(name.to_string()))
                         .identifier(Some(name.to_string()))
                         .y(field)
-                        .color(Some("#bbbaae".to_string()))
+                        .color(Some(Color::from_hex("#bbbaae")))
                         .build(),
                 );
             }
         }
         Ok(ret)
+    }
+
+    pub fn load_image(
+        &self,
+        file_name: &str,
+    ) -> Result<cairo::ImageSurface, Box<dyn std::error::Error>> {
+        let prefix = &self.path.borrow();
+        let bytes = gio::File::for_path(prefix.join("images").join(file_name))
+            .load_bytes(gio::Cancellable::NONE)?
+            .0;
+        Ok(cairo::ImageSurface::create_from_png(&mut bytes.as_ref())?)
     }
 }
 
@@ -432,7 +443,6 @@ impl Default for Project {
         let ret: Self = Self::new();
         *ret.last_saved.borrow_mut() = None;
         *ret.glyphs.borrow_mut() = HashMap::default();
-        *ret.path.borrow_mut() = None;
         *ret.family_name.borrow_mut() = "New project".to_string();
         *ret.style_name.borrow_mut() = String::new();
         *ret.copyright.borrow_mut() = String::new();
