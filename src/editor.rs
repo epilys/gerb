@@ -542,12 +542,12 @@ impl std::ops::Deref for Editor {
 impl Editor {
     pub const ASCENDER: &str = Project::ASCENDER;
     pub const CAP_HEIGHT: &str = Project::CAP_HEIGHT;
-    pub const CLOSEABLE: &str = "closeable";
-    pub const PREVIEW: &str = "preview";
-    pub const DESCENDER: &str = Project::DESCENDER;
-    pub const TITLE: &str = "title";
+    pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
+    pub const TITLE: &str = Workspace::TITLE;
     pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
     pub const MENUBAR: &str = Workspace::MENUBAR;
+    pub const PREVIEW: &str = "preview";
+    pub const DESCENDER: &str = Project::DESCENDER;
     pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
     pub const X_HEIGHT: &str = Project::X_HEIGHT;
     pub const LOCK_GUIDELINES: &str = "lock-guidelines";

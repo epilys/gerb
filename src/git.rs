@@ -21,22 +21,29 @@
 
 use crate::prelude::*;
 
+pub mod tab;
+pub use tab::*;
+
 pub struct RepositoryInner {
-    pub repository: RefCell<Option<Result<git2::Repository, Box<dyn std::error::Error>>>>,
+    pub repository: OnceCell<git2::Repository>,
+    absolute_path: RefCell<PathBuf>,
+    workdir: RefCell<PathBuf>,
+    state: Cell<RepositoryState>,
 }
 
 impl std::fmt::Debug for RepositoryInner {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
-        fmt.debug_struct("Repository")
-            .field("repository", &self.repository.borrow().is_some())
-            .finish()
+        fmt.debug_struct("Repository").finish()
     }
 }
 
 impl Default for RepositoryInner {
     fn default() -> Self {
         RepositoryInner {
-            repository: RefCell::new(None),
+            repository: OnceCell::new(),
+            state: Cell::new(RepositoryState::Clean),
+            absolute_path: RefCell::new(PathBuf::default()),
+            workdir: RefCell::new(PathBuf::default()),
         }
     }
 }
@@ -50,17 +57,34 @@ impl ObjectSubclass for RepositoryInner {
 }
 
 impl ObjectImpl for RepositoryInner {
-    /*
     fn properties() -> &'static [ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
-            once_cell::sync::Lazy::new(|| vec![]);
+            once_cell::sync::Lazy::new(|| {
+                vec![glib::ParamSpecEnum::new(
+                    Repository::STATE,
+                    Repository::STATE,
+                    Repository::STATE,
+                    RepositoryState::static_type(),
+                    RepositoryState::Clean as i32,
+                    glib::ParamFlags::READABLE,
+                )]
+            });
         PROPERTIES.as_ref()
     }
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
-        unimplemented!("{}", pspec.name())
+        match pspec.name() {
+            Repository::STATE => {
+                self.state
+                    .set(self.repository.get().unwrap().state().into());
+
+                self.state.get().to_value()
+            }
+            _ => unimplemented!("{}", pspec.name()),
+        }
     }
 
+    /*
     fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &glib::Value, pspec: &ParamSpec) {
         unimplemented!("{}", pspec.name());
     }
@@ -80,40 +104,82 @@ impl std::ops::Deref for Repository {
 }
 
 impl Repository {
-    pub fn new() -> Self {
-        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        ret
-    }
+    pub const STATE: &str = "state";
 
-    pub fn discover(&self, path: &Path) {
+    pub fn new(path: &Path) -> Result<Option<Self>, Box<dyn std::error::Error>> {
+        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         let abs_path: PathBuf = std::fs::canonicalize(path).unwrap();
-        let val = git2::Repository::discover(&abs_path).map_err(Into::into);
-        match &val {
-            Err(ref err) => {
-                println!("git2 err: {}", err);
-            }
-            Ok(ref v) => {
-                println!("git2 succ: {:?}", v.status_file(path));
+        let val = git2::Repository::discover(&abs_path)?;
+        *ret.absolute_path.borrow_mut() = abs_path;
+        *ret.workdir.borrow_mut() = if let Some(p) = val.workdir() {
+            p.to_path_buf()
+        } else {
+            return Ok(None);
+        };
+
+        ret.state.set(val.state().into());
+        {
+            let diff = val.diff_index_to_workdir(
+                None,
+                Some(
+                    git2::DiffOptions::new()
+                        .include_ignored(false)
+                        .ignore_filemode(true)
+                        .skip_binary_check(true),
+                ),
+            )?;
+            for d in diff.deltas() {
+                dbg!(&d.old_file().path());
             }
         }
-        *self.repository.borrow_mut() = Some(val);
+        _ = ret.repository.set(val);
+        Ok(Some(ret))
     }
 
     pub fn status_file(&self, path: &Path) -> Option<git2::Status> {
-        dbg!(self
-            .repository
-            .borrow()
-            .as_ref()?
-            .as_ref()
-            .ok()?
-            .status_file(path))
-        .ok()
+        if path.is_absolute() {
+            let r = self.repository.get().unwrap();
+            dbg!(r.status_file(path.strip_prefix(&*self.workdir.borrow()).ok()?)).ok()
+        } else {
+            dbg!(&path);
+            dbg!(self.repository.get().unwrap().status_file(path)).ok()
+        }
     }
 }
 
-impl Default for Repository {
-    fn default() -> Self {
-        let ret: Self = Self::new();
-        ret
+/// A listing of the possible states that a repository can be in.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, glib::Enum)]
+#[enum_type(name = "RepositoryState")]
+pub enum RepositoryState {
+    Clean,
+    Merge,
+    Revert,
+    RevertSequence,
+    CherryPick,
+    CherryPickSequence,
+    Bisect,
+    Rebase,
+    RebaseInteractive,
+    RebaseMerge,
+    ApplyMailbox,
+    ApplyMailboxOrRebase,
+}
+
+impl From<git2::RepositoryState> for RepositoryState {
+    fn from(original: git2::RepositoryState) -> RepositoryState {
+        match original {
+            git2::RepositoryState::Clean => RepositoryState::Clean,
+            git2::RepositoryState::Merge => RepositoryState::Merge,
+            git2::RepositoryState::Revert => RepositoryState::Revert,
+            git2::RepositoryState::RevertSequence => RepositoryState::RevertSequence,
+            git2::RepositoryState::CherryPick => RepositoryState::CherryPick,
+            git2::RepositoryState::CherryPickSequence => RepositoryState::CherryPickSequence,
+            git2::RepositoryState::Bisect => RepositoryState::Bisect,
+            git2::RepositoryState::Rebase => RepositoryState::Rebase,
+            git2::RepositoryState::RebaseInteractive => RepositoryState::RebaseInteractive,
+            git2::RepositoryState::RebaseMerge => RepositoryState::RebaseMerge,
+            git2::RepositoryState::ApplyMailbox => RepositoryState::ApplyMailbox,
+            git2::RepositoryState::ApplyMailboxOrRebase => RepositoryState::ApplyMailboxOrRebase,
+        }
     }
 }

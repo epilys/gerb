@@ -70,7 +70,8 @@ pub struct ProjectInner {
     pub contents: RefCell<ufo::Contents>,
     pub metainfo: RefCell<ufo::MetaInfo>,
     pub layercontents: RefCell<ufo::LayerContents>,
-    pub repository: git::Repository,
+    #[cfg(feature = "git")]
+    pub repository: RefCell<Result<Option<git::Repository>, Box<dyn std::error::Error>>>,
 }
 
 impl Default for ProjectInner {
@@ -100,7 +101,8 @@ impl Default for ProjectInner {
             contents: RefCell::new(ufo::Contents::default()),
             metainfo: RefCell::new(ufo::MetaInfo::default()),
             layercontents: RefCell::new(ufo::LayerContents::default()),
-            repository: git::Repository::default(),
+            #[cfg(feature = "git")]
+            repository: RefCell::new(Ok(None)),
         }
     }
 }
@@ -372,6 +374,21 @@ impl Project {
         ret.set_property(Project::MODIFIED, false);
         *ret.last_saved.borrow_mut() = None;
         *ret.glyphs.borrow_mut() = glyphs?;
+
+        #[cfg(feature = "git")]
+        {
+            *ret.repository.borrow_mut() = if path.is_relative() {
+                dbg!(git::Repository::new(&path))
+            } else {
+                dbg!(git::Repository::new(
+                    &path
+                        .strip_prefix(&*ret.path.borrow())
+                        .map(Path::to_path_buf)
+                        .unwrap_or_default()
+                ))
+            };
+            dbg!(&ret.repository);
+        }
         std::env::set_current_dir(&path).unwrap();
         *ret.path.borrow_mut() = path;
         *ret.family_name.borrow_mut() = fontinfo.family_name.clone();

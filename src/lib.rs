@@ -63,7 +63,10 @@ pub mod prelude {
     pub use window::Workspace;
 
     pub use glib::prelude::*;
-    pub use glib::ParamSpec;
+    pub use glib::subclass::Signal;
+    pub use glib::{
+        ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
+    };
     pub use gtk::prelude::ToValue;
     pub use gtk::subclass::prelude::*;
     pub use gtk::{cairo, gdk, gdk_pixbuf, gio, glib};
