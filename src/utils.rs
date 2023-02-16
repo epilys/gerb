@@ -36,6 +36,8 @@ pub use points::{CurvePoint, IPoint, Point};
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
 
 pub const UI_EDITABLE: glib::ParamFlags = glib::ParamFlags::USER_1;
+pub const UI_READABLE: glib::ParamFlags = glib::ParamFlags::USER_2;
+pub const UI_PATH: glib::ParamFlags = glib::ParamFlags::USER_3;
 
 pub fn draw_round_rectangle(
     cr: ContextRef,
@@ -143,8 +145,9 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
     );
     let mut row: i32 = 2;
     for prop in obj.list_properties().as_slice().iter().filter(|p| {
-        p.flags()
+        (p.flags()
             .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+            || p.flags().contains(UI_READABLE))
             && p.owner_type() == obj.type_()
     }) {
         grid.attach(
@@ -203,7 +206,8 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
 
 pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> gtk::Widget {
     let val: glib::Value = obj.property(property.name());
-    let readwrite = property.flags().contains(glib::ParamFlags::READWRITE);
+    let readwrite = property.flags().contains(glib::ParamFlags::READWRITE)
+        && !(property.flags().contains(UI_READABLE));
     let flags = if readwrite {
         glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE
     } else {
@@ -226,18 +230,70 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
         }
         "gchararray" => {
             let val = val.get::<Option<String>>().unwrap().unwrap_or_default();
-            let entry = gtk::Entry::builder()
-                .visible(true)
-                .sensitive(readwrite)
-                .halign(gtk::Align::Start)
-                .valign(gtk::Align::Center)
-                .build();
-            entry.buffer().set_text(&val);
-            obj.bind_property(property.name(), &entry.buffer(), "text")
-                .flags(flags)
-                .build();
+            if readwrite {
+                let entry = gtk::Entry::builder()
+                    .visible(true)
+                    .sensitive(readwrite)
+                    .halign(gtk::Align::Start)
+                    .valign(gtk::Align::Center)
+                    .build();
+                entry.buffer().set_text(&val);
+                obj.bind_property(property.name(), &entry.buffer(), "text")
+                    .flags(flags)
+                    .build();
 
-            entry.upcast()
+                entry.upcast()
+            } else {
+                let l = gtk::Label::builder()
+                    .label(&val)
+                    .expand(false)
+                    .visible(true)
+                    .selectable(true)
+                    .halign(gtk::Align::Start)
+                    .valign(gtk::Align::Center)
+                    .build();
+                obj.bind_property(property.name(), &l, "label")
+                    .flags(flags)
+                    .build();
+                if property.flags().contains(UI_PATH) {
+                    let b = gtk::Box::builder()
+                        .visible(true)
+                        .expand(false)
+                        .sensitive(true)
+                        .halign(gtk::Align::Start)
+                        .valign(gtk::Align::Center)
+                        .orientation(gtk::Orientation::Horizontal)
+                        .build();
+                    b.pack_start(&l, true, true, 15);
+                    let image = gtk::Image::builder()
+                        .icon_name("folder-open")
+                        .visible(true)
+                        .build();
+                    let btn = gtk::Button::builder()
+                        .image(&image)
+                        .always_show_image(true)
+                        .relief(gtk::ReliefStyle::None)
+                        .visible(true)
+                        .sensitive(true)
+                        .tooltip_text("Open file location.")
+                        .build();
+                    btn.connect_clicked(clone!(@weak obj, @strong property => move |_self| {
+                        //FIXME: show error to user, if any.
+                        let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
+                        let Ok(prefix) = std::env::current_dir() else { return; };
+                        let mut abs_path = prefix.join(&path);
+                        if abs_path.is_file() {
+                            abs_path.pop();
+                        }
+                        let Ok(uri) = glib::filename_to_uri(&abs_path, None) else { return ; };
+                        gtk::gio::AppInfo::launch_default_for_uri(&uri, gtk::gio::AppLaunchContext::NONE).unwrap();
+                    }));
+                    b.pack_end(&btn, false, false, 15);
+                    b.upcast()
+                } else {
+                    l.upcast()
+                }
+            }
         }
         "gint64" => {
             let val = val.get::<i64>().unwrap();

@@ -23,8 +23,9 @@ use crate::prelude::*;
 
 #[derive(Debug, Default)]
 pub struct GlyphMetadataInner {
-    modified: Cell<bool>,
-    mark_color: Cell<Color>,
+    pub modified: Cell<bool>,
+    pub mark_color: Cell<Color>,
+    pub relative_path: RefCell<PathBuf>,
 }
 
 #[glib::object_subclass]
@@ -59,6 +60,13 @@ impl ObjectImpl for GlyphMetadataInner {
                         Color::static_type(),
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
+                    glib::ParamSpecString::new(
+                        GlyphMetadata::RELATIVE_PATH,
+                        GlyphMetadata::RELATIVE_PATH,
+                        "Filesystem path.",
+                        None,
+                        glib::ParamFlags::READWRITE | UI_READABLE | UI_PATH,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -68,6 +76,9 @@ impl ObjectImpl for GlyphMetadataInner {
         match pspec.name() {
             GlyphMetadata::MARK_COLOR => self.mark_color.get().to_value(),
             GlyphMetadata::MODIFIED => self.modified.get().to_value(),
+            GlyphMetadata::RELATIVE_PATH => {
+                self.relative_path.borrow().display().to_string().to_value()
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -79,6 +90,13 @@ impl ObjectImpl for GlyphMetadataInner {
             }
             GlyphMetadata::MODIFIED => {
                 self.modified.set(value.get().unwrap());
+            }
+            GlyphMetadata::RELATIVE_PATH => {
+                if let Ok(Some(relative_path)) = value.get::<Option<String>>() {
+                    *self.relative_path.borrow_mut() = relative_path.into();
+                } else {
+                    *self.relative_path.borrow_mut() = PathBuf::new();
+                }
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -100,6 +118,7 @@ impl std::ops::Deref for GlyphMetadata {
 impl GlyphMetadata {
     pub const MODIFIED: &str = "modified";
     pub const MARK_COLOR: &str = "mark-color";
+    pub const RELATIVE_PATH: &str = "relative-path";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

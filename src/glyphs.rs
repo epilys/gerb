@@ -187,7 +187,11 @@ impl Glyph {
                 }
                 Ok(g) => {
                     let mut glyph: Glyph = g.into();
-                    glyph.filename = filename.to_string();
+                    // TODO what if strip_prefix fails?
+                    *glyph.metadata.relative_path.borrow_mut() = path
+                        .strip_prefix(root_path)
+                        .map(Path::to_path_buf)
+                        .unwrap_or_default();
                     glyph.glif_source = s;
                     let has_components = !glyph.components.is_empty();
                     let glyph = Rc::new(RefCell::new(glyph));

@@ -54,8 +54,8 @@ pub mod prelude {
     pub use utils::points::*;
     pub use utils::range_query::Coordinate;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
-    pub use utils::UI_EDITABLE;
     pub use utils::{ContextExt, ContextRef};
+    pub use utils::{UI_EDITABLE, UI_PATH, UI_READABLE};
     pub use views::{
         canvas::{Layer, LayerBuilder},
         Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint,
