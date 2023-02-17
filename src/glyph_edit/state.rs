@@ -30,8 +30,8 @@ pub struct GlyphState {
     pub tools: IndexMap<glib::types::Type, ToolImpl>,
     pub active_tool: glib::types::Type,
     pub panning_tool: glib::types::Type,
-    selection: Vec<GlyphPointIndex>,
-    selection_set: HashSet<uuid::Uuid>,
+    pub selection: Vec<GlyphPointIndex>,
+    pub selection_set: HashSet<uuid::Uuid>,
     pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
 }
 

@@ -653,4 +653,105 @@ impl GlyphEditView {
         ret.setup_menu(&ret);
         ret
     }
+
+    pub fn set_selection(&self, selection: &[GlyphPointIndex], modifier: SelectionModifier) {
+        use SelectionModifier::*;
+        {
+            let state = self.glyph_state.get().unwrap().borrow();
+            match modifier {
+                Replace if selection.is_empty() && state.selection.is_empty() => {
+                    return;
+                }
+                Add if selection.is_empty() => {
+                    return;
+                }
+                Remove if selection.is_empty() => {
+                    return;
+                }
+                Add if selection
+                    .iter()
+                    .all(|p| state.selection_set.contains(&p.uuid)) =>
+                {
+                    return;
+                }
+                Remove
+                    if !selection
+                        .iter()
+                        .any(|p| state.selection_set.contains(&p.uuid)) =>
+                {
+                    return;
+                }
+                _ => {}
+            }
+        }
+
+        let new = Rc::new(selection.to_vec());
+        let old = Rc::new(self.glyph_state.get().unwrap().borrow().selection.clone());
+        let mut action = Action {
+            stamp: EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: GlyphEditView::static_type().name(),
+                id: unsafe { std::mem::transmute::<&[GlyphPointIndex], &[u8]>(selection).into() },
+            },
+            compress: true,
+            redo: Box::new(
+                clone!(@weak self as obj, @strong new, @strong old => move || {
+                    let GlyphState {
+                        ref mut selection,
+                        ref mut selection_set,
+                        ..
+                    } = &mut *obj.glyph_state.get().unwrap().borrow_mut();
+                    match modifier {
+                        Replace => {
+                            selection.clear();
+                            selection_set.clear();
+                            selection.extend(new.iter());
+                            for v in selection.iter() {
+                                selection_set.insert(v.uuid);
+                            }
+                        }
+                        Add => {
+                            selection.extend(new.iter().filter(|p| !selection_set.contains(&p.uuid)));
+                            for v in selection.iter() {
+                                selection_set.insert(v.uuid);
+                            }
+                        }
+                        Remove => {
+                            selection.retain(|e| !new.contains(e));
+                            for v in new.iter() {
+                                selection_set.remove(&v.uuid);
+                            }
+                        }
+                    }
+                    obj.viewport.queue_draw();
+                }),
+            ),
+            undo: Box::new(
+                clone!(@weak self as obj, @strong new, @strong old => move || {
+                    let GlyphState {
+                        ref mut selection,
+                        ref mut selection_set,
+                        ..
+                    } = &mut *obj.glyph_state.get().unwrap().borrow_mut();
+                    selection.clear();
+                    selection_set.clear();
+                    selection.extend(old.iter());
+                    for v in selection.iter() {
+                        selection_set.insert(v.uuid);
+                    }
+                    obj.viewport.queue_draw();
+                }),
+            ),
+        };
+        (action.redo)();
+        self.glyph_state
+            .get()
+            .unwrap()
+            .borrow()
+            .add_undo_action(action);
+    }
+
+    pub fn state(&self) -> &Rc<RefCell<GlyphState>> {
+        self.glyph_state.get().unwrap()
+    }
 }
