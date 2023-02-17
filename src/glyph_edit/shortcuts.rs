@@ -245,7 +245,7 @@ impl GlyphEditViewInner {
             self.shortcut_status
                 .set_orientation(gtk::Orientation::Horizontal);
             self.shortcut_status.set_visible(true);
-            let grid = gtk::Grid::builder()
+            let grid = gtk::FlowBox::builder()
                 .expand(false)
                 .visible(true)
                 .sensitive(false)
@@ -258,6 +258,7 @@ impl GlyphEditViewInner {
                 .label("⏶")
                 .visible(true)
                 .focus_on_click(false)
+                .tooltip_text("shortcuts")
                 .relief(gtk::ReliefStyle::None)
                 .halign(gtk::Align::Center)
                 .valign(gtk::Align::Center)
@@ -265,11 +266,14 @@ impl GlyphEditViewInner {
             btn.style_context().add_class("shortcuts-more");
             self.shortcut_status.pack_end(&btn, false, false, 1);
             for s in sh.iter() {
-                let l = s.label();
-                l.set_tooltip_text(Some(s.desc()));
-                self.shortcut_status.pack_end(l, false, false, 1);
-                grid.add(s.desc_label());
-                grid.add(&s.shortcut().label());
+                let b = gtk::Box::builder()
+                    .expand(false)
+                    .visible(true)
+                    .sensitive(true)
+                    .build();
+                b.pack_start(s.desc_label(), false, false, 1);
+                b.pack_end(&s.shortcut().label(), false, false, 1);
+                grid.add(&b);
             }
             let pop = gtk::Popover::builder()
                 .expand(false)
