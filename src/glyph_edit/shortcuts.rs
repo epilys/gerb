@@ -19,7 +19,36 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use super::tools::{MoveDirection, SelectionAction};
 use super::*;
+use gtk::gdk::keys::constants as keys;
+
+impl GlyphEditView {
+    pub const LOCK: &str = "lock";
+    pub const SNAP: &str = "snap";
+    pub const PREVIEW_ACTION: &str = Self::PREVIEW;
+    pub const ZOOM_IN_ACTION: &str = "zoom.in";
+    pub const ZOOM_OUT_ACTION: &str = "zoom.out";
+    pub const LOCK_ACTION: &str = Self::LOCK;
+    pub const LOCK_X_ACTION: &str = "lock.x";
+    pub const LOCK_Y_ACTION: &str = "lock.y";
+    pub const LOCK_LOCAL_ACTION: &str = "lock.local";
+    pub const LOCK_CONTROLS_ACTION: &str = "lock.controls";
+    pub const PRECISION_ACTION: &str = "precision";
+    pub const SNAP_ACTION: &str = Self::SNAP;
+    pub const SNAP_CLEAR_ACTION: &str = "snap.clear";
+    pub const SNAP_ANGLE_ACTION: &str = "snap.angle";
+    pub const SNAP_GRID_ACTION: &str = "snap.grid";
+    pub const SNAP_GUIDELINES_ACTION: &str = "snap.guidelines";
+    pub const SNAP_METRICS_ACTION: &str = "snap.metrics";
+    pub const MOVE_UP_ACTION: &str = "move.up";
+    pub const MOVE_DOWN_ACTION: &str = "move.down";
+    pub const MOVE_RIGHT_ACTION: &str = "move.right";
+    pub const MOVE_LEFT_ACTION: &str = "move.left";
+    pub const SELECT_ALL_ACTION: &str = "select.all";
+    pub const SELECT_NONE_ACTION: &str = "select.none";
+    pub const SELECT_INVERT_ACTION: &str = "select.invert";
+}
 
 impl GlyphEditViewInner {
     pub fn setup_shortcuts(&self, obj: &GlyphEditView) {
@@ -137,6 +166,64 @@ impl GlyphEditViewInner {
                 }),
                 None,
             ));
+            for (desc, key, action_name) in [
+                ("move up", keys::Up, A::MOVE_UP_ACTION),
+                ("move down", keys::Down, A::MOVE_DOWN_ACTION),
+                ("move right", keys::Right, A::MOVE_RIGHT_ACTION),
+                ("move left", keys::Left, A::MOVE_LEFT_ACTION),
+            ] {
+                sh.push(ShortcutAction::new(
+                    desc.into(),
+                    Shortcut::empty().key(key),
+                    Box::new(|group| {
+                        group.activate_action(action_name, None);
+                        true
+                    }),
+                    None,
+                ));
+            }
+            sh.push(ShortcutAction::new(
+                "select all".into(),
+                Shortcut::empty().control().char('a'),
+                Box::new(|group| {
+                    group.activate_action(A::SELECT_ALL_ACTION, None);
+                    true
+                }),
+                None,
+            ));
+            sh.push(ShortcutAction::new(
+                "select none".into(),
+                Shortcut::empty().control().shift().char('A'),
+                Box::new(|group| {
+                    group.activate_action(A::SELECT_NONE_ACTION, None);
+                    true
+                }),
+                None,
+            ));
+            for (name, dir) in [
+                (A::MOVE_UP_ACTION, MoveDirection::Up),
+                (A::MOVE_DOWN_ACTION, MoveDirection::Down),
+                (A::MOVE_RIGHT_ACTION, MoveDirection::Right),
+                (A::MOVE_LEFT_ACTION, MoveDirection::Left),
+            ] {
+                let a = gtk::gio::SimpleAction::new(name, None);
+                a.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                    let t = obj.property::<super::PanningTool>(A::PANNING_TOOL);
+                    t.move_action(&obj, dir);
+                }));
+                obj.action_group.add_action(&a);
+            }
+            for (name, action) in [
+                (A::SELECT_ALL_ACTION, SelectionAction::All),
+                (A::SELECT_NONE_ACTION, SelectionAction::None),
+            ] {
+                let a = gtk::gio::SimpleAction::new(name, None);
+                a.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                    let t = obj.property::<super::PanningTool>(A::PANNING_TOOL);
+                    t.selection_action(&obj, action);
+                }));
+                obj.action_group.add_action(&a);
+            }
 
             self.shortcut_status
                 .set_orientation(gtk::Orientation::Horizontal);

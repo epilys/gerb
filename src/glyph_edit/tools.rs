@@ -373,6 +373,20 @@ impl From<gtk::gdk::ModifierType> for SelectionModifier {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum MoveDirection {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum SelectionAction {
+    All,
+    None,
+}
+
 pub mod constraints {
     use super::*;
 

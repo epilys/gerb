@@ -1104,6 +1104,10 @@ impl KdTree {
         output.push("</svg>".to_string());
         output.join("\n")
     }
+
+    pub fn all(&self) -> Vec<GlyphPointIndex> {
+        self.map.keys().cloned().collect()
+    }
 }
 
 #[allow(clippy::type_complexity)]

@@ -304,7 +304,7 @@ impl ObjectImpl for GlyphEditViewInner {
                         GlyphEditView::PANNING_TOOL,
                         GlyphEditView::PANNING_TOOL,
                         GlyphEditView::PANNING_TOOL,
-                        ToolImpl::static_type(),
+                        PanningTool::static_type(),
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecObject::new(
@@ -526,23 +526,6 @@ impl GlyphEditView {
     pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
-    pub const LOCK: &str = "lock";
-    pub const SNAP: &str = "snap";
-    pub const PREVIEW_ACTION: &str = Self::PREVIEW;
-    pub const ZOOM_IN_ACTION: &str = "zoom.in";
-    pub const ZOOM_OUT_ACTION: &str = "zoom.out";
-    pub const LOCK_ACTION: &str = Self::LOCK;
-    pub const LOCK_X_ACTION: &str = "lock.x";
-    pub const LOCK_Y_ACTION: &str = "lock.y";
-    pub const LOCK_LOCAL_ACTION: &str = "lock.local";
-    pub const LOCK_CONTROLS_ACTION: &str = "lock.controls";
-    pub const PRECISION_ACTION: &str = "precision";
-    pub const SNAP_ACTION: &str = Self::SNAP;
-    pub const SNAP_CLEAR_ACTION: &str = "snap.clear";
-    pub const SNAP_ANGLE_ACTION: &str = "snap.angle";
-    pub const SNAP_GRID_ACTION: &str = "snap.grid";
-    pub const SNAP_GUIDELINES_ACTION: &str = "snap.guidelines";
-    pub const SNAP_METRICS_ACTION: &str = "snap.metrics";
 
     pub fn new(app: Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();

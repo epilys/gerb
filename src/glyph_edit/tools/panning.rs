@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{constraints::*, tool_impl::*, SelectionModifier};
+use super::{constraints::*, tool_impl::*, MoveDirection, SelectionAction, SelectionModifier};
 
 use gtk::cairo::Matrix;
 use gtk::Inhibit;
@@ -1086,6 +1086,41 @@ impl PanningTool {
         }
 
         Inhibit(true)
+    }
+
+    pub fn move_action(&self, view: &GlyphEditView, direction: MoveDirection) {
+        let mut m = Matrix::identity();
+        match direction {
+            MoveDirection::Up => {
+                m.translate(0.0, 5.0);
+            }
+            MoveDirection::Down => {
+                m.translate(0.0, -5.0);
+            }
+            MoveDirection::Right => {
+                m.translate(5.0, 0.0);
+            }
+            MoveDirection::Left => {
+                m.translate(-5.0, 0.0);
+            }
+        }
+        let glyph_state = view.glyph_state.get().unwrap().borrow();
+        glyph_state.transform_selection(m, true);
+        view.queue_draw();
+    }
+
+    pub fn selection_action(&self, view: &GlyphEditView, action: SelectionAction) {
+        let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
+        match action {
+            SelectionAction::All => {
+                let pts = glyph_state.kd_tree.borrow().all();
+                glyph_state.set_selection(&pts, SelectionModifier::Replace);
+            }
+            SelectionAction::None => {
+                glyph_state.set_selection(&[], SelectionModifier::Replace);
+            }
+        }
+        view.queue_draw();
     }
 }
 
