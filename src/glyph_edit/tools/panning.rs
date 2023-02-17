@@ -185,18 +185,48 @@ impl ToolImplImpl for PanningToolInner {
                 ) {
                     let UnitPoint(position) =
                         viewport.view_to_unit_point(ViewPoint(event.position().into()));
-                    let pts = glyph_state
-                        .kd_tree
-                        .borrow()
-                        .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
-                    if !pts.is_empty() {
-                        let menu = crate::utils::menu::Menu::new()
-                            .title(Some("Point".into()))
-                            .separator()
-                            .add_button_cb("Dissolve point", move |_| {})
-                            .add_button_cb("Make smooth", move |_| {})
-                            .add_button_cb("Make corner", move |_| {});
-                        menu.popup(event.time());
+                    let curve_query = {
+                        let glyph = glyph_state.glyph.borrow();
+                        glyph.on_curve_query(position, &[])
+                    };
+                    if let Some(((i, _), _)) = curve_query {
+                        let pts = {
+                            let glyph = glyph_state.glyph.borrow();
+                            let tmp = glyph.contours[i]
+                                .curves()
+                                .borrow()
+                                .iter()
+                                .enumerate()
+                                .flat_map(|(j, c)| {
+                                    c.points()
+                                        .borrow()
+                                        .iter()
+                                        .map(move |cp| cp.glyph_index(i, j))
+                                        .collect::<Vec<_>>()
+                                        .into_iter()
+                                })
+                                .collect::<Vec<_>>();
+                            tmp
+                        };
+                        glyph_state.set_selection(&pts, SelectionModifier::Replace);
+                        self.instance()
+                            .set_property::<bool>(PanningTool::ACTIVE, true);
+                        self.mode.set(Mode::Drag);
+                        viewport.set_cursor("grab");
+                    } else {
+                        let pts = glyph_state
+                            .kd_tree
+                            .borrow()
+                            .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
+                        if !pts.is_empty() {
+                            let menu = crate::utils::menu::Menu::new()
+                                .title(Some("Point".into()))
+                                .separator()
+                                .add_button_cb("Dissolve point", move |_| {})
+                                .add_button_cb("Make smooth", move |_| {})
+                                .add_button_cb("Make corner", move |_| {});
+                            menu.popup(event.time());
+                        }
                     }
                 }
             }

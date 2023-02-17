@@ -166,7 +166,7 @@ impl ObjectImpl for CanvasInner {
         self.bg_color.set(Color::from_hex("#EEF8F8"));
         self.glyph_bbox_bg_color
             .set(Color::new_alpha(210, 227, 252, 153));
-        self.glyph_inner_fill_color.set(Color::from_hex("#D0E3F7"));
+        self.glyph_inner_fill_color.set(Color::from_hex("#E6E6E4"));
         self.ruler_fg_color
             .set(CanvasInner::RULER_FG_COLOR_INIT_VAL);
         self.ruler_bg_color
