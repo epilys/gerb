@@ -152,7 +152,7 @@ impl ToolImplImpl for ImageToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, _: &ToolImpl, _: &gtk::Toolbar, view: &GlyphEditView) {
         let layer =
             LayerBuilder::new()
                 .set_name(Some("image"))
@@ -168,8 +168,6 @@ impl ToolImplImpl for ImageToolInner {
             .build();
         self.layer.set(layer.clone()).unwrap();
         view.viewport.add_pre_layer(layer);
-
-        self.parent_setup_toolbox(obj, toolbar, view)
     }
 
     fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
