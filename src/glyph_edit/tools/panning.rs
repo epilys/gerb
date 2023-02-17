@@ -969,14 +969,13 @@ impl PanningTool {
          * the matrix transformation */
         let f = 1.0 / (scale * ppu);
 
-        let line_width = if active { 2.0 } else { 1.5 } * f;
+        let line_width = if active { 1.0 } else { 0.5 } * f;
 
         let matrix = viewport.transformation.matrix();
 
         let cr1 = cr.push();
 
         cr1.set_line_width(line_width);
-        cr1.set_dash(&[4.0 * f, 2.0 * f], 0.5 * f);
         cr1.transform(matrix);
 
         if resize {
@@ -986,7 +985,6 @@ impl PanningTool {
             let glyph_width = glyph_state.glyph.borrow().width.unwrap_or(0.0);
 
             cr1.set_source_color(Color::BLACK);
-            cr1.set_dash(&[], 0.0);
             cr1.set_line_width(1.0);
             cr1.rectangle(0.0, 0.0, glyph_width, units_per_em);
             cr1.stroke().unwrap();
