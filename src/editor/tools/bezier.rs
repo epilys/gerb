@@ -170,7 +170,7 @@ impl ToolImplImpl for BezierToolInner {
     fn on_button_press_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -178,10 +178,10 @@ impl ToolImplImpl for BezierToolInner {
             let mut c = self.contour.borrow_mut();
             let UnitPoint(point) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
             if c.is_none() {
-                let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
+                let mut state = view.state().borrow_mut();
                 let current_curve = Bezier::new(vec![point]);
                 current_curve.set_property(Bezier::SMOOTH, true);
-                let contour_index = glyph_state.glyph.borrow().contours.len();
+                let contour_index = state.glyph.borrow().contours.len();
                 let new_state = ContourState {
                     last_point: {
                         let p = current_curve.points().borrow()[0].clone();
@@ -198,14 +198,11 @@ impl ToolImplImpl for BezierToolInner {
                     curve_index: 0,
                     contour_index,
                 };
-                let subaction = glyph_state.add_contour(&new_state.contour, contour_index);
-                let mut action = new_contour_action(
-                    glyph_state.glyph.clone(),
-                    new_state.contour.clone(),
-                    subaction,
-                );
+                let subaction = state.add_contour(&new_state.contour, contour_index);
+                let mut action =
+                    new_contour_action(state.glyph.clone(), new_state.contour.clone(), subaction);
                 (action.redo)();
-                glyph_state.add_undo_action(action);
+                state.add_undo_action(action);
                 *c = Some(new_state);
                 self.inner.set(InnerState::FirstHandle {
                     handle: point,
@@ -243,7 +240,7 @@ impl ToolImplImpl for BezierToolInner {
     fn on_button_release_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -267,7 +264,7 @@ impl ToolImplImpl for BezierToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -526,7 +523,7 @@ impl ToolImplImpl for BezierToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         let layer =
             LayerBuilder::new()
                 .set_name(Some("bezier"))
@@ -546,7 +543,7 @@ impl ToolImplImpl for BezierToolInner {
         self.parent_setup_toolbox(obj, toolbar, view)
     }
 
-    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, obj: &ToolImpl, view: &Editor) {
         self.instance()
             .set_property::<bool>(BezierTool::ACTIVE, true);
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
@@ -557,7 +554,7 @@ impl ToolImplImpl for BezierToolInner {
         self.parent_on_activate(obj, view)
     }
 
-    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         self.instance()
             .set_property::<bool>(BezierTool::ACTIVE, false);
         view.viewport.set_cursor("default");
@@ -569,7 +566,7 @@ impl BezierToolInner {
     fn insert_point(
         &self,
         obj: &ToolImpl,
-        view: &GlyphEditView,
+        view: &Editor,
         /* to ensure we don't reborrow ContourState */
         mut state_opt: RefMut<'_, Option<ContourState>>,
         point: Point,
@@ -577,7 +574,7 @@ impl BezierToolInner {
         if let Some(mut state) = state_opt.as_mut() {
             let add_to_kdtree =
                 |state: &mut ContourState, curve_index: usize, curve_point: CurvePoint| {
-                    let glyph_state = view.glyph_state.get().unwrap().borrow();
+                    let editor_state = view.state().borrow();
                     let contour_index = state.contour_index;
                     let uuid = curve_point.uuid;
                     let idx = GlyphPointIndex {
@@ -585,10 +582,10 @@ impl BezierToolInner {
                         curve_index,
                         uuid,
                     };
-                    let mut kd_tree = glyph_state.kd_tree.borrow_mut();
+                    let mut kd_tree = editor_state.kd_tree.borrow_mut();
                     /* update kd_tree */
                     kd_tree.add(idx, curve_point.position);
-                    glyph_state.viewport.queue_draw();
+                    editor_state.viewport.queue_draw();
                 };
             match self.inner.get() {
                 InnerState::Empty => {
@@ -707,13 +704,13 @@ impl BezierToolInner {
     fn close(
         &self,
         obj: &ToolImpl,
-        view: &GlyphEditView,
+        view: &Editor,
         /* to ensure we don't reborrow ContourState */
         state_opt: RefMut<'_, Option<ContourState>>,
     ) {
         if state_opt.as_ref().is_some() {
             drop(state_opt);
-            view.glyph_state.get().unwrap().borrow_mut().active_tool = glib::types::Type::INVALID;
+            view.state().borrow_mut().active_tool = glib::types::Type::INVALID;
             self.on_deactivate(obj, view);
             self.contour.borrow_mut().take();
         }
@@ -722,12 +719,12 @@ impl BezierToolInner {
     fn transform_point(
         &self,
         m: Matrix,
-        view: &GlyphEditView,
+        view: &Editor,
         state: &mut ContourState,
         curve_index: usize,
         curve_point_to_move: CurvePoint,
     ) {
-        let glyph_state = view.glyph_state.get().unwrap().borrow();
+        let editor_state = view.state().borrow();
         let contour_index = state.contour_index;
         let uuid = curve_point_to_move.uuid;
         let idxs = [GlyphPointIndex {
@@ -735,14 +732,14 @@ impl BezierToolInner {
             curve_index,
             uuid,
         }];
-        let mut kd_tree = glyph_state.kd_tree.borrow_mut();
+        let mut kd_tree = editor_state.kd_tree.borrow_mut();
         for (idx, new_pos) in state.contour.transform_points(contour_index, &idxs, m) {
             if idx.uuid == uuid && curve_point_to_move.uuid == state.last_point.uuid {
                 state.last_point.position = new_pos;
             }
             /* update kd_tree */
             kd_tree.add(idx, new_pos);
-            glyph_state.viewport.queue_draw();
+            editor_state.viewport.queue_draw();
         }
     }
 }
@@ -765,12 +762,12 @@ impl BezierTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        if BezierTool::static_type() != glyph_state.active_tool {
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
+        let state = obj.state().borrow();
+        if BezierTool::static_type() != state.active_tool {
             return Inhibit(false);
         }
-        let t = glyph_state.tools[&glyph_state.active_tool]
+        let t = state.tools[&state.active_tool]
             .clone()
             .downcast::<BezierTool>()
             .unwrap();

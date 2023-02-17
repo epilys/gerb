@@ -49,7 +49,7 @@ impl ToolImplImpl for ZoomInToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -59,7 +59,7 @@ impl ToolImplImpl for ZoomInToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -69,7 +69,7 @@ impl ToolImplImpl for ZoomInToolInner {
     fn on_scroll_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -87,14 +87,14 @@ impl ToolImplImpl for ZoomInToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToolButton::builder()
@@ -113,7 +113,7 @@ impl ToolImplImpl for ZoomInToolInner {
         toolbar.set_item_homogeneous(&button, false);
     }
 
-    fn on_activate(&self, _obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, _obj: &ToolImpl, view: &Editor) {
         let t = &view.viewport.transformation;
         t.zoom_in();
     }
@@ -163,7 +163,7 @@ impl ToolImplImpl for ZoomOutToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -173,7 +173,7 @@ impl ToolImplImpl for ZoomOutToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -183,7 +183,7 @@ impl ToolImplImpl for ZoomOutToolInner {
     fn on_scroll_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -201,14 +201,14 @@ impl ToolImplImpl for ZoomOutToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, _obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToolButton::builder()
@@ -227,7 +227,7 @@ impl ToolImplImpl for ZoomOutToolInner {
         toolbar.set_item_homogeneous(&button, false);
     }
 
-    fn on_activate(&self, _obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, _obj: &ToolImpl, view: &Editor) {
         let t = &view.viewport.transformation;
         t.zoom_out();
     }

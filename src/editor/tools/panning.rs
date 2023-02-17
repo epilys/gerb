@@ -141,7 +141,7 @@ impl ToolImplImpl for PanningToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -237,7 +237,7 @@ impl ToolImplImpl for PanningToolInner {
                 let event_position = event.position();
                 let uposition @ UnitPoint(position) =
                     viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                let lock_guidelines = view.property::<bool>(GlyphEditView::LOCK_GUIDELINES);
+                let lock_guidelines = view.property::<bool>(Editor::LOCK_GUIDELINES);
                 if viewport.property::<bool>(Canvas::SHOW_RULERS) && !lock_guidelines {
                     let ruler_breadth = viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
                     if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth {
@@ -470,7 +470,7 @@ impl ToolImplImpl for PanningToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -522,7 +522,7 @@ impl ToolImplImpl for PanningToolInner {
             }
             Mode::Drag if event_button == gtk::gdk::BUTTON_PRIMARY => {
                 view.action_group
-                    .change_action_state(GlyphEditView::LOCK_ACTION, &Lock::empty().to_variant());
+                    .change_action_state(Editor::LOCK_ACTION, &Lock::empty().to_variant());
                 self.mode.set(Mode::None);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -605,7 +605,7 @@ impl ToolImplImpl for PanningToolInner {
     fn on_scroll_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -649,7 +649,7 @@ impl ToolImplImpl for PanningToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -689,7 +689,7 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
-                match Lock::from_bits(view.property(GlyphEditView::LOCK)) {
+                match Lock::from_bits(view.property(Editor::LOCK)) {
                     Some(Lock::X) => {
                         delta.y = 0.0;
                     }
@@ -769,7 +769,7 @@ impl ToolImplImpl for PanningToolInner {
                     _ => {}
                 }
                 let mut m = Matrix::identity();
-                if let Some(snap_delta) = Snap::from_bits(view.property(GlyphEditView::SNAP))
+                if let Some(snap_delta) = Snap::from_bits(view.property(Editor::SNAP))
                     .filter(|s| !s.is_empty())
                     .and_then(|snap| {
                         snap_to_closest_anchor(
@@ -802,7 +802,7 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
-                match Lock::from_bits(view.property(GlyphEditView::LOCK)) {
+                match Lock::from_bits(view.property(Editor::LOCK)) {
                     Some(Lock::X) => {
                         delta.y = 0.0;
                     }
@@ -904,7 +904,7 @@ impl ToolImplImpl for PanningToolInner {
         Inhibit(true)
     }
 
-    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         let layer =
             LayerBuilder::new()
                 .set_name(Some("selection box"))
@@ -924,13 +924,13 @@ impl ToolImplImpl for PanningToolInner {
         self.parent_setup_toolbox(obj, toolbar, view)
     }
 
-    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, obj: &ToolImpl, view: &Editor) {
         obj.set_property::<bool>(PanningTool::ACTIVE, true);
         self.set_default_cursor(view);
         self.parent_on_activate(obj, view);
     }
 
-    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         obj.set_property::<bool>(PanningTool::ACTIVE, false);
         self.set_default_cursor(view);
         self.parent_on_deactivate(obj, view);
@@ -938,7 +938,7 @@ impl ToolImplImpl for PanningToolInner {
 }
 
 impl PanningToolInner {
-    fn set_default_cursor(&self, view: &GlyphEditView) {
+    fn set_default_cursor(&self, view: &Editor) {
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
             view.viewport.set_cursor_from_pixbuf(pixbuf);
         } else {
@@ -965,7 +965,7 @@ impl PanningTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_select_box(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView) -> Inhibit {
+    pub fn draw_select_box(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> Inhibit {
         let state = obj.state().borrow();
         let t = state.tools[&Self::static_type()]
             .clone()
@@ -1144,9 +1144,9 @@ impl PanningTool {
         Inhibit(true)
     }
 
-    pub fn move_action(&self, view: &GlyphEditView, direction: MoveDirection) {
+    pub fn move_action(&self, view: &Editor, direction: MoveDirection) {
         let mut m = Matrix::identity();
-        let step = match Precision::from_bits(view.property(GlyphEditView::PRECISION)) {
+        let step = match Precision::from_bits(view.property(Editor::PRECISION)) {
             Some(v) if v == Precision::_1 => 1.0,
             Some(v) if v == Precision::_05 => 0.5,
             Some(v) if v == Precision::_01 => 0.1,
@@ -1171,7 +1171,7 @@ impl PanningTool {
         view.queue_draw();
     }
 
-    pub fn selection_action(&self, view: &GlyphEditView, action: SelectionAction) {
+    pub fn selection_action(&self, view: &Editor, action: SelectionAction) {
         match action {
             SelectionAction::All => {
                 let pts = view.state().borrow().kd_tree.borrow().all();
@@ -1186,7 +1186,7 @@ impl PanningTool {
 }
 
 fn snap_to_closest_anchor(
-    obj: &GlyphEditView,
+    obj: &Editor,
     UnitPoint(delta): UnitPoint,
     UnitPoint(mouse): UnitPoint,
     snap: Snap,
@@ -1250,14 +1250,14 @@ fn snap_to_closest_anchor(
     candidates.get(0).map(|(p, _)| *p)
 }
 
-fn reverse_contour(view: &GlyphEditView, contour_index: usize) -> Action {
+fn reverse_contour(view: &Editor, contour_index: usize) -> Action {
     let contour: Contour = {
         let c = view.state().borrow().glyph.borrow().contours[contour_index].clone();
         c
     };
     Action {
         stamp: EventStamp {
-            t: std::any::TypeId::of::<GlyphEditView>(),
+            t: std::any::TypeId::of::<Editor>(),
             property: Contour::static_type().name(),
             id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
         },

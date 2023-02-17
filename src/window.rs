@@ -363,7 +363,7 @@ impl WindowInner {
     }
 
     pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
-        let edit_view = GlyphEditView::new(
+        let edit_view = Editor::new(
             self.application(),
             self.project.borrow().clone(),
             glyph.clone(),

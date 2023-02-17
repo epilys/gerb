@@ -131,7 +131,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -158,25 +158,24 @@ impl ToolImplImpl for QuadrilateralToolInner {
                         contour.push_curve(c);
                     }
                     contour.close();
-                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
-                    let contour_index = glyph_state.glyph.borrow().contours.len();
-                    let subaction = glyph_state.add_contour(&contour, contour_index);
-                    let mut action =
-                        new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                    let mut state = view.state().borrow_mut();
+                    let contour_index = state.glyph.borrow().contours.len();
+                    let subaction = state.add_contour(&contour, contour_index);
+                    let mut action = new_contour_action(state.glyph.clone(), contour, subaction);
                     (action.redo)();
-                    glyph_state.add_undo_action(action);
+                    state.add_undo_action(action);
                     self.upper_left.set(None);
                     self.instance()
                         .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
-                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    state.active_tool = glib::types::Type::INVALID;
                     viewport.set_cursor("default");
                 }
                 gtk::gdk::BUTTON_SECONDARY => {
                     self.upper_left.set(None);
                     self.instance()
                         .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
-                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
-                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    let mut state = view.state().borrow_mut();
+                    state.active_tool = glib::types::Type::INVALID;
                     viewport.set_cursor("default");
                 }
                 _ => return Inhibit(false),
@@ -202,7 +201,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -212,7 +211,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -238,7 +237,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
         Inhibit(true)
     }
 
-    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         let layer =
             LayerBuilder::new()
                 .set_name(Some("quadrilateral"))
@@ -258,7 +257,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
         self.parent_setup_toolbox(obj, toolbar, view)
     }
 
-    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, obj: &ToolImpl, view: &Editor) {
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, true);
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
@@ -269,7 +268,7 @@ impl ToolImplImpl for QuadrilateralToolInner {
         self.parent_on_activate(obj, view)
     }
 
-    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         self.upper_left.set(None);
         self.instance()
             .set_property::<bool>(QuadrilateralTool::ACTIVE, false);
@@ -298,12 +297,12 @@ impl QuadrilateralTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        if QuadrilateralTool::static_type() != glyph_state.active_tool {
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
+        let state = obj.state().borrow();
+        if QuadrilateralTool::static_type() != state.active_tool {
             return Inhibit(false);
         }
-        let t = glyph_state.tools[&glyph_state.active_tool]
+        let t = state.tools[&state.active_tool]
             .clone()
             .downcast::<QuadrilateralTool>()
             .unwrap();
@@ -460,7 +459,7 @@ impl ToolImplImpl for EllipseToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -483,25 +482,24 @@ impl ToolImplImpl for EllipseToolInner {
                         contour.push_curve(c);
                     }
                     contour.close();
-                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
-                    let contour_index = glyph_state.glyph.borrow().contours.len();
-                    let subaction = glyph_state.add_contour(&contour, contour_index);
-                    let mut action =
-                        new_contour_action(glyph_state.glyph.clone(), contour, subaction);
+                    let mut state = view.state().borrow_mut();
+                    let contour_index = state.glyph.borrow().contours.len();
+                    let subaction = state.add_contour(&contour, contour_index);
+                    let mut action = new_contour_action(state.glyph.clone(), contour, subaction);
                     (action.redo)();
-                    glyph_state.add_undo_action(action);
+                    state.add_undo_action(action);
                     viewport.queue_draw();
                     self.instance()
                         .set_property::<bool>(EllipseTool::ACTIVE, false);
-                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    state.active_tool = glib::types::Type::INVALID;
                     viewport.set_cursor("default");
                 }
                 gtk::gdk::BUTTON_SECONDARY => {
                     self.center.set(None);
                     self.instance()
                         .set_property::<bool>(EllipseTool::ACTIVE, false);
-                    let mut glyph_state = view.glyph_state.get().unwrap().borrow_mut();
-                    glyph_state.active_tool = glib::types::Type::INVALID;
+                    let mut state = view.state().borrow_mut();
+                    state.active_tool = glib::types::Type::INVALID;
                     viewport.set_cursor("default");
                 }
                 _ => return Inhibit(false),
@@ -523,7 +521,7 @@ impl ToolImplImpl for EllipseToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -533,7 +531,7 @@ impl ToolImplImpl for EllipseToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -554,7 +552,7 @@ impl ToolImplImpl for EllipseToolInner {
         Inhibit(true)
     }
 
-    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         let layer =
             LayerBuilder::new()
                 .set_name(Some("ellipse"))
@@ -574,7 +572,7 @@ impl ToolImplImpl for EllipseToolInner {
         self.parent_setup_toolbox(obj, toolbar, view)
     }
 
-    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, obj: &ToolImpl, view: &Editor) {
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, true);
         if let Some(pixbuf) = self.cursor.get().unwrap().clone() {
@@ -585,7 +583,7 @@ impl ToolImplImpl for EllipseToolInner {
         self.parent_on_activate(obj, view)
     }
 
-    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         self.center.set(None);
         self.instance()
             .set_property::<bool>(EllipseTool::ACTIVE, false);
@@ -614,12 +612,12 @@ impl EllipseTool {
         glib::Object::new(&[]).unwrap()
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        if EllipseTool::static_type() != glyph_state.active_tool {
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
+        let state = obj.state().borrow();
+        if EllipseTool::static_type() != state.active_tool {
             return Inhibit(false);
         }
-        let t = glyph_state.tools[&glyph_state.active_tool]
+        let t = state.tools[&state.active_tool]
             .clone()
             .downcast::<EllipseTool>()
             .unwrap();

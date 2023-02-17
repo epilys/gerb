@@ -23,7 +23,7 @@
 extern crate glib;
 
 pub mod app;
-pub mod glyph_edit;
+pub mod editor;
 pub mod glyphs;
 pub mod project;
 pub mod resources;
@@ -41,7 +41,7 @@ pub mod prelude {
     pub use app::Application;
     pub use app::Settings;
     pub use app::*;
-    pub use glyph_edit::*;
+    pub use editor::*;
     pub use glyphs::Glyph;
     pub use gtk::prelude::*;
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;

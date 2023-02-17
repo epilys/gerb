@@ -30,16 +30,15 @@ pub struct ToolImplClass {
     // If these functions are meant to be called from C, you need to make these functions
     // `unsafe extern "C" fn` & use FFI-safe types (usually raw pointers).
     pub on_button_press_event:
-        fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventButton) -> Inhibit,
+        fn(&ToolImplInstance, Editor, &Canvas, &gtk::gdk::EventButton) -> Inhibit,
     pub on_button_release_event:
-        fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventButton) -> Inhibit,
-    pub on_scroll_event:
-        fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventScroll) -> Inhibit,
+        fn(&ToolImplInstance, Editor, &Canvas, &gtk::gdk::EventButton) -> Inhibit,
+    pub on_scroll_event: fn(&ToolImplInstance, Editor, &Canvas, &gtk::gdk::EventScroll) -> Inhibit,
     pub on_motion_notify_event:
-        fn(&ToolImplInstance, GlyphEditView, &Canvas, &gtk::gdk::EventMotion) -> Inhibit,
-    pub setup_toolbox: fn(&ToolImplInstance, &gtk::Toolbar, &GlyphEditView),
-    pub on_activate: fn(&ToolImplInstance, &GlyphEditView),
-    pub on_deactivate: fn(&ToolImplInstance, &GlyphEditView),
+        fn(&ToolImplInstance, Editor, &Canvas, &gtk::gdk::EventMotion) -> Inhibit,
+    pub setup_toolbox: fn(&ToolImplInstance, &gtk::Toolbar, &Editor),
+    pub on_activate: fn(&ToolImplInstance, &Editor),
+    pub on_deactivate: fn(&ToolImplInstance, &Editor),
 }
 
 unsafe impl ClassStruct for ToolImplClass {
@@ -89,7 +88,7 @@ impl std::fmt::Debug for ToolImplInner {
 // Virtual method default implementation trampolines
 fn on_button_press_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventButton,
 ) -> Inhibit {
@@ -98,7 +97,7 @@ fn on_button_press_event_default_trampoline(
 
 fn on_button_release_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventButton,
 ) -> Inhibit {
@@ -107,7 +106,7 @@ fn on_button_release_event_default_trampoline(
 
 fn on_scroll_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventScroll,
 ) -> Inhibit {
@@ -116,7 +115,7 @@ fn on_scroll_event_default_trampoline(
 
 fn on_motion_notify_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventMotion,
 ) -> Inhibit {
@@ -126,22 +125,22 @@ fn on_motion_notify_event_default_trampoline(
 fn setup_toolbox_default_trampoline(
     this: &ToolImplInstance,
     toolbox: &gtk::Toolbar,
-    view: &GlyphEditView,
+    view: &Editor,
 ) {
     this.imp().setup_toolbox(toolbox, view)
 }
 
-fn on_activate_default_trampoline(this: &ToolImplInstance, view: &GlyphEditView) {
+fn on_activate_default_trampoline(this: &ToolImplInstance, view: &Editor) {
     this.imp().on_activate(view)
 }
 
-fn on_deactivate_default_trampoline(this: &ToolImplInstance, view: &GlyphEditView) {
+fn on_deactivate_default_trampoline(this: &ToolImplInstance, view: &Editor) {
     this.imp().on_deactivate(view)
 }
 
 pub fn base_on_button_press_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventButton,
 ) -> Inhibit {
@@ -151,7 +150,7 @@ pub fn base_on_button_press_event_default_trampoline(
 
 pub fn base_on_button_release_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventButton,
 ) -> Inhibit {
@@ -161,7 +160,7 @@ pub fn base_on_button_release_event_default_trampoline(
 
 pub fn base_on_scroll_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventScroll,
 ) -> Inhibit {
@@ -171,7 +170,7 @@ pub fn base_on_scroll_event_default_trampoline(
 
 pub fn base_on_motion_notify_event_default_trampoline(
     this: &ToolImplInstance,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventMotion,
 ) -> Inhibit {
@@ -182,18 +181,18 @@ pub fn base_on_motion_notify_event_default_trampoline(
 pub fn base_setup_toolbox_default_trampoline(
     this: &ToolImplInstance,
     toolbox: &gtk::Toolbar,
-    view: &GlyphEditView,
+    view: &Editor,
 ) {
     let klass = this.class();
     (klass.as_ref().setup_toolbox)(this, toolbox, view)
 }
 
-pub fn base_on_activate_default_trampoline(this: &ToolImplInstance, view: &GlyphEditView) {
+pub fn base_on_activate_default_trampoline(this: &ToolImplInstance, view: &Editor) {
     let klass = this.class();
     (klass.as_ref().on_activate)(this, view)
 }
 
-pub fn base_on_deactivate_default_trampoline(this: &ToolImplInstance, view: &GlyphEditView) {
+pub fn base_on_deactivate_default_trampoline(this: &ToolImplInstance, view: &Editor) {
     let klass = this.class();
     (klass.as_ref().on_deactivate)(this, view)
 }
@@ -202,7 +201,7 @@ pub fn base_on_deactivate_default_trampoline(this: &ToolImplInstance, view: &Gly
 impl ToolImplInner {
     fn on_button_press_event(
         &self,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -211,7 +210,7 @@ impl ToolImplInner {
 
     fn on_button_release_event(
         &self,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -220,7 +219,7 @@ impl ToolImplInner {
 
     fn on_scroll_event(
         &self,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -229,14 +228,14 @@ impl ToolImplInner {
 
     fn on_motion_notify_event(
         &self,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, toolbar: &gtk::Toolbar, view: &Editor) {
         let obj = self.instance();
         let name = obj.property::<String>(ToolImpl::NAME);
         let button = gtk::ToggleToolButton::builder()
@@ -275,14 +274,12 @@ impl ToolImplInner {
         toolbar.set_item_homogeneous(&button, false);
     }
 
-    fn on_activate(&self, view: &GlyphEditView) {
+    fn on_activate(&self, view: &Editor) {
         let t = self.instance().type_();
-        let active_tool = view.glyph_state.get().unwrap().borrow().active_tool;
+        let active_tool = view.state().borrow().active_tool;
         if active_tool != t {
             if let Some(previous_tool) = view
-                .glyph_state
-                .get()
-                .unwrap()
+                .state()
                 .borrow()
                 .tools
                 .get(&active_tool)
@@ -291,11 +288,11 @@ impl ToolImplInner {
                 previous_tool.on_deactivate(view);
             }
 
-            view.glyph_state.get().unwrap().borrow_mut().active_tool = t;
+            view.state().borrow_mut().active_tool = t;
         }
     }
 
-    fn on_deactivate(&self, _view: &GlyphEditView) {}
+    fn on_deactivate(&self, _view: &Editor) {}
 }
 
 #[glib::object_subclass]
@@ -381,31 +378,31 @@ impl Default for ToolImpl {
 pub trait ToolImplExt {
     fn on_button_press_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit;
     fn on_button_release_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit;
     fn on_scroll_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit;
     fn on_motion_notify_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit;
-    fn setup_toolbox(&self, toolbar: &gtk::Toolbar, view: &GlyphEditView);
-    fn on_activate(&self, view: &GlyphEditView);
-    fn on_deactivate(&self, view: &GlyphEditView);
+    fn setup_toolbox(&self, toolbar: &gtk::Toolbar, view: &Editor);
+    fn on_activate(&self, view: &Editor);
+    fn on_deactivate(&self, view: &Editor);
 }
 
 /// We call into ToolImplInner_$method_name for each function. These will retrieve the
@@ -414,7 +411,7 @@ pub trait ToolImplExt {
 impl<O: IsA<ToolImpl>> ToolImplExt for O {
     fn on_button_press_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -428,7 +425,7 @@ impl<O: IsA<ToolImpl>> ToolImplExt for O {
 
     fn on_button_release_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -442,7 +439,7 @@ impl<O: IsA<ToolImpl>> ToolImplExt for O {
 
     fn on_scroll_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -456,7 +453,7 @@ impl<O: IsA<ToolImpl>> ToolImplExt for O {
 
     fn on_motion_notify_event(
         &self,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -468,15 +465,15 @@ impl<O: IsA<ToolImpl>> ToolImplExt for O {
         )
     }
 
-    fn setup_toolbox(&self, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, toolbar: &gtk::Toolbar, view: &Editor) {
         base_setup_toolbox_default_trampoline(self.upcast_ref::<ToolImpl>(), toolbar, view)
     }
 
-    fn on_activate(&self, view: &GlyphEditView) {
+    fn on_activate(&self, view: &Editor) {
         base_on_activate_default_trampoline(self.upcast_ref::<ToolImpl>(), view)
     }
 
-    fn on_deactivate(&self, view: &GlyphEditView) {
+    fn on_deactivate(&self, view: &Editor) {
         base_on_deactivate_default_trampoline(self.upcast_ref::<ToolImpl>(), view)
     }
 }
@@ -487,7 +484,7 @@ pub trait ToolImplImpl: ObjectImpl + 'static {
     fn on_button_press_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -497,7 +494,7 @@ pub trait ToolImplImpl: ObjectImpl + 'static {
     fn on_button_release_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -507,7 +504,7 @@ pub trait ToolImplImpl: ObjectImpl + 'static {
     fn on_scroll_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -517,22 +514,22 @@ pub trait ToolImplImpl: ObjectImpl + 'static {
     fn on_motion_notify_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
         self.parent_on_motion_notify_event(obj, view, viewport, event)
     }
 
-    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, obj: &ToolImpl, toolbar: &gtk::Toolbar, view: &Editor) {
         self.parent_setup_toolbox(obj, toolbar, view)
     }
 
-    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, obj: &ToolImpl, view: &Editor) {
         self.parent_on_activate(obj, view)
     }
 
-    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         self.parent_on_deactivate(obj, view)
     }
 }
@@ -541,41 +538,41 @@ pub trait ToolImplImplExt: ObjectSubclass {
     fn parent_on_button_press_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit;
     fn parent_on_button_release_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit;
     fn parent_on_scroll_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit;
     fn parent_on_motion_notify_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit;
-    fn parent_setup_toolbox(&self, obj: &ToolImpl, toolbox: &gtk::Toolbar, view: &GlyphEditView);
-    fn parent_on_activate(&self, obj: &ToolImpl, view: &GlyphEditView);
-    fn parent_on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView);
+    fn parent_setup_toolbox(&self, obj: &ToolImpl, toolbox: &gtk::Toolbar, view: &Editor);
+    fn parent_on_activate(&self, obj: &ToolImpl, view: &Editor);
+    fn parent_on_deactivate(&self, obj: &ToolImpl, view: &Editor);
 }
 
 impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_on_button_press_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -589,7 +586,7 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_on_button_release_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -603,7 +600,7 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_on_scroll_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
@@ -617,7 +614,7 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_on_motion_notify_event(
         &self,
         obj: &ToolImpl,
-        view: GlyphEditView,
+        view: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -628,7 +625,7 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
         }
     }
 
-    fn parent_setup_toolbox(&self, obj: &ToolImpl, toolbox: &gtk::Toolbar, view: &GlyphEditView) {
+    fn parent_setup_toolbox(&self, obj: &ToolImpl, toolbox: &gtk::Toolbar, view: &Editor) {
         unsafe {
             let data = Self::type_data();
             let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
@@ -636,7 +633,7 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
         }
     }
 
-    fn parent_on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn parent_on_activate(&self, obj: &ToolImpl, view: &Editor) {
         unsafe {
             let data = Self::type_data();
             let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
@@ -644,7 +641,7 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
         }
     }
 
-    fn parent_on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn parent_on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         unsafe {
             let data = Self::type_data();
             let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
@@ -673,7 +670,7 @@ unsafe impl<T: ToolImplImpl> IsSubclassable<T> for ToolImpl {
 
 fn on_button_press_event_trampoline<T>(
     this: &ToolImpl,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventButton,
 ) -> Inhibit
@@ -686,7 +683,7 @@ where
 
 fn on_button_release_event_trampoline<T>(
     this: &ToolImpl,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventButton,
 ) -> Inhibit
@@ -699,7 +696,7 @@ where
 
 fn on_scroll_event_trampoline<T>(
     this: &ToolImpl,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventScroll,
 ) -> Inhibit
@@ -712,7 +709,7 @@ where
 
 fn on_motion_notify_event_trampoline<T>(
     this: &ToolImpl,
-    view: GlyphEditView,
+    view: Editor,
     viewport: &Canvas,
     event: &gtk::gdk::EventMotion,
 ) -> Inhibit
@@ -723,7 +720,7 @@ where
     imp.on_motion_notify_event(this, view, viewport, event)
 }
 
-fn setup_toolbox_trampoline<T>(this: &ToolImpl, toolbox: &gtk::Toolbar, view: &GlyphEditView)
+fn setup_toolbox_trampoline<T>(this: &ToolImpl, toolbox: &gtk::Toolbar, view: &Editor)
 where
     T: ObjectSubclass + ToolImplImpl,
 {
@@ -731,7 +728,7 @@ where
     imp.setup_toolbox(this, toolbox, view)
 }
 
-fn on_activate_trampoline<T>(this: &ToolImpl, view: &GlyphEditView)
+fn on_activate_trampoline<T>(this: &ToolImpl, view: &Editor)
 where
     T: ObjectSubclass + ToolImplImpl,
 {
@@ -739,7 +736,7 @@ where
     imp.on_activate(this, view)
 }
 
-fn on_deactivate_trampoline<T>(this: &ToolImpl, view: &GlyphEditView)
+fn on_deactivate_trampoline<T>(this: &ToolImpl, view: &Editor)
 where
     T: ObjectSubclass + ToolImplImpl,
 {

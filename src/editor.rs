@@ -36,18 +36,18 @@ mod menu;
 mod shortcuts;
 mod state;
 mod tools;
-pub use state::GlyphState;
+pub use state::State;
 
 use tools::{PanningTool, SelectionModifier, Tool, ToolImpl};
 
 type StatusBarMessage = u32;
 
 #[derive(Debug, Default)]
-pub struct GlyphEditViewInner {
+pub struct EditorInner {
     app: OnceCell<Application>,
     project: OnceCell<Project>,
     glyph: OnceCell<Rc<RefCell<Glyph>>>,
-    glyph_state: OnceCell<Rc<RefCell<GlyphState>>>,
+    state: OnceCell<Rc<RefCell<State>>>,
     viewport: Canvas,
     statusbar_context_id: Cell<Option<u32>>,
     overlay: Overlay,
@@ -75,13 +75,13 @@ pub struct GlyphEditViewInner {
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for GlyphEditViewInner {
-    const NAME: &'static str = "GlyphEditView";
-    type Type = GlyphEditView;
+impl ObjectSubclass for EditorInner {
+    const NAME: &'static str = "Editor";
+    type Type = Editor;
     type ParentType = gtk::Bin;
 }
 
-impl ObjectImpl for GlyphEditViewInner {
+impl ObjectImpl for EditorInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
         self.lock_guidelines.set(false);
@@ -194,117 +194,117 @@ impl ObjectImpl for GlyphEditViewInner {
             once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecString::new(
-                        GlyphEditView::TITLE,
-                        GlyphEditView::TITLE,
-                        GlyphEditView::TITLE,
+                        Editor::TITLE,
+                        Editor::TITLE,
+                        Editor::TITLE,
                         Some("edit glyph"),
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::CLOSEABLE,
-                        GlyphEditView::CLOSEABLE,
-                        GlyphEditView::CLOSEABLE,
+                        Editor::CLOSEABLE,
+                        Editor::CLOSEABLE,
+                        Editor::CLOSEABLE,
                         true,
                         ParamFlags::READABLE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::PREVIEW,
-                        GlyphEditView::PREVIEW,
-                        GlyphEditView::PREVIEW,
+                        Editor::PREVIEW,
+                        Editor::PREVIEW,
+                        Editor::PREVIEW,
                         false,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::IS_MENU_VISIBLE,
-                        GlyphEditView::IS_MENU_VISIBLE,
-                        GlyphEditView::IS_MENU_VISIBLE,
+                        Editor::IS_MENU_VISIBLE,
+                        Editor::IS_MENU_VISIBLE,
+                        Editor::IS_MENU_VISIBLE,
                         true,
                         ParamFlags::READABLE,
                     ),
                     ParamSpecDouble::new(
-                        GlyphEditView::UNITS_PER_EM,
-                        GlyphEditView::UNITS_PER_EM,
-                        GlyphEditView::UNITS_PER_EM,
+                        Editor::UNITS_PER_EM,
+                        Editor::UNITS_PER_EM,
+                        Editor::UNITS_PER_EM,
                         1.0,
                         std::f64::MAX,
                         1000.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        GlyphEditView::X_HEIGHT,
-                        GlyphEditView::X_HEIGHT,
-                        GlyphEditView::X_HEIGHT,
+                        Editor::X_HEIGHT,
+                        Editor::X_HEIGHT,
+                        Editor::X_HEIGHT,
                         1.0,
                         std::f64::MAX,
                         1000.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        GlyphEditView::ASCENDER,
-                        GlyphEditView::ASCENDER,
-                        GlyphEditView::ASCENDER,
+                        Editor::ASCENDER,
+                        Editor::ASCENDER,
+                        Editor::ASCENDER,
                         std::f64::MIN,
                         std::f64::MAX,
                         700.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        GlyphEditView::DESCENDER,
-                        GlyphEditView::DESCENDER,
-                        GlyphEditView::DESCENDER,
+                        Editor::DESCENDER,
+                        Editor::DESCENDER,
+                        Editor::DESCENDER,
                         std::f64::MIN,
                         std::f64::MAX,
                         -200.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
-                        GlyphEditView::CAP_HEIGHT,
-                        GlyphEditView::CAP_HEIGHT,
-                        GlyphEditView::CAP_HEIGHT,
+                        Editor::CAP_HEIGHT,
+                        Editor::CAP_HEIGHT,
+                        Editor::CAP_HEIGHT,
                         std::f64::MIN,
                         std::f64::MAX,
                         650.0,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::LOCK_GUIDELINES,
-                        GlyphEditView::LOCK_GUIDELINES,
-                        GlyphEditView::LOCK_GUIDELINES,
+                        Editor::LOCK_GUIDELINES,
+                        Editor::LOCK_GUIDELINES,
+                        Editor::LOCK_GUIDELINES,
                         false,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::SHOW_GLYPH_GUIDELINES,
-                        GlyphEditView::SHOW_GLYPH_GUIDELINES,
-                        GlyphEditView::SHOW_GLYPH_GUIDELINES,
+                        Editor::SHOW_GLYPH_GUIDELINES,
+                        Editor::SHOW_GLYPH_GUIDELINES,
+                        Editor::SHOW_GLYPH_GUIDELINES,
                         true,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::SHOW_PROJECT_GUIDELINES,
-                        GlyphEditView::SHOW_PROJECT_GUIDELINES,
-                        GlyphEditView::SHOW_PROJECT_GUIDELINES,
+                        Editor::SHOW_PROJECT_GUIDELINES,
+                        Editor::SHOW_PROJECT_GUIDELINES,
+                        Editor::SHOW_PROJECT_GUIDELINES,
                         true,
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecBoolean::new(
-                        GlyphEditView::SHOW_METRICS_GUIDELINES,
-                        GlyphEditView::SHOW_METRICS_GUIDELINES,
-                        GlyphEditView::SHOW_METRICS_GUIDELINES,
+                        Editor::SHOW_METRICS_GUIDELINES,
+                        Editor::SHOW_METRICS_GUIDELINES,
+                        Editor::SHOW_METRICS_GUIDELINES,
                         true,
                         ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecObject::new(
-                        GlyphEditView::ACTIVE_TOOL,
-                        GlyphEditView::ACTIVE_TOOL,
-                        GlyphEditView::ACTIVE_TOOL,
+                        Editor::ACTIVE_TOOL,
+                        Editor::ACTIVE_TOOL,
+                        Editor::ACTIVE_TOOL,
                         ToolImpl::static_type(),
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecObject::new(
-                        GlyphEditView::PANNING_TOOL,
-                        GlyphEditView::PANNING_TOOL,
-                        GlyphEditView::PANNING_TOOL,
+                        Editor::PANNING_TOOL,
+                        Editor::PANNING_TOOL,
+                        Editor::PANNING_TOOL,
                         PanningTool::static_type(),
                         glib::ParamFlags::READWRITE,
                     ),
@@ -316,8 +316,8 @@ impl ObjectImpl for GlyphEditViewInner {
                         ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecUInt::new(
-                        GlyphEditView::LOCK,
-                        GlyphEditView::LOCK,
+                        Editor::LOCK,
+                        Editor::LOCK,
                         "Lock transformation movement to specific axes.",
                         0,
                         u32::MAX,
@@ -325,8 +325,8 @@ impl ObjectImpl for GlyphEditViewInner {
                         ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecUInt::new(
-                        GlyphEditView::SNAP,
-                        GlyphEditView::SNAP,
+                        Editor::SNAP,
+                        Editor::SNAP,
                         "Snap transformation movement to specific references.",
                         0,
                         u32::MAX,
@@ -334,8 +334,8 @@ impl ObjectImpl for GlyphEditViewInner {
                         ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecUInt::new(
-                        GlyphEditView::PRECISION,
-                        GlyphEditView::PRECISION,
+                        Editor::PRECISION,
+                        Editor::PRECISION,
                         "Increase accuracy of transformations.",
                         0,
                         u32::MAX,
@@ -349,9 +349,9 @@ impl ObjectImpl for GlyphEditViewInner {
 
     fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
         match pspec.name() {
-            GlyphEditView::TITLE => {
+            Editor::TITLE => {
                 if let Some(name) = obj
-                    .glyph_state
+                    .state
                     .get()
                     .map(|s| s.borrow().glyph.borrow().name_markup())
                 {
@@ -360,66 +360,66 @@ impl ObjectImpl for GlyphEditViewInner {
                     "edit glyph".to_value()
                 }
             }
-            GlyphEditView::CLOSEABLE => true.to_value(),
-            GlyphEditView::PREVIEW => self.preview.get().is_some().to_value(),
-            GlyphEditView::IS_MENU_VISIBLE => true.to_value(),
-            GlyphEditView::UNITS_PER_EM => self.units_per_em.get().to_value(),
-            GlyphEditView::X_HEIGHT => self.x_height.get().to_value(),
-            GlyphEditView::ASCENDER => self.ascender.get().to_value(),
-            GlyphEditView::DESCENDER => self.descender.get().to_value(),
-            GlyphEditView::CAP_HEIGHT => self.cap_height.get().to_value(),
-            GlyphEditView::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
-            GlyphEditView::SHOW_GLYPH_GUIDELINES => self.show_glyph_guidelines.get().to_value(),
-            GlyphEditView::SHOW_PROJECT_GUIDELINES => self.show_project_guidelines.get().to_value(),
-            GlyphEditView::SHOW_METRICS_GUIDELINES => self.show_metrics_guidelines.get().to_value(),
-            GlyphEditView::ACTIVE_TOOL => {
-                let state = self.glyph_state.get().unwrap().borrow();
+            Editor::CLOSEABLE => true.to_value(),
+            Editor::PREVIEW => self.preview.get().is_some().to_value(),
+            Editor::IS_MENU_VISIBLE => true.to_value(),
+            Editor::UNITS_PER_EM => self.units_per_em.get().to_value(),
+            Editor::X_HEIGHT => self.x_height.get().to_value(),
+            Editor::ASCENDER => self.ascender.get().to_value(),
+            Editor::DESCENDER => self.descender.get().to_value(),
+            Editor::CAP_HEIGHT => self.cap_height.get().to_value(),
+            Editor::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
+            Editor::SHOW_GLYPH_GUIDELINES => self.show_glyph_guidelines.get().to_value(),
+            Editor::SHOW_PROJECT_GUIDELINES => self.show_project_guidelines.get().to_value(),
+            Editor::SHOW_METRICS_GUIDELINES => self.show_metrics_guidelines.get().to_value(),
+            Editor::ACTIVE_TOOL => {
+                let state = self.state.get().unwrap().borrow();
                 let active_tool = state.active_tool;
                 state.tools.get(&active_tool).map(Clone::clone).to_value()
             }
-            GlyphEditView::PANNING_TOOL => {
-                let state = self.glyph_state.get().unwrap().borrow();
+            Editor::PANNING_TOOL => {
+                let state = self.state.get().unwrap().borrow();
                 let panning_tool = state.panning_tool;
                 state.tools.get(&panning_tool).map(Clone::clone).to_value()
             }
-            GlyphEditView::MENUBAR => Some(self.menubar.clone()).to_value(),
-            GlyphEditView::LOCK => self.lock.get().1.bits().to_value(),
-            GlyphEditView::SNAP => self.snap.get().1.bits().to_value(),
-            GlyphEditView::PRECISION => self.precision.get().1.bits().to_value(),
+            Editor::MENUBAR => Some(self.menubar.clone()).to_value(),
+            Editor::LOCK => self.lock.get().1.bits().to_value(),
+            Editor::SNAP => self.snap.get().1.bits().to_value(),
+            Editor::PRECISION => self.precision.get().1.bits().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
         match pspec.name() {
-            GlyphEditView::UNITS_PER_EM => {
+            Editor::UNITS_PER_EM => {
                 self.units_per_em.set(value.get().unwrap());
             }
-            GlyphEditView::X_HEIGHT => {
+            Editor::X_HEIGHT => {
                 self.x_height.set(value.get().unwrap());
             }
-            GlyphEditView::ASCENDER => {
+            Editor::ASCENDER => {
                 self.ascender.set(value.get().unwrap());
             }
-            GlyphEditView::DESCENDER => {
+            Editor::DESCENDER => {
                 self.descender.set(value.get().unwrap());
             }
-            GlyphEditView::CAP_HEIGHT => {
+            Editor::CAP_HEIGHT => {
                 self.cap_height.set(value.get().unwrap());
             }
-            GlyphEditView::LOCK_GUIDELINES => {
+            Editor::LOCK_GUIDELINES => {
                 self.lock_guidelines.set(value.get().unwrap());
             }
-            GlyphEditView::SHOW_GLYPH_GUIDELINES => {
+            Editor::SHOW_GLYPH_GUIDELINES => {
                 self.show_glyph_guidelines.set(value.get().unwrap());
             }
-            GlyphEditView::SHOW_PROJECT_GUIDELINES => {
+            Editor::SHOW_PROJECT_GUIDELINES => {
                 self.show_project_guidelines.set(value.get().unwrap());
             }
-            GlyphEditView::SHOW_METRICS_GUIDELINES => {
+            Editor::SHOW_METRICS_GUIDELINES => {
                 self.show_metrics_guidelines.set(value.get().unwrap());
             }
-            GlyphEditView::PREVIEW => {
+            Editor::PREVIEW => {
                 let v: bool = value.get().unwrap();
                 if let Some(mid) = self.preview.get() {
                     if v {
@@ -435,7 +435,7 @@ impl ObjectImpl for GlyphEditViewInner {
                 }
                 self.viewport.queue_draw();
             }
-            GlyphEditView::LOCK => {
+            Editor::LOCK => {
                 if let Some(v) = value
                     .get::<u32>()
                     .ok()
@@ -454,7 +454,7 @@ impl ObjectImpl for GlyphEditViewInner {
                     self.viewport.queue_draw();
                 }
             }
-            GlyphEditView::SNAP => {
+            Editor::SNAP => {
                 if let Some(v) = value
                     .get::<u32>()
                     .ok()
@@ -473,7 +473,7 @@ impl ObjectImpl for GlyphEditViewInner {
                     self.viewport.queue_draw();
                 }
             }
-            GlyphEditView::PRECISION => {
+            Editor::PRECISION => {
                 if let Some(v) = value
                     .get::<u32>()
                     .ok()
@@ -497,16 +497,16 @@ impl ObjectImpl for GlyphEditViewInner {
     }
 }
 
-impl WidgetImpl for GlyphEditViewInner {}
-impl ContainerImpl for GlyphEditViewInner {}
-impl BinImpl for GlyphEditViewInner {}
+impl WidgetImpl for EditorInner {}
+impl ContainerImpl for EditorInner {}
+impl BinImpl for EditorInner {}
 
-impl GlyphEditViewInner {
+impl EditorInner {
     fn new_statusbar_message(&self, msg: &str) -> Option<StatusBarMessage> {
         let statusbar = self.app.get().unwrap().statusbar();
         if self.statusbar_context_id.get().is_none() {
             self.statusbar_context_id.set(Some(
-                statusbar.context_id(&format!("GlyphEditView-{:?}", &self.glyph.get().unwrap())),
+                statusbar.context_id(&format!("Editor-{:?}", &self.glyph.get().unwrap())),
             ));
         }
         if let Some(cid) = self.statusbar_context_id.get().as_ref() {
@@ -528,18 +528,18 @@ impl GlyphEditViewInner {
 }
 
 glib::wrapper! {
-    pub struct GlyphEditView(ObjectSubclass<GlyphEditViewInner>)
+    pub struct Editor(ObjectSubclass<EditorInner>)
         @extends gtk::Widget, gtk::Container, gtk::Bin;
 }
 
-impl std::ops::Deref for GlyphEditView {
-    type Target = GlyphEditViewInner;
+impl std::ops::Deref for Editor {
+    type Target = EditorInner;
     fn deref(&self) -> &Self::Target {
         self.imp()
     }
 }
 
-impl GlyphEditView {
+impl Editor {
     pub const ASCENDER: &str = Project::ASCENDER;
     pub const CAP_HEIGHT: &str = Project::CAP_HEIGHT;
     pub const CLOSEABLE: &str = "closeable";
@@ -570,7 +570,7 @@ impl GlyphEditView {
             status.remove(&self_.shortcut_status);
         });
         {
-            let property = GlyphEditView::UNITS_PER_EM;
+            let property = Editor::UNITS_PER_EM;
             ret.bind_property(property, &ret.viewport.transformation, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
@@ -580,14 +580,14 @@ impl GlyphEditView {
             glyph
                 .borrow()
                 .width
-                .unwrap_or_else(|| ret.property::<f64>(GlyphEditView::UNITS_PER_EM)),
+                .unwrap_or_else(|| ret.property::<f64>(Editor::UNITS_PER_EM)),
         );
         for property in [
-            GlyphEditView::ASCENDER,
-            GlyphEditView::CAP_HEIGHT,
-            GlyphEditView::DESCENDER,
-            GlyphEditView::UNITS_PER_EM,
-            GlyphEditView::X_HEIGHT,
+            Editor::ASCENDER,
+            Editor::CAP_HEIGHT,
+            Editor::DESCENDER,
+            Editor::UNITS_PER_EM,
+            Editor::X_HEIGHT,
         ] {
             project
                 .bind_property(property, &ret, property)
@@ -641,8 +641,8 @@ impl GlyphEditView {
         ret.insert_action_group("view", Some(&ret.action_group));
         ret.menubar
             .insert_action_group("view", Some(&ret.action_group));
-        ret.glyph_state
-            .set(Rc::new(RefCell::new(GlyphState::new(
+        ret.state
+            .set(Rc::new(RefCell::new(State::new(
                 &glyph,
                 app,
                 ret.viewport.clone(),
@@ -657,7 +657,7 @@ impl GlyphEditView {
     pub fn set_selection(&self, selection: &[GlyphPointIndex], modifier: SelectionModifier) {
         use SelectionModifier::*;
         {
-            let state = self.glyph_state.get().unwrap().borrow();
+            let state = self.state.get().unwrap().borrow();
             match modifier {
                 Replace if selection.is_empty() && state.selection.is_empty() => {
                     return;
@@ -686,21 +686,21 @@ impl GlyphEditView {
         }
 
         let new = Rc::new(selection.to_vec());
-        let old = Rc::new(self.glyph_state.get().unwrap().borrow().selection.clone());
+        let old = Rc::new(self.state.get().unwrap().borrow().selection.clone());
         let mut action = Action {
             stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: GlyphEditView::static_type().name(),
+                property: Editor::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[GlyphPointIndex], &[u8]>(selection).into() },
             },
             compress: true,
             redo: Box::new(
                 clone!(@weak self as obj, @strong new, @strong old => move || {
-                    let GlyphState {
+                    let State {
                         ref mut selection,
                         ref mut selection_set,
                         ..
-                    } = &mut *obj.glyph_state.get().unwrap().borrow_mut();
+                    } = &mut *obj.state.get().unwrap().borrow_mut();
                     match modifier {
                         Replace => {
                             selection.clear();
@@ -728,11 +728,11 @@ impl GlyphEditView {
             ),
             undo: Box::new(
                 clone!(@weak self as obj, @strong new, @strong old => move || {
-                    let GlyphState {
+                    let State {
                         ref mut selection,
                         ref mut selection_set,
                         ..
-                    } = &mut *obj.glyph_state.get().unwrap().borrow_mut();
+                    } = &mut *obj.state.get().unwrap().borrow_mut();
                     selection.clear();
                     selection_set.clear();
                     selection.extend(old.iter());
@@ -744,14 +744,10 @@ impl GlyphEditView {
             ),
         };
         (action.redo)();
-        self.glyph_state
-            .get()
-            .unwrap()
-            .borrow()
-            .add_undo_action(action);
+        self.state.get().unwrap().borrow().add_undo_action(action);
     }
 
-    pub fn state(&self) -> &Rc<RefCell<GlyphState>> {
-        self.glyph_state.get().unwrap()
+    pub fn state(&self) -> &Rc<RefCell<State>> {
+        self.state.get().unwrap()
     }
 }

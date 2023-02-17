@@ -122,7 +122,7 @@ impl ToolImplImpl for ImageToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -132,7 +132,7 @@ impl ToolImplImpl for ImageToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -142,7 +142,7 @@ impl ToolImplImpl for ImageToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
@@ -152,7 +152,7 @@ impl ToolImplImpl for ImageToolInner {
         Inhibit(false)
     }
 
-    fn setup_toolbox(&self, _: &ToolImpl, _: &gtk::Toolbar, view: &GlyphEditView) {
+    fn setup_toolbox(&self, _: &ToolImpl, _: &gtk::Toolbar, view: &Editor) {
         let layer =
             LayerBuilder::new()
                 .set_name(Some("image"))
@@ -170,13 +170,13 @@ impl ToolImplImpl for ImageToolInner {
         view.viewport.add_pre_layer(layer);
     }
 
-    fn on_activate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_activate(&self, obj: &ToolImpl, view: &Editor) {
         self.instance()
             .set_property::<bool>(ImageTool::ACTIVE, true);
         self.parent_on_activate(obj, view)
     }
 
-    fn on_deactivate(&self, obj: &ToolImpl, view: &GlyphEditView) {
+    fn on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         self.instance()
             .set_property::<bool>(ImageTool::ACTIVE, false);
         self.parent_on_deactivate(obj, view)
@@ -226,9 +226,8 @@ impl ImageTool {
         ret
     }
 
-    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: GlyphEditView) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        let t = glyph_state.tools[&ImageTool::static_type()]
+    pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
+        let t = obj.state().borrow().tools[&ImageTool::static_type()]
             .clone()
             .downcast::<ImageTool>()
             .unwrap();

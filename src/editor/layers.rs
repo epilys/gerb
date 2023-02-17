@@ -22,7 +22,7 @@
 use super::*;
 use crate::utils::colors::*;
 
-pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView) -> Inhibit {
+pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> Inhibit {
     let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
     let scale: f64 = viewport
         .transformation
@@ -30,11 +30,11 @@ pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditVie
     let ppu: f64 = viewport
         .transformation
         .property::<f64>(Transformation::PIXELS_PER_UNIT);
-    let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
-    let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
+    let units_per_em = obj.property::<f64>(Editor::UNITS_PER_EM);
+    let preview = obj.property::<bool>(Editor::PREVIEW);
     let matrix = viewport.transformation.matrix();
 
-    let glyph_state = obj.glyph_state.get().unwrap().borrow();
+    let state = obj.state().borrow();
     let UnitPoint(camera) = viewport.view_to_unit_point(viewport.transformation.camera());
 
     cr.transform(matrix);
@@ -128,20 +128,20 @@ pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditVie
                 corner: handle,
                 smooth_corner: handle,
                 direction_arrow,
-                selection: Some(glyph_state.get_selection_set()),
+                selection: Some(state.get_selection_set()),
             }
         };
-        glyph_state.glyph.borrow().draw(cr.push(), options);
+        state.glyph.borrow().draw(cr.push(), options);
     }
 
     Inhibit(false)
 }
 
-pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView) -> Inhibit {
-    let glyph_state = obj.glyph_state.get().unwrap();
+pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> Inhibit {
+    let state = obj.state();
     let matrix = viewport.transformation.matrix();
-    let units_per_em = obj.property::<f64>(GlyphEditView::UNITS_PER_EM);
-    let preview = obj.property::<bool>(GlyphEditView::PREVIEW);
+    let units_per_em = obj.property::<f64>(Editor::UNITS_PER_EM);
+    let preview = obj.property::<bool>(Editor::PREVIEW);
     if preview {
         return Inhibit(false);
     }
@@ -156,12 +156,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView
         cr2.rectangle(
             0.0,
             0.0,
-            glyph_state
-                .borrow()
-                .glyph
-                .borrow()
-                .width
-                .unwrap_or(units_per_em),
+            state.borrow().glyph.borrow().width.unwrap_or(units_per_em),
             1000.0,
         );
         cr2.fill().unwrap();
@@ -174,9 +169,9 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView
         let ppu: f64 = viewport
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
-        let show_glyph_guidelines = obj.property::<bool>(GlyphEditView::SHOW_GLYPH_GUIDELINES);
-        let show_project_guidelines = obj.property::<bool>(GlyphEditView::SHOW_PROJECT_GUIDELINES);
-        let show_metrics_guidelines = obj.property::<bool>(GlyphEditView::SHOW_METRICS_GUIDELINES);
+        let show_glyph_guidelines = obj.property::<bool>(Editor::SHOW_GLYPH_GUIDELINES);
+        let show_project_guidelines = obj.property::<bool>(Editor::SHOW_PROJECT_GUIDELINES);
+        let show_metrics_guidelines = obj.property::<bool>(Editor::SHOW_METRICS_GUIDELINES);
         let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
         let height: f64 = viewport.property::<f64>(Canvas::VIEW_HEIGHT);
         let mouse = viewport.get_mouse();
@@ -188,8 +183,8 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView
                 .property::<f64>(Settings::GUIDELINE_WIDTH)
                 / (scale * ppu),
         );
-        let glyph_state_ref = glyph_state.borrow();
-        for (show_origin, g) in glyph_state_ref
+        let state_ref = state.borrow();
+        for (show_origin, g) in state_ref
             .glyph
             .borrow()
             .guidelines
@@ -259,7 +254,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: GlyphEditView
     Inhibit(false)
 }
 
-impl GlyphEditViewInner {
+impl EditorInner {
     pub fn create_layer_widget(&self) -> gtk::ListBox {
         let listbox = gtk::ListBox::builder()
             .name("layers")

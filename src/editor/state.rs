@@ -22,7 +22,7 @@
 use super::*;
 
 #[derive(Debug, Clone)]
-pub struct GlyphState {
+pub struct State {
     pub app: Application,
     pub glyph: Rc<RefCell<Glyph>>,
     pub reference: Rc<RefCell<Glyph>>,
@@ -35,7 +35,7 @@ pub struct GlyphState {
     pub kd_tree: Rc<RefCell<crate::utils::range_query::KdTree>>,
 }
 
-impl GlyphState {
+impl State {
     pub fn new(glyph: &Rc<RefCell<Glyph>>, app: Application, viewport: Canvas) -> Self {
         let mut ret = Self {
             app,

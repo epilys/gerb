@@ -23,7 +23,7 @@ use super::tools::{constraints::Precision, MoveDirection, SelectionAction};
 use super::*;
 use gtk::gdk::keys::constants as keys;
 
-impl GlyphEditView {
+impl Editor {
     pub const LOCK: &str = "lock";
     pub const SNAP: &str = "snap";
     pub const PRECISION: &str = "precision";
@@ -51,10 +51,10 @@ impl GlyphEditView {
     pub const SELECT_INVERT_ACTION: &str = "select.invert";
 }
 
-impl GlyphEditViewInner {
-    pub fn setup_shortcuts(&self, obj: &GlyphEditView) {
+impl EditorInner {
+    pub fn setup_shortcuts(&self, obj: &Editor) {
         {
-            use GlyphEditView as A;
+            use Editor as A;
             let mut sh = self.shortcuts.borrow_mut();
             sh.push(ShortcutAction::new(
                 "preview".into(),

@@ -19,7 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::{GlyphEditView, GlyphEditViewInner};
+use super::{Editor, EditorInner};
 use crate::glyphs::Contour;
 use crate::prelude::*;
 use crate::views::Canvas;
@@ -38,8 +38,8 @@ fn new_accel_item(menu: &gio::Menu, app: &Application, label: &str, detailed_act
     menu.append_item(&item);
 }
 
-impl GlyphEditViewInner {
-    pub fn setup_menu(&self, obj: &GlyphEditView) {
+impl EditorInner {
+    pub fn setup_menu(&self, obj: &Editor) {
         let app = self.app.get().unwrap();
         let menumodel = gio::Menu::new();
         let action_group = gtk::gio::SimpleActionGroup::new();
@@ -159,26 +159,23 @@ impl GlyphEditViewInner {
             let prop_action = gtk::gio::PropertyAction::new(
                 "show.guideline.glyph",
                 obj,
-                GlyphEditView::SHOW_GLYPH_GUIDELINES,
+                Editor::SHOW_GLYPH_GUIDELINES,
             );
             action_group.add_action(&prop_action);
             let prop_action = gtk::gio::PropertyAction::new(
                 "show.guideline.project",
                 obj,
-                GlyphEditView::SHOW_PROJECT_GUIDELINES,
+                Editor::SHOW_PROJECT_GUIDELINES,
             );
             action_group.add_action(&prop_action);
             let prop_action = gtk::gio::PropertyAction::new(
                 "show.guideline.metrics",
                 obj,
-                GlyphEditView::SHOW_METRICS_GUIDELINES,
+                Editor::SHOW_METRICS_GUIDELINES,
             );
             action_group.add_action(&prop_action);
-            let prop_action = gtk::gio::PropertyAction::new(
-                "guideline.lock",
-                obj,
-                GlyphEditView::LOCK_GUIDELINES,
-            );
+            let prop_action =
+                gtk::gio::PropertyAction::new("guideline.lock", obj, Editor::LOCK_GUIDELINES);
             action_group.add_action(&prop_action);
         }
         {
@@ -215,7 +212,7 @@ impl GlyphEditViewInner {
                     .build();
                 dialog.add_button("Save", gtk::ResponseType::Ok);
                 dialog.add_button("Cancel", gtk::ResponseType::Cancel);
-                let glyph = obj.imp().glyph_state.get().unwrap().borrow().glyph.clone();
+                let glyph = obj.state().borrow().glyph.clone();
                 dialog.set_current_name(&format!("{}.svg", glyph.borrow().name.as_ref()));
                 if dialog.run() == gtk::ResponseType::Ok {
                     if let Some(f) = dialog.filename() {
@@ -246,10 +243,10 @@ impl GlyphEditViewInner {
     }
 }
 
-impl GlyphEditView {
+impl Editor {
     pub fn make_debug_window(&self) {
-        let glyph_state = self.imp().glyph_state.get().unwrap().borrow();
-        let glyph = glyph_state.glyph.borrow();
+        let state = self.state().borrow();
+        let glyph = state.glyph.borrow();
         let window = gtk::Window::new(gtk::WindowType::Toplevel);
         window.set_attached_to(Some(self));
         window.set_default_size(640, 480);

@@ -40,24 +40,24 @@ pub struct Tool;
 
 impl Tool {
     pub fn on_button_press_event(
-        obj: GlyphEditView,
+        obj: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        let active_tools = glyph_state
+        let state = obj.state().borrow();
+        let active_tools = state
             .tools
-            .get(&glyph_state.active_tool)
+            .get(&state.active_tool)
             .map(Clone::clone)
             .into_iter()
             .chain(
-                glyph_state
+                state
                     .tools
-                    .get(&glyph_state.panning_tool)
+                    .get(&state.panning_tool)
                     .map(Clone::clone)
                     .into_iter(),
             );
-        drop(glyph_state);
+        drop(state);
         for t in active_tools {
             if t.on_button_press_event(obj.clone(), viewport, event) == Inhibit(true) {
                 return Inhibit(true);
@@ -67,24 +67,24 @@ impl Tool {
     }
 
     pub fn on_button_release_event(
-        obj: GlyphEditView,
+        obj: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        let active_tools = glyph_state
+        let state = obj.state().borrow();
+        let active_tools = state
             .tools
-            .get(&glyph_state.active_tool)
+            .get(&state.active_tool)
             .map(Clone::clone)
             .into_iter()
             .chain(
-                glyph_state
+                state
                     .tools
-                    .get(&glyph_state.panning_tool)
+                    .get(&state.panning_tool)
                     .map(Clone::clone)
                     .into_iter(),
             );
-        drop(glyph_state);
+        drop(state);
         for t in active_tools {
             if t.on_button_release_event(obj.clone(), viewport, event) == Inhibit(true) {
                 return Inhibit(true);
@@ -94,32 +94,26 @@ impl Tool {
     }
 
     pub fn on_scroll_event(
-        obj: GlyphEditView,
+        obj: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        let (panning_tool, active_tool) = (glyph_state.panning_tool, glyph_state.active_tool);
-        let active_tools = glyph_state
+        let state = obj.state().borrow();
+        let (panning_tool, active_tool) = (state.panning_tool, state.active_tool);
+        let active_tools = state
             .tools
             .get(&active_tool)
             .map(Clone::clone)
             .into_iter()
-            .chain(
-                glyph_state
-                    .tools
-                    .get(&panning_tool)
-                    .map(Clone::clone)
-                    .into_iter(),
-            )
-            .chain(glyph_state.tools.clone().into_iter().filter_map(|(k, v)| {
+            .chain(state.tools.get(&panning_tool).map(Clone::clone).into_iter())
+            .chain(state.tools.clone().into_iter().filter_map(|(k, v)| {
                 if [panning_tool, active_tool].contains(&k) {
                     None
                 } else {
                     Some(v)
                 }
             }));
-        drop(glyph_state);
+        drop(state);
         for t in active_tools {
             if t.on_scroll_event(obj.clone(), viewport, event) == Inhibit(true) {
                 return Inhibit(true);
@@ -129,24 +123,24 @@ impl Tool {
     }
 
     pub fn on_motion_notify_event(
-        obj: GlyphEditView,
+        obj: Editor,
         viewport: &Canvas,
         event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
-        let glyph_state = obj.glyph_state.get().unwrap().borrow();
-        let active_tools = glyph_state
+        let state = obj.state().borrow();
+        let active_tools = state
             .tools
-            .get(&glyph_state.active_tool)
+            .get(&state.active_tool)
             .map(Clone::clone)
             .into_iter()
             .chain(
-                glyph_state
+                state
                     .tools
-                    .get(&glyph_state.panning_tool)
+                    .get(&state.panning_tool)
                     .map(Clone::clone)
                     .into_iter(),
             );
-        drop(glyph_state);
+        drop(state);
         for t in active_tools {
             if t.on_motion_notify_event(obj.clone(), viewport, event) == Inhibit(true) {
                 return Inhibit(true);
@@ -155,7 +149,7 @@ impl Tool {
         Inhibit(false)
     }
 
-    pub fn setup_toolbox(obj: &GlyphEditView, glyph: Rc<RefCell<Glyph>>) {
+    pub fn setup_toolbox(obj: &Editor, glyph: Rc<RefCell<Glyph>>) {
         obj.toolbar_box.set_orientation(gtk::Orientation::Vertical);
         obj.toolbar_box.set_expand(false);
         obj.toolbar_box.set_halign(gtk::Align::Start);
@@ -175,7 +169,7 @@ impl Tool {
             .visible(true)
             .can_focus(true)
             .build();
-        let mut glyph_state = obj.glyph_state.get().unwrap().borrow_mut();
+        let mut state = obj.state().borrow_mut();
         for t in [
             PanningTool::new().upcast::<ToolImpl>(),
             BezierTool::new().upcast::<ToolImpl>(),
@@ -187,7 +181,7 @@ impl Tool {
             ZoomOutTool::new().upcast::<ToolImpl>(),
         ] {
             t.setup_toolbox(&toolbar, obj);
-            glyph_state.tools.insert(t.type_(), t);
+            state.tools.insert(t.type_(), t);
         }
 
         let zoom_percent_label = gtk::Label::builder()
@@ -407,7 +401,7 @@ pub mod constraints {
     }
 
     impl Lock {
-        const ACTION_NAME: &str = GlyphEditView::LOCK_ACTION;
+        const ACTION_NAME: &str = Editor::LOCK_ACTION;
 
         pub fn as_str(&self) -> &'static str {
             match *self {
@@ -444,7 +438,7 @@ pub mod constraints {
     }
 
     impl Precision {
-        const ACTION_NAME: &str = GlyphEditView::PRECISION_ACTION;
+        const ACTION_NAME: &str = Editor::PRECISION_ACTION;
 
         pub fn as_str(&self) -> &'static str {
             match *self {
@@ -474,7 +468,7 @@ pub mod constraints {
     }
 
     impl Snap {
-        const ACTION_NAME: &str = GlyphEditView::SNAP_ACTION;
+        const ACTION_NAME: &str = Editor::SNAP_ACTION;
 
         pub fn as_str(&self) -> &'static str {
             match *self {
@@ -531,7 +525,7 @@ pub mod constraints {
                 }
 
                 impl $ty {
-                    pub fn clear(view: &GlyphEditView) {
+                    pub fn clear(view: &Editor) {
                         use gtk::prelude::ActionGroupExt;
                         use crate::glib::ToVariant;
 
@@ -546,13 +540,13 @@ pub mod constraints {
 
     impl_methods!(Lock, Precision, Snap);
 
-    pub fn create_constraint_actions(obj: &GlyphEditView) {
+    pub fn create_constraint_actions(obj: &Editor) {
         use gtk::prelude::*;
 
-        let lock = gio::PropertyAction::new(GlyphEditView::LOCK_ACTION, obj, GlyphEditView::LOCK);
+        let lock = gio::PropertyAction::new(Editor::LOCK_ACTION, obj, Editor::LOCK);
         for (name, (axis, complement)) in [
-            (GlyphEditView::LOCK_X_ACTION, (Lock::X, Lock::Y)),
-            (GlyphEditView::LOCK_Y_ACTION, (Lock::Y, Lock::X)),
+            (Editor::LOCK_X_ACTION, (Lock::X, Lock::Y)),
+            (Editor::LOCK_Y_ACTION, (Lock::Y, Lock::X)),
         ] {
             let toggle_axis = gio::SimpleAction::new(name, None);
             toggle_axis.connect_activate(glib::clone!(@weak obj, @weak lock => move |_, _| {
@@ -569,8 +563,8 @@ pub mod constraints {
             obj.action_group.add_action(&toggle_axis);
         }
         for (name, opt) in [
-            (GlyphEditView::LOCK_LOCAL_ACTION, Lock::LOCAL),
-            (GlyphEditView::LOCK_CONTROLS_ACTION, Lock::CONTROLS),
+            (Editor::LOCK_LOCAL_ACTION, Lock::LOCAL),
+            (Editor::LOCK_CONTROLS_ACTION, Lock::CONTROLS),
         ] {
             let change_opt = gio::SimpleAction::new(name, None);
             change_opt.connect_activate(glib::clone!(@weak obj, @weak lock => move |_, _| {
@@ -592,12 +586,12 @@ pub mod constraints {
         }
         obj.action_group.add_action(&lock);
 
-        let snap = gio::PropertyAction::new(GlyphEditView::SNAP_ACTION, obj, GlyphEditView::SNAP);
+        let snap = gio::PropertyAction::new(Editor::SNAP_ACTION, obj, Editor::SNAP);
         for (name, anchor) in [
-            (GlyphEditView::SNAP_ANGLE_ACTION, Snap::ANGLE),
-            (GlyphEditView::SNAP_GRID_ACTION, Snap::GRID),
-            (GlyphEditView::SNAP_GUIDELINES_ACTION, Snap::GUIDELINES),
-            (GlyphEditView::SNAP_METRICS_ACTION, Snap::METRICS),
+            (Editor::SNAP_ANGLE_ACTION, Snap::ANGLE),
+            (Editor::SNAP_GRID_ACTION, Snap::GRID),
+            (Editor::SNAP_GUIDELINES_ACTION, Snap::GUIDELINES),
+            (Editor::SNAP_METRICS_ACTION, Snap::METRICS),
         ] {
             let toggle_anchor = gio::SimpleAction::new(name, None);
             toggle_anchor.connect_activate(glib::clone!(@weak obj, @weak snap => move |_, _| {
@@ -608,18 +602,14 @@ pub mod constraints {
             }));
             obj.action_group.add_action(&toggle_anchor);
         }
-        let clear_snap = gio::SimpleAction::new(GlyphEditView::SNAP_CLEAR_ACTION, None);
+        let clear_snap = gio::SimpleAction::new(Editor::SNAP_CLEAR_ACTION, None);
         clear_snap.connect_activate(glib::clone!(@weak obj => move |_, _| {
             Snap::clear(&obj);
         }));
         obj.action_group.add_action(&clear_snap);
         obj.action_group.add_action(&snap);
         {
-            let a = gio::PropertyAction::new(
-                GlyphEditView::PRECISION_ACTION,
-                obj,
-                GlyphEditView::PRECISION,
-            );
+            let a = gio::PropertyAction::new(Editor::PRECISION_ACTION, obj, Editor::PRECISION);
             obj.action_group.add_action(&a);
         }
     }

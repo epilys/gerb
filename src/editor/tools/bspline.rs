@@ -49,7 +49,7 @@ impl ToolImplImpl for BSplineToolInner {
     fn on_button_press_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -59,7 +59,7 @@ impl ToolImplImpl for BSplineToolInner {
     fn on_button_release_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventButton,
     ) -> Inhibit {
@@ -69,7 +69,7 @@ impl ToolImplImpl for BSplineToolInner {
     fn on_motion_notify_event(
         &self,
         _obj: &ToolImpl,
-        _view: GlyphEditView,
+        _view: Editor,
         _viewport: &Canvas,
         _event: &gtk::gdk::EventMotion,
     ) -> Inhibit {
