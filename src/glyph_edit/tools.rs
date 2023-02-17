@@ -429,17 +429,32 @@ pub mod constraints {
         }
     }
 
+    #[derive(Default)]
     #[glib::flags(name = "Precision")]
     pub enum Precision {
-        //const _01           = 0b00000001;
-        //const _05           = 0b00000010;
-        //const _1            = 0b00000100;
-        #[flags_value(name = "Limit transformations to 0.5 units step size.", nick = "5")]
-        _5 = 0b00000001,
+        #[default]
+        #[flags_skip]
+        EMPTY = 0,
+        #[flags_value(name = "Limit transformations to 1 units step size.", nick = "1")]
+        _1 = 0b00000100,
+        #[flags_value(name = "Limit transformations to 0.5 units step size.", nick = "0.5")]
+        _05 = 0b00000010,
+        #[flags_value(name = "Limit transformations to 0.1 units step size.", nick = "0.1")]
+        _01 = 0b00000001,
     }
 
     impl Precision {
         const ACTION_NAME: &str = GlyphEditView::PRECISION_ACTION;
+
+        pub fn as_str(&self) -> &'static str {
+            match *self {
+                Self::EMPTY => "",
+                v if v == Self::_1 => "1.",
+                v if v == Self::_05 => ".5",
+                v if v == Self::_01 => ".1",
+                other => unreachable!("{other:?}"),
+            }
+        }
     }
 
     #[derive(Default)]
@@ -599,5 +614,13 @@ pub mod constraints {
         }));
         obj.action_group.add_action(&clear_snap);
         obj.action_group.add_action(&snap);
+        {
+            let a = gio::PropertyAction::new(
+                GlyphEditView::PRECISION_ACTION,
+                obj,
+                GlyphEditView::PRECISION,
+            );
+            obj.action_group.add_action(&a);
+        }
     }
 }

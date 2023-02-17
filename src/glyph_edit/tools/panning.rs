@@ -1090,18 +1090,25 @@ impl PanningTool {
 
     pub fn move_action(&self, view: &GlyphEditView, direction: MoveDirection) {
         let mut m = Matrix::identity();
+        let step = match Precision::from_bits(view.property(GlyphEditView::PRECISION)) {
+            Some(v) if v == Precision::_1 => 1.0,
+            Some(v) if v == Precision::_05 => 0.5,
+            Some(v) if v == Precision::_01 => 0.1,
+            _ => 5.0,
+        };
+
         match direction {
             MoveDirection::Up => {
-                m.translate(0.0, 5.0);
+                m.translate(0.0, step);
             }
             MoveDirection::Down => {
-                m.translate(0.0, -5.0);
+                m.translate(0.0, -step);
             }
             MoveDirection::Right => {
-                m.translate(5.0, 0.0);
+                m.translate(step, 0.0);
             }
             MoveDirection::Left => {
-                m.translate(-5.0, 0.0);
+                m.translate(-step, 0.0);
             }
         }
         let glyph_state = view.glyph_state.get().unwrap().borrow();

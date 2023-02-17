@@ -69,6 +69,7 @@ pub struct GlyphEditViewInner {
     action_group: gio::SimpleActionGroup,
     lock: Cell<(Option<StatusBarMessage>, tools::constraints::Lock)>,
     snap: Cell<(Option<StatusBarMessage>, tools::constraints::Snap)>,
+    precision: Cell<(Option<StatusBarMessage>, tools::constraints::Precision)>,
     shortcuts: Rc<RefCell<Vec<ShortcutAction>>>,
     shortcut_status: gtk::Box,
 }
@@ -332,6 +333,15 @@ impl ObjectImpl for GlyphEditViewInner {
                         0,
                         ParamFlags::READWRITE,
                     ),
+                    glib::ParamSpecUInt::new(
+                        GlyphEditView::PRECISION,
+                        GlyphEditView::PRECISION,
+                        "Increase accuracy of transformations.",
+                        0,
+                        u32::MAX,
+                        0,
+                        ParamFlags::READWRITE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -375,6 +385,7 @@ impl ObjectImpl for GlyphEditViewInner {
             GlyphEditView::MENUBAR => Some(self.menubar.clone()).to_value(),
             GlyphEditView::LOCK => self.lock.get().1.bits().to_value(),
             GlyphEditView::SNAP => self.snap.get().1.bits().to_value(),
+            GlyphEditView::PRECISION => self.precision.get().1.bits().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -459,6 +470,25 @@ impl ObjectImpl for GlyphEditViewInner {
                         self.new_statusbar_message(v.as_str())
                     };
                     self.snap.set((new_msg, v));
+                    self.viewport.queue_draw();
+                }
+            }
+            GlyphEditView::PRECISION => {
+                if let Some(v) = value
+                    .get::<u32>()
+                    .ok()
+                    .and_then(tools::constraints::Precision::from_bits)
+                {
+                    let (msg, _) = self.precision.get();
+                    if msg.is_some() {
+                        self.pop_statusbar_message(msg);
+                    }
+                    let new_msg = if v.is_empty() {
+                        None
+                    } else {
+                        self.new_statusbar_message(v.as_str())
+                    };
+                    self.precision.set((new_msg, v));
                     self.viewport.queue_draw();
                 }
             }

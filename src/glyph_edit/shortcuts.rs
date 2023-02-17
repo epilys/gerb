@@ -19,13 +19,14 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::tools::{MoveDirection, SelectionAction};
+use super::tools::{constraints::Precision, MoveDirection, SelectionAction};
 use super::*;
 use gtk::gdk::keys::constants as keys;
 
 impl GlyphEditView {
     pub const LOCK: &str = "lock";
     pub const SNAP: &str = "snap";
+    pub const PRECISION: &str = "precision";
     pub const PREVIEW_ACTION: &str = Self::PREVIEW;
     pub const ZOOM_IN_ACTION: &str = "zoom.in";
     pub const ZOOM_OUT_ACTION: &str = "zoom.out";
@@ -34,7 +35,7 @@ impl GlyphEditView {
     pub const LOCK_Y_ACTION: &str = "lock.y";
     pub const LOCK_LOCAL_ACTION: &str = "lock.local";
     pub const LOCK_CONTROLS_ACTION: &str = "lock.controls";
-    pub const PRECISION_ACTION: &str = "precision";
+    pub const PRECISION_ACTION: &str = Self::PRECISION;
     pub const SNAP_ACTION: &str = Self::SNAP;
     pub const SNAP_CLEAR_ACTION: &str = "snap.clear";
     pub const SNAP_ANGLE_ACTION: &str = "snap.angle";
@@ -223,6 +224,22 @@ impl GlyphEditViewInner {
                     t.selection_action(&obj, action);
                 }));
                 obj.action_group.add_action(&a);
+            }
+            for (name, key, num) in [
+                ("precision 1", '!', Precision::EMPTY),
+                ("precision 3", '@', Precision::_1),
+                ("precision 4", '#', Precision::_05),
+                ("precision 5", '$', Precision::_01),
+            ] {
+                sh.push(ShortcutAction::new(
+                    name.into(),
+                    Shortcut::empty().shift().char(key),
+                    Box::new(move |group| {
+                        group.change_action_state(A::PRECISION_ACTION, &num.to_variant());
+                        true
+                    }),
+                    None,
+                ));
             }
 
             self.shortcut_status
