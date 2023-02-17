@@ -25,6 +25,7 @@ use gtk::cairo::Matrix;
 use gtk::Inhibit;
 use std::collections::HashSet;
 
+use crate::glyphs::Contour;
 use crate::prelude::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -224,7 +225,7 @@ impl ToolImplImpl for PanningToolInner {
                             .unwrap()
                             .downcast_ref::<Application>()
                             .unwrap();
-                        let undo_db = app.undo_db.borrow_mut();
+                        let undo_db = app.undo_db.borrow();
                         undo_db.event(action);
                     }
                 }
@@ -363,7 +364,7 @@ impl ToolImplImpl for PanningToolInner {
                             .add_button_cb(
                                 "Delete",
                                 clone!(@weak view as obj, @weak viewport =>  move |_| {
-                                    let glyph_state = obj.glyph_state.get().unwrap().borrow_mut();
+                                    let glyph_state = obj.glyph_state.get().unwrap().borrow();
                                     if glyph_state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
                                         let mut action = glyph_state.delete_guideline(i);
                                         (action.redo)();
@@ -507,18 +508,29 @@ impl ToolImplImpl for PanningToolInner {
                 self.set_default_cursor(&view);
             }
             _ if event_button == gtk::gdk::BUTTON_SECONDARY => {
-                let glyph_state = view.glyph_state.get().unwrap().borrow();
                 self.set_default_cursor(&view);
-                let glyph = glyph_state.glyph.borrow();
-                let UnitPoint(position) =
-                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
-                if let Some(((i, _), _curve)) = glyph.on_curve_query(position, &[]) {
+                let on_curve_query = {
+                    let glyph_state = view.glyph_state.get().unwrap().borrow();
+                    let glyph = glyph_state.glyph.borrow();
+                    let UnitPoint(position) =
+                        viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                    glyph.on_curve_query(position, &[])
+                };
+                if let Some(((i, _), _curve)) = on_curve_query {
                     crate::utils::menu::Menu::new()
                         .add_button_cb(
                             "reverse",
                             clone!(@strong view => move |_| {
-                                let glyph_state = view.glyph_state.get().unwrap().borrow_mut();
-                                glyph_state.glyph.borrow().contours[i].reverse_direction();
+                                let mut action = reverse_contour(&view, i);
+                                (action.redo)();
+                                let app: &Application = view
+                                    .app
+                                    .get()
+                                    .unwrap()
+                                    .downcast_ref::<Application>()
+                                    .unwrap();
+                                let undo_db = app.undo_db.borrow();
+                                undo_db.event(action);
                             }),
                         )
                         .popup(event.time());
@@ -1140,4 +1152,26 @@ fn snap_to_closest_anchor(
     }
     candidates.sort_by(|(_, a), (_, b)| a.total_cmp(b));
     candidates.get(0).map(|(p, _)| *p)
+}
+
+fn reverse_contour(view: &GlyphEditView, contour_index: usize) -> Action {
+    let contour: Contour = {
+        let glyph_state = view.glyph_state.get().unwrap().borrow();
+        let c = glyph_state.glyph.borrow().contours[contour_index].clone();
+        c
+    };
+    Action {
+        stamp: EventStamp {
+            t: std::any::TypeId::of::<GlyphEditView>(),
+            property: Contour::static_type().name(),
+            id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
+        },
+        compress: false,
+        redo: Box::new(clone!(@weak contour as contour  => move || {
+            contour.reverse_direction();
+        })),
+        undo: Box::new(clone!(@weak contour as contour  => move || {
+            contour.reverse_direction();
+        })),
+    }
 }
