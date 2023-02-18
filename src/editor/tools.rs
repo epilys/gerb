@@ -173,7 +173,7 @@ impl Tool {
         for t in [
             PanningTool::new().upcast::<ToolImpl>(),
             BezierTool::new().upcast::<ToolImpl>(),
-            BSplineTool::new().upcast::<ToolImpl>(),
+            //BSplineTool::new().upcast::<ToolImpl>(),
             QuadrilateralTool::new().upcast::<ToolImpl>(),
             EllipseTool::new().upcast::<ToolImpl>(),
             ImageTool::new(glyph, obj.project.get().unwrap().clone()).upcast::<ToolImpl>(),

@@ -560,6 +560,30 @@ impl ToolImplImpl for PanningToolInner {
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 self.set_default_cursor(&view);
             }
+            Mode::DragGuideline(idx) if event_button == gtk::gdk::BUTTON_PRIMARY => {
+                let event_position = event.position();
+                let ruler_breadth = viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
+                if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth {
+                    let mut action = view.state().borrow().delete_guideline(idx);
+                    (action.redo)();
+                    let app: &Application = view
+                        .app
+                        .get()
+                        .unwrap()
+                        .downcast_ref::<Application>()
+                        .unwrap();
+                    let undo_db = app.undo_db.borrow();
+                    undo_db.event(action);
+                    self.mode.set(Mode::None);
+                    view.hovering.set(None);
+                    viewport.queue_draw();
+                    self.instance()
+                        .set_property::<bool>(PanningTool::ACTIVE, false);
+                    self.set_default_cursor(&view);
+                    return Inhibit(true);
+                }
+                return Inhibit(false);
+            }
             _ if event_button == gtk::gdk::BUTTON_MIDDLE => {
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);

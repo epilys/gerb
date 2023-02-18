@@ -108,6 +108,7 @@ impl ObjectImpl for ChildInner {
                         .can_focus(true)
                         .halign(widget.halign())
                         .valign(widget.valign())
+                        .margin_start(10)
                         .build();
                     for prop in ["halign", "valign", "visible", "tooltip-text"] {
                         widget
