@@ -130,7 +130,7 @@ impl EditorInner {
             ));
             sh.push(ShortcutAction::new(
                 "snap grid".into(),
-                Shortcut::empty().char('G'),
+                Shortcut::empty().control().char('g'),
                 Box::new(|group| {
                     if group.is_action_enabled(A::SNAP_ACTION) {
                         group.activate_action(A::SNAP_GRID_ACTION, None);

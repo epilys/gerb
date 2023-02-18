@@ -944,6 +944,7 @@ impl ToolImplImpl for PanningToolInner {
             .build();
         self.layer.set(layer.clone()).unwrap();
         view.viewport.add_post_layer(layer);
+        self.setup_actions(view);
 
         self.parent_setup_toolbox(obj, toolbar, view)
     }
@@ -969,6 +970,62 @@ impl PanningToolInner {
             view.viewport.set_cursor("default");
         }
     }
+
+    fn setup_actions(&self, view: &Editor) {
+        let obj = self.instance();
+        let move_action = gio::SimpleAction::new(PanningTool::MOVE_ACTION, None);
+        move_action.connect_activate(glib::clone!(@weak view, @weak obj => move |_, _| {
+            let state = view.state().borrow();
+            match obj.imp().mode.get() {
+                Mode::None if !state.get_selection_set().is_empty() => {
+                    obj.set_property::<bool>(PanningTool::ACTIVE, true);
+                    obj.imp().mode.set(Mode::Drag);
+                    view.viewport.set_cursor("grab");
+                }
+                Mode::Drag | Mode::DragGuideline(_) => {
+                    obj.set_property::<bool>(PanningTool::ACTIVE, false);
+                    obj.imp().mode.set(Mode::Drag);
+                    view.viewport.set_cursor("grab");
+                }
+                _ => {}
+            }
+        }));
+        view.action_group.add_action(&move_action);
+        let scale_action = gio::SimpleAction::new(PanningTool::SCALE_ACTION, None);
+        scale_action.connect_activate(|_, _| {});
+        view.action_group.add_action(&scale_action);
+        let rotate_action = gio::SimpleAction::new(PanningTool::ROTATE_ACTION, None);
+        rotate_action.connect_activate(|_, _| {});
+        view.action_group.add_action(&rotate_action);
+        let mut sh = view.shortcuts.borrow_mut();
+        sh.push(ShortcutAction::new(
+            "move".into(),
+            Shortcut::empty().shift().char('G'),
+            Box::new(|group| {
+                group.activate_action(PanningTool::MOVE_ACTION, None);
+                true
+            }),
+            None,
+        ));
+        sh.push(ShortcutAction::new(
+            "scale".into(),
+            Shortcut::empty().shift().char('S'),
+            Box::new(|group| {
+                group.activate_action(PanningTool::SCALE_ACTION, None);
+                true
+            }),
+            None,
+        ));
+        sh.push(ShortcutAction::new(
+            "rotate".into(),
+            Shortcut::empty().shift().char('R'),
+            Box::new(|group| {
+                group.activate_action(PanningTool::ROTATE_ACTION, None);
+                true
+            }),
+            None,
+        ));
+    }
 }
 
 glib::wrapper! {
@@ -984,6 +1041,9 @@ impl Default for PanningTool {
 
 impl PanningTool {
     pub const ACTIVE: &str = "active";
+    pub const MOVE_ACTION: &str = "move.selection";
+    pub const SCALE_ACTION: &str = "scale.selection";
+    pub const ROTATE_ACTION: &str = "rotate.selection";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
