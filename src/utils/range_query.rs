@@ -1108,6 +1108,40 @@ impl KdTree {
     pub fn all(&self) -> Vec<GlyphPointIndex> {
         self.map.keys().cloned().collect()
     }
+
+    pub fn query_on_axis(
+        &self,
+        axis: Coordinate,
+        center: Point,
+        radius: f64,
+    ) -> Vec<GlyphPointIndex> {
+        match axis {
+            Coordinate::X => self
+                .map
+                .iter()
+                .filter_map(|(k, v)| {
+                    if (v.x - center.x).abs() <= radius {
+                        Some(k)
+                    } else {
+                        None
+                    }
+                })
+                .cloned()
+                .collect(),
+            Coordinate::Y => self
+                .map
+                .iter()
+                .filter_map(|(k, v)| {
+                    if (v.y - center.y).abs() <= radius {
+                        Some(k)
+                    } else {
+                        None
+                    }
+                })
+                .cloned()
+                .collect(),
+        }
+    }
 }
 
 #[allow(clippy::type_complexity)]

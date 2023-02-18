@@ -49,7 +49,6 @@ pub struct PanningToolInner {
     pub active: Cell<bool>,
     pub mode: Cell<Mode>,
     pub is_selection_empty: Cell<bool>,
-    pub is_selection_active: Cell<bool>,
     pub selection_upper_left: Cell<UnitPoint>,
     pub selection_bottom_right: Cell<UnitPoint>,
     cursor: OnceCell<Option<gtk::gdk_pixbuf::Pixbuf>>,
@@ -64,7 +63,6 @@ impl std::fmt::Debug for PanningToolInner {
             .field("mode", &self.mode.get())
             .field("active", &self.active.get())
             .field("is_selection_empty", &self.is_selection_empty.get())
-            .field("is_selection_active", &self.is_selection_active.get())
             .finish()
     }
 }
@@ -81,7 +79,6 @@ impl ObjectImpl for PanningToolInner {
         self.parent_constructed(obj);
         self.active.set(false);
         self.is_selection_empty.set(true);
-        self.is_selection_active.set(false);
         obj.set_property::<String>(ToolImpl::NAME, "Panning".to_string());
         obj.set_property::<gtk::Image>(
             ToolImpl::ICON,
@@ -358,7 +355,6 @@ impl ToolImplImpl for PanningToolInner {
                                 return Inhibit(true);
                             }
                         }
-                        self.is_selection_active.set(true);
                         self.is_selection_empty.set(true);
                         self.selection_upper_left.set(uposition);
                         self.selection_bottom_right.set(uposition);
@@ -374,19 +370,14 @@ impl ToolImplImpl for PanningToolInner {
                 }
             }
             Mode::Select if event_button == gtk::gdk::BUTTON_PRIMARY => {
-                if self.is_selection_active.get() {
-                    self.is_selection_empty.set(true);
-                } else {
-                    let event_position = event.position();
-                    let position = viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                    self.selection_upper_left.set(position);
-                    self.selection_bottom_right.set(position);
-                    self.is_selection_empty.set(true);
-                    self.is_selection_active.set(true);
-                    self.instance()
-                        .set_property::<bool>(PanningTool::ACTIVE, true);
-                    view.set_selection(&[], SelectionModifier::Replace);
-                }
+                let event_position = event.position();
+                let position = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                self.selection_upper_left.set(position);
+                self.selection_bottom_right.set(position);
+                self.is_selection_empty.set(true);
+                self.instance()
+                    .set_property::<bool>(PanningTool::ACTIVE, true);
+                view.set_selection(&[], SelectionModifier::Replace);
             }
             Mode::None if event_button == gtk::gdk::BUTTON_SECONDARY => {
                 let event_position = event.position();
@@ -434,7 +425,6 @@ impl ToolImplImpl for PanningToolInner {
                     }
                 }
                 self.is_selection_empty.set(true);
-                self.is_selection_active.set(false);
                 view.set_selection(&[], SelectionModifier::Replace);
 
                 self.instance()
@@ -444,7 +434,6 @@ impl ToolImplImpl for PanningToolInner {
             }
             Mode::Select if event_button == gtk::gdk::BUTTON_SECONDARY => {
                 self.is_selection_empty.set(true);
-                self.is_selection_active.set(false);
                 view.set_selection(&[], SelectionModifier::Replace);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -475,11 +464,10 @@ impl ToolImplImpl for PanningToolInner {
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         let mode = self.mode.get();
-        if mode == Mode::Select && self.is_selection_active.get() && self.is_selection_empty.get() {
+        if mode == Mode::Select && self.is_selection_empty.get() {
             let event_position = event.position();
             let upper_left = self.selection_upper_left.get();
             let bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
-            self.is_selection_active.set(false);
             self.instance()
                 .set_property::<bool>(PanningTool::ACTIVE, false);
             self.selection_bottom_right.set(bottom_right);
@@ -506,13 +494,10 @@ impl ToolImplImpl for PanningToolInner {
                 viewport.queue_draw();
                 self.set_default_cursor(&view);
             }
-            Mode::Select
-                if event_button == gtk::gdk::BUTTON_PRIMARY && self.is_selection_active.get() =>
-            {
+            Mode::Select if event_button == gtk::gdk::BUTTON_PRIMARY => {
                 let event_position = event.position();
                 let bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
                 self.selection_bottom_right.set(bottom_right);
-                self.is_selection_active.set(false);
                 self.is_selection_empty.set(true);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -890,15 +875,10 @@ impl ToolImplImpl for PanningToolInner {
                 } {
                     view.viewport.set_cursor_from_pixbuf(pixbuf);
                 }
-                return if self.is_selection_active.get() {
-                    let event_position = event.position();
-                    let bottom_right =
-                        viewport.view_to_unit_point(ViewPoint(event_position.into()));
-                    self.selection_bottom_right.set(bottom_right);
-                    Inhibit(true)
-                } else {
-                    Inhibit(false)
-                };
+                let event_position = event.position();
+                let bottom_right = viewport.view_to_unit_point(ViewPoint(event_position.into()));
+                self.selection_bottom_right.set(bottom_right);
+                return Inhibit(true);
             }
             Mode::ResizeDimensions { previous_value: _ } => {
                 let mouse: ViewPoint = viewport.get_mouse();
@@ -1058,15 +1038,16 @@ impl PanningTool {
         if !t.imp().active.get()
             || !matches!(
                 t.imp().mode.get(),
-                Mode::Select | Mode::ResizeDimensions { .. }
+                Mode::Select | Mode::ResizeDimensions { .. } | Mode::Drag
             )
         {
             return Inhibit(false);
         }
         let resize = matches!(t.imp().mode.get(), Mode::ResizeDimensions { .. });
-        let active = t.imp().is_selection_active.get();
+        let select = matches!(t.imp().mode.get(), Mode::Select);
+        let drag = matches!(t.imp().mode.get(), Mode::Drag);
         let empty = t.imp().is_selection_empty.get();
-        if empty && !active && !resize {
+        if empty && !select && !drag && !resize {
             return Inhibit(false);
         }
 
@@ -1081,11 +1062,11 @@ impl PanningTool {
          * the matrix transformation */
         let f = 1.0 / (scale * ppu);
 
-        let line_width = if active { 1.0 } else { 0.5 } * f;
+        let line_width = if select { 1.0 } else { 0.5 } * f;
 
         let matrix = viewport.transformation.matrix();
 
-        let cr1 = cr.push();
+        let mut cr1 = cr.push();
 
         cr1.set_line_width(line_width);
         cr1.transform(matrix);
@@ -1181,6 +1162,56 @@ impl PanningTool {
             return Inhibit(true);
         }
 
+        if drag {
+            let cr2 = cr1.push();
+            cr2.set_source_color(Color::BLACK);
+            cr2.set_line_width(3.0);
+            cr2.set_dash(&[2.0 * f, 2.0 * f], 0.5 * f);
+            let selection = state.get_selection();
+            let contours = &state.glyph.borrow().contours;
+            let points = selection
+                .iter()
+                .map(|g| contours[g.contour_index].get_point(*g).unwrap())
+                .collect::<Vec<Point>>();
+            let kd = state.kd_tree.borrow();
+            let mut x_set =
+                HashSet::<i64>::from_iter(points.iter().map(|pos| pos.x.round() as i64));
+            let mut y_set =
+                HashSet::<i64>::from_iter(points.iter().map(|pos| pos.y.round() as i64));
+            for pos in points {
+                let query_x = kd.query_on_axis(Coordinate::X, pos, 1.0);
+                let query_y = kd.query_on_axis(Coordinate::Y, pos, 1.0);
+
+                for (p, ax) in query_x
+                    .into_iter()
+                    .map(|p| (p, Coordinate::X))
+                    .chain(query_y.into_iter().map(|p| (p, Coordinate::Y)))
+                {
+                    let p = contours[p.contour_index].get_point(p).unwrap();
+
+                    match ax {
+                        Coordinate::X => {
+                            if x_set.contains(&(p.x.round() as i64)) {
+                                continue;
+                            }
+                            x_set.insert(p.x.round() as i64);
+                        }
+                        Coordinate::Y => {
+                            if y_set.contains(&(p.y.round() as i64)) {
+                                continue;
+                            }
+                            y_set.insert(p.y.round() as i64);
+                        }
+                    }
+
+                    cr2.move_to(pos.x, pos.y);
+                    cr2.line_to(p.x, p.y);
+                    cr2.stroke().unwrap();
+                }
+            }
+            return Inhibit(true);
+        }
+
         let UnitPoint(upper_left) = t.imp().selection_upper_left.get();
         let UnitPoint(bottom_right) = t.imp().selection_bottom_right.get();
         let (width, height) = ((bottom_right - upper_left).x, (bottom_right - upper_left).y);
@@ -1190,7 +1221,7 @@ impl PanningTool {
 
         cr1.set_source_rgba(0.0, 0.0, 0.0, 0.9);
         cr1.rectangle(upper_left.x, upper_left.y, width, height);
-        if active {
+        if select {
             cr1.stroke_preserve().unwrap();
             // turqoise, #278cac
             cr1.set_source_rgba(39.0 / 255.0, 140.0 / 255.0, 172.0 / 255.0, 0.1);
@@ -1200,7 +1231,7 @@ impl PanningTool {
         }
         drop(cr1);
 
-        if !active {
+        if !select {
             let rectangle_dim = 5.0 * f;
 
             let cr2 = cr.push();

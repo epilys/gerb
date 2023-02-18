@@ -42,13 +42,14 @@ pub mod prelude {
     pub use app::Settings;
     pub use app::*;
     pub use editor::*;
-    pub use glyphs::Glyph;
+    pub use glyphs::{Glyph, GlyphPointIndex};
     pub use gtk::prelude::*;
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
     pub use indexmap::{IndexMap, IndexSet};
     pub use project::Project;
     pub use utils::colors::*;
     pub use utils::points::*;
+    pub use utils::range_query::Coordinate;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
     pub use utils::UI_EDITABLE;
     pub use utils::{ContextExt, ContextRef};
@@ -65,6 +66,7 @@ pub mod prelude {
     pub use std::borrow::Cow;
     pub use std::cell::RefCell;
     pub use std::cell::{Cell, Ref, RefMut};
+    pub use std::collections::HashSet;
     pub use std::rc::Rc;
 
     pub use once_cell::sync::{Lazy, OnceCell};

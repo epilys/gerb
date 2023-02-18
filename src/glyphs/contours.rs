@@ -389,6 +389,26 @@ impl Contour {
         }
         updated_points
     }
+
+    pub fn get_point(
+        &self,
+        GlyphPointIndex {
+            contour_index: _,
+            curve_index,
+            uuid,
+        }: GlyphPointIndex,
+    ) -> Option<Point> {
+        Some(
+            self.curves()
+                .borrow()
+                .get(curve_index)?
+                .points()
+                .borrow()
+                .iter()
+                .find(|cp| cp.uuid == uuid)?
+                .position,
+        )
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
