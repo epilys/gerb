@@ -35,6 +35,14 @@ impl Default for Contour {
     }
 }
 
+impl std::ops::Deref for Contour {
+    type Target = ContourInner;
+
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 impl Contour {
     pub const OPEN: &str = "open";
     pub const CONTINUITIES: &str = "continuities";
@@ -62,7 +70,7 @@ impl Contour {
             return;
         }
         let new_len = curve.approx_length();
-        if let Some(mut b) = self
+        if let Some(b) = self
             .imp()
             .biggest_curve
             .get()
@@ -74,10 +82,9 @@ impl Contour {
             .or(Some(BiggestCurve {
                 index: curves.len(),
                 approx_length: new_len,
-                is_contour_modified: false,
             }))
         {
-            b.is_contour_modified = false;
+            self.imp().is_contour_modified.set(false);
             self.imp().biggest_curve.set(Some(b));
         }
 
@@ -171,15 +178,8 @@ impl Contour {
         idxs_slice: &[GlyphPointIndex],
         m: Matrix,
     ) -> Vec<(GlyphPointIndex, Point)> {
-        if let Some(
-            mut b @ BiggestCurve {
-                is_contour_modified: false,
-                ..
-            },
-        ) = self.imp().biggest_curve.get()
-        {
-            b.is_contour_modified = true;
-            self.imp().biggest_curve.set(Some(b));
+        if !self.is_contour_modified.get() {
+            self.is_contour_modified.set(true);
         }
 
         let uuids = idxs_slice
@@ -415,7 +415,6 @@ impl Contour {
 struct BiggestCurve {
     index: usize,
     approx_length: f64,
-    is_contour_modified: bool,
 }
 
 #[derive(Default)]
@@ -424,6 +423,7 @@ pub struct ContourInner {
     pub curves: RefCell<Vec<Bezier>>,
     pub continuities: RefCell<Vec<Continuity>>,
     biggest_curve: Cell<Option<BiggestCurve>>,
+    pub is_contour_modified: Cell<bool>,
 }
 
 impl std::fmt::Debug for ContourInner {
@@ -504,19 +504,19 @@ impl ObjectImpl for ContourInner {
             }
             Contour::OPEN => self.open.get().to_value(),
             Contour::BIGGEST_CURVE => {
-                let prev = match self.biggest_curve.get() {
-                    Some(BiggestCurve {
-                        index: ret,
-                        is_contour_modified: false,
-                        ..
-                    }) => return (ret as u64).to_value(),
-                    Some(BiggestCurve {
-                        index: ret,
-                        approx_length: d,
-                        is_contour_modified: true,
-                        ..
-                    }) => Some((ret, d)),
-                    None => None,
+                let prev = match (self.is_contour_modified.get(), self.biggest_curve.get()) {
+                    (false, Some(BiggestCurve { index: ret, .. })) => {
+                        return (ret as u64).to_value()
+                    }
+                    (
+                        true,
+                        Some(BiggestCurve {
+                            index: ret,
+                            approx_length: d,
+                            ..
+                        }),
+                    ) => Some((ret, d)),
+                    (_, None) => None,
                 };
                 let curves = self.curves.borrow();
                 let ret = curves
@@ -535,15 +535,15 @@ impl ObjectImpl for ContourInner {
                     self.biggest_curve.set(Some(BiggestCurve {
                         index: ret,
                         approx_length: d,
-                        is_contour_modified: false,
                     }));
+                    self.is_contour_modified.set(false);
                     return (ret as u64).to_value();
                 }
                 self.biggest_curve.set(Some(BiggestCurve {
                     index: ret.0,
                     approx_length: ret.1,
-                    is_contour_modified: false,
                 }));
+                self.is_contour_modified.set(false);
                 (ret.0 as u64).to_value()
             }
             _ => unimplemented!("{}", pspec.name()),

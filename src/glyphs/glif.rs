@@ -403,6 +403,7 @@ impl Iterator for GlifIterator {
                 if !open {
                     super_.close();
                 }
+                super_.is_contour_modified.set(true);
                 ret.contours.push(super_);
             }
         }
