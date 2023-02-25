@@ -25,7 +25,7 @@ use std::hash::Hash;
 #[derive(Clone, Debug, PartialEq, Eq, Copy, Hash, glib::Boxed)]
 #[boxed_type(name = "Color", nullable)]
 #[repr(transparent)]
-pub struct Color((u8, u8, u8, u8));
+pub struct Color(pub(crate) (u8, u8, u8, u8));
 
 impl Color {
     // Constants re-exports
@@ -71,6 +71,26 @@ impl Color {
 
     pub const fn from_hex(s: &str) -> Self {
         Self(hex(s))
+    }
+
+    #[inline(always)]
+    pub fn red(&self) -> u8 {
+        (self.0).0
+    }
+
+    #[inline(always)]
+    pub fn green(&self) -> u8 {
+        (self.0).1
+    }
+
+    #[inline(always)]
+    pub fn blue(&self) -> u8 {
+        (self.0).2
+    }
+
+    #[inline(always)]
+    pub fn alpha(&self) -> u8 {
+        (self.0).3
     }
 }
 

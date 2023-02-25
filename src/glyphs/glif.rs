@@ -25,13 +25,51 @@ extern crate serde;
 use crate::glib::ObjectExt;
 use crate::unicode::names::CharName;
 use crate::utils::colors::Color;
-use serde::Deserialize;
+use serde::ser::Serializer;
+use serde::{Deserialize, Serialize};
+
+fn color_serialize<S>(v: &Option<Color>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match *v {
+        Some(Color((r, g, b, a))) => {
+            let (r, g, b, a) = (
+                r as f64 / 255.0,
+                g as f64 / 255.0,
+                b as f64 / 255.0,
+                a as f64 / 255.0,
+            );
+            let cl = move |v: f64| {
+                if v == 0.0 || v == 1.0 {
+                    format!("{:.0}", v)
+                } else {
+                    format!("{:.2}", v)
+                }
+            };
+            serializer.serialize_str(&format!("{},{},{},{}", cl(r), cl(g), cl(b), cl(a)))
+        }
+        None => serializer.serialize_str("0,0,0,0"),
+    }
+}
 
 const fn f64_one_val() -> f64 {
     1.0
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+fn f64_is_zero(val: &f64) -> bool {
+    *val == 0.0
+}
+
+fn f64_is_one(val: &f64) -> bool {
+    *val == 1.0
+}
+
+fn pointkind_is_default(val: &PointKind) -> bool {
+    *val == PointKind::Offcurve
+}
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum PointKind {
     /// A point of this type MUST be the first in a contour. The reverse is not true: a contour does not necessarily start with a move point. When a contour does start with a move point, it signifies the beginning of an open contour. A closed contour does not start with a move and is defined as a cyclic list of points, with no predominant start point. There is always a next point and a previous point. For this purpose the list of points can be seen as endless in both directions. The actual list of points can be rotated arbitrarily (by removing the first N points and appending them at the end) while still describing the same outline.
@@ -52,13 +90,58 @@ impl Default for PointKind {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+fn smooth_deserialize<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    String::deserialize(deserializer).and_then(|s| {
+        if s == "yes" {
+            Ok(Some(true))
+        } else if s == "no" {
+            Ok(Some(false))
+        } else {
+            Err(Error::custom(format!(
+                "Invalid smooth value: expected either `yes` or `no`, got `{s}`"
+            )))
+        }
+    })
+}
+
+fn smooth_serialize<S>(s: &Option<bool>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    match s.as_ref() {
+        Some(true) => serializer.serialize_str("yes"),
+        None | Some(false) => serializer.serialize_str("no"),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "point")]
 struct Point {
+    #[serde(rename = "@x")]
     x: f64,
+    #[serde(rename = "@y")]
     y: f64,
-    #[serde(rename = "type", default)]
+    #[serde(default)]
+    #[serde(rename = "@name")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(default)]
+    #[serde(rename = "@identifier")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identifier: Option<String>,
+    #[serde(rename = "@type", default)]
+    #[serde(skip_serializing_if = "pointkind_is_default")]
     type_: PointKind,
-    smooth: Option<String>,
+    #[serde(rename = "@smooth")]
+    #[serde(default)]
+    #[serde(serialize_with = "smooth_serialize")]
+    #[serde(deserialize_with = "smooth_deserialize")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    smooth: Option<bool>,
 }
 
 impl Point {
@@ -66,17 +149,6 @@ impl Point {
     fn is_curve(&self) -> bool {
         matches!(self.type_, PointKind::Curve)
     }
-
-    /*
-    #[inline(always)]
-    fn is_offcurve(&self) -> bool {
-        if let PointKind::Offcurve = self.type_ {
-            true
-        } else {
-            false
-        }
-    }
-    */
 
     #[inline(always)]
     fn is_move(&self) -> bool {
@@ -89,117 +161,184 @@ impl Point {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "contour")]
 struct Contour {
-    #[serde(rename = "$value", default)]
+    #[serde(default)]
+    #[serde(rename = "@identifier")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    identifier: Option<String>,
+    #[serde(default)]
     point: Vec<Point>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct Component {
+    #[serde(rename = "@base")]
     base: String,
+    #[serde(rename = "@xOffset")]
     #[serde(default)]
     x_offset: f64,
     #[serde(default)]
+    #[serde(rename = "@yOffset")]
     y_offset: f64,
-    #[serde(default = "one_fn")]
+    #[serde(default = "f64_one_val")]
+    #[serde(rename = "@xScale")]
     x_scale: f64,
     #[serde(default)]
+    #[serde(rename = "@xyScale")]
     xy_scale: f64,
     #[serde(default)]
+    #[serde(rename = "@yxScale")]
     yx_scale: f64,
-    #[serde(default = "one_fn")]
+    #[serde(default = "f64_one_val")]
+    #[serde(rename = "@yScale")]
     y_scale: f64,
 }
 
-const fn one_fn() -> f64 {
-    1.0
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 enum OutlineEntry {
     Contour(Contour),
     Component(Component),
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Anchor {
+    #[serde(rename = "@name")]
     name: String,
+    #[serde(rename = "@x")]
     x: f64,
+    #[serde(rename = "@y")]
     y: f64,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Guideline {
     #[serde(default)]
+    #[serde(rename = "@name")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
     #[serde(default)]
+    #[serde(rename = "@identifier")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     identifier: Option<String>,
     #[serde(default)]
+    #[serde(rename = "@color")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "color_serialize")]
     color: Option<Color>,
     #[serde(default)]
+    #[serde(rename = "@angle")]
     angle: f64,
     #[serde(default)]
+    #[serde(rename = "@x")]
     x: f64,
     #[serde(default)]
+    #[serde(rename = "@y")]
     y: f64,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Outline {
-    #[serde(rename = "$value", default)]
+    #[serde(default)]
+    #[serde(rename = "$value")]
     contours: Vec<OutlineEntry>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", rename = "unicode")]
 struct Unicode {
+    #[serde(rename = "@hex")]
     hex: String,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 struct Advance {
+    #[serde(rename = "@width")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "f64_is_zero")]
     width: f64,
+    #[serde(rename = "@height")]
+    #[serde(default)]
+    #[serde(skip_serializing_if = "f64_is_zero")]
+    height: f64,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Default)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "camelCase", rename = "image")]
 pub struct ImageRef {
     #[serde(default)]
+    #[serde(rename = "@fileName")]
     pub file_name: Option<String>,
     #[serde(default = "f64_one_val")]
+    #[serde(rename = "@xScale")]
+    #[serde(skip_serializing_if = "f64_is_one")]
     pub x_scale: f64,
     #[serde(default)]
+    #[serde(rename = "@xyScale")]
+    #[serde(skip_serializing_if = "f64_is_zero")]
     pub xy_scale: f64,
     #[serde(default)]
+    #[serde(rename = "@yxScale")]
+    #[serde(skip_serializing_if = "f64_is_zero")]
     pub yx_scale: f64,
     #[serde(default = "f64_one_val")]
+    #[serde(rename = "@yScale")]
+    #[serde(skip_serializing_if = "f64_is_one")]
     pub y_scale: f64,
     #[serde(default)]
+    #[serde(rename = "@xScale")]
+    #[serde(skip_serializing_if = "f64_is_zero")]
     pub x_offset: f64,
     #[serde(default)]
+    #[serde(rename = "@yScale")]
+    #[serde(skip_serializing_if = "f64_is_zero")]
     pub y_offset: f64,
     #[serde(default)]
+    #[serde(rename = "@color")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(serialize_with = "color_serialize")]
     pub color: Option<Color>,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename = "glyph")]
 pub struct Glif {
+    #[serde(rename = "@name")]
     name: String,
+    #[serde(rename = "@format")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     format: Option<String>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     unicode: Vec<Unicode>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     image: Option<ImageRef>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     advance: Option<Advance>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     outline: Option<Outline>,
     #[serde(rename = "anchor", default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     anchors: Vec<Anchor>,
     #[serde(rename = "guideline", default)]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     guidelines: Vec<Guideline>,
+}
+
+impl Glif {
+    #[allow(dead_code)]
+    pub fn to_xml(&self) -> String {
+        format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}",
+            quick_xml::se::to_string(&self).unwrap(),
+        )
+    }
 }
 
 pub struct GlifIterator {
@@ -318,8 +457,6 @@ impl Iterator for GlifIterator {
                     last_oncurve = (first_point.x, first_point.y);
                     // Closed contour
                     while points.front().unwrap().is_curve() {
-                        //let Point { x, y, .. } = points.front().unwrap();
-                        //c.push((*x, *y));
                         points.rotate_left(1);
                     }
                     let last_point = points.back().unwrap();
@@ -358,7 +495,7 @@ impl Iterator for GlifIterator {
                             c.push(prev_point);
                             c.insert(0, last_oncurve);
                             let curv = Bezier::new(c.into_iter().map(Into::into).collect());
-                            if smooth.as_ref().map(|s| s == "yes") == Some(true) {
+                            if *smooth == Some(true) {
                                 curv.set_property(Bezier::SMOOTH, true);
                             }
                             super_.push_curve(curv);
@@ -429,9 +566,16 @@ impl Default for Glif {
 #[test]
 fn test_glif_parse() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
-    println!("{:#?}", g);
-    let g: super::Glyph = g.into_iter().next().unwrap();
-    println!("\n\n{:#?}", g);
+    let _: super::Glyph = g.into_iter().next().unwrap();
+}
+
+#[test]
+fn test_glif_write() {
+    let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
+    let _: super::Glyph = g.into_iter().next().unwrap();
+    let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
+    let g2: Glif = quick_xml::de::from_str(&g.to_xml()).unwrap();
+    assert_eq!(g.to_xml(), g2.to_xml());
 }
 
 const _LOWERCASE_B_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
