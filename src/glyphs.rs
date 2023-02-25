@@ -27,7 +27,6 @@ use std::path::Path;
 use std::rc::{Rc, Weak};
 
 use crate::ufo;
-use crate::unicode::names::CharName;
 use crate::utils::{curves::*, *};
 
 use gtk::cairo::Matrix;
@@ -38,7 +37,7 @@ mod guidelines;
 pub use guidelines::*;
 
 mod glif;
-pub use glif::ImageRef;
+pub use glif::{Advance, Anchor, ImageRef, Unicode};
 
 mod contours;
 pub use contours::*;
@@ -58,30 +57,34 @@ pub struct Component {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GlyphKind {
     Char(char),
-    Component,
+    Component(String),
 }
 
 #[derive(Debug, Clone)]
 pub struct Glyph {
     pub name: Cow<'static, str>,
-    pub name2: Option<crate::unicode::names::Name>,
-    pub kind: GlyphKind,
+    pub kinds: (GlyphKind, Vec<GlyphKind>),
+    pub filename: String,
     pub image: Option<ImageRef>,
+    pub unicode: Vec<Unicode>,
+    pub advance: Option<Advance>,
+    pub anchors: Vec<Anchor>,
     pub width: Option<f64>,
     pub contours: Vec<Contour>,
     pub components: Vec<Component>,
     pub guidelines: Vec<Guideline>,
     pub glif_source: String,
+    //pub lib: Option<plist::Dictionary>,
 }
 
 impl Ord for Glyph {
     fn cmp(&self, other: &Self) -> Ordering {
         use GlyphKind::*;
-        match (&self.kind, &other.kind) {
+        match (&self.kinds.0, &other.kinds.0) {
             (Char(s), Char(o)) => s.cmp(o),
             (Char(_), _) => Ordering::Less,
-            (Component, Component) => self.name.cmp(&other.name),
-            (Component, Char(_)) => Ordering::Greater,
+            (Component(ref name), Component(ref other_name)) => name.cmp(other_name),
+            (Component(_), Char(_)) => Ordering::Greater,
         }
     }
 }
@@ -95,10 +98,10 @@ impl PartialOrd for Glyph {
 impl PartialEq for Glyph {
     fn eq(&self, other: &Self) -> bool {
         use GlyphKind::*;
-        match (&self.kind, &other.kind) {
+        match (&self.kinds.0, &other.kinds.0) {
             (Char(s), Char(o)) => s == o,
-            (Char(_), Component) | (Component, Char(_)) => false,
-            (Component, Component) => self.name == other.name,
+            (Char(_), Component(_)) | (Component(_), Char(_)) => false,
+            (Component(name), Component(other_name)) => name == other_name,
         }
     }
 }
@@ -179,15 +182,15 @@ impl Glyph {
                     eprintln!("couldn't parse {}: {}", path.display(), err);
                 }
                 Ok(g) => {
-                    for mut g in g.into_iter() {
-                        g.glif_source = s.clone();
-                        let has_components = !g.components.is_empty();
-                        let g = Rc::new(RefCell::new(g));
-                        if has_components {
-                            glyphs_with_refs.push(g.clone());
-                        }
-                        ret.insert(name.into(), g);
+                    let mut glyph: Glyph = g.into();
+                    glyph.filename = filename.to_string();
+                    glyph.glif_source = s;
+                    let has_components = !glyph.components.is_empty();
+                    let glyph = Rc::new(RefCell::new(glyph));
+                    if has_components {
+                        glyphs_with_refs.push(glyph.clone());
                     }
+                    ret.insert(name.into(), glyph);
                 }
             }
             path.pop();
@@ -209,14 +212,18 @@ impl Glyph {
         *contour.imp().curves.borrow_mut() = curves;
         Glyph {
             name: name.into(),
-            name2: char.char_name(),
-            kind: GlyphKind::Char(char),
+            filename: String::new(),
+            kinds: (GlyphKind::Char(char), vec![]),
             image: None,
+            unicode: vec![],
+            advance: None,
+            anchors: vec![],
             contours: vec![contour],
             components: vec![],
             guidelines: vec![],
             width: None,
             glif_source: String::new(),
+            //lib: None,
         }
     }
 
@@ -245,7 +252,6 @@ impl Glyph {
         let mut cr1 = cr.push();
         cr1.transform(matrix);
         cr1.set_line_width(outline.size);
-        //cr1.transform(Matrix::new(1.0, 0., 0., -1.0, 0., units_per_em.abs()));
         cr1.set_source_color_alpha(outline.color);
         let mut pen_position: Option<Point> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
@@ -666,27 +672,16 @@ impl Glyph {
     }
 
     pub fn name_markup(&self) -> gtk::glib::GString {
-        match self.kind {
+        match self.kinds.0 {
             GlyphKind::Char(c) => {
                 let mut b = [0; 4];
                 gtk::glib::markup_escape_text(c.encode_utf8(&mut b).replace('\0', "").trim())
             }
-            GlyphKind::Component => {
-                gtk::glib::markup_escape_text(self.name.as_ref().replace('\0', "").trim())
+            GlyphKind::Component(ref name) => {
+                gtk::glib::markup_escape_text(name.as_str().replace('\0', "").trim())
             }
         }
     }
-
-    /*
-    pub fn points(&self) -> Vec<Point> {
-        self.contours
-            .clone()
-            .into_iter()
-            .map(|v| v.curves.into_iter().map(|b| b.points.into_iter()).flatten())
-            .flatten()
-            .collect::<Vec<Point>>()
-    }
-    */
 
     pub fn on_curve_query(
         &self,
@@ -714,6 +709,22 @@ impl Glyph {
             }
         }
         None
+    }
+
+    pub fn save(&self, prefix: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs::OpenOptions;
+        use std::io::Write;
+
+        let glif: glif::Glif = self.into();
+        let path = prefix.join(&self.filename);
+        let mut file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&path)?;
+        file.write_all(glif.to_xml().as_bytes())?;
+        Ok(())
     }
 }
 

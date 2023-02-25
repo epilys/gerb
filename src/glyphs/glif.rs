@@ -23,10 +23,11 @@ extern crate quick_xml;
 extern crate serde;
 
 use crate::glib::ObjectExt;
-use crate::unicode::names::CharName;
 use crate::utils::colors::Color;
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
+
+use glib::subclass::types::ObjectSubclassIsExt;
 
 fn color_serialize<S>(v: &Option<Color>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -205,7 +206,7 @@ enum OutlineEntry {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-struct Anchor {
+pub struct Anchor {
     #[serde(rename = "@name")]
     name: String,
     #[serde(rename = "@x")]
@@ -240,6 +241,19 @@ struct Guideline {
     y: f64,
 }
 
+impl From<&super::guidelines::Guideline> for Guideline {
+    fn from(g: &super::guidelines::Guideline) -> Guideline {
+        Guideline {
+            name: g.imp().name.borrow().clone(),
+            identifier: g.imp().identifier.borrow().clone(),
+            color: g.imp().color.get(),
+            angle: g.imp().angle.get(),
+            x: g.imp().x.get(),
+            y: g.imp().y.get(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Outline {
     #[serde(default)]
@@ -247,15 +261,15 @@ struct Outline {
     contours: Vec<OutlineEntry>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", rename = "unicode")]
-struct Unicode {
+pub struct Unicode {
     #[serde(rename = "@hex")]
     hex: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-struct Advance {
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct Advance {
     #[serde(rename = "@width")]
     #[serde(default)]
     #[serde(skip_serializing_if = "f64_is_zero")]
@@ -329,63 +343,78 @@ pub struct Glif {
     #[serde(rename = "guideline", default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     guidelines: Vec<Guideline>,
+    //#[serde(
+    //    rename = "lib",
+    //    default,
+    //    serialize_with = "plist_serialize",
+    //    deserialize_with = "plist_deserialize",
+    //    skip_serializing_if = "Option::is_none"
+    //)]
+    //lib: Option<plist::Dictionary>,
 }
+
+//fn plist_deserialize<'de, D>(deserializer: D) -> Result<Option<plist::Dictionary>, D::Error>
+//where
+//    D: serde::Deserializer<'de>,
+//{
+//    let dict = plist::Dictionary::deserialize(deserializer)?;
+//    if dict.is_empty() {
+//        Ok(None)
+//    } else {
+//        Ok(Some(dict))
+//    }
+//}
+//
+//fn plist_serialize<S>(s: &Option<plist::Dictionary>, serializer: S) -> Result<S::Ok, S::Error>
+//where
+//    S: Serializer,
+//{
+//    match s.as_ref() {
+//        Some(dict) => dict.serialize(serializer),
+//        None => serializer.serialize_str(""),
+//    }
+//}
 
 impl Glif {
     #[allow(dead_code)]
     pub fn to_xml(&self) -> String {
         format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}",
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}\n",
             quick_xml::se::to_string(&self).unwrap(),
         )
     }
 }
 
-pub struct GlifIterator {
-    glif: Glif,
-    kinds: Vec<(super::GlyphKind, Option<crate::unicode::names::Name>)>,
-}
-
-impl IntoIterator for Glif {
-    type Item = super::Glyph;
-    type IntoIter = GlifIterator;
-
-    fn into_iter(mut self) -> Self::IntoIter {
-        let unicodes = std::mem::take(&mut self.unicode);
-
-        let kinds = if unicodes.is_empty() {
-            vec![(super::GlyphKind::Component, None)]
-        } else {
-            unicodes
-                .into_iter()
-                .filter_map(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
-                .filter_map(|n| n.try_into().ok())
-                .map(|val| (super::GlyphKind::Char(val), val.char_name()))
-                .collect::<Vec<_>>()
-        };
-        GlifIterator { glif: self, kinds }
-    }
-}
-
-impl Iterator for GlifIterator {
-    type Item = super::Glyph;
-
-    fn next(&mut self) -> Option<Self::Item> {
+impl From<Glif> for super::Glyph {
+    fn from(val: Glif) -> super::Glyph {
         use super::{Bezier, Glyph};
-        let (kind, name2) = self.kinds.pop()?;
         let Glif {
             name,
             outline,
             advance,
             image,
-            anchors: _,
+            anchors,
             guidelines,
-            ..
-        } = self.glif.clone();
+            unicode,
+            format: _,
+            //lib,
+        } = val;
+
+        let kinds = if unicode.is_empty() {
+            (super::GlyphKind::Component(name.clone()), vec![])
+        } else {
+            let mut iter = unicode
+                .iter()
+                .filter_map(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
+                .filter_map(|n| n.try_into().ok())
+                .map(super::GlyphKind::Char);
+            let first = iter.next().unwrap();
+            (first, iter.collect::<Vec<_>>())
+        };
         let mut ret = Glyph {
             name: name.into(),
-            name2,
-            kind,
+            filename: String::new(),
+            kinds,
             image,
             width: advance.map(|a| a.width),
             contours: vec![],
@@ -403,7 +432,11 @@ impl Iterator for GlifIterator {
                         .build()
                 })
                 .collect::<Vec<_>>(),
+            unicode,
+            advance,
+            anchors,
             glif_source: String::new(),
+            //lib,
         };
 
         if let Some(outline) = outline {
@@ -545,7 +578,109 @@ impl Iterator for GlifIterator {
             }
         }
 
-        Some(ret)
+        ret
+    }
+}
+
+impl From<&super::Glyph> for Glif {
+    fn from(glyph: &super::Glyph) -> Glif {
+        let mut outline: Vec<OutlineEntry> =
+            Vec::with_capacity(glyph.components.len() + glyph.contours.len());
+        outline.extend(glyph.components.iter().map(|c| {
+            OutlineEntry::Component(Component {
+                base: c.base_name.clone(),
+                x_offset: c.x_offset,
+                y_offset: c.y_offset,
+                x_scale: c.x_scale,
+                xy_scale: c.xy_scale,
+                yx_scale: c.yx_scale,
+                y_scale: c.y_scale,
+            })
+        }));
+        outline.extend(glyph.contours.iter().map(|c| {
+            let mut point = vec![];
+            if c.imp().open.get() {
+                let mut first = true;
+                for curv in c.curves().borrow().iter() {
+                    let degree = curv.degree();
+                    point.extend(
+                        curv.points()
+                            .borrow()
+                            .iter()
+                            .enumerate()
+                            .map(|(i, cp)| Point {
+                                x: cp.position.x,
+                                y: cp.position.y,
+                                name: None,
+                                identifier: None,
+                                type_: if first {
+                                    first = false;
+                                    PointKind::Move
+                                } else {
+                                    match (i, degree) {
+                                        (0 | 3, Some(3)) => PointKind::Curve,
+                                        (1 | 2, Some(3)) => PointKind::Offcurve,
+                                        (0 | 2, Some(2)) => PointKind::Curve,
+                                        (1, Some(2)) => PointKind::Qcurve,
+                                        (0 | 1, Some(1)) => PointKind::Line,
+                                        _ => PointKind::Move,
+                                    }
+                                },
+                                smooth: None,
+                            }),
+                    );
+                }
+            } else {
+                let mut last = false;
+                for curv in c.curves().borrow().iter() {
+                    let degree = curv.degree();
+                    point.extend(curv.points().borrow().iter().enumerate().filter_map(
+                        |(i, cp)| {
+                            if last {
+                                last = false;
+                                None
+                            } else {
+                                if Some(i + 1) == degree {
+                                    last = true;
+                                }
+
+                                Some(Point {
+                                    x: cp.position.x,
+                                    y: cp.position.y,
+                                    name: None,
+                                    identifier: None,
+                                    type_: match (i, degree) {
+                                        (0 | 3, Some(3)) => PointKind::Curve,
+                                        (1 | 2, Some(3)) => PointKind::Offcurve,
+                                        (0 | 2, Some(2)) => PointKind::Curve,
+                                        (1, Some(2)) => PointKind::Qcurve,
+                                        (0 | 1, Some(1)) => PointKind::Line,
+                                        _ => PointKind::Move,
+                                    },
+                                    smooth: None,
+                                })
+                            }
+                        },
+                    ));
+                }
+            }
+            OutlineEntry::Contour(Contour {
+                identifier: None,
+                point,
+            })
+        }));
+
+        Glif {
+            name: glyph.name.to_string(),
+            format: Some("2".to_string()),
+            unicode: glyph.unicode.clone(),
+            image: glyph.image.clone(),
+            advance: glyph.advance,
+            outline: Some(Outline { contours: outline }),
+            anchors: glyph.anchors.clone(),
+            guidelines: glyph.guidelines.iter().map(Into::into).collect(),
+            //lib: glyph.lib.clone(),
+        }
     }
 }
 
@@ -566,13 +701,18 @@ impl Default for Glif {
 #[test]
 fn test_glif_parse() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
-    let _: super::Glyph = g.into_iter().next().unwrap();
+    let _: super::Glyph = g.into();
+    let glif: Glif = quick_xml::de::from_str(EXCLAM_GLYPH).unwrap();
+    let glyph: super::Glyph = glif.clone().into();
+    let _glif2: Glif = Glif::from(&glyph);
+    //print!("{}\n\n{}", glif.to_xml(), glif2.to_xml());
+    //assert_eq!(glif.to_xml(), glif2.to_xml());
 }
 
 #[test]
 fn test_glif_write() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
-    let _: super::Glyph = g.into_iter().next().unwrap();
+    let _: super::Glyph = g.into();
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
     let g2: Glif = quick_xml::de::from_str(&g.to_xml()).unwrap();
     assert_eq!(g.to_xml(), g2.to_xml());
@@ -625,6 +765,7 @@ const _LOWERCASE_B_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 	<anchor name="center" x="125" y="593"/>
 </glyph>"##;
 
+#[cfg(test)]
 const _UPPERCASE_A_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <glyph name="A" format="2">
 	<unicode hex="0041"/>
@@ -660,6 +801,7 @@ const _UPPERCASE_A_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 	<anchor name="ogonekUC" x="483" y="0"/>
 </glyph>"##;
 
+#[cfg(test)]
 const _AE_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <glyph name="ae" format="2">
 	<unicode hex="00E6"/>
@@ -740,3 +882,39 @@ const _AE_GLIF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 	<anchor name="aboveLC" x="406" y="509"/>
 	<anchor name="belowLC" x="413" y="-22"/>
 </glyph>"##;
+
+//@ SportingNormal.ufo/glyphs/exclam.glif
+#[cfg(test)]
+const EXCLAM_GLYPH: &str = r##"<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="exclam" format="2">
+  <advance width="290"/>
+  <unicode hex="0021"/>
+  <outline>
+    <contour>
+      <point x="80" y="777" type="line"/>
+      <point x="90" y="240" type="line"/>
+      <point x="200" y="240" type="line"/>
+      <point x="210" y="777" type="line"/>
+    </contour>
+    <contour>
+      <point x="80" y="0" type="line"/>
+      <point x="210" y="0" type="line"/>
+      <point x="210" y="145" type="line"/>
+      <point x="80" y="145" type="line"/>
+    </contour>
+  </outline>
+  <lib>
+    <dict>
+      <key>com.schriftgestaltung.Glyphs.lastChange</key>
+      <string>2018-04-05 15:21:53 +0000</string>
+      <key>com.typemytype.robofont.mark</key>
+      <array>
+        <real>0.6</real>
+        <real>0.609</real>
+        <integer>1</integer>
+        <integer>1</integer>
+      </array>
+    </dict>
+  </lib>
+</glyph>
+"##;

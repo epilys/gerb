@@ -430,7 +430,7 @@ impl Collection {
         let mut blocks_set: std::collections::HashMap<&'static str, usize> = Default::default();
         for c in self.imp().widgets.borrow().iter() {
             let glyph = c.imp().glyph.get().unwrap().borrow();
-            if let GlyphKind::Char(c) = glyph.kind {
+            if let GlyphKind::Char(c) = glyph.kinds.0 {
                 if let Some(idx) = c.char_block() {
                     *blocks_set.entry(UNICODE_BLOCKS[idx].1).or_default() += 1;
                 } else {
@@ -507,8 +507,8 @@ impl Collection {
                     if hide_empty && glyph.is_empty() {
                         return false;
                     }
-                    if !match glyph.kind {
-                        GlyphKind::Component => *show_blocks.get("Components").unwrap_or(&true),
+                    if !match glyph.kinds.0 {
+                        GlyphKind::Component(_) => *show_blocks.get("Components").unwrap_or(&true),
                         GlyphKind::Char(c) => {
                             *show_blocks.get("Unicode").unwrap_or(&true)
                                 && *c
@@ -524,14 +524,12 @@ impl Collection {
                         (filter_input.as_ref(), filter_input_uppercase.as_ref())
                     {
                         if !(glyph.name.contains(f.as_str())
-                            || glyph
-                                .name2
+                            && !glyph
+                                .name
+                                .contains(fu.as_str())
+                            && !filter_input_char
                                 .as_ref()
-                                .map(|n| n.contains(fu.as_str()))
-                                .unwrap_or(false)
-                            || filter_input_char
-                                .as_ref()
-                                .map(|c| glyph.kind == GlyphKind::Char(*c))
+                                .map(|c| glyph.kinds.0 == GlyphKind::Char(*c))
                                 .unwrap_or(false))
                         {
                             return false;
@@ -557,12 +555,6 @@ pub struct GlyphBoxInner {
     pub show_details: Cell<bool>,
     pub drawing_area: gtk::DrawingArea,
 }
-
-unsafe impl Send for GlyphBoxInner {}
-unsafe impl Sync for GlyphBoxInner {}
-
-unsafe impl Send for GlyphBox {}
-unsafe impl Sync for GlyphBox {}
 
 #[glib::object_subclass]
 impl ObjectSubclass for GlyphBoxInner {
@@ -610,7 +602,7 @@ impl ObjectImpl for GlyphBoxInner {
         self.drawing_area.connect_query_tooltip(
             clone!(@weak obj => @default-return false, move |_self, _x: i32, _y: i32, _by_keyboard: bool, tooltip| {
                 let glyph = obj.imp().glyph.get().unwrap().borrow();
-                if let GlyphKind::Char(c) = glyph.kind {
+                if let GlyphKind::Char(c) = glyph.kinds.0 {
                     let block_name = if let Some(idx) = c.char_block() {
                         UNICODE_BLOCKS[idx].1
                     } else {
@@ -636,10 +628,9 @@ impl ObjectImpl for GlyphBoxInner {
 
             let (x, y) = (0.01, 0.01);
             let glyph = obj.imp().glyph.get().unwrap().borrow();
-            let c = &glyph.name;
-            let label = match glyph.kind {
+            let label = match glyph.kinds.0 {
                 GlyphKind::Char(c) => c.to_string(),
-                GlyphKind::Component => c.to_string(),
+                GlyphKind::Component(ref n) => n.to_string(),
             };
             let label = label.replace('\0', "").trim().to_string();
             cr.set_line_width(1.5);
@@ -705,9 +696,9 @@ impl ObjectImpl for GlyphBoxInner {
             cr.move_to(point.x + width / 2.0 - sextents.width / 2.0, point.y + 2.4 * height / 3.0);
             cr.show_text(&label).expect("Invalid cairo surface state");
 
-            let label = match glyph.kind {
+            let label = match glyph.kinds.0 {
                 GlyphKind::Char(c) => format!("U+{:04X}", c as u32),
-                GlyphKind::Component => c.to_string(),
+                GlyphKind::Component(ref n) => n.to_string(),
             };
             let extents = cr
                 .text_extents(&label)

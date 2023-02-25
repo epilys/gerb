@@ -5,7 +5,7 @@
 
 ## Introduction
 
-`gerb` is an experimental, developed for fun GUI font editor. Still in prototype phase, it opens fonts in [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) format but hasn't implemented saving modifications or exporting to `otf`/`ttf` files yet.
+`gerb` is an experimental, developed for fun GUI font editor. Still in prototype phase, it opens fonts in [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) format but hasn't implemented exporting to `otf`/`ttf` files yet.
 
 ![./screenshot-small.png](./screenshot-small.png)
 
@@ -19,7 +19,7 @@
 
 ### Roadmap to a minimum working prototype
 
-- [ ] save modifications to disk ([Tracking issue #5](https://github.com/epilys/gerb/issues/5))
+- [x] save modifications to disk ([Tracking issue #5](https://github.com/epilys/gerb/issues/5))
 - [x] be able to create new paths/contours in a glyph ([Tracking issue #3](https://github.com/epilys/gerb/issues/3))
 - [ ] be able to add/remove glyphs
 - [x] create new projects ([Tracking issue #4](https://github.com/epilys/gerb/issues/4))

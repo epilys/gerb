@@ -46,6 +46,7 @@ impl EditorInner {
         {
             let glyph_menu = gio::Menu::new();
             new_accel_item(&glyph_menu, app, "Preview", "view.preview");
+            new_accel_item(&glyph_menu, app, "Save", "glyph.save");
             new_accel_item(&glyph_menu, app, "Properties", "glyph.properties");
             new_accel_item(&glyph_menu, app, "Inspect", "glyph.inspect");
             new_accel_item(&glyph_menu, app, "Export to SVG", "glyph.export.svg");
@@ -184,6 +185,25 @@ impl EditorInner {
             menumodel.append_submenu(Some("_Layers"), &layer_menu);
         }
         {
+            let save = gtk::gio::SimpleAction::new("save", None);
+            save.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                let project = obj.project.get().unwrap();
+                let path = project.path.borrow();
+                if let Err(err) = obj.state.get().unwrap().borrow().glyph.borrow().save(&path.join("glyphs")) {
+                    let dialog = gtk::MessageDialog::new(
+                        gtk::Window::NONE,
+                        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                        gtk::MessageType::Error,
+                        gtk::ButtonsType::Close,
+                        &err.to_string(),
+                    );
+                    dialog.set_title("Error: Could not save glyph.");
+                    dialog.set_use_markup(true);
+                    dialog.run();
+                    dialog.emit_close();
+                };
+            }));
+            action_group.add_action(&save);
             let properties = gtk::gio::SimpleAction::new("properties", None);
             properties.connect_activate(glib::clone!(@weak obj => move |_, _| {
                 /*
@@ -224,7 +244,7 @@ impl EditorInner {
                                 gtk::ButtonsType::Close,
                                 &err.to_string(),
                             );
-                            dialog.set_title("Error: Could not svg file");
+                            dialog.set_title("Error: Could not generate SVG file");
                             dialog.set_use_markup(true);
                             dialog.run();
                             dialog.emit_close();
