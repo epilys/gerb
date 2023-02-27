@@ -116,6 +116,7 @@ pub mod icons {
     decl_icon! {RIGHT_MOUSE_BUTTON, "./resources/icons/right_mouse_button"}
     decl_icon! {LEFT_MOUSE_BUTTON, "./resources/icons/left_mouse_button"}
     decl_icon! {ESC_BUTTON, "./resources/icons/esc_button"}
+    decl_icon! {MARK, "./resources/icons/mark"}
 }
 
 pub mod cursors {

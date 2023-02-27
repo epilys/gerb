@@ -31,7 +31,7 @@ use std::cell::RefCell;
 
 mod undo;
 pub use undo::*;
-mod settings;
+pub mod settings;
 pub use settings::*;
 
 glib::wrapper! {

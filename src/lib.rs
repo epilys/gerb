@@ -41,8 +41,8 @@ pub const APPLICATION_ID: &str = "com.epilys.gerb";
 pub mod prelude {
     pub use super::*;
     pub use app::Application;
-    pub use app::Settings;
     pub use app::*;
+    pub use app::{types::*, Settings};
     pub use editor::*;
     pub use glyphs::obj::GlyphMetadata;
     pub use glyphs::{Glyph, GlyphPointIndex};

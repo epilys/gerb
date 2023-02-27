@@ -618,7 +618,7 @@ impl ObjectImpl for GlyphBoxInner {
                 }
                 true
             }));
-        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |_drar: &gtk::DrawingArea, mut ctx: &Context| {
+        self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &gtk::DrawingArea, mut ctx: &Context| {
             let mut cr = ctx.push();
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
@@ -650,13 +650,39 @@ impl ObjectImpl for GlyphBoxInner {
             cr.new_path();
             let mark_color = obj.imp().mark_color.get();
             if mark_color.is_visible() {
-                cr.set_source_color_alpha(mark_color);
-                cr.rectangle(width - width / 10.0, width / 10.0, width / 10.0, width / 10.0);
-                cr.fill().unwrap();
+                use crate::app::settings::types::MarkColor;
+                let app = obj.imp().app.get().unwrap();
+                let settings = &app.settings.borrow();
+                match settings.property::<MarkColor>(Settings::MARK_COLOR) {
+                    MarkColor::None => {},
+                    MarkColor::Background => {
+                        let cr1 = cr.push();
+                        cr1.set_source_color_alpha(mark_color);
+                        cr1.rectangle(width - width / 10.0, width / 10.0, width / 10.0, width / 10.0);
+                        cr1.fill().unwrap();
+                    },
+                    MarkColor::Icon => {
+                        let cr1 = cr.push();
+                        cr1.set_source_color_alpha(mark_color);
+                        let scale_factor = viewport.scale_factor();
+                        if let Some(icon) = crate::resources::icons::MARK
+                            .to_pixbuf()
+                                .and_then(|p| p .scale_simple(32, 32, gtk::gdk_pixbuf::InterpType::Bilinear)) {
+                            cr1.mask_surface(
+                                &icon.create_surface(scale_factor, viewport.window().as_ref())
+                                .unwrap(),
+                                width * 0.8,
+                                0.0,
+                            ).unwrap();
+                            cr1.clip_preserve();
+                            cr1.paint().unwrap();
+                        }
+                    },
+                }
             }
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.4);
             // View height.
-            let vh = _drar.allocated_height() as f64;
+            let vh = viewport.allocated_height() as f64;
             cr.set_font_size(zoom_factor * 62.0);
 
 

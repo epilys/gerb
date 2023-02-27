@@ -28,6 +28,8 @@ use toml_edit::{value as toml_value, Document, Item as TomlItem};
 
 use crate::prelude::*;
 
+pub mod types;
+
 glib::wrapper! {
     pub struct Settings(ObjectSubclass<SettingsInner>);
 }
@@ -45,7 +47,7 @@ pub struct SettingsInner {
     pub line_width: Cell<f64>,
     pub guideline_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
-    pub show_mark_colors: Cell<bool>,
+    pub mark_color: Cell<types::MarkColor>,
     pub entries: RefCell<IndexMap<String, glib::Object>>,
     #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
@@ -164,6 +166,9 @@ impl SettingsInner {
                     } else if prop.value_type() == i64::static_type() {
                         document[type_name][prop.name()] =
                             toml_value(obj.property::<i64>(prop.name()));
+                    } else if prop.value_type() == types::MarkColor::static_type() {
+                        document[type_name][prop.name()] =
+                            toml_value(&obj.property::<MarkColor>(prop.name()).name());
                     }
                 }
             }
@@ -171,7 +176,7 @@ impl SettingsInner {
             document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
             document[Settings::GUIDELINE_WIDTH] = toml_value(self.guideline_width.get());
             document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
-            document[Settings::SHOW_MARK_COLORS] = toml_value(self.show_mark_colors.get());
+            document[Settings::MARK_COLOR] = toml_value(self.mark_color.get().name());
             file.rewind()?;
             file.get_mut().set_len(0)?;
             file.write_all(document.to_string().as_bytes())?;
@@ -197,14 +202,20 @@ impl SettingsInner {
             }
         }
         /* bools */
-        for (prop, field) in [
-            (Settings::WARP_CURSOR, &self.warp_cursor),
-            (Settings::SHOW_MARK_COLORS, &self.show_mark_colors),
-        ] {
+        for (prop, field) in [(Settings::WARP_CURSOR, &self.warp_cursor)] {
             if let Some(v) = document.get(prop).and_then(TomlItem::as_bool) {
                 field.set(v);
             } else {
                 document[prop] = toml_value(field.get());
+                save = true;
+            }
+        }
+        /* enums */
+        for (prop, field) in [(Settings::MARK_COLOR, &self.mark_color)] {
+            if let Some(v) = types::MarkColor::deserialize(document.get(prop)) {
+                field.set(v);
+            } else {
+                document[prop] = toml_value(field.get().name());
                 save = true;
             }
         }
@@ -285,7 +296,6 @@ impl ObjectImpl for SettingsInner {
         self.guideline_width
             .set(SettingsInner::GUIDELINE_WIDTH_INIT_VAL);
         self.warp_cursor.set(SettingsInner::WARP_CURSOR_INIT_VAL);
-        self.show_mark_colors.set(false);
 
         self.init_file().unwrap();
         self.load_settings().unwrap();
@@ -329,11 +339,12 @@ impl ObjectImpl for SettingsInner {
                         SettingsInner::WARP_CURSOR_INIT_VAL,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
-                    glib::ParamSpecBoolean::new(
-                        Settings::SHOW_MARK_COLORS,
-                        Settings::SHOW_MARK_COLORS,
+                    glib::ParamSpecEnum::new(
+                        Settings::MARK_COLOR,
+                        Settings::MARK_COLOR,
                         "Show glyph mark colors in UI.",
-                        false,
+                        types::MarkColor::static_type(),
+                        types::MarkColor::None as i32,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecBoxed::new(
@@ -354,7 +365,7 @@ impl ObjectImpl for SettingsInner {
             Settings::LINE_WIDTH => self.line_width.get().to_value(),
             Settings::GUIDELINE_WIDTH => self.guideline_width.get().to_value(),
             Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
-            Settings::SHOW_MARK_COLORS => self.show_mark_colors.get().to_value(),
+            Settings::MARK_COLOR => self.mark_color.get().to_value(),
             Settings::UI_FONT => self.ui_font.borrow().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -384,8 +395,8 @@ impl ObjectImpl for SettingsInner {
                 self.warp_cursor.set(value.get().unwrap());
                 self.save_settings().unwrap();
             }
-            Settings::SHOW_MARK_COLORS => {
-                self.show_mark_colors.set(value.get().unwrap());
+            Settings::MARK_COLOR => {
+                self.mark_color.set(value.get().unwrap());
                 self.save_settings().unwrap();
             }
             Settings::UI_FONT => {
@@ -408,7 +419,7 @@ impl Settings {
     pub const LINE_WIDTH: &str = "line-width";
     pub const GUIDELINE_WIDTH: &str = "guideline-width";
     pub const WARP_CURSOR: &str = "warp-cursor";
-    pub const SHOW_MARK_COLORS: &str = "show-mark-colors";
+    pub const MARK_COLOR: &str = "mark-color";
     pub const UI_FONT: &str = "ui-font";
 
     pub fn new() -> Self {
