@@ -68,6 +68,7 @@ pub mod prelude {
     pub use std::cell::{Cell, Ref, RefMut};
     pub use std::collections::HashSet;
     pub use std::rc::Rc;
+    pub use std::str::FromStr;
 
     pub use once_cell::sync::{Lazy, OnceCell};
 }

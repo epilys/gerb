@@ -22,7 +22,6 @@
 use super::*;
 use glib::{ParamFlags, ParamSpec, ParamSpecBoxed, ParamSpecDouble, ParamSpecString, Value};
 
-use crate::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

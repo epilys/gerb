@@ -23,7 +23,9 @@ extern crate quick_xml;
 extern crate serde;
 
 use crate::glib::ObjectExt;
+use crate::glyphs;
 use crate::utils::colors::Color;
+use crate::utils::curves::Bezier;
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
@@ -241,8 +243,8 @@ struct Guideline {
     y: f64,
 }
 
-impl From<&super::guidelines::Guideline> for Guideline {
-    fn from(g: &super::guidelines::Guideline) -> Guideline {
+impl From<&glyphs::Guideline> for Guideline {
+    fn from(g: &glyphs::Guideline) -> Guideline {
         Guideline {
             name: g.imp().name.borrow().clone(),
             identifier: g.imp().identifier.borrow().clone(),
@@ -385,9 +387,9 @@ impl Glif {
     }
 }
 
-impl From<Glif> for super::Glyph {
-    fn from(val: Glif) -> super::Glyph {
-        use super::{Bezier, Glyph};
+impl From<Glif> for glyphs::Glyph {
+    fn from(val: Glif) -> glyphs::Glyph {
+        use glyphs::Glyph;
         let Glif {
             name,
             outline,
@@ -401,13 +403,13 @@ impl From<Glif> for super::Glyph {
         } = val;
 
         let kinds = if unicode.is_empty() {
-            (super::GlyphKind::Component(name.clone()), vec![])
+            (glyphs::GlyphKind::Component(name.clone()), vec![])
         } else {
             let mut iter = unicode
                 .iter()
                 .filter_map(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
                 .filter_map(|n| n.try_into().ok())
-                .map(super::GlyphKind::Char);
+                .map(glyphs::GlyphKind::Char);
             let first = iter.next().unwrap();
             (first, iter.collect::<Vec<_>>())
         };
@@ -422,7 +424,7 @@ impl From<Glif> for super::Glyph {
             guidelines: guidelines
                 .into_iter()
                 .map(|g| {
-                    super::Guideline::builder()
+                    glyphs::Guideline::builder()
                         .name(g.name)
                         .identifier(g.identifier)
                         .color(g.color)
@@ -452,7 +454,7 @@ impl From<Glif> for super::Glyph {
                         yx_scale,
                         y_scale,
                     }) => {
-                        ret.components.push(super::Component {
+                        ret.components.push(glyphs::Component {
                             base_name: base,
                             base: std::rc::Weak::new(),
                             x_offset,
@@ -499,7 +501,7 @@ impl From<Glif> for super::Glyph {
                     let p = points.back().unwrap();
                     prev_point = (p.x, p.y);
                 }
-                let super_ = super::Contour::new();
+                let super_ = glyphs::Contour::new();
                 loop {
                     match points.pop_front() {
                         Some(Point {
@@ -582,8 +584,8 @@ impl From<Glif> for super::Glyph {
     }
 }
 
-impl From<&super::Glyph> for Glif {
-    fn from(glyph: &super::Glyph) -> Glif {
+impl From<&glyphs::Glyph> for Glif {
+    fn from(glyph: &glyphs::Glyph) -> Glif {
         let mut outline: Vec<OutlineEntry> =
             Vec::with_capacity(glyph.components.len() + glyph.contours.len());
         outline.extend(glyph.components.iter().map(|c| {
@@ -684,8 +686,9 @@ impl From<&super::Glyph> for Glif {
     }
 }
 
-impl Glif {
-    pub fn from_str(s: &str) -> Result<Self, Box<dyn std::error::Error>> {
+impl std::str::FromStr for Glif {
+    type Err = Box<dyn std::error::Error>;
+    fn from_str(s: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let g: Glif = quick_xml::de::from_str(s)?;
         Ok(g)
     }
@@ -701,9 +704,9 @@ impl Default for Glif {
 #[test]
 fn test_glif_parse() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
-    let _: super::Glyph = g.into();
+    let _: glyphs::Glyph = g.into();
     let glif: Glif = quick_xml::de::from_str(EXCLAM_GLYPH).unwrap();
-    let glyph: super::Glyph = glif.clone().into();
+    let glyph: glyphs::Glyph = glif.clone().into();
     let _glif2: Glif = Glif::from(&glyph);
     //print!("{}\n\n{}", glif.to_xml(), glif2.to_xml());
     //assert_eq!(glif.to_xml(), glif2.to_xml());
@@ -712,7 +715,7 @@ fn test_glif_parse() {
 #[test]
 fn test_glif_write() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
-    let _: super::Glyph = g.into();
+    let _: glyphs::Glyph = g.into();
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
     let g2: Glif = quick_xml::de::from_str(&g.to_xml()).unwrap();
     assert_eq!(g.to_xml(), g2.to_xml());

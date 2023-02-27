@@ -26,6 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::rc::{Rc, Weak};
 
+use crate::prelude::*;
 use crate::ufo;
 use crate::utils::{curves::*, *};
 
@@ -36,22 +37,21 @@ use uuid::Uuid;
 mod guidelines;
 pub use guidelines::*;
 
-mod glif;
-pub use glif::{Advance, Anchor, ImageRef, Unicode};
+pub use crate::ufo::glif::{self, Advance, Anchor, ImageRef, Unicode};
 
 mod contours;
 pub use contours::*;
 
 #[derive(Debug, Clone)]
 pub struct Component {
-    base_name: String,
-    base: Weak<RefCell<Glyph>>,
-    x_offset: f64,
-    y_offset: f64,
-    x_scale: f64,
-    xy_scale: f64,
-    yx_scale: f64,
-    y_scale: f64,
+    pub base_name: String,
+    pub base: Weak<RefCell<Glyph>>,
+    pub x_offset: f64,
+    pub y_offset: f64,
+    pub x_scale: f64,
+    pub xy_scale: f64,
+    pub yx_scale: f64,
+    pub y_scale: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

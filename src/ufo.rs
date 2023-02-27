@@ -22,6 +22,8 @@
 #[cfg(feature = "python")]
 pub mod import;
 
+pub mod glif;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
