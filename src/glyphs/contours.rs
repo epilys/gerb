@@ -66,7 +66,7 @@ impl Contour {
     pub fn push_curve(&self, curve: Bezier) {
         let mut curves = self.imp().curves.borrow_mut();
         let mut continuities = self.imp().continuities.borrow_mut();
-        if curve.points().borrow().is_empty() {
+        if curve.points().is_empty() {
             return;
         }
         let new_len = curve.approx_length();
@@ -92,8 +92,8 @@ impl Contour {
             curves.push(curve);
             return;
         }
-        let prev = curves[curves.len() - 1].points().borrow();
-        let curr = curve.points().borrow();
+        let prev = curves[curves.len() - 1].points();
+        let curr = curve.points();
         if curve.property::<bool>(Bezier::SMOOTH) {
             continuities.push(Self::calc_smooth_continuity(
                 <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&prev),
@@ -118,8 +118,8 @@ impl Contour {
         if curves.is_empty() {
             return;
         }
-        let prev = curves[curves.len() - 1].points().borrow();
-        let curr = curves[0].points().borrow();
+        let prev = curves[curves.len() - 1].points();
+        let curr = curves[0].points();
         if curves[0].property::<bool>(Bezier::SMOOTH) {
             continuities.push(Self::calc_smooth_continuity(
                 <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&prev),
@@ -168,7 +168,7 @@ impl Contour {
         let mut continuities = self.imp().continuities.borrow_mut();
         continuities.reverse();
         for c in curves.iter_mut() {
-            c.points().borrow_mut().reverse();
+            c.imp().points.borrow_mut().reverse();
         }
     }
 
@@ -223,7 +223,7 @@ impl Contour {
             .take(curves.len())
             .filter(|((_, (curr_idx, _)), _)| curves_idxs.contains(curr_idx))
         {
-            let mut pts = curr.points().borrow_mut();
+            let mut pts = curr.imp().points.borrow_mut();
             let pts_len = pts.len();
             let pts_to_transform = pts
                 .iter()
@@ -234,7 +234,7 @@ impl Contour {
             for (i, _uuid) in pts_to_transform {
                 macro_rules! points_mut {
                     (prev) => {{
-                        Some(prev.points().borrow_mut())
+                        Some(prev.imp().points.borrow_mut())
                         //if prev_idx == curr_idx {
                         //    None
                         //} else {
@@ -242,7 +242,7 @@ impl Contour {
                         //}
                     }};
                     (next) => {{
-                        Some(next.points().borrow_mut())
+                        Some(next.imp().points.borrow_mut())
                         //if next_idx == curr_idx {
                         //    None
                         //} else {
@@ -403,7 +403,6 @@ impl Contour {
                 .borrow()
                 .get(curve_index)?
                 .points()
-                .borrow()
                 .iter()
                 .find(|cp| cp.uuid == uuid)?
                 .position,

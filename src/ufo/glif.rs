@@ -604,65 +604,57 @@ impl From<&glyphs::Glyph> for Glif {
                 let mut first = true;
                 for curv in c.curves().borrow().iter() {
                     let degree = curv.degree();
-                    point.extend(
-                        curv.points()
-                            .borrow()
-                            .iter()
-                            .enumerate()
-                            .map(|(i, cp)| Point {
-                                x: cp.position.x,
-                                y: cp.position.y,
-                                name: None,
-                                identifier: None,
-                                type_: if first {
-                                    first = false;
-                                    PointKind::Move
-                                } else {
-                                    match (i, degree) {
-                                        (0 | 3, Some(3)) => PointKind::Curve,
-                                        (1 | 2, Some(3)) => PointKind::Offcurve,
-                                        (0 | 2, Some(2)) => PointKind::Curve,
-                                        (1, Some(2)) => PointKind::Qcurve,
-                                        (0 | 1, Some(1)) => PointKind::Line,
-                                        _ => PointKind::Move,
-                                    }
-                                },
-                                smooth: None,
-                            }),
-                    );
+                    point.extend(curv.points().iter().enumerate().map(|(i, cp)| Point {
+                        x: cp.position.x,
+                        y: cp.position.y,
+                        name: None,
+                        identifier: None,
+                        type_: if first {
+                            first = false;
+                            PointKind::Move
+                        } else {
+                            match (i, degree) {
+                                (0 | 3, Some(3)) => PointKind::Curve,
+                                (1 | 2, Some(3)) => PointKind::Offcurve,
+                                (0 | 2, Some(2)) => PointKind::Curve,
+                                (1, Some(2)) => PointKind::Qcurve,
+                                (0 | 1, Some(1)) => PointKind::Line,
+                                _ => PointKind::Move,
+                            }
+                        },
+                        smooth: None,
+                    }));
                 }
             } else {
                 let mut last = false;
                 for curv in c.curves().borrow().iter() {
                     let degree = curv.degree();
-                    point.extend(curv.points().borrow().iter().enumerate().filter_map(
-                        |(i, cp)| {
-                            if last {
-                                last = false;
-                                None
-                            } else {
-                                if Some(i + 1) == degree {
-                                    last = true;
-                                }
-
-                                Some(Point {
-                                    x: cp.position.x,
-                                    y: cp.position.y,
-                                    name: None,
-                                    identifier: None,
-                                    type_: match (i, degree) {
-                                        (0 | 3, Some(3)) => PointKind::Curve,
-                                        (1 | 2, Some(3)) => PointKind::Offcurve,
-                                        (0 | 2, Some(2)) => PointKind::Curve,
-                                        (1, Some(2)) => PointKind::Qcurve,
-                                        (0 | 1, Some(1)) => PointKind::Line,
-                                        _ => PointKind::Move,
-                                    },
-                                    smooth: None,
-                                })
+                    point.extend(curv.points().iter().enumerate().filter_map(|(i, cp)| {
+                        if last {
+                            last = false;
+                            None
+                        } else {
+                            if Some(i + 1) == degree {
+                                last = true;
                             }
-                        },
-                    ));
+
+                            Some(Point {
+                                x: cp.position.x,
+                                y: cp.position.y,
+                                name: None,
+                                identifier: None,
+                                type_: match (i, degree) {
+                                    (0 | 3, Some(3)) => PointKind::Curve,
+                                    (1 | 2, Some(3)) => PointKind::Offcurve,
+                                    (0 | 2, Some(2)) => PointKind::Curve,
+                                    (1, Some(2)) => PointKind::Qcurve,
+                                    (0 | 1, Some(1)) => PointKind::Line,
+                                    _ => PointKind::Move,
+                                },
+                                smooth: None,
+                            })
+                        }
+                    }));
                 }
             }
             OutlineEntry::Contour(Contour {

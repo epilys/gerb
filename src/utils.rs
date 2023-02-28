@@ -701,3 +701,20 @@ impl ContextExt for gtk::cairo::Context {
         ContextRef(self)
     }
 }
+
+pub struct FieldRef<'container, T> {
+    inner: std::cell::Ref<'container, T>,
+}
+
+impl<T> std::ops::Deref for FieldRef<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.inner.deref()
+    }
+}
+
+impl<'a, T> From<std::cell::Ref<'a, T>> for FieldRef<'a, T> {
+    fn from(inner: std::cell::Ref<'a, T>) -> Self {
+        Self { inner }
+    }
+}

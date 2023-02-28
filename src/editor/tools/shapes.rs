@@ -103,25 +103,25 @@ fn make_quadrilateral_bezier_curves(
     (a, b, c, d): (Point, Point, Point, Point),
 ) {
     for c in curves.iter_mut() {
-        c.points().borrow_mut().clear();
+        c.imp().points.borrow_mut().clear();
     }
     {
-        let mut c0 = curves[0].points().borrow_mut();
+        let mut c0 = curves[0].imp().points.borrow_mut();
         c0.push(CurvePoint::new(a));
         c0.push(CurvePoint::new(b));
     }
     {
-        let mut c1 = curves[1].points().borrow_mut();
+        let mut c1 = curves[1].imp().points.borrow_mut();
         c1.push(CurvePoint::new(b));
         c1.push(CurvePoint::new(c));
     }
     {
-        let mut c2 = curves[2].points().borrow_mut();
+        let mut c2 = curves[2].imp().points.borrow_mut();
         c2.push(CurvePoint::new(c));
         c2.push(CurvePoint::new(d));
     }
     {
-        let mut c3 = curves[3].points().borrow_mut();
+        let mut c3 = curves[3].imp().points.borrow_mut();
         c3.push(CurvePoint::new(d));
         c3.push(CurvePoint::new(a));
     }
@@ -331,7 +331,7 @@ impl QuadrilateralTool {
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
 
         for curv in curves.iter() {
-            let points = curv.points().borrow();
+            let points = curv.points();
             let (a, b) = (points[0].position, points[1].position);
             cr.move_to(a.x, a.y);
             cr.line_to(b.x, b.y);
@@ -422,7 +422,7 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
     const B: f64 = 0.55342686;
     const C: f64 = 0.99873585;
     for (i, c) in curves.iter_mut().enumerate() {
-        let mut c = c.points().borrow_mut();
+        let mut c = c.imp().points.borrow_mut();
         c.clear();
         let mut matrix = gtk::cairo::Matrix::identity();
         matrix.translate(center.x, center.y);
@@ -441,17 +441,17 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
         ));
     }
     /* ensure continuities after rotation */
-    let mut last_point = curves[3].points().borrow()[3].position;
-    let mut pts = curves[0].points().borrow_mut();
+    let mut last_point = curves[3].points()[3].position;
+    let mut pts = curves[0].imp().points.borrow_mut();
     pts[0].position = last_point;
     last_point = pts[3].position;
-    let mut pts = curves[1].points().borrow_mut();
+    let mut pts = curves[1].imp().points.borrow_mut();
     pts[0].position = last_point;
     last_point = pts[3].position;
-    let mut pts = curves[2].points().borrow_mut();
+    let mut pts = curves[2].imp().points.borrow_mut();
     pts[0].position = last_point;
     last_point = pts[3].position;
-    let mut pts = curves[3].points().borrow_mut();
+    let mut pts = curves[3].imp().points.borrow_mut();
     pts[0].position = last_point;
 }
 
@@ -646,7 +646,7 @@ impl EllipseTool {
         cr.set_source_rgba(outline.0, outline.1, outline.2, outline.3);
 
         for curv in curves.iter() {
-            let points = curv.points().borrow();
+            let points = curv.points();
             if points.len() != 4 {
                 continue;
             }

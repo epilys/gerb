@@ -68,7 +68,7 @@ impl State {
                 clone!(@weak self.kd_tree as kd_tree, @weak contour as contour  => move || {
                     let mut kd_tree = kd_tree.borrow_mut();
                     for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
-                        for (idx, pos) in curve.points().borrow().iter().map(|p| (p.glyph_index(contour_index, curve_index), p.position)) {
+                        for (idx, pos) in curve.points().iter().map(|p| (p.glyph_index(contour_index, curve_index), p.position)) {
                             kd_tree.add(idx, pos);
                         }
                     }
@@ -78,7 +78,7 @@ impl State {
                 clone!(@weak self.kd_tree as kd_tree, @weak contour as contour => move || {
                     let mut kd_tree = kd_tree.borrow_mut();
                     for (curve_index, curve) in contour.curves().borrow().iter().enumerate() {
-                        for idx in curve.points().borrow().iter().map(|p| p.glyph_index(contour_index, curve_index)) {
+                        for idx in curve.points().iter().map(|p| p.glyph_index(contour_index, curve_index)) {
                             kd_tree.remove(idx);
                         }
                     }

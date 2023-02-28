@@ -266,17 +266,11 @@ impl Glyph {
         for (_ic, contour) in self.contours.iter().enumerate() {
             let curves = contour.imp().curves.borrow();
             if !contour.property::<bool>(Contour::OPEN) {
-                if let Some(point) = curves
-                    .last()
-                    .and_then(|b| b.points().borrow().last().cloned())
-                {
+                if let Some(point) = curves.last().and_then(|b| b.points().last().cloned()) {
                     cr1.move_to(point.x, point.y);
                     pen_position = Some(point.position);
                 }
-            } else if let Some(point) = curves
-                .first()
-                .and_then(|b| b.points().borrow().first().cloned())
-            {
+            } else if let Some(point) = curves.first().and_then(|b| b.points().first().cloned()) {
                 cr1.move_to(point.x, point.y);
             }
 
@@ -287,7 +281,7 @@ impl Glyph {
                 } else {
                     continue;
                 };
-                let curv_points = curv.points().borrow();
+                let curv_points = curv.points();
                 match degree {
                     0 => { /* Single point */ }
                     1 => {
@@ -359,7 +353,7 @@ impl Glyph {
                 })
                 .and_then(|curv| Some((curv.degree()?, curv)))
         }) {
-            let curv_points = curv.points().borrow();
+            let curv_points = curv.points();
             cr1.set_source_color(Color::RED);
             let point = curv_points[0].position;
             cr1.move_to(point.x, point.y);
@@ -493,7 +487,7 @@ impl Glyph {
                     } else {
                         continue;
                     };
-                    let curv_points = curv.points().borrow();
+                    let curv_points = curv.points();
                     match degree {
                         0 => {
                             /* Single point */
@@ -611,16 +605,13 @@ impl Glyph {
             let mut pen_position: Option<Point> = None;
             let mut curves = contour.imp().curves.borrow_mut();
             if !contour.property::<bool>(Contour::OPEN) {
-                if let Some(point) = curves
-                    .last()
-                    .and_then(|b| b.points().borrow().last().cloned())
-                {
+                if let Some(point) = curves.last().and_then(|b| b.points().last().cloned()) {
                     pen_position = Some(point.position);
                 }
             }
 
             for curv in curves.iter_mut() {
-                let curv_points = curv.points().borrow();
+                let curv_points = curv.points();
                 if curv_points.len() == 3 {
                     let a = if let Some(v) = pen_position.take() {
                         v
@@ -711,7 +702,7 @@ impl Glyph {
                     if (*contour_index, *curve_index) != (ic, jc) {
                         continue;
                     }
-                    if curve.points().borrow().iter().any(|cp| cp.uuid == *uuid) {
+                    if curve.points().iter().any(|cp| cp.uuid == *uuid) {
                         return Some(((ic, jc), curve.clone()));
                     }
                 }

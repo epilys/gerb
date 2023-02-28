@@ -25,9 +25,11 @@ glib::wrapper! {
     pub struct Bezier(ObjectSubclass<BezierInner>);
 }
 
+pub type CurvePointsRef<'curve> = crate::utils::FieldRef<'curve, Vec<CurvePoint>>;
+
 impl Bezier {
-    pub fn points(&self) -> &RefCell<Vec<CurvePoint>> {
-        &self.imp().points
+    pub fn points(&self) -> CurvePointsRef {
+        self.imp().points.borrow().into()
     }
 }
 
@@ -155,7 +157,7 @@ impl Bezier {
     }
 
     pub fn degree(&self) -> Option<usize> {
-        let points = self.points().borrow();
+        let points = self.points();
         if points.is_empty() {
             None
         } else {
@@ -188,7 +190,7 @@ impl Bezier {
     }
 
     pub fn compute(&self, t: f64) -> Point {
-        let points = self.points().borrow();
+        let points = self.points();
         // shortcuts
         if t == 0.0 {
             return points[0].position;
@@ -268,7 +270,7 @@ impl Bezier {
     }
 
     pub fn tangent(&self, t: f64) -> Point {
-        let points = self.points().borrow();
+        let points = self.points();
         // shortcuts
         if t == 0.0 {
             return points[0].position;
@@ -370,7 +372,7 @@ impl Bezier {
     pub fn clean_up(&self) {
         match self.degree() {
             Some(3) => {
-                let mut pts = self.points().borrow_mut();
+                let mut pts = self.imp().points.borrow_mut();
                 if pts[0].position == pts[1].position && pts[2].position == pts[3].position {
                     self.imp().lut.borrow_mut().clear();
                     // Make quadratic
@@ -382,7 +384,7 @@ impl Bezier {
                 }
             }
             Some(2) => {
-                let mut pts = self.points().borrow_mut();
+                let mut pts = self.imp().points.borrow_mut();
                 if pts[0].position == pts[1].position || pts[1].position == pts[2].position {
                     self.imp().lut.borrow_mut().clear();
                     // Make quadratic
@@ -425,7 +427,7 @@ impl Bezier {
         // Evaluate candidate𝑡 by trying to minimise the difference of distances of the two closest
         // control points to the on-curve point of𝑡.
         fn eval(curv: &Bezier, p: Point) -> f64 {
-            let pts = curv.points().borrow();
+            let pts = curv.points();
             let mut ds = pts
                 .iter()
                 .map(|cp| p.distance(cp.position))

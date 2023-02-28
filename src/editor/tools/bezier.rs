@@ -184,7 +184,7 @@ impl ToolImplImpl for BezierToolInner {
                 let contour_index = state.glyph.borrow().contours.len();
                 let new_state = ContourState {
                     last_point: {
-                        let p = current_curve.points().borrow()[0].clone();
+                        let p = current_curve.points()[0].clone();
                         p
                     },
                     first_point: point,
@@ -384,7 +384,6 @@ impl ToolImplImpl for BezierToolInner {
                 if !unlinked && state.curve_index != 0 {
                     let linked_curve_point = state.contour.curves().borrow()[state.curve_index - 1]
                         .points()
-                        .borrow()
                         .iter()
                         .rev()
                         .nth(1)
@@ -421,7 +420,6 @@ impl ToolImplImpl for BezierToolInner {
                 if !unlinked {
                     let linked_curve_point = state.contour.curves().borrow()[state.curve_index]
                         .points()
-                        .borrow()
                         .iter()
                         .rev()
                         .nth(1)
@@ -453,7 +451,6 @@ impl ToolImplImpl for BezierToolInner {
                     let handle_point = state
                         .current_curve
                         .points()
-                        .borrow()
                         .iter()
                         .rev()
                         .nth(1)
@@ -467,7 +464,6 @@ impl ToolImplImpl for BezierToolInner {
                 if !unlinked {
                     let linked_curve_point = state.contour.curves().borrow()[0]
                         .points()
-                        .borrow()
                         .iter()
                         .nth(1)
                         .unwrap()
@@ -492,19 +488,16 @@ impl ToolImplImpl for BezierToolInner {
                 assert_eq!(
                     state.contour.curves().borrow()[state.curve_index]
                         .points()
-                        .borrow()
                         .len(),
                     4
                 );
                 let curve_point1 = state.contour.curves().borrow()[state.curve_index]
                     .points()
-                    .borrow()
                     .last()
                     .unwrap()
                     .clone();
                 let curve_point2 = state.contour.curves().borrow()[state.curve_index]
                     .points()
-                    .borrow()
                     .iter()
                     .rev()
                     .nth(1)
@@ -599,20 +592,35 @@ impl BezierToolInner {
                     {
                         let curve_point = CurvePoint::new(handle);
                         state.last_point = curve_point.clone();
-                        state.current_curve.points().borrow_mut().push(curve_point);
+                        state
+                            .current_curve
+                            .imp()
+                            .points
+                            .borrow_mut()
+                            .push(curve_point);
                         add_to_kdtree(state, state.curve_index, state.last_point.clone());
                     }
 
                     // p3 handle
                     let curve_point = CurvePoint::new(point);
                     state.last_point = curve_point.clone();
-                    state.current_curve.points().borrow_mut().push(curve_point);
+                    state
+                        .current_curve
+                        .imp()
+                        .points
+                        .borrow_mut()
+                        .push(curve_point);
                     add_to_kdtree(state, state.curve_index, state.last_point.clone());
 
                     // p3 oncurve
                     let curve_point = CurvePoint::new(point);
                     state.last_point = curve_point.clone();
-                    state.current_curve.points().borrow_mut().push(curve_point);
+                    state
+                        .current_curve
+                        .imp()
+                        .points
+                        .borrow_mut()
+                        .push(curve_point);
                     add_to_kdtree(state, state.curve_index, state.last_point.clone());
 
                     self.inner.set(InnerState::OnCurve);
@@ -635,7 +643,6 @@ impl BezierToolInner {
                     let previous_handle = state
                         .current_curve
                         .points()
-                        .borrow()
                         .iter()
                         .rev()
                         .nth(1)
@@ -667,18 +674,11 @@ impl BezierToolInner {
                 } => {
                     let new_bezier = Bezier::new(vec![]);
                     new_bezier.set_property(Bezier::SMOOTH, true);
-                    let h = CurvePoint::new(
-                        state
-                            .current_curve
-                            .points()
-                            .borrow()
-                            .last()
-                            .unwrap()
-                            .position,
-                    );
+                    let h = CurvePoint::new(state.current_curve.points().last().unwrap().position);
                     state.last_point = h;
                     new_bezier
-                        .points()
+                        .imp()
+                        .points
                         .borrow_mut()
                         .push(state.last_point.clone());
                     add_to_kdtree(state, state.curve_index + 1, state.last_point.clone());
@@ -885,20 +885,14 @@ impl BezierTool {
             InnerState::Empty | InnerState::OnCurve => {}
             InnerState::FirstHandle { handle, .. } => {
                 // draw handle
-                draw_handle_connection(handle, state.current_curve.points().borrow()[0].position);
+                draw_handle_connection(handle, state.current_curve.points()[0].position);
                 draw_handle(handle);
             }
             InnerState::SecondHandle { handle, .. } => {
                 // draw handle
                 draw_handle_connection(
                     handle,
-                    state
-                        .current_curve
-                        .points()
-                        .borrow()
-                        .last()
-                        .unwrap()
-                        .position,
+                    state.current_curve.points().last().unwrap().position,
                 );
                 draw_handle(handle);
             }

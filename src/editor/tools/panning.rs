@@ -196,7 +196,6 @@ impl ToolImplImpl for PanningToolInner {
                                 .enumerate()
                                 .flat_map(|(j, c)| {
                                     c.points()
-                                        .borrow()
                                         .iter()
                                         .map(move |cp| cp.glyph_index(i, j))
                                         .collect::<Vec<_>>()
@@ -313,7 +312,6 @@ impl ToolImplImpl for PanningToolInner {
                         if let Some(((i, j), curve)) = curve_query {
                             let pts = curve
                                 .points()
-                                .borrow()
                                 .iter()
                                 .map(|cp| cp.uuid)
                                 .collect::<HashSet<_>>();
@@ -322,7 +320,6 @@ impl ToolImplImpl for PanningToolInner {
                                 if !view.state().borrow().get_selection_set().is_superset(&pts) {
                                     let pts = curve
                                         .points()
-                                        .borrow()
                                         .iter()
                                         .map(|cp| cp.glyph_index(i, j))
                                         .collect::<Vec<_>>();
@@ -524,7 +521,6 @@ impl ToolImplImpl for PanningToolInner {
                     self.is_selection_empty.set(false);
                     let pts = curve
                         .points()
-                        .borrow()
                         .iter()
                         .map(|cp| cp.glyph_index(i, j))
                         .collect::<Vec<_>>();
@@ -717,7 +713,7 @@ impl ToolImplImpl for PanningToolInner {
                                     glyph.contours[selection[0].contour_index].curves().borrow();
                                 let curv = &curves[selection[0].curve_index];
                                 let degree = curv.degree().unwrap();
-                                let points = curv.points().borrow();
+                                let points = curv.points();
                                 let p1 =
                                     &points.iter().find(|p| p.uuid == selection[0].uuid).unwrap();
                                 let p2 = match degree {
