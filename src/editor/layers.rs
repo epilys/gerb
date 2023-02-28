@@ -67,12 +67,7 @@ pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> I
     /* Draw the glyph */
 
     {
-        let line_width = obj
-            .settings
-            .get()
-            .unwrap()
-            .property::<f64>(Settings::LINE_WIDTH)
-            / (scale * ppu);
+        let line_width = obj.app_settings().property::<f64>(Settings::LINE_WIDTH) / (scale * ppu);
         let (handle, handle_connection) = if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
             (
                 Some(
@@ -177,9 +172,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
         let mouse = viewport.get_mouse();
         let UnitPoint(unit_mouse) = viewport.view_to_unit_point(mouse);
         cr1.set_line_width(
-            obj.settings
-                .get()
-                .unwrap()
+            obj.app_settings()
                 .property::<f64>(Settings::GUIDELINE_WIDTH)
                 / (scale * ppu),
         );
@@ -192,9 +185,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
             .filter(|_| show_glyph_guidelines)
             .map(|g| (true, g))
             .chain(
-                obj.project
-                    .get()
-                    .unwrap()
+                obj.project()
                     .guidelines
                     .borrow()
                     .iter()
@@ -202,9 +193,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
                     .map(|g| (false, g)),
             )
             .chain(
-                obj.project
-                    .get()
-                    .unwrap()
+                obj.project()
                     .metric_guidelines
                     .borrow()
                     .iter()
@@ -236,7 +225,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
                 }
             } else if g.angle() == 0.0 {
                 let cr2 = cr1.push();
-                cr2.set_source_color_alpha(Color::try_from_hex("#bbbaae").unwrap());
+                cr2.set_source_color_alpha(Color::from_hex("#bbbaae"));
                 let ViewPoint(Point { y, .. }) =
                     viewport.unit_to_view_point(UnitPoint((0.0, g.y()).into()));
                 let label = if let Some(name) = g.name().as_deref() {

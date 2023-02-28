@@ -571,14 +571,56 @@ impl ToolImplImpl for PanningToolInner {
             }
             _ if event_button == gtk::gdk::BUTTON_SECONDARY => {
                 self.set_default_cursor(&view);
-                let on_curve_query = {
+                let (is_corner, on_curve_query) = {
+                    let scale: f64 = viewport
+                        .transformation
+                        .property::<f64>(Transformation::SCALE);
+                    let ppu: f64 = viewport
+                        .transformation
+                        .property::<f64>(Transformation::PIXELS_PER_UNIT);
                     let state = view.state().borrow();
                     let glyph = state.glyph.borrow();
                     let UnitPoint(position) =
                         viewport.view_to_unit_point(ViewPoint(event.position().into()));
-                    glyph.on_curve_query(position, &[])
+                    let pts = state
+                        .kd_tree
+                        .borrow()
+                        .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
+                    let is_corner = if pts.is_empty() {
+                        None
+                    } else {
+                        state.glyph.borrow().contours[pts[0].contour_index].curves()
+                            [pts[0].curve_index]
+                            .points()
+                            .iter()
+                            .find(|cp| cp.uuid == pts[0].uuid)
+                            .and_then(|cp| Some((pts[0], cp.continuity?)))
+                    };
+                    let on_curve_query = glyph.on_curve_query(position, &[]);
+                    (is_corner, on_curve_query)
                 };
-                if let Some(((i, _), _curve)) = on_curve_query {
+                if let Some((idx, corner_continuity)) = is_corner {
+                    crate::utils::menu::Menu::new()
+                        .add_button_cb(
+                            if matches!(corner_continuity, Continuity::Positional) {
+                                "make smooth"
+                            } else {
+                                "make corner"
+                            },
+                            clone!(@strong view => move |_| {
+                                let state = view.state().borrow();
+                                let glyph = state.glyph.borrow();
+                                let new_val = if matches!(corner_continuity, Continuity::Positional) {
+                                    Continuity::Velocity
+                                } else {
+                                    Continuity::Positional
+                                };
+                                glyph.contours[idx.contour_index].change_continuity(idx, new_val);
+                            }),
+                        )
+                        .popup(event.time());
+                    return Inhibit(true);
+                } else if let Some(((i, _), _curve)) = on_curve_query {
                     crate::utils::menu::Menu::new()
                         .add_button_cb(
                             "reverse",

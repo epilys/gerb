@@ -502,8 +502,24 @@ impl ContainerImpl for EditorInner {}
 impl BinImpl for EditorInner {}
 
 impl EditorInner {
+    pub fn app(&self) -> &Application {
+        self.app.get().unwrap()
+    }
+
+    pub fn project(&self) -> &Project {
+        self.project.get().unwrap()
+    }
+
+    pub fn glyph(&self) -> &Rc<RefCell<Glyph>> {
+        self.glyph.get().unwrap()
+    }
+
+    pub fn app_settings(&self) -> &Settings {
+        self.settings.get().unwrap()
+    }
+
     fn new_statusbar_message(&self, msg: &str) -> Option<StatusBarMessage> {
-        let statusbar = self.app.get().unwrap().statusbar();
+        let statusbar = self.app().statusbar();
         if self.statusbar_context_id.get().is_none() {
             self.statusbar_context_id.set(Some(
                 statusbar.context_id(&format!("Editor-{:?}", &self.glyph.get().unwrap())),
@@ -516,7 +532,7 @@ impl EditorInner {
     }
 
     fn pop_statusbar_message(&self, msg: Option<StatusBarMessage>) {
-        let statusbar = self.app.get().unwrap().statusbar();
+        let statusbar = self.app().statusbar();
         if let Some(cid) = self.statusbar_context_id.get().as_ref() {
             if let Some(mid) = msg {
                 gtk::prelude::StatusbarExt::remove(&statusbar, *cid, mid);
@@ -562,11 +578,11 @@ impl Editor {
         ret.glyph.set(glyph.clone()).unwrap();
         ret.app.set(app.clone()).unwrap();
         ret.connect_map(|self_| {
-            let status = self_.app.get().unwrap().statusbar().message_area().unwrap();
+            let status = self_.app().statusbar().message_area().unwrap();
             status.pack_end(&self_.shortcut_status, false, false, 1);
         });
         ret.connect_unmap(|self_| {
-            let status = self_.app.get().unwrap().statusbar().message_area().unwrap();
+            let status = self_.app().statusbar().message_area().unwrap();
             status.remove(&self_.shortcut_status);
         });
         {
@@ -657,7 +673,7 @@ impl Editor {
     pub fn set_selection(&self, selection: &[GlyphPointIndex], modifier: SelectionModifier) {
         use SelectionModifier::*;
         {
-            let state = self.state.get().unwrap().borrow();
+            let state = self.state().borrow();
             match modifier {
                 Replace if selection.is_empty() && state.selection.is_empty() => {
                     return;
@@ -686,7 +702,7 @@ impl Editor {
         }
 
         let new = Rc::new(selection.to_vec());
-        let old = Rc::new(self.state.get().unwrap().borrow().selection.clone());
+        let old = Rc::new(self.state().borrow().selection.clone());
         let mut action = Action {
             stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
@@ -700,7 +716,7 @@ impl Editor {
                         ref mut selection,
                         ref mut selection_set,
                         ..
-                    } = &mut *obj.state.get().unwrap().borrow_mut();
+                    } = &mut *obj.state().borrow_mut();
                     match modifier {
                         Replace => {
                             selection.clear();
@@ -732,7 +748,7 @@ impl Editor {
                         ref mut selection,
                         ref mut selection_set,
                         ..
-                    } = &mut *obj.state.get().unwrap().borrow_mut();
+                    } = &mut *obj.state().borrow_mut();
                     selection.clear();
                     selection_set.clear();
                     selection.extend(old.iter());
@@ -744,7 +760,7 @@ impl Editor {
             ),
         };
         (action.redo)();
-        self.state.get().unwrap().borrow().add_undo_action(action);
+        self.state().borrow().add_undo_action(action);
     }
 
     pub fn state(&self) -> &Rc<RefCell<State>> {

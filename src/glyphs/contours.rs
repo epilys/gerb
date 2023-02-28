@@ -59,6 +59,7 @@ impl Contour {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret.imp().open.set(true);
         *ret.imp().curves.borrow_mut() = curves;
+        ret.recalc_continuities();
         ret
     }
 
@@ -68,6 +69,80 @@ impl Contour {
 
     pub fn continuities(&self) -> crate::utils::FieldRef<'_, Vec<Continuity>> {
         self.imp().continuities.borrow().into()
+    }
+
+    pub fn recalc_continuities(&self) {
+        let closed: bool = !self.imp().open.get();
+        let curves = self.curves();
+        let mut continuities = self.imp().continuities.borrow_mut();
+        continuities.clear();
+        if closed {
+            let prev_iter = curves
+                .iter()
+                .enumerate()
+                .cycle()
+                .skip(curves.len().saturating_sub(1));
+            let curr_iter = curves.iter().enumerate().cycle();
+            let next_iter = curves.iter().enumerate().cycle().skip(1);
+            for (((_prev_idx, prev), (_curr_idx, curr)), (_next_idx, next)) in
+                prev_iter.zip(curr_iter).zip(next_iter).take(curves.len())
+            {
+                let before = {
+                    let prevp = prev.points();
+                    let currp = curr.points();
+                    if curr.property::<bool>(Bezier::SMOOTH) {
+                        Self::calc_smooth_continuity(
+                            <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&prevp),
+                            <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&currp),
+                        )
+                    } else {
+                        Continuity::Positional
+                    }
+                };
+                prev.set_property(Bezier::CONTINUITY_OUT, Some(before));
+                curr.set_property(Bezier::CONTINUITY_IN, Some(before));
+                let after = {
+                    let currp = curr.points();
+                    let nextp = next.points();
+                    if next.property::<bool>(Bezier::SMOOTH) {
+                        Self::calc_smooth_continuity(
+                            <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&currp),
+                            <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&nextp),
+                        )
+                    } else {
+                        Continuity::Positional
+                    }
+                };
+                curr.set_property(Bezier::CONTINUITY_OUT, Some(after));
+                next.set_property(Bezier::CONTINUITY_IN, Some(after));
+                if continuities.is_empty() {
+                    continuities.push(before);
+                }
+                continuities.push(after);
+            }
+        } else {
+            let curr_iter = curves.iter().enumerate().cycle();
+            let next_iter = curves.iter().enumerate().cycle().skip(1);
+            for ((_curr_idx, curr), (_next_idx, next)) in
+                curr_iter.zip(next_iter).take(curves.len() + 1)
+            {
+                let after = {
+                    let currp = curr.points();
+                    let nextp = next.points();
+                    if next.property::<bool>(Bezier::SMOOTH) {
+                        Self::calc_smooth_continuity(
+                            <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&currp),
+                            <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&nextp),
+                        )
+                    } else {
+                        Continuity::Positional
+                    }
+                };
+                curr.set_property(Bezier::CONTINUITY_OUT, Some(after));
+                next.set_property(Bezier::CONTINUITY_IN, Some(after));
+                continuities.push(after);
+            }
+        }
     }
 
     pub fn push_curve(&self, curve: Bezier) {
@@ -112,6 +187,9 @@ impl Contour {
         drop(curr);
         drop(prev);
         curve.set_property(Bezier::CONTINUITY_IN, Some(new));
+        if !curves.is_empty() {
+            curves[curves.len() - 1].set_property(Bezier::CONTINUITY_OUT, Some(new));
+        }
         continuities.push(new);
         curves.push(curve);
     }
@@ -140,6 +218,7 @@ impl Contour {
         drop(curr);
         drop(prev);
         curves[0].set_property(Bezier::CONTINUITY_IN, Some(new));
+        curves[curves.len() - 1].set_property(Bezier::CONTINUITY_OUT, Some(new));
         continuities.push(new);
         assert_eq!(continuities.len(), curves.len());
     }
@@ -222,7 +301,6 @@ impl Contour {
             };
         }
         let closed: bool = !self.imp().open.get();
-        let continuities = self.continuities();
         let curves = self.curves();
         let prev_iter = curves
             .iter()
@@ -316,15 +394,21 @@ impl Contour {
                     // also transform neighbored handle if continuity constraints demand so
                     macro_rules! cont {
                         (between ($idx:expr) and next) => {{
-                            if $idx + 1 == continuities.len() {
+                            // FIXME
+                            if $idx + 1 == curves.len() {
                                 debug_assert!(closed);
-                                debug_assert_eq!(continuities.len(), curves.len());
-                                continuities[$idx - 1]
+                                curves[$idx]
+                                    .property::<Option<Continuity>>(Bezier::CONTINUITY_OUT)
+                                    .unwrap()
                             } else if $idx == 0 {
                                 debug_assert!(closed);
-                                continuities[curves.len() - 1]
+                                curves[$idx]
+                                    .property::<Option<Continuity>>(Bezier::CONTINUITY_OUT)
+                                    .unwrap()
                             } else {
-                                continuities[$idx - 1]
+                                curves[$idx]
+                                    .property::<Option<Continuity>>(Bezier::CONTINUITY_OUT)
+                                    .unwrap()
                             }
                         }};
                     }
@@ -334,7 +418,7 @@ impl Contour {
                         if pts_len > 2
                             && !extra_uuids.contains(&(prev_idx, prev.points()[pts_len - 2].uuid))
                         {
-                            match cont!(between (curr_idx) and next) {
+                            match cont!(between (prev_idx) and next) {
                                 Continuity::Positional => {}
                                 Continuity::Velocity => {
                                     let new_val =
@@ -366,7 +450,7 @@ impl Contour {
                         assert!(pts_len > 0);
                         if pts_len > 2 && !extra_uuids.contains(&(next_idx, next.points()[1].uuid))
                         {
-                            match cont!(between (next_idx) and next) {
+                            match cont!(between (curr_idx) and next) {
                                 Continuity::Positional => {}
                                 Continuity::Velocity => {
                                     let new_val = curr.points()[i]
@@ -428,6 +512,66 @@ impl Contour {
         }
         self.continuities.borrow_mut().pop();
         curves.pop()
+    }
+
+    pub fn change_continuity(
+        &self,
+        GlyphPointIndex {
+            contour_index: _,
+            curve_index,
+            uuid,
+        }: GlyphPointIndex,
+        continuity: Continuity,
+    ) -> Option<Continuity> {
+        let (index, degree) = self
+            .curves()
+            .get(curve_index)?
+            .points()
+            .iter()
+            .enumerate()
+            .find(|(_, cp)| cp.uuid == uuid)
+            .map(|(i, cp)| (i, cp.degree))?;
+        let prev_value = if degree == Some(index) {
+            self.curves()[curve_index].property(Bezier::CONTINUITY_OUT)
+        } else {
+            self.curves()[curve_index].property(Bezier::CONTINUITY_IN)
+        };
+        match prev_value {
+            None => todo!(),
+            Some(c) if c != continuity => {
+                let curves_no = self.curves().len();
+                if degree == Some(index) {
+                    self.curves
+                        .borrow_mut()
+                        .get(curve_index)?
+                        .set_property(Bezier::CONTINUITY_OUT, Some(continuity));
+                    self.curves
+                        .borrow_mut()
+                        .get(if curve_index == 0 {
+                            curves_no - 1
+                        } else {
+                            curve_index - 1
+                        })?
+                        .set_property(Bezier::CONTINUITY_IN, Some(continuity));
+                } else {
+                    self.curves
+                        .borrow_mut()
+                        .get(curve_index)?
+                        .set_property(Bezier::CONTINUITY_IN, Some(continuity));
+                    self.curves
+                        .borrow_mut()
+                        .get(if curve_index == 0 {
+                            curves_no - 1
+                        } else {
+                            curve_index - 1
+                        })?
+                        .set_property(Bezier::CONTINUITY_OUT, continuity);
+                }
+
+                Some(c)
+            }
+            Some(c) => Some(c),
+        }
     }
 }
 
@@ -587,7 +731,7 @@ impl ObjectImpl for ContourInner {
 
 /// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
 /// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
-#[derive(Clone, Debug, Default, Copy, glib::Boxed)]
+#[derive(Clone, Debug, Default, PartialEq, Copy, glib::Boxed)]
 #[boxed_type(name = "Continuity", nullable)]
 pub enum Continuity {
     /// C0 / G0 (positional continuity) requires that they meet at the same point, which all

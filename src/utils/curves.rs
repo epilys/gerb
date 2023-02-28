@@ -216,15 +216,6 @@ impl ObjectImpl for BezierInner {
             }
             Bezier::CONTINUITY_OUT => {
                 let new_val = value.get().unwrap();
-                let degree = self.instance().degree();
-                match degree {
-                    None => {}
-                    Some(0) => {}
-                    Some(d) => {
-                        self.points.borrow_mut()[d + 1].continuity = new_val;
-                    }
-                }
-
                 self.continuity_out.set(new_val);
             }
             _ => unimplemented!("{}", pspec.name()),

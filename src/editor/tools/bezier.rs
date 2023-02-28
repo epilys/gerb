@@ -754,11 +754,7 @@ impl BezierTool {
         }
         let state = c.as_ref().unwrap();
         let inner_fill = viewport.property::<bool>(Canvas::INNER_FILL);
-        let line_width = obj
-            .settings
-            .get()
-            .unwrap()
-            .property::<f64>(Settings::LINE_WIDTH);
+        let line_width = obj.app_settings().property::<f64>(Settings::LINE_WIDTH);
         let outline =
             Color::from_hex("#3333FF").with_alpha(if inner_fill { 0 } else { (0.6 * 255.0) as u8 });
         let matrix = viewport.transformation.matrix();
@@ -769,11 +765,7 @@ impl BezierTool {
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let handle_size: f64 = if viewport.property::<bool>(Canvas::SHOW_HANDLES) {
-            obj.settings
-                .get()
-                .unwrap()
-                .property::<f64>(Settings::HANDLE_SIZE)
-                / (scale * ppu)
+            obj.app_settings().property::<f64>(Settings::HANDLE_SIZE) / (scale * ppu)
         } else {
             0.0
         };

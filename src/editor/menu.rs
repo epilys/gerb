@@ -40,7 +40,7 @@ fn new_accel_item(menu: &gio::Menu, app: &Application, label: &str, detailed_act
 
 impl EditorInner {
     pub fn setup_menu(&self, obj: &Editor) {
-        let app = self.app.get().unwrap();
+        let app = self.app();
         let menumodel = gio::Menu::new();
         let action_group = gtk::gio::SimpleActionGroup::new();
         {
@@ -187,9 +187,9 @@ impl EditorInner {
         {
             let save = gtk::gio::SimpleAction::new("save", None);
             save.connect_activate(glib::clone!(@weak obj => move |_, _| {
-                let project = obj.project.get().unwrap();
+                let project = obj.project();
                 let path = project.path.borrow();
-                if let Err(err) = obj.state.get().unwrap().borrow().glyph.borrow().save(&path.join("glyphs")) {
+                if let Err(err) = obj.state().borrow().glyph.borrow().save(&path.join("glyphs")) {
                     let dialog = gtk::MessageDialog::new(
                         gtk::Window::NONE,
                         gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
@@ -206,7 +206,7 @@ impl EditorInner {
             action_group.add_action(&save);
             let properties = gtk::gio::SimpleAction::new("properties", None);
             properties.connect_activate(glib::clone!(@weak obj, @weak app => move |_, _| {
-                let metadata: glib::Object = obj.imp().glyph.get().unwrap().borrow().metadata.clone().upcast();
+                let metadata: glib::Object = obj.glyph().borrow().metadata.clone().upcast();
                 let w = crate::utils::new_property_window(&app, metadata, "Glyph properties");
                 w.present();
             }));
