@@ -382,7 +382,7 @@ impl ToolImplImpl for BezierToolInner {
                     viewport.view_to_unit_point(ViewPoint(event.position().into()));
                 let handle = point;
                 if !unlinked && state.curve_index != 0 {
-                    let linked_curve_point = state.contour.curves().borrow()[state.curve_index - 1]
+                    let linked_curve_point = state.contour.curves()[state.curve_index - 1]
                         .points()
                         .iter()
                         .rev()
@@ -418,7 +418,7 @@ impl ToolImplImpl for BezierToolInner {
                     viewport.view_to_unit_point(ViewPoint(event.position().into()));
                 let handle = point;
                 if !unlinked {
-                    let linked_curve_point = state.contour.curves().borrow()[state.curve_index]
+                    let linked_curve_point = state.contour.curves()[state.curve_index]
                         .points()
                         .iter()
                         .rev()
@@ -462,7 +462,7 @@ impl ToolImplImpl for BezierToolInner {
                     self.transform_point(m, &view, state, state.curve_index, handle_point);
                 }
                 if !unlinked {
-                    let linked_curve_point = state.contour.curves().borrow()[0]
+                    let linked_curve_point = state.contour.curves()[0]
                         .points()
                         .iter()
                         .nth(1)
@@ -485,18 +485,13 @@ impl ToolImplImpl for BezierToolInner {
                 let state = c.as_mut().unwrap();
                 let UnitPoint(point) =
                     viewport.view_to_unit_point(ViewPoint(event.position().into()));
-                assert_eq!(
-                    state.contour.curves().borrow()[state.curve_index]
-                        .points()
-                        .len(),
-                    4
-                );
-                let curve_point1 = state.contour.curves().borrow()[state.curve_index]
+                assert_eq!(state.contour.curves()[state.curve_index].points().len(), 4);
+                let curve_point1 = state.contour.curves()[state.curve_index]
                     .points()
                     .last()
                     .unwrap()
                     .clone();
-                let curve_point2 = state.contour.curves().borrow()[state.curve_index]
+                let curve_point2 = state.contour.curves()[state.curve_index]
                     .points()
                     .iter()
                     .rev()
@@ -637,9 +632,8 @@ impl BezierToolInner {
                     let mut m = Matrix::identity();
                     m.translate(diff_vector.x, diff_vector.y);
                     self.transform_point(m, view, state, state.curve_index, previous_handle);
-                    let curv = state.contour.curves().borrow_mut().pop();
+                    let curv = state.contour.pop_curve();
                     if let Some(curv) = curv {
-                        state.contour.continuities().borrow_mut().pop();
                         state.contour.push_curve(curv);
                         state.contour.close();
                     }
@@ -666,8 +660,7 @@ impl BezierToolInner {
 
                     let curve = std::mem::replace(&mut state.current_curve, new_bezier);
 
-                    state.contour.curves().borrow_mut().pop();
-                    state.contour.continuities().borrow_mut().pop();
+                    state.contour.pop_curve();
                     state.contour.push_curve(curve);
                     state.contour.push_curve(state.current_curve.clone());
                     state.curve_index += 1;

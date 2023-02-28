@@ -191,7 +191,6 @@ impl ToolImplImpl for PanningToolInner {
                             let glyph = state.glyph.borrow();
                             let tmp = glyph.contours[i]
                                 .curves()
-                                .borrow()
                                 .iter()
                                 .enumerate()
                                 .flat_map(|(j, c)| {
@@ -709,8 +708,7 @@ impl ToolImplImpl for PanningToolInner {
                                 .view_to_unit_point(ViewPoint(Point::from(event.position())));
                             let lock_delta = {
                                 let glyph = state.glyph.borrow();
-                                let curves =
-                                    glyph.contours[selection[0].contour_index].curves().borrow();
+                                let curves = glyph.contours[selection[0].contour_index].curves();
                                 let curv = &curves[selection[0].curve_index];
                                 let degree = curv.degree().unwrap();
                                 let points = curv.points();

@@ -602,7 +602,7 @@ impl From<&glyphs::Glyph> for Glif {
             let mut point = vec![];
             if c.imp().open.get() {
                 let mut first = true;
-                for curv in c.curves().borrow().iter() {
+                for curv in c.curves().iter() {
                     let degree = curv.degree();
                     point.extend(curv.points().iter().enumerate().map(|(i, cp)| Point {
                         x: cp.position.x,
@@ -627,7 +627,7 @@ impl From<&glyphs::Glyph> for Glif {
                 }
             } else {
                 let mut last = false;
-                for curv in c.curves().borrow().iter() {
+                for curv in c.curves().iter() {
                     let degree = curv.degree();
                     point.extend(curv.points().iter().enumerate().filter_map(|(i, cp)| {
                         if last {

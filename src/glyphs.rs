@@ -216,8 +216,7 @@ impl Glyph {
     }
 
     pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
-        let contour = Contour::new();
-        *contour.imp().curves.borrow_mut() = curves;
+        let contour = Contour::new_with_curves(curves);
         Glyph {
             name: name.into(),
             filename: String::new(),
@@ -264,7 +263,7 @@ impl Glyph {
         cr1.set_source_color_alpha(outline.color);
         let mut pen_position: Option<Point> = None;
         for (_ic, contour) in self.contours.iter().enumerate() {
-            let curves = contour.imp().curves.borrow();
+            let curves = contour.curves();
             if !contour.property::<bool>(Contour::OPEN) {
                 if let Some(point) = curves.last().and_then(|b| b.points().last().cloned()) {
                     cr1.move_to(point.x, point.y);
@@ -343,14 +342,7 @@ impl Glyph {
         if let Some((degree, curv)) = highlight.and_then(|(contour_idx, curve_idx)| {
             self.contours
                 .get(contour_idx)
-                .and_then(|contour| {
-                    contour
-                        .curves()
-                        .clone()
-                        .borrow()
-                        .get(curve_idx)
-                        .map(Clone::clone)
-                })
+                .and_then(|contour| contour.curves().get(curve_idx).map(Clone::clone))
                 .and_then(|curv| Some((curv.degree()?, curv)))
         }) {
             let curv_points = curv.points();
@@ -477,8 +469,8 @@ impl Glyph {
                 }
             };
             for contour in self.contours.iter() {
-                let curves = contour.curves().borrow();
-                let continuities = contour.continuities().borrow();
+                let curves = contour.curves();
+                let continuities = contour.continuities();
                 let biggest = contour.property::<u64>(Contour::BIGGEST_CURVE) as usize;
                 for (i, curv) in curves.iter().enumerate() {
                     let degree = curv.degree();
@@ -597,6 +589,7 @@ impl Glyph {
         }
     }
 
+    /*
     pub fn into_cubic(&mut self) {
         if self.is_empty() {
             return;
@@ -643,6 +636,7 @@ impl Glyph {
             }
         }
     }
+    */
 
     #[cfg(feature = "svg")]
     pub fn save_to_svg<P: AsRef<std::path::Path>>(
@@ -663,11 +657,7 @@ impl Glyph {
     }
 
     pub fn is_empty(&self) -> bool {
-        (self.contours.is_empty()
-            || self
-                .contours
-                .iter()
-                .all(|c| c.imp().curves.borrow().is_empty()))
+        (self.contours.is_empty() || self.contours.iter().all(|c| c.curves().is_empty()))
             && self.components.is_empty()
     }
 
@@ -689,7 +679,7 @@ impl Glyph {
         pts: &[GlyphPointIndex],
     ) -> Option<((usize, usize), Bezier)> {
         for (ic, contour) in self.contours.iter().enumerate() {
-            for (jc, curve) in contour.curves().borrow().iter().enumerate() {
+            for (jc, curve) in contour.curves().iter().enumerate() {
                 if curve.on_curve_query(position, None) {
                     return Some(((ic, jc), curve.clone()));
                 }

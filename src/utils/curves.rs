@@ -68,11 +68,21 @@ impl Bezier {
     pub fn push_point(&self, val: CurvePoint) {
         self.set_modified();
         self.imp().points.borrow_mut().push(val);
+        let new_degree = self.degree();
+        for cp in self.imp().points.borrow_mut().iter_mut() {
+            cp.degree = new_degree;
+        }
     }
 
     pub fn reverse(&self) {
         self.set_modified();
         self.imp().points.borrow_mut().reverse();
+        let tmp = self.property::<Option<Continuity>>(Bezier::CONTINUITY_IN);
+        self.set_property(
+            Bezier::CONTINUITY_IN,
+            self.property::<Option<Continuity>>(Bezier::CONTINUITY_OUT),
+        );
+        self.set_property(Bezier::CONTINUITY_OUT, tmp);
     }
 }
 
@@ -82,6 +92,8 @@ pub struct BezierInner {
     points: Rc<RefCell<Vec<CurvePoint>>>,
     pub lut: Rc<RefCell<Vec<Point>>>,
     pub emptiest_t: Cell<Option<(f64, Point, bool)>>,
+    pub continuity_in: Cell<Option<Continuity>>,
+    pub continuity_out: Cell<Option<Continuity>>,
 }
 
 impl std::fmt::Debug for BezierInner {
@@ -98,6 +110,8 @@ impl std::fmt::Debug for BezierInner {
             .field("smooth", &self.smooth.get())
             .field("points", &self.points)
             .field("lut entries", &self.lut.borrow().len())
+            .field("incoming continuity", &self.continuity_in)
+            .field("outcoming continuity", &self.continuity_out)
             .finish()
     }
 }
@@ -120,6 +134,20 @@ impl ObjectImpl for BezierInner {
         static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
+                    glib::ParamSpecBoxed::new(
+                        Bezier::CONTINUITY_IN,
+                        Bezier::CONTINUITY_IN,
+                        Bezier::CONTINUITY_IN,
+                        Continuity::static_type(),
+                        glib::ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecBoxed::new(
+                        Bezier::CONTINUITY_OUT,
+                        Bezier::CONTINUITY_OUT,
+                        Bezier::CONTINUITY_OUT,
+                        Continuity::static_type(),
+                        glib::ParamFlags::READWRITE,
+                    ),
                     glib::ParamSpecBoolean::new(
                         Bezier::SMOOTH,
                         Bezier::SMOOTH,
@@ -156,6 +184,8 @@ impl ObjectImpl for BezierInner {
                 }
                 ret.to_value()
             }
+            Bezier::CONTINUITY_IN => self.continuity_in.get().to_value(),
+            Bezier::CONTINUITY_OUT => self.continuity_out.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -171,7 +201,45 @@ impl ObjectImpl for BezierInner {
             Bezier::SMOOTH => {
                 self.smooth.set(value.get().unwrap());
             }
+            Bezier::CONTINUITY_IN => {
+                let new_val = value.get().unwrap();
+                let degree = self.instance().degree();
+                match degree {
+                    None => {}
+                    Some(0) => {}
+                    Some(_) => {
+                        self.points.borrow_mut()[0].continuity = new_val;
+                    }
+                }
+
+                self.continuity_in.set(new_val);
+            }
+            Bezier::CONTINUITY_OUT => {
+                let new_val = value.get().unwrap();
+                let degree = self.instance().degree();
+                match degree {
+                    None => {}
+                    Some(0) => {}
+                    Some(d) => {
+                        self.points.borrow_mut()[d + 1].continuity = new_val;
+                    }
+                }
+
+                self.continuity_out.set(new_val);
+            }
             _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+}
+
+impl BezierInner {
+    #[inline(always)]
+    fn degree(&self) -> Option<usize> {
+        let points = self.points.borrow().len();
+        if points == 0 {
+            None
+        } else {
+            Some(points - 1)
         }
     }
 }
@@ -186,26 +254,30 @@ impl Bezier {
     pub const SMOOTH: &str = "smooth";
     pub const POINTS: &str = "points";
     pub const POINT: &str = "point";
+    pub const CONTINUITY_IN: &str = "continuity-in";
+    pub const CONTINUITY_OUT: &str = "continuity-out";
 
     pub fn new(points: Vec<Point>) -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
+        let degree = if points.is_empty() {
+            None
+        } else {
+            Some(points.len() - 1)
+        };
         *ret.imp().points.borrow_mut() = points
             .into_iter()
             .map(|position| CurvePoint {
                 position,
+                degree,
                 ..CurvePoint::default()
             })
             .collect::<Vec<CurvePoint>>();
         ret
     }
 
+    #[inline(always)]
     pub fn degree(&self) -> Option<usize> {
-        let points = self.points();
-        if points.is_empty() {
-            None
-        } else {
-            Some(points.len() - 1)
-        }
+        self.imp().degree()
     }
 
     /* https://github.com/Pomax/bezierinfo/blob/adc3ad6397ca9d98339b89183a74cb52fad8f43a/js/graphics-element/lib/bezierjs/bezier.js#L88*/

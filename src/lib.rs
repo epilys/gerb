@@ -45,7 +45,7 @@ pub mod prelude {
     pub use app::{types::*, Settings};
     pub use editor::*;
     pub use glyphs::obj::GlyphMetadata;
-    pub use glyphs::{Glyph, GlyphPointIndex};
+    pub use glyphs::{Continuity, Glyph, GlyphPointIndex};
     pub use gtk::prelude::*;
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
     pub use indexmap::{IndexMap, IndexSet};

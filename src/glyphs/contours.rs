@@ -55,12 +55,19 @@ impl Contour {
         ret
     }
 
-    pub fn curves(&self) -> &RefCell<Vec<Bezier>> {
-        &self.imp().curves
+    pub fn new_with_curves(curves: Vec<Bezier>) -> Self {
+        let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
+        ret.imp().open.set(true);
+        *ret.imp().curves.borrow_mut() = curves;
+        ret
     }
 
-    pub fn continuities(&self) -> &RefCell<Vec<Continuity>> {
-        &self.imp().continuities
+    pub fn curves(&self) -> crate::utils::FieldRef<'_, Vec<Bezier>> {
+        self.imp().curves.borrow().into()
+    }
+
+    pub fn continuities(&self) -> crate::utils::FieldRef<'_, Vec<Continuity>> {
+        self.imp().continuities.borrow().into()
     }
 
     pub fn push_curve(&self, curve: Bezier) {
@@ -94,16 +101,18 @@ impl Contour {
         }
         let prev = curves[curves.len() - 1].points();
         let curr = curve.points();
-        if curve.property::<bool>(Bezier::SMOOTH) {
-            continuities.push(Self::calc_smooth_continuity(
+        let new = if curve.property::<bool>(Bezier::SMOOTH) {
+            Self::calc_smooth_continuity(
                 <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&prev),
                 <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&curr),
-            ));
+            )
         } else {
-            continuities.push(Continuity::Positional);
-        }
+            Continuity::Positional
+        };
         drop(curr);
         drop(prev);
+        curve.set_property(Bezier::CONTINUITY_IN, Some(new));
+        continuities.push(new);
         curves.push(curve);
     }
 
@@ -120,14 +129,18 @@ impl Contour {
         }
         let prev = curves[curves.len() - 1].points();
         let curr = curves[0].points();
-        if curves[0].property::<bool>(Bezier::SMOOTH) {
-            continuities.push(Self::calc_smooth_continuity(
+        let new = if curves[0].property::<bool>(Bezier::SMOOTH) {
+            Self::calc_smooth_continuity(
                 <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&prev),
                 <Vec<CurvePoint> as AsRef<[CurvePoint]>>::as_ref(&curr),
-            ));
+            )
         } else {
-            continuities.push(Continuity::Positional);
-        }
+            Continuity::Positional
+        };
+        drop(curr);
+        drop(prev);
+        curves[0].set_property(Bezier::CONTINUITY_IN, Some(new));
+        continuities.push(new);
         assert_eq!(continuities.len(), curves.len());
     }
 
@@ -209,8 +222,8 @@ impl Contour {
             };
         }
         let closed: bool = !self.imp().open.get();
-        let continuities = self.imp().continuities.borrow();
-        let curves = self.imp().curves.borrow();
+        let continuities = self.continuities();
+        let curves = self.curves();
         let prev_iter = curves
             .iter()
             .enumerate()
@@ -400,13 +413,21 @@ impl Contour {
     ) -> Option<Point> {
         Some(
             self.curves()
-                .borrow()
                 .get(curve_index)?
                 .points()
                 .iter()
                 .find(|cp| cp.uuid == uuid)?
                 .position,
         )
+    }
+
+    pub fn pop_curve(&self) -> Option<Bezier> {
+        let mut curves = self.curves.borrow_mut();
+        if curves.is_empty() {
+            return None;
+        }
+        self.continuities.borrow_mut().pop();
+        curves.pop()
     }
 }
 
@@ -419,8 +440,8 @@ struct BiggestCurve {
 #[derive(Default)]
 pub struct ContourInner {
     pub open: Cell<bool>,
-    pub curves: RefCell<Vec<Bezier>>,
-    pub continuities: RefCell<Vec<Continuity>>,
+    curves: RefCell<Vec<Bezier>>,
+    continuities: RefCell<Vec<Continuity>>,
     biggest_curve: Cell<Option<BiggestCurve>>,
     pub is_contour_modified: Cell<bool>,
 }

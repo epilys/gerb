@@ -19,19 +19,21 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::glyphs::GlyphPointIndex;
+use crate::prelude::*;
 use gtk::cairo::Matrix;
-use gtk::glib;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::ops::{Add, Div, Mul, Sub};
-use uuid::Uuid;
 
+/// This type does not implement copy and is not meant to be modified by anyone except for its
+/// container struct (usually a [`Bezier`]).
 #[derive(Clone, Debug, glib::Boxed)]
 #[boxed_type(name = "CurvePoint", nullable)]
 pub struct CurvePoint {
     pub uuid: Uuid,
     pub position: Point,
+    pub degree: Option<usize>,
+    pub continuity: Option<Continuity>,
 }
 
 impl Default for CurvePoint {
@@ -39,6 +41,8 @@ impl Default for CurvePoint {
         CurvePoint {
             uuid: Uuid::new_v4(),
             position: Point::default(),
+            degree: None,
+            continuity: None,
         }
     }
 }
