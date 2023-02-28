@@ -167,8 +167,8 @@ impl Contour {
         curves.reverse();
         let mut continuities = self.imp().continuities.borrow_mut();
         continuities.reverse();
-        for c in curves.iter_mut() {
-            c.imp().points.borrow_mut().reverse();
+        for c in curves.iter() {
+            c.reverse();
         }
     }
 
@@ -195,16 +195,17 @@ impl Contour {
             .collect::<BTreeSet<_>>();
         let mut updated_points = vec![];
         macro_rules! updated {
-            ($b:expr, $point:expr) => {
+            ($b:expr, $result:expr) => {
+                let (uuid, position) = $result.unwrap();
                 updated_points.push((
                     GlyphPointIndex {
                         contour_index,
                         curve_index: $b,
-                        uuid: $point.uuid,
+                        uuid,
                     },
-                    $point.position,
+                    position,
                 ));
-                extra_uuids.insert(($b, $point.uuid));
+                extra_uuids.insert(($b, uuid));
             };
         }
         let closed: bool = !self.imp().open.get();
@@ -223,65 +224,50 @@ impl Contour {
             .take(curves.len())
             .filter(|((_, (curr_idx, _)), _)| curves_idxs.contains(curr_idx))
         {
-            let mut pts = curr.imp().points.borrow_mut();
-            let pts_len = pts.len();
-            let pts_to_transform = pts
+            let pts_len = curr.points().len();
+            let pts_to_transform = curr
+                .points()
                 .iter()
                 .enumerate()
                 .filter(|(_, p)| uuids.contains(&(curr_idx, p.uuid)))
                 .map(|(i, p)| (i, p.uuid))
                 .collect::<Vec<(usize, Uuid)>>();
             for (i, _uuid) in pts_to_transform {
-                macro_rules! points_mut {
-                    (prev) => {{
-                        Some(prev.imp().points.borrow_mut())
-                        //if prev_idx == curr_idx {
-                        //    None
-                        //} else {
-                        //    Some(prev.points().borrow_mut())
-                        //}
-                    }};
-                    (next) => {{
-                        Some(next.imp().points.borrow_mut())
-                        //if next_idx == curr_idx {
-                        //    None
-                        //} else {
-                        //    Some(next.points().borrow_mut())
-                        //}
-                    }};
-                }
-                pts[i].position *= m;
-                updated!(curr_idx, pts[i]);
-                curr.set_modified();
+                updated!(
+                    curr_idx,
+                    curr.modify_point(i, |cp| {
+                        cp.position *= m;
+                    })
+                );
                 if i == 0 {
                     // Point is first oncurve point.
                     // also transform prev last oncurve point and its handle
 
                     /* Points handle if it's not quadratic */
                     {
-                        if pts_len > 2 && !extra_uuids.contains(&(curr_idx, pts[1].uuid)) {
-                            pts[1].position *= m;
-                            updated!(curr_idx, pts[1]);
+                        if pts_len > 2 && !extra_uuids.contains(&(curr_idx, curr.points()[1].uuid))
+                        {
+                            updated!(curr_idx, curr.modify_point(1, |cp| { cp.position *= m }));
                         }
                     }
                     if closed || curr_idx + 1 != curves.len() {
-                        if let Some(mut prev_points) = points_mut!(prev) {
-                            let pts_len = prev_points.len();
-                            assert!(!prev_points.is_empty());
-                            /* previous curve's last oncurve point */
-                            if !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 1].uuid)) {
-                                prev_points[pts_len - 1].position *= m;
-                                updated!(prev_idx, prev_points[pts_len - 1]);
-                                prev.set_modified();
-                            }
-                            /* previous curve's last handle if it's not quadratic */
-                            if pts_len > 2
-                                && !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 2].uuid))
-                            {
-                                prev_points[pts_len - 2].position *= m;
-                                updated!(prev_idx, prev_points[pts_len - 2]);
-                                prev.set_modified();
-                            }
+                        let pts_len = prev.points().len();
+                        assert!(pts_len != 0);
+                        /* previous curve's last oncurve point */
+                        if !extra_uuids.contains(&(prev_idx, prev.points()[pts_len - 1].uuid)) {
+                            updated!(
+                                prev_idx,
+                                prev.modify_point(pts_len - 1, |cp| { cp.position *= m })
+                            );
+                        }
+                        /* previous curve's last handle if it's not quadratic */
+                        if pts_len > 2
+                            && !extra_uuids.contains(&(prev_idx, prev.points()[pts_len - 2].uuid))
+                        {
+                            updated!(
+                                prev_idx,
+                                prev.modify_point(pts_len - 2, |cp| { cp.position *= m })
+                            );
                         }
                     }
                 } else if i + 1 == pts_len {
@@ -290,29 +276,26 @@ impl Contour {
 
                     /* Points handle if it's not quadratic */
                     {
-                        if pts_len > 2 && !extra_uuids.contains(&(curr_idx, pts[i - 1].uuid)) {
-                            pts[i - 1].position *= m;
-                            updated!(curr_idx, pts[i - 1]);
+                        if pts_len > 2
+                            && !extra_uuids.contains(&(curr_idx, curr.points()[i - 1].uuid))
+                        {
+                            updated!(
+                                curr_idx,
+                                curr.modify_point(i - 1, |cp| { cp.position *= m })
+                            );
                         }
                     }
                     if closed || curr_idx + 1 != curves.len() {
-                        if let Some(mut next_points) = points_mut!(next) {
-                            let pts_len = next_points.len();
-                            assert!(!next_points.is_empty());
-                            /* next first oncurve point */
-                            if !extra_uuids.contains(&(next_idx, next_points[0].uuid)) {
-                                next_points[0].position *= m;
-                                updated!(next_idx, next_points[0]);
-                                next.set_modified();
-                            }
-                            /* next curve's first handle if it's not quadratic */
-                            if pts_len > 2
-                                && !extra_uuids.contains(&(next_idx, next_points[1].uuid))
-                            {
-                                next_points[1].position *= m;
-                                updated!(next_idx, next_points[1]);
-                                next.set_modified();
-                            }
+                        let pts_len = next.points().len();
+                        assert!(pts_len != 0);
+                        /* next first oncurve point */
+                        if !extra_uuids.contains(&(next_idx, next.points()[0].uuid)) {
+                            updated!(next_idx, next.transform_point(0, m));
+                        }
+                        /* next curve's first handle if it's not quadratic */
+                        if pts_len > 2 && !extra_uuids.contains(&(next_idx, next.points()[1].uuid))
+                        {
+                            updated!(next_idx, next.transform_point(1, m));
                         }
                     }
                 } else if closed || (next_idx != 0 && curr_idx + 1 != curves.len()) {
@@ -333,50 +316,67 @@ impl Contour {
                         }};
                     }
                     if i == 1 {
-                        if let Some(mut prev_points) = points_mut!(prev) {
-                            let pts_len = prev_points.len();
-                            assert!(!prev_points.is_empty());
-                            if pts_len > 2
-                                && !extra_uuids.contains(&(prev_idx, prev_points[pts_len - 2].uuid))
-                            {
-                                prev.set_modified();
-                                match cont!(between (curr_idx) and next) {
-                                    Continuity::Positional => {}
-                                    Continuity::Velocity => {
-                                        prev_points[pts_len - 2].position =
-                                            pts[1].position.mirror(pts[0].position);
-                                        updated!(prev_idx, prev_points[pts_len - 2]);
-                                    }
-                                    Continuity::Tangent { beta } => {
-                                        let center = prev_points[pts_len - 1].position;
-                                        let b_ = pts[1].position;
-                                        assert_eq!(pts[0].position, center);
-                                        let m_ = b_ - center;
-                                        let n_ = 2.0 * center - (m_ / beta + center);
-                                        prev_points[pts_len - 2].position = n_;
-                                        updated!(prev_idx, prev_points[pts_len - 2]);
-                                    }
+                        let pts_len = prev.points().len();
+                        assert!(pts_len != 0);
+                        if pts_len > 2
+                            && !extra_uuids.contains(&(prev_idx, prev.points()[pts_len - 2].uuid))
+                        {
+                            match cont!(between (curr_idx) and next) {
+                                Continuity::Positional => {}
+                                Continuity::Velocity => {
+                                    let new_val =
+                                        curr.points()[1].position.mirror(curr.points()[0].position);
+                                    updated!(
+                                        prev_idx,
+                                        prev.modify_point(pts_len - 2, |cp| {
+                                            cp.position = new_val;
+                                        })
+                                    );
+                                }
+                                Continuity::Tangent { beta } => {
+                                    let center = prev.points()[pts_len - 1].position;
+                                    let b_ = curr.points()[1].position;
+                                    assert_eq!(curr.points()[0].position, center);
+                                    let m_ = b_ - center;
+                                    let new_val = 2.0 * center - (m_ / beta + center);
+                                    updated!(
+                                        prev_idx,
+                                        prev.modify_point(pts_len - 2, |cp| {
+                                            cp.position = new_val;
+                                        })
+                                    );
                                 }
                             }
                         }
-                    } else if let Some(mut next_points) = points_mut!(next) {
-                        let pts_len = next_points.len();
-                        assert!(!next_points.is_empty());
-                        if pts_len > 2 && !extra_uuids.contains(&(next_idx, next_points[1].uuid)) {
-                            next.set_modified();
+                    } else {
+                        let pts_len = next.points().len();
+                        assert!(pts_len > 0);
+                        if pts_len > 2 && !extra_uuids.contains(&(next_idx, next.points()[1].uuid))
+                        {
                             match cont!(between (next_idx) and next) {
                                 Continuity::Positional => {}
                                 Continuity::Velocity => {
-                                    next_points[1].position =
-                                        pts[i].position.mirror(pts[i + 1].position);
-                                    updated!(next_idx, next_points[1]);
+                                    let new_val = curr.points()[i]
+                                        .position
+                                        .mirror(curr.points()[i + 1].position);
+                                    updated!(
+                                        next_idx,
+                                        next.modify_point(1, |cp| {
+                                            cp.position = new_val;
+                                        })
+                                    );
                                 }
                                 Continuity::Tangent { beta } => {
-                                    let center = next_points[0].position;
-                                    let n_ = pts[i].position - pts[i + 1].position;
-                                    let m_ = 2.0 * center - (beta * n_ + center);
-                                    next_points[1].position = m_;
-                                    updated!(next_idx, next_points[1]);
+                                    let center = next.points()[0].position;
+                                    let n_ =
+                                        curr.points()[i].position - curr.points()[i + 1].position;
+                                    let new_val = 2.0 * center - (beta * n_ + center);
+                                    updated!(
+                                        next_idx,
+                                        next.modify_point(1, |cp| {
+                                            cp.position = new_val;
+                                        })
+                                    );
                                 }
                             }
                         }

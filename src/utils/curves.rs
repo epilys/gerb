@@ -31,12 +31,55 @@ impl Bezier {
     pub fn points(&self) -> CurvePointsRef {
         self.imp().points.borrow().into()
     }
+
+    #[inline(always)]
+    pub fn modify_point(
+        &self,
+        index: usize,
+        mut cl: impl FnMut(&mut CurvePoint),
+    ) -> Option<(Uuid, Point)> {
+        self.set_modified();
+        self.imp().points.borrow_mut().get_mut(index).map(|cp| {
+            cl(cp);
+            (cp.uuid, cp.position)
+        })
+    }
+
+    #[inline(always)]
+    pub fn transform_point(
+        &self,
+        index: usize,
+        matrix: gtk::cairo::Matrix,
+    ) -> Option<(Uuid, Point)> {
+        self.set_modified();
+        self.imp().points.borrow_mut().get_mut(index).map(|cp| {
+            cp.position *= matrix;
+            (cp.uuid, cp.position)
+        })
+    }
+
+    #[inline(always)]
+    pub fn clear_points(&self) {
+        self.set_modified();
+        self.imp().points.borrow_mut().clear();
+    }
+
+    #[inline(always)]
+    pub fn push_point(&self, val: CurvePoint) {
+        self.set_modified();
+        self.imp().points.borrow_mut().push(val);
+    }
+
+    pub fn reverse(&self) {
+        self.set_modified();
+        self.imp().points.borrow_mut().reverse();
+    }
 }
 
 #[derive(Default)]
 pub struct BezierInner {
     pub smooth: Cell<bool>,
-    pub points: Rc<RefCell<Vec<CurvePoint>>>,
+    points: Rc<RefCell<Vec<CurvePoint>>>,
     pub lut: Rc<RefCell<Vec<Point>>>,
     pub emptiest_t: Cell<Option<(f64, Point, bool)>>,
 }

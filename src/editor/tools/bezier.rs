@@ -592,35 +592,20 @@ impl BezierToolInner {
                     {
                         let curve_point = CurvePoint::new(handle);
                         state.last_point = curve_point.clone();
-                        state
-                            .current_curve
-                            .imp()
-                            .points
-                            .borrow_mut()
-                            .push(curve_point);
+                        state.current_curve.push_point(curve_point);
                         add_to_kdtree(state, state.curve_index, state.last_point.clone());
                     }
 
                     // p3 handle
                     let curve_point = CurvePoint::new(point);
                     state.last_point = curve_point.clone();
-                    state
-                        .current_curve
-                        .imp()
-                        .points
-                        .borrow_mut()
-                        .push(curve_point);
+                    state.current_curve.push_point(curve_point);
                     add_to_kdtree(state, state.curve_index, state.last_point.clone());
 
                     // p3 oncurve
                     let curve_point = CurvePoint::new(point);
                     state.last_point = curve_point.clone();
-                    state
-                        .current_curve
-                        .imp()
-                        .points
-                        .borrow_mut()
-                        .push(curve_point);
+                    state.current_curve.push_point(curve_point);
                     add_to_kdtree(state, state.curve_index, state.last_point.clone());
 
                     self.inner.set(InnerState::OnCurve);
@@ -676,11 +661,7 @@ impl BezierToolInner {
                     new_bezier.set_property(Bezier::SMOOTH, true);
                     let h = CurvePoint::new(state.current_curve.points().last().unwrap().position);
                     state.last_point = h;
-                    new_bezier
-                        .imp()
-                        .points
-                        .borrow_mut()
-                        .push(state.last_point.clone());
+                    new_bezier.push_point(state.last_point.clone());
                     add_to_kdtree(state, state.curve_index + 1, state.last_point.clone());
 
                     let curve = std::mem::replace(&mut state.current_curve, new_bezier);

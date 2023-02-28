@@ -79,4 +79,5 @@ pub mod prelude {
     pub use std::str::FromStr;
 
     pub use once_cell::sync::{Lazy, OnceCell};
+    pub use uuid::Uuid;
 }

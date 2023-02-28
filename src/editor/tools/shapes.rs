@@ -103,27 +103,27 @@ fn make_quadrilateral_bezier_curves(
     (a, b, c, d): (Point, Point, Point, Point),
 ) {
     for c in curves.iter_mut() {
-        c.imp().points.borrow_mut().clear();
+        c.clear_points();
     }
     {
-        let mut c0 = curves[0].imp().points.borrow_mut();
-        c0.push(CurvePoint::new(a));
-        c0.push(CurvePoint::new(b));
+        let c0 = &curves[0];
+        c0.push_point(CurvePoint::new(a));
+        c0.push_point(CurvePoint::new(b));
     }
     {
-        let mut c1 = curves[1].imp().points.borrow_mut();
-        c1.push(CurvePoint::new(b));
-        c1.push(CurvePoint::new(c));
+        let c1 = &curves[1];
+        c1.push_point(CurvePoint::new(b));
+        c1.push_point(CurvePoint::new(c));
     }
     {
-        let mut c2 = curves[2].imp().points.borrow_mut();
-        c2.push(CurvePoint::new(c));
-        c2.push(CurvePoint::new(d));
+        let c2 = &curves[2];
+        c2.push_point(CurvePoint::new(c));
+        c2.push_point(CurvePoint::new(d));
     }
     {
-        let mut c3 = curves[3].imp().points.borrow_mut();
-        c3.push(CurvePoint::new(d));
-        c3.push(CurvePoint::new(a));
+        let c3 = &curves[3];
+        c3.push_point(CurvePoint::new(d));
+        c3.push_point(CurvePoint::new(a));
     }
 }
 
@@ -422,37 +422,43 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
     const B: f64 = 0.55342686;
     const C: f64 = 0.99873585;
     for (i, c) in curves.iter_mut().enumerate() {
-        let mut c = c.imp().points.borrow_mut();
-        c.clear();
+        c.clear_points();
         let mut matrix = gtk::cairo::Matrix::identity();
         matrix.translate(center.x, center.y);
         matrix.rotate(i as f64 * std::f64::consts::FRAC_PI_2);
-        c.push(CurvePoint::new(
+        c.push_point(CurvePoint::new(
             matrix * <_ as Into<Point>>::into((A * radius, 0.0)),
         ));
-        c.push(CurvePoint::new(
+        c.push_point(CurvePoint::new(
             matrix * <_ as Into<Point>>::into((C * radius, B * radius)),
         ));
-        c.push(CurvePoint::new(
+        c.push_point(CurvePoint::new(
             matrix * <_ as Into<Point>>::into((B * radius, C * radius)),
         ));
-        c.push(CurvePoint::new(
+        c.push_point(CurvePoint::new(
             matrix * <_ as Into<Point>>::into((0.0, A * radius)),
         ));
     }
     /* ensure continuities after rotation */
     let mut last_point = curves[3].points()[3].position;
-    let mut pts = curves[0].imp().points.borrow_mut();
-    pts[0].position = last_point;
-    last_point = pts[3].position;
-    let mut pts = curves[1].imp().points.borrow_mut();
-    pts[0].position = last_point;
-    last_point = pts[3].position;
-    let mut pts = curves[2].imp().points.borrow_mut();
-    pts[0].position = last_point;
-    last_point = pts[3].position;
-    let mut pts = curves[3].imp().points.borrow_mut();
-    pts[0].position = last_point;
+    curves[0].modify_point(0, |cp| {
+        cp.position = last_point;
+    });
+    last_point = curves[0].points()[3].position;
+
+    curves[1].modify_point(0, |cp| {
+        cp.position = last_point;
+    });
+    last_point = curves[1].points()[3].position;
+
+    curves[2].modify_point(0, |cp| {
+        cp.position = last_point;
+    });
+    last_point = curves[3].points()[3].position;
+
+    curves[3].modify_point(0, |cp| {
+        cp.position = last_point;
+    });
 }
 
 impl ToolImplImpl for EllipseToolInner {
