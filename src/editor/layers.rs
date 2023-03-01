@@ -127,6 +127,60 @@ pub fn draw_glyph_layer(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> I
             }
         };
         state.glyph.borrow().draw(cr.push(), options);
+        let show_minimap = {
+            let show_minimap = obj.property::<ShowMinimap>(Editor::SHOW_MINIMAP);
+            matches!(show_minimap, ShowMinimap::Always)
+                || (matches!(show_minimap, ShowMinimap::WhenManipulating)
+                    && obj.property::<bool>(Editor::MODIFYING_IN_PROCESS))
+        };
+        if show_minimap {
+            let (mini_width, mini_height) = (150.0, 150.0);
+            let scale = 0.8 * mini_height / (units_per_em * ppu);
+            let mut matrix = Matrix::identity();
+            let factor = ppu * scale;
+            {
+                let content_width = viewport.property::<f64>(Canvas::CONTENT_WIDTH);
+                let half_unit = (ppu * content_width / 4.0, ppu * units_per_em / 4.0);
+                let (x, y) = (
+                    mini_width / 2.0 - half_unit.0,
+                    mini_height / 2.0 + half_unit.1,
+                );
+                matrix.translate(x, y);
+            }
+            if factor.is_finite() {
+                matrix.scale(factor, factor);
+            }
+            matrix.scale(1.0, -1.0);
+            let width: f64 = viewport.property::<f64>(Canvas::VIEW_WIDTH);
+            let surface = cr
+                .target()
+                .create_for_rectangle(cairo::Rectangle {
+                    x: if width > mini_width {
+                        width - mini_width
+                    } else {
+                        0.0
+                    },
+                    y: mini_height,
+                    width: mini_width,
+                    height: mini_height,
+                })
+                .unwrap();
+            let minimap = cairo::Context::new(&surface).unwrap();
+            minimap.set_source_color_alpha(Color::WHITE);
+            minimap.paint().unwrap();
+            minimap.set_source_color_alpha(Color::BLACK);
+            minimap.rectangle(0.0, 0.0, mini_width, mini_height);
+            minimap.stroke().unwrap();
+            minimap.transform(matrix);
+            state.glyph.borrow().draw(
+                (&mut &minimap).into(),
+                GlyphDrawingOptions {
+                    outline: (Color::new_alpha(0, 0, 0, 0), 1.5).into(),
+                    inner_fill: Some((Color::new(89, 89, 89), 1.5).into()),
+                    ..Default::default()
+                },
+            );
+        }
     }
 
     Inhibit(false)

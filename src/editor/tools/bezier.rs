@@ -527,6 +527,9 @@ impl ToolImplImpl for BezierToolInner {
             .build();
         self.layer.set(layer.clone()).unwrap();
         view.viewport.add_post_layer(layer);
+        self.instance()
+            .bind_property(BezierTool::ACTIVE, view, Editor::MODIFYING_IN_PROCESS)
+            .build();
 
         self.parent_setup_toolbox(obj, toolbar, view)
     }

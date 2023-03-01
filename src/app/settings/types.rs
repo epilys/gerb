@@ -43,7 +43,7 @@ pub trait EnumValue: glib::value::ToValue + Sized {
 
 #[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, PartialEq, Eq, glib::Enum)]
 #[enum_type(name = "MarkColor")]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 pub enum MarkColor {
     None,
     Background,
@@ -52,6 +52,18 @@ pub enum MarkColor {
 }
 
 impl EnumValue for MarkColor {}
+
+#[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, PartialEq, Eq, glib::Enum)]
+#[enum_type(name = "ShowMinimap")]
+#[serde(rename_all = "kebab-case")]
+pub enum ShowMinimap {
+    Never,
+    Always,
+    #[default]
+    WhenManipulating,
+}
+
+impl EnumValue for ShowMinimap {}
 
 #[test]
 fn test_parse_toml() {

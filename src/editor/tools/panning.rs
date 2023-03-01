@@ -170,6 +170,7 @@ impl ToolImplImpl for PanningToolInner {
                 Lock::clear(&view);
                 Precision::clear(&view);
                 self.mode.set(Mode::None);
+                view.set_property(Editor::MODIFYING_IN_PROCESS, false);
                 view.hovering.set(None);
                 viewport.queue_draw();
                 self.instance()
@@ -208,6 +209,7 @@ impl ToolImplImpl for PanningToolInner {
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         self.mode.set(Mode::Drag);
+                        view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                         viewport.set_cursor("grab");
                     }
                 }
@@ -259,6 +261,7 @@ impl ToolImplImpl for PanningToolInner {
                         g.y.set(position.y);
                         //view.select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
                         self.mode.set(Mode::DragGuideline(i));
+                        view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         is_guideline = true;
@@ -311,6 +314,7 @@ impl ToolImplImpl for PanningToolInner {
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
                                 self.mode.set(Mode::Drag);
+                                view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                                 view.hovering.set(Some((i, j)));
                                 viewport.set_cursor("grab");
                                 return Inhibit(true);
@@ -345,6 +349,7 @@ impl ToolImplImpl for PanningToolInner {
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         self.mode.set(Mode::Drag);
+                        view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                         viewport.set_cursor("grab");
                     }
                 }
@@ -489,6 +494,7 @@ impl ToolImplImpl for PanningToolInner {
                 view.action_group
                     .change_action_state(Editor::LOCK_ACTION, &Lock::empty().to_variant());
                 self.mode.set(Mode::None);
+                view.set_property(Editor::MODIFYING_IN_PROCESS, false);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
                 self.set_default_cursor(&view);
@@ -539,6 +545,7 @@ impl ToolImplImpl for PanningToolInner {
                     let undo_db = app.undo_db.borrow();
                     undo_db.event(action);
                     self.mode.set(Mode::None);
+                    view.set_property(Editor::MODIFYING_IN_PROCESS, false);
                     view.hovering.set(None);
                     viewport.queue_draw();
                     self.instance()
@@ -1005,11 +1012,13 @@ impl PanningToolInner {
                 Mode::None if !state.get_selection_set().is_empty() => {
                     obj.set_property::<bool>(PanningTool::ACTIVE, true);
                     obj.imp().mode.set(Mode::Drag);
+                    view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                     view.viewport.set_cursor("grab");
                 }
                 Mode::Drag | Mode::DragGuideline(_) => {
                     obj.set_property::<bool>(PanningTool::ACTIVE, false);
                     obj.imp().mode.set(Mode::Drag);
+                    view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                     view.viewport.set_cursor("grab");
                 }
                 _ => {}

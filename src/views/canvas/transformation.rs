@@ -274,7 +274,7 @@ impl Transformation {
     pub const FIT_VIEW: &str = "fit-view";
     pub const VIEW_HEIGHT: &str = super::Canvas::VIEW_HEIGHT;
     pub const VIEW_WIDTH: &str = super::Canvas::VIEW_WIDTH;
-    pub const CONTENT_WIDTH: &str = "content-width";
+    pub const CONTENT_WIDTH: &str = super::Canvas::CONTENT_WIDTH;
     pub const SCALE: &str = "scale";
     pub const CAMERA_X: &str = "camera-x";
     pub const CAMERA_Y: &str = "camera-y";

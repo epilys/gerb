@@ -54,6 +54,7 @@ pub struct CanvasInner {
     pub warp_cursor: Cell<bool>,
     view_height: Cell<f64>,
     view_width: Cell<f64>,
+    content_width: Cell<f64>,
     mouse: Cell<ViewPoint>,
     pub pre_layers: Rc<RefCell<Vec<Layer>>>,
     pub layers: Rc<RefCell<Vec<Layer>>>,
@@ -320,6 +321,15 @@ impl ObjectImpl for CanvasInner {
                         ParamFlags::READWRITE,
                     ),
                     ParamSpecDouble::new(
+                        Canvas::CONTENT_WIDTH,
+                        Canvas::CONTENT_WIDTH,
+                        Canvas::CONTENT_WIDTH,
+                        std::f64::MIN,
+                        std::f64::MAX,
+                        0.0,
+                        ParamFlags::READWRITE,
+                    ),
+                    ParamSpecDouble::new(
                         Canvas::RULER_BREADTH_PIXELS,
                         Canvas::RULER_BREADTH_PIXELS,
                         Canvas::RULER_BREADTH_PIXELS,
@@ -432,6 +442,7 @@ impl ObjectImpl for CanvasInner {
             Canvas::WARP_CURSOR => self.warp_cursor.get().to_value(),
             Canvas::VIEW_HEIGHT => (self.instance().allocated_height() as f64).to_value(),
             Canvas::VIEW_WIDTH => (self.instance().allocated_width() as f64).to_value(),
+            Canvas::CONTENT_WIDTH => self.content_width.get().to_value(),
             Canvas::BG_COLOR => self.bg_color.get().to_value(),
             Canvas::GLYPH_INNER_FILL_COLOR => self.glyph_inner_fill_color.get().to_value(),
             Canvas::GLYPH_BBOX_BG_COLOR => self.glyph_bbox_bg_color.get().to_value(),
@@ -497,6 +508,9 @@ impl ObjectImpl for CanvasInner {
             }
             Canvas::VIEW_HEIGHT => {
                 self.view_height.set(value.get().unwrap());
+            }
+            Canvas::CONTENT_WIDTH => {
+                self.content_width.set(value.get().unwrap());
             }
             Canvas::BG_COLOR => {
                 self.bg_color.set(value.get().unwrap());
@@ -585,6 +599,7 @@ impl Canvas {
     pub const RULER_FG_COLOR: &str = "ruler-fg-color";
     pub const RULER_BG_COLOR: &str = "ruler-bg-color";
     pub const RULER_INDICATOR_COLOR: &str = "ruler-indicator-color";
+    pub const CONTENT_WIDTH: &str = "content-width";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
@@ -593,6 +608,10 @@ impl Canvas {
                 .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
                 .build();
         }
+        ret.transformation
+            .bind_property(Self::CONTENT_WIDTH, &ret, Self::CONTENT_WIDTH)
+            .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
+            .build();
         ret
     }
 

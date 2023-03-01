@@ -27,6 +27,7 @@ use indexmap::IndexMap;
 use once_cell::unsync::OnceCell;
 use std::collections::HashSet;
 
+use crate::app::settings::types::ShowMinimap;
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, GlyphPointIndex, Guideline};
 use crate::prelude::*;
 use crate::views::overlay::Child;
@@ -62,6 +63,8 @@ pub struct EditorInner {
     show_glyph_guidelines: Cell<bool>,
     show_project_guidelines: Cell<bool>,
     show_metrics_guidelines: Cell<bool>,
+    modifying_in_process: Cell<bool>,
+    show_minimap: Cell<ShowMinimap>,
     settings: OnceCell<Settings>,
     menubar: gtk::MenuBar,
     preview: Cell<Option<StatusBarMessage>>,
@@ -294,6 +297,21 @@ impl ObjectImpl for EditorInner {
                         true,
                         ParamFlags::READWRITE,
                     ),
+                    ParamSpecBoolean::new(
+                        Editor::MODIFYING_IN_PROCESS,
+                        Editor::MODIFYING_IN_PROCESS,
+                        Editor::MODIFYING_IN_PROCESS,
+                        false,
+                        ParamFlags::READWRITE,
+                    ),
+                    glib::ParamSpecEnum::new(
+                        Editor::SHOW_MINIMAP,
+                        Editor::SHOW_MINIMAP,
+                        Editor::SHOW_MINIMAP,
+                        ShowMinimap::static_type(),
+                        ShowMinimap::WhenManipulating as i32,
+                        ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
                     glib::ParamSpecObject::new(
                         Editor::ACTIVE_TOOL,
                         Editor::ACTIVE_TOOL,
@@ -372,6 +390,8 @@ impl ObjectImpl for EditorInner {
             Editor::SHOW_GLYPH_GUIDELINES => self.show_glyph_guidelines.get().to_value(),
             Editor::SHOW_PROJECT_GUIDELINES => self.show_project_guidelines.get().to_value(),
             Editor::SHOW_METRICS_GUIDELINES => self.show_metrics_guidelines.get().to_value(),
+            Editor::MODIFYING_IN_PROCESS => self.modifying_in_process.get().to_value(),
+            Editor::SHOW_MINIMAP => self.show_minimap.get().to_value(),
             Editor::ACTIVE_TOOL => {
                 let state = self.state.get().unwrap().borrow();
                 let active_tool = state.active_tool;
@@ -418,6 +438,12 @@ impl ObjectImpl for EditorInner {
             }
             Editor::SHOW_METRICS_GUIDELINES => {
                 self.show_metrics_guidelines.set(value.get().unwrap());
+            }
+            Editor::MODIFYING_IN_PROCESS => {
+                self.modifying_in_process.set(value.get().unwrap());
+            }
+            Editor::SHOW_MINIMAP => {
+                self.show_minimap.set(value.get().unwrap());
             }
             Editor::PREVIEW => {
                 let v: bool = value.get().unwrap();
@@ -570,6 +596,8 @@ impl Editor {
     pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
     pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";
     pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
+    pub const SHOW_MINIMAP: &str = "show-minimap";
+    pub const MODIFYING_IN_PROCESS: &str = "modifying-in-process";
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
 
@@ -612,6 +640,7 @@ impl Editor {
         }
         let settings = app.settings.borrow().clone();
         settings.register_obj(ret.viewport.clone().upcast());
+        settings.register_obj(ret.clone().upcast());
         settings
             .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)

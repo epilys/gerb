@@ -169,6 +169,9 @@ impl SettingsInner {
                     } else if prop.value_type() == types::MarkColor::static_type() {
                         document[type_name][prop.name()] =
                             toml_value(&obj.property::<MarkColor>(prop.name()).name());
+                    } else if prop.value_type() == types::ShowMinimap::static_type() {
+                        document[type_name][prop.name()] =
+                            toml_value(&obj.property::<ShowMinimap>(prop.name()).name());
                     }
                 }
             }
@@ -276,6 +279,8 @@ impl SettingsInner {
                 }
             }),
         );
+        // TODO: keep list of weak references for each type, otherwise if more than one instance is
+        // alive new instances will overwrite old ones in this insert.
         self.entries.borrow_mut().insert(type_name, obj);
     }
 }
