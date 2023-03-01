@@ -209,22 +209,6 @@ impl ToolImplImpl for PanningToolInner {
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         self.mode.set(Mode::Drag);
                         viewport.set_cursor("grab");
-                    } else {
-                        let pts = view
-                            .state()
-                            .borrow()
-                            .kd_tree
-                            .borrow()
-                            .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
-                        if !pts.is_empty() {
-                            let menu = crate::utils::menu::Menu::new()
-                                .title(Some("Point".into()))
-                                .separator()
-                                .add_button_cb("Dissolve point", move |_| {})
-                                .add_button_cb("Make smooth", move |_| {})
-                                .add_button_cb("Make corner", move |_| {});
-                            menu.popup(event.time());
-                        }
                     }
                 }
             }
@@ -589,36 +573,61 @@ impl ToolImplImpl for PanningToolInner {
                     let is_corner = if pts.is_empty() {
                         None
                     } else {
-                        state.glyph.borrow().contours[pts[0].contour_index].curves()
-                            [pts[0].curve_index]
-                            .points()
-                            .iter()
-                            .find(|cp| cp.uuid == pts[0].uuid)
-                            .and_then(|cp| Some((pts[0], cp.continuity?)))
+                        pts.iter().find_map(|p| {
+                            state.glyph.borrow().contours[p.contour_index].curves()[p.curve_index]
+                                .points()
+                                .iter()
+                                .find(|cp| cp.uuid == p.uuid && cp.continuity.is_some())
+                                .and_then(|cp| Some((*p, cp.continuity?)))
+                        })
                     };
                     let on_curve_query = glyph.on_curve_query(position, &[]);
                     (is_corner, on_curve_query)
                 };
                 if let Some((idx, corner_continuity)) = is_corner {
-                    crate::utils::menu::Menu::new()
-                        .add_button_cb(
-                            if matches!(corner_continuity, Continuity::Positional) {
-                                "make smooth"
-                            } else {
-                                "make corner"
-                            },
+                    let mut menu = crate::utils::menu::Menu::new()
+                        .title(Some(format!("{:?}", corner_continuity).into()))
+                        .separator();
+                    menu = if !matches!(corner_continuity, Continuity::Velocity) {
+                        menu.add_button_cb(
+                            "make smooth",
                             clone!(@strong view => move |_| {
                                 let state = view.state().borrow();
                                 let glyph = state.glyph.borrow();
-                                let new_val = if matches!(corner_continuity, Continuity::Positional) {
-                                    Continuity::Velocity
-                                } else {
-                                    Continuity::Positional
-                                };
+                                let new_val = Continuity::Velocity;
                                 glyph.contours[idx.contour_index].change_continuity(idx, new_val);
                             }),
                         )
-                        .popup(event.time());
+                    } else {
+                        menu.add_button("make smooth")
+                    };
+                    menu = if !matches!(corner_continuity, Continuity::Positional) {
+                        menu.add_button_cb(
+                            "make corner",
+                            clone!(@strong view => move |_| {
+                                let state = view.state().borrow();
+                                let glyph = state.glyph.borrow();
+                                let new_val = Continuity::Positional;
+                                glyph.contours[idx.contour_index].change_continuity(idx, new_val);
+                            }),
+                        )
+                    } else {
+                        menu.add_button("make corner")
+                    };
+                    menu = if !matches!(corner_continuity, Continuity::Tangent { .. }) {
+                        menu.add_button_cb(
+                            "make tangent",
+                            clone!(@strong view => move |_| {
+                                let state = view.state().borrow();
+                                let glyph = state.glyph.borrow();
+                                let new_val = Continuity::Tangent { beta: 1.00 };
+                                glyph.contours[idx.contour_index].change_continuity(idx, new_val);
+                            }),
+                        )
+                    } else {
+                        menu.add_button("make tangent")
+                    };
+                    menu.popup(event.time());
                     return Inhibit(true);
                 } else if let Some(((i, _), _curve)) = on_curve_query {
                     crate::utils::menu::Menu::new()

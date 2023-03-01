@@ -390,29 +390,44 @@ impl Glyph {
             cr1.stroke().expect("Invalid cairo surface state");
         }
         if let Some(handle) = handle {
-            let draw_oncurve = |cr: ContextRef, p: &CurvePoint, is_corner: Option<bool>| {
+            let draw_oncurve = |cr: ContextRef, p: &CurvePoint, cont: Option<Continuity>| {
                 if selection.map(|s| s.contains(&p.uuid)).unwrap_or(false) {
                     cr.set_draw_opts((Color::RED, outline.size).into());
-                } else if let (Some(opts), true) = (corner, is_corner.unwrap_or(true)) {
+                } else if let (Some(opts), true) =
+                    (corner, cont.map(Continuity::is_positional).unwrap_or(true))
+                {
                     cr.set_draw_opts((opts.color, outline.size).into());
                 } else {
                     cr.set_draw_opts((handle.color, outline.size).into());
                 }
-                if is_corner.unwrap_or(true) {
-                    cr.rectangle(
-                        p.position.x - handle.size / 2.0,
-                        p.position.y - handle.size / 2.0,
-                        handle.size,
-                        handle.size,
-                    );
-                } else {
-                    cr.arc(
-                        p.position.x,
-                        p.position.y,
-                        handle.size / 2.0,
-                        0.0,
-                        2.0 * std::f64::consts::PI,
-                    );
+                match cont.unwrap_or(Continuity::Positional) {
+                    Continuity::Positional => {
+                        cr.rectangle(
+                            p.position.x - handle.size / 2.0,
+                            p.position.y - handle.size / 2.0,
+                            handle.size,
+                            handle.size,
+                        );
+                    }
+                    Continuity::Velocity => {
+                        cr.arc(
+                            p.position.x,
+                            p.position.y,
+                            handle.size / 2.0,
+                            0.0,
+                            2.0 * std::f64::consts::PI,
+                        );
+                    }
+                    Continuity::Tangent { .. } => {
+                        cr.move_to(
+                            p.position.x - handle.size / 2.0,
+                            p.position.y - handle.size / 2.0,
+                        );
+                        cr.rel_line_to(0.0, handle.size);
+                        cr.move_to(p.position.x - handle.size / 2.0, p.position.y);
+                        cr.rel_line_to(handle.size, 0.0);
+                        cr.close_path();
+                    }
                 }
                 cr.stroke().unwrap();
             };
@@ -470,7 +485,6 @@ impl Glyph {
             };
             for contour in self.contours.iter() {
                 let curves = contour.curves();
-                let continuities = contour.continuities();
                 let biggest = contour.property::<u64>(Contour::BIGGEST_CURVE) as usize;
                 for (i, curv) in curves.iter().enumerate() {
                     let degree = curv.degree();
@@ -486,7 +500,7 @@ impl Glyph {
                             draw_oncurve(
                                 cr1.push(),
                                 &curv_points[0],
-                                continuities.get(0).map(Continuity::is_positional),
+                                curv.imp().continuity_in.get(),
                             );
                         }
                         1 => {
@@ -497,12 +511,12 @@ impl Glyph {
                             draw_oncurve(
                                 cr1.push(),
                                 &curv_points[0],
-                                continuities.get(0).map(Continuity::is_positional),
+                                curv.imp().continuity_in.get(),
                             );
                             draw_oncurve(
                                 cr1.push(),
                                 &curv_points[1],
-                                continuities.get(1).map(Continuity::is_positional),
+                                curv.imp().continuity_out.get(),
                             );
                         }
                         2 => {
@@ -516,16 +530,8 @@ impl Glyph {
                             draw_handle_connection(cr1.push(), handle.position, ep1.position);
                             draw_handle_connection(cr1.push(), handle.position, ep2.position);
                             draw_handle(cr1.push(), handle);
-                            draw_oncurve(
-                                cr1.push(),
-                                ep1,
-                                continuities.get(0).map(Continuity::is_positional),
-                            );
-                            draw_oncurve(
-                                cr1.push(),
-                                ep2,
-                                continuities.get(2).map(Continuity::is_positional),
-                            );
+                            draw_oncurve(cr1.push(), ep1, curv.imp().continuity_in.get());
+                            draw_oncurve(cr1.push(), ep2, curv.imp().continuity_out.get());
                         }
                         3 => {
                             /* Cubic */
@@ -540,16 +546,8 @@ impl Glyph {
                             draw_handle_connection(cr1.push(), handle2.position, ep2.position);
                             draw_handle(cr1.push(), handle1);
                             draw_handle(cr1.push(), handle2);
-                            draw_oncurve(
-                                cr1.push(),
-                                ep1,
-                                continuities.get(0).map(Continuity::is_positional),
-                            );
-                            draw_oncurve(
-                                cr1.push(),
-                                ep2,
-                                continuities.get(3).map(Continuity::is_positional),
-                            );
+                            draw_oncurve(cr1.push(), ep1, curv.imp().continuity_in.get());
+                            draw_oncurve(cr1.push(), ep2, curv.imp().continuity_out.get());
                         }
                         d => {
                             eprintln!("Something's wrong. Bezier of degree {}: {:?}", d, curv);

@@ -20,9 +20,6 @@
  */
 
 use super::*;
-use glib::{ParamSpec, Value};
-use gtk::glib;
-use std::cell::Cell;
 use std::collections::BTreeSet;
 
 glib::wrapper! {
@@ -45,8 +42,6 @@ impl std::ops::Deref for Contour {
 
 impl Contour {
     pub const OPEN: &str = "open";
-    pub const CONTINUITIES: &str = "continuities";
-    pub const CONTINUITY: &str = "continuity";
     pub const BIGGEST_CURVE: &str = "biggest-curve";
 
     pub fn new() -> Self {
@@ -67,15 +62,9 @@ impl Contour {
         self.imp().curves.borrow().into()
     }
 
-    pub fn continuities(&self) -> crate::utils::FieldRef<'_, Vec<Continuity>> {
-        self.imp().continuities.borrow().into()
-    }
-
     pub fn recalc_continuities(&self) {
         let closed: bool = !self.imp().open.get();
         let curves = self.curves();
-        let mut continuities = self.imp().continuities.borrow_mut();
-        continuities.clear();
         if closed {
             let prev_iter = curves
                 .iter()
@@ -115,10 +104,6 @@ impl Contour {
                 };
                 curr.set_property(Bezier::CONTINUITY_OUT, Some(after));
                 next.set_property(Bezier::CONTINUITY_IN, Some(after));
-                if continuities.is_empty() {
-                    continuities.push(before);
-                }
-                continuities.push(after);
             }
         } else {
             let curr_iter = curves.iter().enumerate().cycle();
@@ -140,14 +125,12 @@ impl Contour {
                 };
                 curr.set_property(Bezier::CONTINUITY_OUT, Some(after));
                 next.set_property(Bezier::CONTINUITY_IN, Some(after));
-                continuities.push(after);
             }
         }
     }
 
     pub fn push_curve(&self, curve: Bezier) {
         let mut curves = self.imp().curves.borrow_mut();
-        let mut continuities = self.imp().continuities.borrow_mut();
         if curve.points().is_empty() {
             return;
         }
@@ -190,7 +173,6 @@ impl Contour {
         if !curves.is_empty() {
             curves[curves.len() - 1].set_property(Bezier::CONTINUITY_OUT, Some(new));
         }
-        continuities.push(new);
         curves.push(curve);
     }
 
@@ -201,7 +183,6 @@ impl Contour {
         self.imp().open.set(false);
 
         let curves = self.imp().curves.borrow();
-        let mut continuities = self.imp().continuities.borrow_mut();
         if curves.is_empty() {
             return;
         }
@@ -219,8 +200,6 @@ impl Contour {
         drop(prev);
         curves[0].set_property(Bezier::CONTINUITY_IN, Some(new));
         curves[curves.len() - 1].set_property(Bezier::CONTINUITY_OUT, Some(new));
-        continuities.push(new);
-        assert_eq!(continuities.len(), curves.len());
     }
 
     fn calc_smooth_continuity(prev: &[CurvePoint], curr: &[CurvePoint]) -> Continuity {
@@ -257,8 +236,6 @@ impl Contour {
     pub fn reverse_direction(&self) {
         let mut curves = self.imp().curves.borrow_mut();
         curves.reverse();
-        let mut continuities = self.imp().continuities.borrow_mut();
-        continuities.reverse();
         for c in curves.iter() {
             c.reverse();
         }
@@ -510,7 +487,6 @@ impl Contour {
         if curves.is_empty() {
             return None;
         }
-        self.continuities.borrow_mut().pop();
         curves.pop()
     }
 
@@ -585,7 +561,6 @@ struct BiggestCurve {
 pub struct ContourInner {
     pub open: Cell<bool>,
     curves: RefCell<Vec<Bezier>>,
-    continuities: RefCell<Vec<Continuity>>,
     biggest_curve: Cell<Option<BiggestCurve>>,
     pub is_contour_modified: Cell<bool>,
 }
@@ -603,7 +578,6 @@ impl std::fmt::Debug for ContourInner {
                     .map(Bezier::imp)
                     .collect::<Vec<_>>(),
             )
-            .field("continuities", &self.continuities.borrow())
             .field("biggest_curve", &self.biggest_curve.get())
             .finish()
     }
@@ -618,23 +592,10 @@ impl ObjectSubclass for ContourInner {
 }
 
 impl ObjectImpl for ContourInner {
-    fn properties() -> &'static [ParamSpec] {
-        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
-                    glib::ParamSpecValueArray::new(
-                        Contour::CONTINUITIES,
-                        Contour::CONTINUITIES,
-                        Contour::CONTINUITIES,
-                        &glib::ParamSpecBoxed::new(
-                            Contour::CONTINUITY,
-                            Contour::CONTINUITY,
-                            Contour::CONTINUITY,
-                            Continuity::static_type(),
-                            glib::ParamFlags::READWRITE,
-                        ),
-                        glib::ParamFlags::READWRITE,
-                    ),
                     glib::ParamSpecBoolean::new(
                         Contour::OPEN,
                         Contour::OPEN,
@@ -656,16 +617,8 @@ impl ObjectImpl for ContourInner {
         PROPERTIES.as_ref()
     }
 
-    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
-            Contour::CONTINUITIES => {
-                let continuities = self.continuities.borrow();
-                let mut ret = glib::ValueArray::new(continuities.len() as u32);
-                for c in continuities.iter() {
-                    ret.append(&c.to_value());
-                }
-                ret.to_value()
-            }
             Contour::OPEN => self.open.get().to_value(),
             Contour::BIGGEST_CURVE => {
                 let prev = match (self.is_contour_modified.get(), self.biggest_curve.get()) {
@@ -713,20 +666,6 @@ impl ObjectImpl for ContourInner {
             _ => unimplemented!("{}", pspec.name()),
         }
     }
-
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
-        match pspec.name() {
-            Contour::CONTINUITIES => {
-                let arr: glib::ValueArray = value.get().unwrap();
-                let mut continuities = self.continuities.borrow_mut();
-                continuities.clear();
-                for c in arr.iter() {
-                    continuities.push(c.get().unwrap());
-                }
-            }
-            _ => unimplemented!("{}", pspec.name()),
-        }
-    }
 }
 
 /// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
@@ -749,7 +688,7 @@ pub enum Continuity {
 }
 
 impl Continuity {
-    pub fn is_positional(&self) -> bool {
+    pub fn is_positional(self) -> bool {
         matches!(self, Self::Positional)
     }
 }

@@ -65,6 +65,7 @@ impl Menu {
 
     pub fn add_button(mut self, label: &str) -> Self {
         let button: gtk::MenuItem = gtk::MenuItem::with_label(label);
+        button.set_sensitive(false);
         self.inner.append(&button);
         self.buttons.push(button);
         self
