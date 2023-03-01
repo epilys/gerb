@@ -358,6 +358,10 @@ impl WindowInner {
             false,
             false,
         );
+        #[cfg(feature = "python")]
+        {
+            crate::api::new_shell_window(self.application()).present();
+        }
         self.notebook.show_all();
         self.notebook.queue_draw();
     }
@@ -433,5 +437,9 @@ impl Default for Window {
 impl Window {
     pub fn new() -> Self {
         glib::Object::new(&[]).expect("Failed to create Main Window")
+    }
+
+    pub fn project(&self) -> FieldRef<'_, Project> {
+        self.project.borrow().into()
     }
 }

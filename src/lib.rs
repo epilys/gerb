@@ -22,6 +22,8 @@
 #[macro_use]
 extern crate glib;
 
+#[cfg(feature = "python")]
+pub mod api;
 pub mod app;
 pub mod editor;
 #[cfg(feature = "git")]
