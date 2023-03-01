@@ -138,6 +138,8 @@ impl ApplicationInner {
         application.set_accels_for_action("app.about", &["question", "F1"]);
         application.set_accels_for_action("app.undo", &["<Primary>Z"]);
         application.set_accels_for_action("app.redo", &["<Primary>R"]);
+        #[cfg(debug_assertions)]
+        application.set_accels_for_action("app.snapshot", &["F12"]);
         application.set_accels_for_action("app.project.open", &["<Primary>O"]);
         application.set_accels_for_action("app.project.new", &["<Primary>N"]);
         application.set_accels_for_action("app.project.properties", &["<Primary><Shift>D"]);
@@ -155,6 +157,22 @@ impl ApplicationInner {
         application.set_accels_for_action("glyph.show.guideline.inner-fill", &["F3"]);
         application.set_accels_for_action("view.preview", &["grave"]);
         let window = self.window.upcast_ref::<gtk::Window>();
+        #[cfg(debug_assertions)]
+        {
+            let snapshot = gtk::gio::SimpleAction::new("snapshot", None);
+            snapshot.connect_activate(glib::clone!(@weak window, @weak application => move |_, _| {
+                let path = "/tmp/t.svg";
+                let (w, h) = (window.allocated_width(), window.allocated_height());
+                let svg_surface = gtk::cairo::SvgSurface::new(w as f64, h as f64, Some(path)).unwrap();
+                let ctx = gtk::cairo::Context::new(&svg_surface).unwrap();
+                window.draw(&ctx);
+                svg_surface.flush();
+                svg_surface.finish();
+                eprintln!("saved to path: {path}");
+            }));
+            application.add_action(&snapshot);
+        }
+
         let quit = gtk::gio::SimpleAction::new("quit", None);
         quit.connect_activate(glib::clone!(@weak window => move |_, _| {
             window.close();
