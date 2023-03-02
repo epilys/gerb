@@ -636,7 +636,6 @@ impl Glyph {
     }
     */
 
-    #[cfg(feature = "svg")]
     pub fn save_to_svg<P: AsRef<std::path::Path>>(
         &self,
         path: P,

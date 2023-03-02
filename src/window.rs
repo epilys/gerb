@@ -358,10 +358,6 @@ impl WindowInner {
             false,
             false,
         );
-        #[cfg(feature = "python")]
-        {
-            crate::api::new_shell_window(self.application()).present();
-        }
         self.notebook.show_all();
         self.notebook.queue_draw();
     }

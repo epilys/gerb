@@ -163,7 +163,7 @@ impl ApplicationInner {
             snapshot.connect_activate(glib::clone!(@weak window, @weak application => move |_, _| {
                 let path = "/tmp/t.svg";
                 let (w, h) = (window.allocated_width(), window.allocated_height());
-                let svg_surface = gtk::cairo::SvgSurface::new(w as f64, h as f64, Some(path)).unwrap();
+                let svg_surface = cairo::SvgSurface::new(w as f64, h as f64, Some(path)).unwrap();
                 let ctx = gtk::cairo::Context::new(&svg_surface).unwrap();
                 window.draw(&ctx);
                 svg_surface.flush();
@@ -197,6 +197,15 @@ impl ApplicationInner {
             }
             p.show_all();
         }));
+        #[cfg(feature = "python")]
+        {
+            let shell = gtk::gio::SimpleAction::new("shell", None);
+            shell.connect_activate(glib::clone!(@weak obj => move |_, _| {
+                // FIXME: prevent more than one window from launching.
+                crate::api::new_shell_window(obj).present();
+            }));
+            application.add_action(&shell);
+        }
 
         let settings = gtk::gio::SimpleAction::new("settings", None);
         settings.connect_activate(
@@ -445,6 +454,10 @@ impl ApplicationInner {
             file_menu.append_submenu(Some("Import"), &import_menu);
             let project_section = gio::Menu::new();
             project_section.append(Some("Properties"), Some("app.project.properties"));
+            #[cfg(feature = "python")]
+            {
+                project_section.append(Some("Open Python Shell"), Some("app.shell"));
+            }
             file_menu.append_section(Some("Project"), &project_section);
             file_menu.append(Some("Quit"), Some("app.quit"));
             menu_bar.append_submenu(Some("_File"), &file_menu);

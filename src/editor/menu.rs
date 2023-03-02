@@ -216,9 +216,7 @@ impl EditorInner {
                 obj.make_debug_window();
             }));
             action_group.add_action(&inspect);
-            #[cfg(feature = "svg")]
             let export_svg = gtk::gio::SimpleAction::new("export.svg", None);
-            #[cfg(feature = "svg")]
             export_svg.connect_activate(clone!(@weak obj => move |_, _| {
                 let dialog = gtk::FileChooserDialog::builder()
                     .create_folders(true)
@@ -250,7 +248,6 @@ impl EditorInner {
                 }
                 dialog.emit_close();
             }));
-            #[cfg(feature = "svg")]
             action_group.add_action(&export_svg);
             self.menubar
                 .insert_action_group("glyph", Some(&action_group));
@@ -305,7 +302,6 @@ impl Editor {
         glif_info.set_halign(gtk::Align::Start);
         scrolled_window.set_child(Some(&glif_info));
         hbox.pack_start(&scrolled_window, true, true, 0);
-        #[cfg(feature = "svg")]
         {
             let save_to_svg = gtk::Button::builder()
                 .label("Save to SVG")

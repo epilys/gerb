@@ -35,6 +35,18 @@ const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more inform
 //
 // TODO: Typing hints?
 
+#[derive(Clone, Copy)]
+pub enum LinePrefix {
+    Output,
+    Ps1,
+    Ps2,
+}
+
+/// Python shell history
+pub struct ShellHistory {
+    history: Vec<(LinePrefix, String)>,
+}
+
 /// Setup python shell window
 pub fn new_shell_window(app: Application) -> gtk::Window {
     let w = gtk::Window::builder()
@@ -69,6 +81,16 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         .build();
     list.style_context().add_class("terminal-box");
     {
+        let label = gtk::Label::new(Some(BANNER));
+        label.set_wrap(true);
+        label.set_selectable(true);
+        label.set_visible(true);
+        label.set_halign(gtk::Align::Start);
+        label.set_valign(gtk::Align::End);
+        list.add(&label);
+        list.queue_draw();
+    }
+    {
         let container = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .margin(0)
@@ -98,8 +120,10 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     });
     let globals_dict: Py<PyDict> = Python::with_gil(|py| setup_globals(py, &locals_dict).unwrap());
 
+    let hist = Rc::new(RefCell::new(ShellHistory { history: vec![] }));
+
     // shell stdout channel
-    let (tx, rx) = MainContext::channel(PRIORITY_DEFAULT);
+    let (tx, rx) = MainContext::channel::<(LinePrefix, String)>(PRIORITY_DEFAULT);
     // shell stdin channel
     let (tx_shell, rx_shell) = std::sync::mpsc::channel::<String>();
     // shell -> app channel
@@ -119,9 +143,17 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     );
     rx.attach(
         None,
-        clone!(@weak app, @weak list, @weak adj => @default-return Continue(false), move |msg: String| {
+        clone!(@weak app, @weak list, @weak adj, @strong hist => @default-return Continue(false), move |(prefix, mut msg)| {
             if !msg.is_empty() {
-                let label = gtk::Label::new(Some(msg.trim_end_matches('\n')));
+                while msg.ends_with('\n') {
+                    msg.pop();
+                }
+                let label = gtk::Label::new(Some(&format!("{}{msg}", match prefix {
+                    LinePrefix::Output => "",
+                    LinePrefix::Ps1 => SYS_PS1,
+                    LinePrefix::Ps2 => SYS_PS2,
+                })));
+                hist.borrow_mut().history.push((prefix, msg));
                 label.set_wrap(true);
                 label.set_selectable(true);
                 label.set_visible(true);
@@ -155,10 +187,11 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             .halign(gtk::Align::End)
             .valign(gtk::Align::Center)
             .build();
-        clear_btn.connect_clicked(clone!(@weak list => move |_| {
+        clear_btn.connect_clicked(clone!(@weak list, @strong hist => move |_| {
             for c in list.children() {
                 list.remove(&c);
             }
+            hist.borrow_mut().history.clear();
         }));
         let save_history_btn = gtk::Button::builder()
             .label("Save history")
@@ -174,14 +207,24 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             .label("Copy history")
             .relief(gtk::ReliefStyle::None)
             .visible(true)
-            .sensitive(false)
             .halign(gtk::Align::End)
             .valign(gtk::Align::Center)
             .build();
-        //copy_history_btn.connect_clicked(clone!(@weak list => move |copy_history_btn| {
-        //    if let Some(clip) = gtk::Clipboard::default(&copy_history_btn.display()) {
-        //    }
-        //}));
+        copy_history_btn.connect_clicked(clone!(@weak list, @strong hist => move |copy_history_btn| {
+            if let Some(clip) = gtk::Clipboard::default(&copy_history_btn.display()) {
+                let output = hist.borrow().history.iter().fold(String::new(), |mut acc, (p, l)| {
+                    match p {
+                        LinePrefix::Output =>{},
+                        LinePrefix::Ps1 => acc.push_str(SYS_PS1),
+                        LinePrefix::Ps2 => acc.push_str(SYS_PS2),
+                    }
+                    acc.push_str(l);
+                    acc.push('\n');
+                    acc
+                });
+                clip.set_text(&output);
+            }
+        }));
         let btn_container = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .margin(0)
@@ -242,7 +285,7 @@ fn handle_input(
     py: Python<'_>,
     locals: &PyDict,
     globals: &PyDict,
-    tx: &glib::Sender<String>,
+    tx: &glib::Sender<(LinePrefix, String)>,
 ) -> Result<bool, Box<dyn std::error::Error>> {
     locals.set_item("gerb", globals.get_item("gerb").unwrap())?;
     let shell = globals.get_item("gerb").unwrap().getattr("__shell")?;
@@ -265,27 +308,43 @@ fn handle_input(
                     )?;
                     if !r.is_empty() {
                         if needed_more {
-                            tx.send(format!("{SYS_PS2}{}\n{r}", &text,))?;
+                            tx.send((LinePrefix::Ps2, format!("{}\n", &text,)))?;
+                            tx.send((LinePrefix::Output, r.to_string()))?;
                         } else {
-                            tx.send(format!("{SYS_PS1}{}\n{r}", &text,))?;
+                            tx.send((LinePrefix::Ps1, format!("{}\n", &text,)))?;
+                            tx.send((LinePrefix::Output, r.to_string()))?;
                         }
                     } else if needed_more {
-                        tx.send(format!("{SYS_PS2}{}", &text,))?;
+                        tx.send((LinePrefix::Ps2, text))?;
                     } else {
-                        tx.send(format!("{SYS_PS1}{}", &text,))?;
+                        tx.send((LinePrefix::Ps1, text))?;
                     }
                     needs_more_input
                 } else {
-                    shell.getattr("push")?.call1(("\n",))?;
-                    tx.send(format!(
-                        "{SYS_PS2}{}",
-                        if text.is_empty() { "\n" } else { &text },
-                    ))?;
+                    if needed_more {
+                        tx.send((
+                            LinePrefix::Ps2,
+                            if text.is_empty() {
+                                "\n".to_string()
+                            } else {
+                                text
+                            },
+                        ))?;
+                    } else {
+                        tx.send((
+                            LinePrefix::Ps1,
+                            if text.is_empty() {
+                                "\n".to_string()
+                            } else {
+                                text
+                            },
+                        ))?;
+                    }
                     needs_more_input
                 }
             }
             Err(err) => {
-                tx.send(err.to_string())?;
+                tx.send((LinePrefix::Output, err.to_string()))?;
                 false
             }
         },
@@ -332,7 +391,7 @@ sys.stderr = gerb.__stdout
 }
 
 fn shell_thread(
-    tx: glib::Sender<String>,
+    tx: glib::Sender<(LinePrefix, String)>,
     globals_dict: Py<PyDict>,
     locals_dict: Py<PyDict>,
     tx_py: glib::Sender<String>,
@@ -340,7 +399,6 @@ fn shell_thread(
     rx_shell: mpsc::Receiver<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let needs_more_input = Cell::new(false);
-    tx.send(BANNER.to_string())?;
     let globals = &globals_dict;
     let locals = &locals_dict;
     let res: Result<(), Box<dyn std::error::Error>> = Python::with_gil(|py| {

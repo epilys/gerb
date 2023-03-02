@@ -32,7 +32,6 @@ xdg = { version = "2.1" }
 
 [dependencies.cairo-rs]
 version = "^0.15"
-optional = true
 features = ["svg", "png"]
 
 [dependencies.git2]
@@ -54,8 +53,7 @@ features = [
 ]
 
 [features]
-default = ["svg", "python", "git"]
-svg = ["cairo-rs/svg", ]
+default = ["python", "git"]
 python = ["pyo3", ]
 notifications = ["notify-rust", "image"]
 git = ["git2", ]
