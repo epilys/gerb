@@ -421,10 +421,36 @@ impl ToolImplImpl for PanningToolInner {
                 self.set_default_cursor(&view);
                 self.mode.set(Mode::None);
             }
-            Mode::ResizeDimensions { previous_value: _ }
+            Mode::ResizeDimensions { previous_value }
                 if event_button == gtk::gdk::BUTTON_PRIMARY =>
             {
-                // TODO: add an undo action.
+                let new_value = {
+                    let state = view.state().borrow();
+                    let glyph = state.glyph.borrow();
+                    glyph.width
+                };
+                let action = Action {
+                    stamp: EventStamp {
+                        t: std::any::TypeId::of::<Editor>(),
+                        // FIXME: add correct type here (Glyph is not a GType)
+                        property: Contour::static_type().name(),
+                        id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[]).into() },
+                    },
+                    compress: false,
+                    redo: Box::new(clone!(@weak view => move || {
+                        let state = view.state().borrow();
+                        let mut glyph = state.glyph.borrow_mut();
+                        glyph.width = new_value;
+                    })),
+                    undo: Box::new(clone!(@weak view => move || {
+                        let state = view.state().borrow();
+                        let mut glyph = state.glyph.borrow_mut();
+                        glyph.width = previous_value;
+                    })),
+                };
+                let app: &Application = view.app();
+                let undo_db = app.undo_db.borrow();
+                undo_db.event(action);
 
                 self.mode.set(Mode::None);
                 self.instance()
