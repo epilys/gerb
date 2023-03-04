@@ -228,7 +228,7 @@ impl EditorInner {
                 dialog.add_button("Save", gtk::ResponseType::Ok);
                 dialog.add_button("Cancel", gtk::ResponseType::Cancel);
                 let glyph = obj.state().borrow().glyph.clone();
-                dialog.set_current_name(&format!("{}.svg", glyph.borrow().name.as_ref()));
+                dialog.set_current_name(&format!("{}.svg", glyph.borrow().name()));
                 if dialog.run() == gtk::ResponseType::Ok {
                     if let Some(f) = dialog.filename() {
                         if let Err(err) = glyph.borrow().save_to_svg(f) {
@@ -298,7 +298,7 @@ impl Editor {
             .can_focus(true)
             .margin_start(5)
             .build();
-        let glif_info = gtk::Label::new(Some(&glyph.glif_source));
+        let glif_info = gtk::Label::new(Some(&glyph.glif_source.borrow()));
         glif_info.set_halign(gtk::Align::Start);
         scrolled_window.set_child(Some(&glif_info));
         hbox.pack_start(&scrolled_window, true, true, 0);

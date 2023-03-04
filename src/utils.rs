@@ -713,6 +713,18 @@ impl<T> std::ops::Deref for FieldRef<'_, T> {
     }
 }
 
+impl<T: std::fmt::Display> std::fmt::Display for FieldRef<'_, T> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.inner.fmt(fmt)
+    }
+}
+
+impl<T: AsRef<A>, A> AsRef<A> for FieldRef<'_, T> {
+    fn as_ref(&self) -> &A {
+        self.inner.as_ref()
+    }
+}
+
 impl<'a, T> From<std::cell::Ref<'a, T>> for FieldRef<'a, T> {
     fn from(inner: std::cell::Ref<'a, T>) -> Self {
         Self { inner }

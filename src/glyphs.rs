@@ -63,28 +63,33 @@ pub enum GlyphKind {
     Component(String),
 }
 
+impl Default for GlyphKind {
+    fn default() -> Self {
+        Self::Char(' ')
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Glyph {
-    pub name: Cow<'static, str>,
-    pub kinds: (GlyphKind, Vec<GlyphKind>),
-    pub filename: String,
-    pub image: Option<ImageRef>,
-    pub unicode: Vec<Unicode>,
-    pub advance: Option<Advance>,
-    pub anchors: Vec<Anchor>,
-    pub width: Option<f64>,
     pub contours: Vec<Contour>,
     pub components: Vec<Component>,
     pub guidelines: Vec<Guideline>,
-    pub glif_source: String,
     //pub lib: Option<plist::Dictionary>,
     pub metadata: GlyphMetadata,
+}
+
+impl std::ops::Deref for Glyph {
+    type Target = GlyphMetadata;
+
+    fn deref(&self) -> &Self::Target {
+        &self.metadata
+    }
 }
 
 impl Ord for Glyph {
     fn cmp(&self, other: &Self) -> Ordering {
         use GlyphKind::*;
-        match (&self.kinds.0, &other.kinds.0) {
+        match (&self.kinds().0, &other.kinds().0) {
             (Char(s), Char(o)) => s.cmp(o),
             (Char(_), _) => Ordering::Less,
             (Component(ref name), Component(ref other_name)) => name.cmp(other_name),
@@ -102,7 +107,7 @@ impl PartialOrd for Glyph {
 impl PartialEq for Glyph {
     fn eq(&self, other: &Self) -> bool {
         use GlyphKind::*;
-        match (&self.kinds.0, &other.kinds.0) {
+        match (&self.kinds().0, &other.kinds().0) {
             (Char(s), Char(o)) => s == o,
             (Char(_), Component(_)) | (Component(_), Char(_)) => false,
             (Component(name), Component(other_name)) => name == other_name,
@@ -186,13 +191,13 @@ impl Glyph {
                     eprintln!("couldn't parse {}: {}", path.display(), err);
                 }
                 Ok(g) => {
-                    let mut glyph: Glyph = g.into();
+                    let glyph: Glyph = g.into();
                     // TODO what if strip_prefix fails?
                     *glyph.metadata.relative_path.borrow_mut() = path
                         .strip_prefix(root_path)
                         .map(Path::to_path_buf)
                         .unwrap_or_default();
-                    glyph.glif_source = s;
+                    *glyph.metadata.glif_source.borrow_mut() = s;
                     let has_components = !glyph.components.is_empty();
                     let glyph = Rc::new(RefCell::new(glyph));
                     if has_components {
@@ -217,21 +222,14 @@ impl Glyph {
 
     pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
         let contour = Contour::new_with_curves(curves);
+        let metadata = GlyphMetadata::new();
+        *metadata.kinds.borrow_mut() = (GlyphKind::Char(char), vec![]);
+        *metadata.name.borrow_mut() = name.into();
         Glyph {
-            name: name.into(),
-            filename: String::new(),
-            kinds: (GlyphKind::Char(char), vec![]),
-            image: None,
-            unicode: vec![],
-            advance: None,
-            anchors: vec![],
             contours: vec![contour],
             components: vec![],
             guidelines: vec![],
-            width: None,
-            glif_source: String::new(),
-            //lib: None,
-            metadata: GlyphMetadata::new(),
+            metadata,
         }
     }
 
@@ -640,7 +638,8 @@ impl Glyph {
         &self,
         path: P,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let surface = gtk::cairo::SvgSurface::new(self.width.unwrap_or(500.0), 1000., Some(path))?;
+        let surface =
+            gtk::cairo::SvgSurface::new(self.width().unwrap_or(500.0), 1000., Some(path))?;
         let ctx = gtk::cairo::Context::new(&surface)?;
 
         let options = GlyphDrawingOptions {
@@ -659,7 +658,7 @@ impl Glyph {
     }
 
     pub fn name_markup(&self) -> gtk::glib::GString {
-        match self.kinds.0 {
+        match self.kinds().0 {
             GlyphKind::Char(c) => {
                 let mut b = [0; 4];
                 gtk::glib::markup_escape_text(c.encode_utf8(&mut b).replace('\0', "").trim())
@@ -703,7 +702,7 @@ impl Glyph {
         use std::io::Write;
 
         let glif: glif::Glif = self.into();
-        let path = prefix.join(&self.filename);
+        let path = prefix.join(&*self.filename());
         let mut file = OpenOptions::new()
             .read(false)
             .write(true)

@@ -19,13 +19,22 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use crate::prelude::*;
+use super::*;
 
 #[derive(Debug, Default)]
 pub struct GlyphMetadataInner {
     pub modified: Cell<bool>,
     pub mark_color: Cell<Color>,
     pub relative_path: RefCell<PathBuf>,
+    pub image: RefCell<Option<ImageRef>>,
+    pub advance: Cell<Option<Advance>>,
+    pub unicode: RefCell<Vec<Unicode>>,
+    pub anchors: RefCell<Vec<Anchor>>,
+    pub width: Cell<Option<f64>>,
+    pub name: RefCell<Cow<'static, str>>,
+    pub kinds: RefCell<(GlyphKind, Vec<GlyphKind>)>,
+    pub filename: RefCell<String>,
+    pub glif_source: RefCell<String>,
 }
 
 #[glib::object_subclass]
@@ -123,6 +132,22 @@ impl GlyphMetadata {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
+    }
+
+    pub fn name(&self) -> FieldRef<'_, Cow<'static, str>> {
+        self.name.borrow().into()
+    }
+
+    pub fn filename(&self) -> FieldRef<'_, String> {
+        self.filename.borrow().into()
+    }
+
+    pub fn kinds(&self) -> FieldRef<'_, (GlyphKind, Vec<GlyphKind>)> {
+        self.kinds.borrow().into()
+    }
+
+    pub fn width(&self) -> Option<f64> {
+        self.width.get()
     }
 }
 

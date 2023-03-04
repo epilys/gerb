@@ -319,7 +319,7 @@ impl ToolImplImpl for PanningToolInner {
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         if viewport.property::<bool>(Canvas::SHOW_TOTAL_AREA) {
-                            let previous_value = view.state().borrow().glyph.borrow().width;
+                            let previous_value = view.state().borrow().glyph.borrow().width();
                             let glyph_width = previous_value.unwrap_or(0.0);
                             let (x, y) = (position.x, position.y);
                             let units_per_em = viewport
@@ -427,7 +427,7 @@ impl ToolImplImpl for PanningToolInner {
                 let new_value = {
                     let state = view.state().borrow();
                     let glyph = state.glyph.borrow();
-                    glyph.width
+                    glyph.width()
                 };
                 let action = Action {
                     stamp: EventStamp {
@@ -439,13 +439,13 @@ impl ToolImplImpl for PanningToolInner {
                     compress: false,
                     redo: Box::new(clone!(@weak view => move || {
                         let state = view.state().borrow();
-                        let mut glyph = state.glyph.borrow_mut();
-                        glyph.width = new_value;
+                        let glyph = state.glyph.borrow();
+                        glyph.width.set(new_value);
                     })),
                     undo: Box::new(clone!(@weak view => move || {
                         let state = view.state().borrow();
-                        let mut glyph = state.glyph.borrow_mut();
-                        glyph.width = previous_value;
+                        let glyph = state.glyph.borrow();
+                        glyph.width.set(previous_value);
                     })),
                 };
                 let app: &Application = view.app();
@@ -544,8 +544,8 @@ impl ToolImplImpl for PanningToolInner {
                 if event_button == gtk::gdk::BUTTON_SECONDARY =>
             {
                 let state = view.state().borrow();
-                let mut glyph = state.glyph.borrow_mut();
-                glyph.width = previous_value;
+                let glyph = state.glyph.borrow();
+                glyph.width.set(previous_value);
                 self.mode.set(Mode::None);
                 self.instance()
                     .set_property::<bool>(PanningTool::ACTIVE, false);
@@ -957,15 +957,15 @@ impl ToolImplImpl for PanningToolInner {
                         (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                     let width = {
                         let glyph = state.glyph.borrow();
-                        glyph.width.unwrap_or(0.0)
+                        glyph.width().unwrap_or(0.0)
                     };
                     if width + delta.x >= 0.0 {
-                        let mut glyph = state.glyph.borrow_mut();
-                        glyph.width = Some(width + delta.x);
+                        let glyph = state.glyph.borrow();
+                        glyph.width.set(Some(width + delta.x));
                     }
                 } else {
-                    let mut glyph = state.glyph.borrow_mut();
-                    glyph.width = Some(0.0);
+                    let glyph = state.glyph.borrow();
+                    glyph.width.set(Some(0.0));
                 }
             }
         }
@@ -1141,7 +1141,7 @@ impl PanningTool {
             let units_per_em = viewport
                 .transformation
                 .property::<f64>(Transformation::UNITS_PER_EM);
-            let glyph_width = state.glyph.borrow().width.unwrap_or(0.0);
+            let glyph_width = state.glyph.borrow().width().unwrap_or(0.0);
 
             cr1.set_source_color(Color::BLACK);
             cr1.set_line_width(1.0);

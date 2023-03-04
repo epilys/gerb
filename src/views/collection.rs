@@ -383,6 +383,24 @@ impl ContainerImpl for CollectionInner {}
 impl BinImpl for CollectionInner {}
 impl EventBoxImpl for CollectionInner {}
 
+impl CollectionInner {
+    pub fn app(&self) -> &Application {
+        self.app.get().unwrap()
+    }
+
+    pub fn project(&self) -> &Project {
+        self.project.get().unwrap()
+    }
+}
+
+impl std::ops::Deref for Collection {
+    type Target = CollectionInner;
+
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
 glib::wrapper! {
     pub struct Collection(ObjectSubclass<CollectionInner>)
         @extends gtk::Widget, gtk::Container, gtk::EventBox;
@@ -430,7 +448,7 @@ impl Collection {
         let mut blocks_set: std::collections::HashMap<&'static str, usize> = Default::default();
         for c in self.imp().widgets.borrow().iter() {
             let glyph = c.imp().glyph.get().unwrap().borrow();
-            if let GlyphKind::Char(c) = glyph.kinds.0 {
+            if let GlyphKind::Char(c) = glyph.kinds().0 {
                 if let Some(idx) = c.char_block() {
                     *blocks_set.entry(UNICODE_BLOCKS[idx].1).or_default() += 1;
                 } else {
@@ -439,7 +457,7 @@ impl Collection {
                 *blocks_set.entry("Unicode").or_default() += 1;
             } else {
                 *blocks_set.entry("Components").or_default() += 1;
-            }
+            };
         }
         if let Some(c) = blocks_set.remove("Components") {
             show_blocks.insert("Components", true);
@@ -507,7 +525,7 @@ impl Collection {
                     if hide_empty && glyph.is_empty() {
                         return false;
                     }
-                    if !match glyph.kinds.0 {
+                    if !match glyph.kinds().0 {
                         GlyphKind::Component(_) => *show_blocks.get("Components").unwrap_or(&true),
                         GlyphKind::Char(c) => {
                             *show_blocks.get("Unicode").unwrap_or(&true)
@@ -523,13 +541,13 @@ impl Collection {
                     if let (Some(f), Some(fu)) =
                         (filter_input.as_ref(), filter_input_uppercase.as_ref())
                     {
-                        if !(glyph.name.contains(f.as_str())
+                        if !(glyph.name().contains(f.as_str())
                             && !glyph
-                                .name
+                                .name()
                                 .contains(fu.as_str())
                             && !filter_input_char
                                 .as_ref()
-                                .map(|c| glyph.kinds.0 == GlyphKind::Char(*c))
+                                .map(|c| glyph.kinds().0 == GlyphKind::Char(*c))
                                 .unwrap_or(false))
                         {
                             return false;
@@ -604,7 +622,7 @@ impl ObjectImpl for GlyphBoxInner {
         self.drawing_area.connect_query_tooltip(
             clone!(@weak obj => @default-return false, move |_self, _x: i32, _y: i32, _by_keyboard: bool, tooltip| {
                 let glyph = obj.imp().glyph.get().unwrap().borrow();
-                if let GlyphKind::Char(c) = glyph.kinds.0 {
+                if let GlyphKind::Char(c) = glyph.kinds().0 {
                     let block_name = if let Some(idx) = c.char_block() {
                         UNICODE_BLOCKS[idx].1
                     } else {
@@ -612,9 +630,9 @@ impl ObjectImpl for GlyphBoxInner {
                     };
                     let unicode = format!("U+{:04X}", c as u32);
 
-                    tooltip.set_text(Some(&format!("Name: {}\nUnicode: {}\nBlock: {}", glyph.name, unicode, block_name)));
+                    tooltip.set_text(Some(&format!("Name: {}\nUnicode: {}\nBlock: {}", glyph.name(), unicode, block_name)));
                 } else {
-                    tooltip.set_text(Some(&format!("Name: {}\nComponent", glyph.name)));
+                    tooltip.set_text(Some(&format!("Name: {}\nComponent", glyph.name())));
                 }
                 true
             }));
@@ -630,14 +648,14 @@ impl ObjectImpl for GlyphBoxInner {
 
             let (x, y) = (0.01, 0.01);
             let glyph = obj.imp().glyph.get().unwrap().borrow();
-            let label = match glyph.kinds.0 {
+            let label = match glyph.kinds().0 {
                 GlyphKind::Char(c) => c.to_string(),
                 GlyphKind::Component(ref n) => n.to_string(),
             };
             let label = label.replace('\0', "").trim().to_string();
             cr.set_line_width(1.5);
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr.push(), (x, y).into(), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
-            let glyph_width = glyph.width.unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
+            let glyph_width = glyph.width().unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
             if is_focused {
                 cr.set_source_rgb(1.0, 250.0 / 255.0, 141.0 / 255.0);
             } else {
@@ -730,7 +748,7 @@ impl ObjectImpl for GlyphBoxInner {
             cr.move_to(point.x + width / 2.0 - sextents.width / 2.0, point.y + 2.4 * height / 3.0);
             cr.show_text(&label).expect("Invalid cairo surface state");
 
-            let label = match glyph.kinds.0 {
+            let label = match glyph.kinds().0 {
                 GlyphKind::Char(c) => format!("U+{:04X}", c as u32),
                 GlyphKind::Component(ref n) => n.to_string(),
             };

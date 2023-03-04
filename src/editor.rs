@@ -623,7 +623,7 @@ impl Editor {
             Transformation::CONTENT_WIDTH,
             glyph
                 .borrow()
-                .width
+                .width()
                 .unwrap_or_else(|| ret.property::<f64>(Editor::UNITS_PER_EM)),
         );
         for property in [

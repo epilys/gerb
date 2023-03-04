@@ -204,7 +204,7 @@ impl ImageTool {
                 .build();
         }
 
-        if let Some(image_ref) = glyph.borrow().image.as_ref() {
+        if let Some(image_ref) = glyph.borrow().image.borrow().as_ref() {
             if let Some(file_name) = image_ref.file_name.as_ref() {
                 // FIXME error handling
                 *ret.imp().image_data.borrow_mut() = Some(project.load_image(file_name).unwrap());

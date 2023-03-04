@@ -414,11 +414,6 @@ impl From<Glif> for glyphs::Glyph {
             (first, iter.collect::<Vec<_>>())
         };
         let mut ret = Glyph {
-            name: name.into(),
-            filename: String::new(),
-            kinds,
-            image,
-            width: advance.map(|a| a.width),
             guidelines: guidelines
                 .into_iter()
                 .map(|g| {
@@ -432,13 +427,15 @@ impl From<Glif> for glyphs::Glyph {
                         .build()
                 })
                 .collect::<Vec<_>>(),
-            unicode,
-            advance,
-            anchors,
-            glif_source: String::new(),
-            //lib,
             ..Glyph::default()
         };
+        *ret.metadata.name.borrow_mut() = name.into();
+        *ret.metadata.kinds.borrow_mut() = kinds;
+        *ret.metadata.unicode.borrow_mut() = unicode;
+        *ret.metadata.anchors.borrow_mut() = anchors;
+        *ret.metadata.image.borrow_mut() = image;
+        ret.metadata.advance.set(advance);
+        ret.metadata.width.set(advance.map(|a| a.width));
 
         if let Some(outline) = outline {
             for contour in outline.contours {
@@ -664,13 +661,13 @@ impl From<&glyphs::Glyph> for Glif {
         }));
 
         Glif {
-            name: glyph.name.to_string(),
+            name: glyph.name().to_string(),
             format: Some("2".to_string()),
-            unicode: glyph.unicode.clone(),
-            image: glyph.image.clone(),
-            advance: glyph.advance,
+            unicode: glyph.metadata.unicode.borrow().clone(),
+            image: glyph.metadata.image.borrow().clone(),
+            advance: glyph.metadata.advance.get(),
             outline: Some(Outline { contours: outline }),
-            anchors: glyph.anchors.clone(),
+            anchors: glyph.metadata.anchors.borrow().clone(),
             guidelines: glyph.guidelines.iter().map(Into::into).collect(),
             //lib: glyph.lib.clone(),
         }
