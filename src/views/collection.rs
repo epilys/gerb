@@ -590,6 +590,8 @@ impl ObjectImpl for GlyphBoxInner {
         obj.set_width_request(GLYPH_BOX_WIDTH as _);
         obj.set_can_focus(true);
         obj.set_expand(false);
+        obj.set_halign(gtk::Align::Start);
+        obj.set_valign(gtk::Align::Start);
 
         obj.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {
@@ -795,6 +797,7 @@ impl ObjectImpl for GlyphBoxInner {
 
         self.focused.set(false);
         self.zoom_factor.set(1.0);
+        obj.set_visible(true);
     }
 
     fn properties() -> &'static [ParamSpec] {
