@@ -233,12 +233,7 @@ impl ToolImplImpl for PanningToolInner {
                         };
                         let mut action = view.state().borrow().new_guideline(angle, position);
                         (action.redo)();
-                        let app: &Application = view
-                            .app
-                            .get()
-                            .unwrap()
-                            .downcast_ref::<Application>()
-                            .unwrap();
+                        let app: &Application = view.app();
                         let undo_db = app.undo_db.borrow();
                         undo_db.event(action);
                     }
@@ -536,12 +531,7 @@ impl ToolImplImpl for PanningToolInner {
                 if event_position.0 < ruler_breadth || event_position.1 < ruler_breadth {
                     let mut action = view.state().borrow().delete_guideline(idx);
                     (action.redo)();
-                    let app: &Application = view
-                        .app
-                        .get()
-                        .unwrap()
-                        .downcast_ref::<Application>()
-                        .unwrap();
+                    let app: &Application = view.app();
                     let undo_db = app.undo_db.borrow();
                     undo_db.event(action);
                     self.mode.set(Mode::None);
@@ -599,10 +589,13 @@ impl ToolImplImpl for PanningToolInner {
                         menu.add_button_cb(
                             "make smooth",
                             clone!(@strong view => move |_| {
-                                let state = view.state().borrow();
-                                let glyph = state.glyph.borrow();
                                 let new_val = Continuity::Velocity;
-                                glyph.contours[idx.contour_index].change_continuity(idx, new_val);
+                                let mut action = change_continuity(&view, idx,corner_continuity, new_val);
+                                (action.redo)();
+                                let app: &Application = view
+                                    .app();
+                                let undo_db = app.undo_db.borrow();
+                                undo_db.event(action);
                             }),
                         )
                     } else {
@@ -612,10 +605,13 @@ impl ToolImplImpl for PanningToolInner {
                         menu.add_button_cb(
                             "make corner",
                             clone!(@strong view => move |_| {
-                                let state = view.state().borrow();
-                                let glyph = state.glyph.borrow();
                                 let new_val = Continuity::Positional;
-                                glyph.contours[idx.contour_index].change_continuity(idx, new_val);
+                                let mut action = change_continuity(&view, idx,corner_continuity, new_val);
+                                (action.redo)();
+                                let app: &Application = view
+                                    .app();
+                                let undo_db = app.undo_db.borrow();
+                                undo_db.event(action);
                             }),
                         )
                     } else {
@@ -625,10 +621,13 @@ impl ToolImplImpl for PanningToolInner {
                         menu.add_button_cb(
                             "make tangent",
                             clone!(@strong view => move |_| {
-                                let state = view.state().borrow();
-                                let glyph = state.glyph.borrow();
                                 let new_val = Continuity::Tangent { beta: 1.00 };
-                                glyph.contours[idx.contour_index].change_continuity(idx, new_val);
+                                let mut action = change_continuity(&view, idx,corner_continuity, new_val);
+                                (action.redo)();
+                                let app: &Application = view
+                                    .app();
+                                let undo_db = app.undo_db.borrow();
+                                undo_db.event(action);
                             }),
                         )
                     } else {
@@ -643,12 +642,7 @@ impl ToolImplImpl for PanningToolInner {
                             clone!(@strong view => move |_| {
                                 let mut action = reverse_contour(&view, i);
                                 (action.redo)();
-                                let app: &Application = view
-                                    .app
-                                    .get()
-                                    .unwrap()
-                                    .downcast_ref::<Application>()
-                                    .unwrap();
+                                let app: &Application = view.app();
                                 let undo_db = app.undo_db.borrow();
                                 undo_db.event(action);
                             }),
@@ -813,11 +807,7 @@ impl ToolImplImpl for PanningToolInner {
                             let new_mouse =
                                 viewport.unit_to_view_point(UnitPoint(upos + lock_delta));
                             let delta = new_mouse.0 - ViewPoint(Point::from(event.position())).0;
-                            view.app
-                                .get()
-                                .unwrap()
-                                .downcast_ref::<Application>()
-                                .unwrap()
+                            view.app()
                                 .warp_cursor(event.device(), (delta.x as i32, delta.y as i32))
                                 .unwrap();
                             viewport.set_mouse(new_mouse);
@@ -844,11 +834,7 @@ impl ToolImplImpl for PanningToolInner {
                     let UnitPoint(position) = viewport.view_to_unit_point(mouse);
                     let new_mouse = viewport.unit_to_view_point(UnitPoint(position + snap_delta));
                     let delta = new_mouse.0 - mouse.0;
-                    view.app
-                        .get()
-                        .unwrap()
-                        .downcast_ref::<Application>()
-                        .unwrap()
+                    view.app()
                         .warp_cursor(event.device(), (delta.x as i32, delta.y as i32))
                         .unwrap();
                     viewport.set_mouse(new_mouse);
@@ -1436,6 +1422,32 @@ fn reverse_contour(view: &Editor, contour_index: usize) -> Action {
         })),
         undo: Box::new(clone!(@weak contour as contour  => move || {
             contour.reverse_direction();
+        })),
+    }
+}
+
+fn change_continuity(
+    view: &Editor,
+    index: GlyphPointIndex,
+    prev_val: Continuity,
+    new_val: Continuity,
+) -> Action {
+    let contour: Contour = {
+        let c = view.state().borrow().glyph.borrow().contours[index.contour_index].clone();
+        c
+    };
+    Action {
+        stamp: EventStamp {
+            t: std::any::TypeId::of::<Editor>(),
+            property: Contour::static_type().name(),
+            id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[index.contour_index]).into() },
+        },
+        compress: false,
+        redo: Box::new(clone!(@weak contour, @weak view => move || {
+            contour.change_continuity(index, new_val);
+        })),
+        undo: Box::new(clone!(@weak contour, @weak view => move || {
+            contour.change_continuity(index, prev_val);
         })),
     }
 }
