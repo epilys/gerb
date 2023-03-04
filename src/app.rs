@@ -241,30 +241,62 @@ impl ApplicationInner {
                                 &[&instances[0].full_path.display().to_string()],
                             );
                         } else {
-                            let dialog = gtk::MessageDialog::new(
-                                Some(&window),
-                                gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                                gtk::MessageType::Info,
-                                gtk::ButtonsType::Close,
-                                &format!(
-                                    "Generated {} instances:\n{:?}",
-                                    instances.len(),
-                                    instances
-                                    .iter()
-                                    .map(|i| (
+                            let dialog = gtk::Dialog::builder()
+                                .attached_to(&window)
+                                .application(&window.application().unwrap())
+                                .destroy_with_parent(true)
+                                .modal(true).build();
+                            dialog.add_button("Open", gtk::ResponseType::Accept);
+                            dialog.add_button("Close", gtk::ResponseType::Close);
+                            let b = dialog.content_area();
+                            b.pack_start(&gtk::Label::builder().label(&format!(
+                                        "Generated more than once instance, select and open one manually.\n\nGenerated {} instances:",
+                                        instances.len(),
+                            )).visible(true).wrap(true).halign(gtk::Align::Start).build(), true, false, 5);
+                            let listbox = gtk::ListBox::new();
+                            listbox.set_selection_mode(gtk::SelectionMode::Single);
+                            listbox.set_visible(true);
+                            listbox.set_valign(gtk::Align::Center);
+                            let mut rows = vec![];
+                            for i in &instances {
+                                let row = gtk::ListBoxRow::builder().child(&gtk::Label::builder().label(&format!(
+                                            "{} <i>{}</i> <tt>{}</tt>",
                                             i.family_name.as_str(),
                                             i.style_name.as_str(),
-                                            i.full_path.as_path()
-                                    ))
-                                    .collect::<Vec<_>>()
+                                            i.full_path.as_path().display()
                                 ),
-                            );
+                                ).use_markup(true).visible(true).wrap(true).halign(gtk::Align::Start).build()).visible(true).selectable(true).build();
+                                listbox.add(&row);
+                                rows.push((i.full_path.as_path().display().to_string(), row));
+                            }
+                            b.pack_start(&listbox, true, false, 5);
+                            b.set_border_width(15);
+                            b.set_spacing(5);
+                            b.set_valign(gtk::Align::Start);
                             dialog.set_title(
                                 "Info: generated more than once instance, open one manually.",
                             );
-                            dialog.set_use_markup(true);
-                            dialog.run();
-                            dialog.emit_close();
+                            for _ in 0..3 {
+                                match dialog.run() {
+                                    gtk::ResponseType::Accept => {
+                                        if let Some(path) = listbox.selected_row().and_then(|row| rows.iter().find_map(|(p,r)| if r == &row { Some(p) } else { None })) {
+                                            dialog.emit_close();
+                                            window.emit_by_name::<()>(
+                                                "open-project",
+                                                &[&path],
+                                            );
+                                        }
+                                    },
+                                    gtk::ResponseType::Close => {
+                                        dialog.emit_close();
+                                    }
+                                    gtk::ResponseType::DeleteEvent => {
+                                        dialog.emit_close();
+                                        break;
+                                    }
+                                    _other => unreachable!("{_other:?}"),
+                                }
+                            }
                         }
                     }
                     Err(err) => {
