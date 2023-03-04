@@ -121,10 +121,15 @@ impl ApplicationImpl for ApplicationInner {
             &css_provider,
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
+        self.window.show_all();
         if let Some(path) = self.env_args.get().unwrap().clone().pop() {
             self.window.emit_by_name::<()>("open-project", &[&path]);
+            self.window.welcome_banner.set_visible(false);
+            self.window.notebook.set_visible(true);
+        } else {
+            self.window.welcome_banner.set_visible(true);
+            self.window.notebook.set_visible(false);
         }
-        self.window.show_all();
         self.window.present();
     }
 }
@@ -418,12 +423,11 @@ impl ApplicationInner {
             let Some(f) = dialog.filename() else { return; };
             let Some(path) = f.to_str() else { return; };
             window.emit_by_name::<()>("open-project", &[&path]);
-            window.show_all();
         }));
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
             new_project.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
-                window.load_project(crate::project::Project::default());
+                window.load_project(crate::prelude::Project::default());
             }));
         }
         let undo = gtk::gio::SimpleAction::new("undo", None);

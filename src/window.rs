@@ -103,6 +103,8 @@ impl WindowSidebar {
 
 #[derive(Debug, Default)]
 pub struct WindowInner {
+    pub root_box: gtk::Box,
+    pub welcome_banner: gtk::Box,
     pub project: RefCell<Project>,
     pub headerbar: gtk::HeaderBar,
     pub statusbar: gtk::Statusbar,
@@ -125,7 +127,7 @@ impl ObjectImpl for WindowInner {
         self.headerbar.set_show_close_button(true);
 
         self.notebook.set_expand(true);
-        self.notebook.set_visible(true);
+        self.notebook.set_visible(false);
         self.notebook.set_can_focus(true);
         self.notebook.set_widget_name("main-window-notebook");
         self.notebook.set_show_tabs(true);
@@ -133,14 +135,40 @@ impl ObjectImpl for WindowInner {
         self.notebook.set_enable_popup(true);
         self.notebook.set_show_border(true);
 
-        let vbox = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .expand(true)
-            .spacing(0)
+        self.root_box.set_orientation(gtk::Orientation::Vertical);
+
+        let welcome_label = gtk::Label::builder().label(
+            "This is an empty project. You can edit it, open another project or import from a compatible format."
+        ).visible(true).wrap(true).halign(gtk::Align::Center).build();
+        self.welcome_banner.set_visible(true);
+        self.welcome_banner.set_expand(true);
+        self.welcome_banner.set_halign(gtk::Align::Center);
+        self.welcome_banner.set_valign(gtk::Align::Center);
+        self.welcome_banner
+            .set_orientation(gtk::Orientation::Vertical);
+        self.welcome_banner
+            .pack_start(&welcome_label, true, false, 5);
+        let add_glyph_btn = gtk::Button::builder()
+            .relief(gtk::ReliefStyle::None)
+            .label("Add glyph")
+            .halign(gtk::Align::Center)
             .visible(true)
-            .can_focus(true)
             .build();
-        vbox.pack_start(&self.notebook, true, true, 0);
+        add_glyph_btn.connect_clicked(clone!(@weak obj as window => move |_self| {
+            window.imp().welcome_banner.set_visible(false);
+            window.imp().notebook.set_visible(true);
+            window.load_project(Project::default());
+        }));
+        self.welcome_banner
+            .pack_end(&add_glyph_btn, false, false, 5);
+
+        self.root_box
+            .pack_start(&self.welcome_banner, false, false, 0);
+        self.root_box.set_expand(true);
+        self.root_box.set_spacing(0);
+        self.root_box.set_visible(true);
+        self.root_box.set_can_focus(true);
+        self.root_box.pack_start(&self.notebook, true, true, 0);
 
         self.statusbar.set_vexpand(false);
         self.statusbar.set_hexpand(true);
@@ -160,9 +188,9 @@ impl ObjectImpl for WindowInner {
                     .build();
             }
         }
-        vbox.pack_start(&self.statusbar, false, false, 0);
+        self.root_box.pack_start(&self.statusbar, false, false, 0);
 
-        obj.set_child(Some(&vbox));
+        obj.set_child(Some(&self.root_box));
         obj.set_titlebar(Some(&self.headerbar));
         obj.set_default_size(640, 480);
         obj.set_events(
@@ -313,6 +341,8 @@ impl WindowInner {
     }
 
     pub fn load_project(&self, project: Project) {
+        self.welcome_banner.set_visible(false);
+        self.notebook.set_visible(true);
         project
             .bind_property("name", &self.headerbar, "subtitle")
             .transform_from(|_b, v| {
