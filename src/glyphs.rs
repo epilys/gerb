@@ -19,7 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};

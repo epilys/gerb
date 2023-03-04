@@ -27,6 +27,7 @@ pub mod colors;
 pub mod curves;
 pub mod menu;
 pub mod points;
+pub mod property_window;
 pub mod range_query;
 pub mod shortcuts;
 pub mod widgets;
@@ -105,7 +106,7 @@ pub fn distance_between_two_points<K: Into<Point>, L: Into<Point>>(p_k: K, p_l: 
     f64::sqrt((xlk * xlk + ylk * ylk) as f64) // FIXME overflow check
 }
 
-pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
+pub fn object_to_property_grid(obj: glib::Object, create: bool) -> gtk::Grid {
     let grid = gtk::Grid::builder()
         .expand(true)
         .visible(true)
@@ -116,10 +117,11 @@ pub fn object_to_property_grid(obj: glib::Object) -> gtk::Grid {
         .build();
     grid.attach(
         &gtk::Label::builder()
-            .label(&format!(
-                "<big>Options for <i>{}</i></big>",
-                obj.type_().name()
-            ))
+            .label(&if create {
+                format!("<big>New <i>{}</i></big>", obj.type_().name())
+            } else {
+                format!("<big>Options for <i>{}</i></big>", obj.type_().name())
+            })
             .use_markup(true)
             .margin_top(5)
             .halign(gtk::Align::Start)
@@ -611,11 +613,13 @@ pub fn new_property_window(
         .window_position(gtk::WindowPosition::CenterOnParent)
         .build();
     let scrolled_window = gtk::ScrolledWindow::builder()
+        .min_content_height(400)
+        .min_content_width(400)
         .expand(true)
         .visible(true)
         .can_focus(true)
         .build();
-    let grid = crate::utils::object_to_property_grid(obj);
+    let grid = crate::utils::object_to_property_grid(obj, false);
     let b = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .margin(5)

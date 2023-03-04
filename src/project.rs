@@ -83,7 +83,7 @@ impl Default for ProjectInner {
             glyphs: RefCell::new(HashMap::default()),
             path: RefCell::new(std::env::current_dir().unwrap_or_default()),
             family_name: RefCell::new("New project".to_string()),
-            style_name: RefCell::new(String::new()),
+            style_name: RefCell::new("New project".to_string()),
             version_major: Cell::new(0),
             version_minor: Cell::new(0),
             copyright: RefCell::new(String::new()),
@@ -465,15 +465,6 @@ impl Project {
 
 impl Default for Project {
     fn default() -> Self {
-        let ret: Self = Self::new();
-        *ret.last_saved.borrow_mut() = None;
-        *ret.glyphs.borrow_mut() = HashMap::default();
-        *ret.family_name.borrow_mut() = "New project".to_string();
-        *ret.style_name.borrow_mut() = String::new();
-        *ret.copyright.borrow_mut() = String::new();
-        *ret.trademark.borrow_mut() = String::new();
-        *ret.note.borrow_mut() = String::new();
-        *ret.guidelines.borrow_mut() = vec![];
-        ret
+        Self::new()
     }
 }

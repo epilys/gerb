@@ -429,7 +429,7 @@ impl From<Glif> for glyphs::Glyph {
                 .collect::<Vec<_>>(),
             ..Glyph::default()
         };
-        *ret.metadata.name.borrow_mut() = name.into();
+        *ret.metadata.name.borrow_mut() = name;
         *ret.metadata.kinds.borrow_mut() = kinds;
         *ret.metadata.unicode.borrow_mut() = unicode;
         *ret.metadata.anchors.borrow_mut() = anchors;

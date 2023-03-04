@@ -25,7 +25,6 @@ use super::*;
 pub struct State {
     pub app: Application,
     pub glyph: Rc<RefCell<Glyph>>,
-    pub reference: Rc<RefCell<Glyph>>,
     pub viewport: Canvas,
     pub tools: IndexMap<glib::types::Type, ToolImpl>,
     pub active_tool: glib::types::Type,
@@ -39,8 +38,7 @@ impl State {
     pub fn new(glyph: &Rc<RefCell<Glyph>>, app: Application, viewport: Canvas) -> Self {
         let mut ret = Self {
             app,
-            glyph: Rc::new(RefCell::new(glyph.borrow().clone())),
-            reference: Rc::clone(glyph),
+            glyph: Rc::clone(glyph),
             viewport,
             tools: IndexMap::default(),
             active_tool: glib::types::Type::INVALID,

@@ -167,6 +167,23 @@ impl ObjectImpl for CollectionInner {
             .build();
 
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
+            let metadata = GlyphMetadata::new();
+            let w = PropertyWindow::builder(metadata.clone().upcast(), obj.app())
+                .title("Add glyph".into())
+                .type_(PropertyWindowType::Create)
+                .build();
+            if let PropertyWindowButtons::Create { cancel: _, ref save } = w.imp().buttons.get().unwrap() {
+                save.connect_clicked(clone!(@weak metadata, @weak w, @weak obj => move |_| {
+                    let project = obj.project();
+                    let name = metadata.name().to_string();
+                    let glyph = Rc::new(RefCell::new(metadata.clone().into()));
+                    metadata.glyph_ref.set(glyph.clone()).unwrap();
+                    project.glyphs.borrow_mut().insert(name, glyph);
+                    obj.emit_by_name::<()>(Collection::NEW_GLYPH, &[&metadata]);
+                    w.close();
+                }));
+            }
+            w.present();
         }));
 
         tool_palette.add(&add_glyph_button);
@@ -324,6 +341,28 @@ impl ObjectImpl for CollectionInner {
         self.hide_empty.set(false);
         obj.set_property(Collection::ZOOM_FACTOR, 1.0);
         self.tree_store.set(store).unwrap();
+        obj.connect_local(
+            Collection::NEW_GLYPH,
+            false,
+            clone!(@weak obj => @default-return None, move |v: &[gtk::glib::Value]| {
+                let metadata = v[1].get::<GlyphMetadata>().unwrap();
+                let glyph = metadata.glyph_ref.get().unwrap().clone();
+                {
+                    let glyph_box = GlyphBox::new(obj.app().clone(), obj.project().clone(), glyph);
+                    obj.bind_property(Collection::ZOOM_FACTOR, &glyph_box, GlyphBox::ZOOM_FACTOR)
+                        .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
+                        .build();
+                    obj.imp().flow_box.add(&glyph_box);
+                    obj.imp().widgets.borrow_mut().push(glyph_box);
+                }
+                obj.update_flow_box();
+                obj.update_tree_store();
+                obj.imp().flow_box.queue_draw();
+                obj.queue_draw();
+
+                None
+            }),
+        );
     }
 
     fn properties() -> &'static [ParamSpec] {
@@ -376,6 +415,18 @@ impl ObjectImpl for CollectionInner {
             _ => unimplemented!("{}", pspec.name()),
         }
     }
+
+    fn signals() -> &'static [Signal] {
+        static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+            vec![Signal::builder(
+                Collection::NEW_GLYPH,
+                &[GlyphMetadata::static_type().into()],
+                <()>::static_type().into(),
+            )
+            .build()]
+        });
+        SIGNALS.as_ref()
+    }
 }
 
 impl WidgetImpl for CollectionInner {}
@@ -410,6 +461,7 @@ impl Collection {
     pub const TITLE: &str = Workspace::TITLE;
     pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
     pub const ZOOM_FACTOR: &str = "zoom-factor";
+    pub const NEW_GLYPH: &str = "new-glyph";
 
     pub fn new(app: Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");

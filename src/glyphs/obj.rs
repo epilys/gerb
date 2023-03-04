@@ -31,10 +31,11 @@ pub struct GlyphMetadataInner {
     pub unicode: RefCell<Vec<Unicode>>,
     pub anchors: RefCell<Vec<Anchor>>,
     pub width: Cell<Option<f64>>,
-    pub name: RefCell<Cow<'static, str>>,
+    pub name: RefCell<String>,
     pub kinds: RefCell<(GlyphKind, Vec<GlyphKind>)>,
     pub filename: RefCell<String>,
     pub glif_source: RefCell<String>,
+    pub glyph_ref: OnceCell<Rc<RefCell<Glyph>>>,
 }
 
 #[glib::object_subclass]
@@ -55,6 +56,13 @@ impl ObjectImpl for GlyphMetadataInner {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
+                    glib::ParamSpecString::new(
+                        GlyphMetadata::NAME,
+                        GlyphMetadata::NAME,
+                        "Glyph name.",
+                        None,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
                     glib::ParamSpecBoolean::new(
                         GlyphMetadata::MODIFIED,
                         GlyphMetadata::MODIFIED,
@@ -76,6 +84,13 @@ impl ObjectImpl for GlyphMetadataInner {
                         None,
                         glib::ParamFlags::READWRITE | UI_READABLE | UI_PATH,
                     ),
+                    glib::ParamSpecString::new(
+                        GlyphMetadata::FILENAME,
+                        GlyphMetadata::FILENAME,
+                        "Filename.",
+                        None,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -83,17 +98,26 @@ impl ObjectImpl for GlyphMetadataInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
         match pspec.name() {
+            GlyphMetadata::NAME => Some(self.name.borrow().to_string()).to_value(),
             GlyphMetadata::MARK_COLOR => self.mark_color.get().to_value(),
             GlyphMetadata::MODIFIED => self.modified.get().to_value(),
             GlyphMetadata::RELATIVE_PATH => {
                 self.relative_path.borrow().display().to_string().to_value()
             }
+            GlyphMetadata::FILENAME => Some(self.filename.borrow().to_string()).to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &glib::Value, pspec: &ParamSpec) {
         match pspec.name() {
+            GlyphMetadata::NAME => {
+                if let Ok(Some(name)) = value.get::<Option<String>>() {
+                    *self.name.borrow_mut() = name;
+                } else {
+                    *self.name.borrow_mut() = String::new();
+                }
+            }
             GlyphMetadata::MARK_COLOR => {
                 self.mark_color.set(value.get().unwrap());
             }
@@ -105,6 +129,13 @@ impl ObjectImpl for GlyphMetadataInner {
                     *self.relative_path.borrow_mut() = relative_path.into();
                 } else {
                     *self.relative_path.borrow_mut() = PathBuf::new();
+                }
+            }
+            GlyphMetadata::FILENAME => {
+                if let Ok(Some(filename)) = value.get::<Option<String>>() {
+                    *self.filename.borrow_mut() = filename;
+                } else {
+                    *self.filename.borrow_mut() = String::new();
                 }
             }
             _ => unimplemented!("{}", pspec.name()),
@@ -128,13 +159,15 @@ impl GlyphMetadata {
     pub const MODIFIED: &str = "modified";
     pub const MARK_COLOR: &str = "mark-color";
     pub const RELATIVE_PATH: &str = "relative-path";
+    pub const FILENAME: &str = "filename";
+    pub const NAME: &str = "name";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
     }
 
-    pub fn name(&self) -> FieldRef<'_, Cow<'static, str>> {
+    pub fn name(&self) -> FieldRef<'_, String> {
         self.name.borrow().into()
     }
 
@@ -154,5 +187,14 @@ impl GlyphMetadata {
 impl Default for GlyphMetadata {
     fn default() -> GlyphMetadata {
         Self::new()
+    }
+}
+
+impl From<GlyphMetadata> for Glyph {
+    fn from(metadata: GlyphMetadata) -> Glyph {
+        Glyph {
+            metadata,
+            ..Glyph::default()
+        }
     }
 }

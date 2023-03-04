@@ -54,6 +54,7 @@ pub mod prelude {
     pub use project::Project;
     pub use utils::colors::*;
     pub use utils::points::*;
+    pub use utils::property_window::*;
     pub use utils::range_query::Coordinate;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
     pub use utils::{ContextExt, ContextRef};
