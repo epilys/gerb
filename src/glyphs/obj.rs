@@ -182,6 +182,27 @@ impl GlyphMetadata {
     pub fn width(&self) -> Option<f64> {
         self.width.get()
     }
+
+    pub fn new_property_window(&self, app: &Application) -> PropertyWindow {
+        let w = PropertyWindow::builder(self.clone().upcast(), app)
+            .title("Add glyph".into())
+            .type_(PropertyWindowType::Create)
+            .build();
+        {
+            let widgets = w.widgets();
+            let filename = &widgets[Self::FILENAME];
+            let name = &widgets[Self::NAME];
+            filename.set_sensitive(false);
+            name.bind_property("text", filename, "text")
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .transform_to(|_, val| {
+                    let n = val.get::<Option<String>>().ok()??;
+                    Some(format!("{n}.glif").to_value())
+                })
+                .build();
+        }
+        w
+    }
 }
 
 impl Default for GlyphMetadata {

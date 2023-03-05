@@ -168,10 +168,7 @@ impl ObjectImpl for CollectionInner {
 
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
             let metadata = GlyphMetadata::new();
-            let w = PropertyWindow::builder(metadata.clone().upcast(), obj.app())
-                .title("Add glyph".into())
-                .type_(PropertyWindowType::Create)
-                .build();
+            let w = metadata.new_property_window(obj.app());
             if let PropertyWindowButtons::Create { cancel: _, ref save } = w.imp().buttons.get().unwrap() {
                 save.connect_clicked(clone!(@weak metadata, @weak w, @weak obj => move |_| {
                     let project = obj.project();
