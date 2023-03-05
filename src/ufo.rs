@@ -81,12 +81,262 @@ pub struct FontInfo {
     /* Generic Miscellaneous Information */
     #[serde(default)]
     pub note: Option<String>,
+    /// A list of gasp Range Records. These must be sorted in ascending order based on the `range_max_PPEM` value of the record.
+    #[serde(default)]
+    pub open_type_gasp_range_records: Option<Vec<OpenTypeGaspRangeRecord>>,
+    // OpenType head Table Fields
+    /// Creation date. Expressed as a string of the format “YYYY/MM/DD HH:MM:SS”. “YYYY/MM/DD” is
+    /// year/month/day. The month must be in the range 1-12 and the day must be in the range
+    /// 1-end of month. “HH:MM:SS” is hour:minute:second. The hour must be in the range 0:23. The
+    /// minute and second must each be in the range 0-59. The timezone is UTC.
+    #[serde(default)]
+    pub open_type_head_created: Option<String>,
+    /// Smallest readable size in pixels. Corresponds to the OpenType head table lowestRecPPEM field.
+    #[serde(default)]
+    #[serde(rename = "openTypeHeadLowestRecPPEM")]
+    pub open_type_head_lowest_rec_ppem: Option<i64>,
+    /// A list of bit numbers indicating the flags. The bit numbers are listed in the OpenType head
+    /// specification. Corresponds to the OpenType head table flags field.
+    #[serde(default)]
+    pub open_type_head_flags: Vec<u32>,
+    // OpenType hhea Table Fields
+    /// Ascender value. Corresponds to the OpenType hhea table Ascender field.
+    #[serde(default)]
+    pub open_type_hhea_ascender: Option<f64>,
+    /// Descender value. Corresponds to the OpenType hhea table Descender field.
+    #[serde(default)]
+    pub open_type_hhea_descender: Option<f64>,
+    /// Line gap value. Corresponds to the OpenType hhea table LineGap field.
+    #[serde(default)]
+    pub open_type_hhea_line_gap: Option<f64>,
+    /// Caret slope rise value. Corresponds to the OpenType hhea table caretSlopeRise field.
+    #[serde(default)]
+    pub open_type_hhea_caret_slope_rise: Option<f64>,
+    /// Caret slope run value. Corresponds to the OpenType hhea table caretSlopeRun field.
+    #[serde(default)]
+    pub open_type_hhea_caret_slope_run: Option<f64>,
+    /// Caret offset value. Corresponds to the OpenType hhea table caretOffset field.
+    #[serde(default)]
+    pub open_type_hhea_caret_offset: Option<f64>,
+    // OpenType Name Table Fields
+    /// Designer name. Corresponds to the OpenType name table name ID 9.
+    #[serde(default)]
+    pub open_type_name_designer: Option<String>,
+    /// URL for the designer. Corresponds to the OpenType name table name ID 12.
+    #[serde(default)]
+    #[serde(rename = "openTypeNameDesignerURL")]
+    pub open_type_name_designer_url: Option<String>,
+    /// Manufacturer name. Corresponds to the OpenType name table name ID 8.
+    #[serde(default)]
+    pub open_type_name_manufacturer: Option<String>,
+    /// Manufacturer URL. Corresponds to the OpenType name table name ID 11.
+    #[serde(default)]
+    #[serde(rename = "openTypeNameManufacturerURL")]
+    pub open_type_name_manufacturer_url: Option<String>,
+    /// License text. Corresponds to the OpenType name table name ID 13.
+    #[serde(default)]
+    pub open_type_name_license: Option<String>,
+    /// URL for the license. Corresponds to the OpenType name table name ID 14.
+    #[serde(default)]
+    #[serde(rename = "openTypeNameLicenseURL")]
+    pub open_type_name_license_url: Option<String>,
+    /// Version string. Corresponds to the OpenType name table name ID 5.
+    #[serde(default)]
+    pub open_type_name_version: Option<String>,
+    /// Unique ID string. Corresponds to the OpenType name table name ID 3.
+    #[serde(default)]
+    #[serde(rename = "openTypeNameUniqueID")]
+    pub open_type_name_unique_id: Option<String>,
+    /// Description of the font. Corresponds to the OpenType name table name ID 10.
+    #[serde(default)]
+    pub open_type_name_description: Option<String>,
+    /// Preferred family name. Corresponds to the OpenType name table name ID 16.
+    #[serde(default)]
+    pub open_type_name_preferred_family_name: Option<String>,
+    /// Preferred subfamily name. Corresponds to the OpenType name table name ID 17.
+    #[serde(default)]
+    pub open_type_name_preferred_subfamily_name: Option<String>,
+    /// Compatible full name. Corresponds to the OpenType name table name ID 18.
+    #[serde(default)]
+    pub open_type_name_compatible_full_name: Option<String>,
+    /// Sample text. Corresponds to the OpenType name table name ID 19.
+    #[serde(default)]
+    pub open_type_name_sample_text: Option<String>,
+    /// WWS family name. Corresponds to the OpenType name table name ID 21.
+    #[serde(default, rename = "openTypeNameWWSFamilyName")]
+    pub open_type_name_wws_family_name: Option<String>,
+    /// WWS Subfamily name. Corresponds to the OpenType name table name ID 22.
+    #[serde(default, rename = "openTypeNameWWSSubFamilyName")]
+    pub open_type_name_wws_sub_family_name: Option<String>,
+    /// A list of name records. This name record storage area is intended for records that require
+    /// platform, encoding and or language localization.
+    #[serde(default)]
+    pub open_type_name_records: Option<Vec<NameRecord>>,
+
+    // PostScript Specific Data
+    /// Name to be used for the FontName field in Type 1/CFF table.
+    #[serde(default)]
+    pub postscript_font_name: Option<String>,
+    /// Name to be used for the FullName field in Type 1/CFF table.
+    #[serde(default)]
+    pub postscript_full_name: Option<String>,
+    /// Artificial slant angle. This must be an angle in counter-clockwise degrees from the
+    /// vertical. This value is not the same as the italic angle. Font authoring tools may use this
+    /// value to set the FontMatrix in Type 1/CFF table.
+    #[serde(default)]
+    pub postscript_slant_angle: Option<f64>,
+    /// A unique ID number as defined in the Type 1/CFF specification.
+    #[serde(default, rename = "postscriptUniqueID")]
+    pub postscript_unique_id: Option<i64>,
+    /// Underline thickness value. Corresponds to the Type 1/CFF/post table UnderlineThickness field.
+    #[serde(default)]
+    pub postscript_underline_thickness: Option<f64>,
+    /// Underline position value. Corresponds to the Type 1/CFF/post table UnderlinePosition field.
+    #[serde(default)]
+    pub postscript_underline_position: Option<f64>,
+    /// Indicates if the font is monospaced. An authoring tool could calculate this automatically,
+    /// but the designer may wish to override this setting. This corresponds to the Type 1/CFF
+    /// isFixedPitched field
+    #[serde(default)]
+    pub postscript_is_fixed_pitch: Option<bool>,
+    /// A list of up to 14 integers or floats specifying the values that should be in the Type
+    /// 1/CFF BlueValues field. This list must contain an even number of integers following the
+    /// rules defined in the Type 1/CFF specification.
+    #[serde(default)]
+    pub postscript_blue_values: Option<Vec<f64>>,
+    /// A list of up to 10 integers or floats specifying the values that should be in the Type
+    /// 1/CFF OtherBlues field. This list must contain an even number of integers following the
+    /// rules defined in the Type 1/CFF specification.
+    #[serde(default)]
+    pub postscript_other_blues: Option<Vec<f64>>,
+    /// A list of up to 14 integers or floats specifying the values that should be in the Type
+    /// 1/CFF FamilyBlues field. This list must contain an even number of integers following the
+    /// rules defined in the Type 1/CFF specification.
+    #[serde(default)]
+    pub postscript_family_blues: Option<Vec<f64>>,
+    /// A list of up to 10 integers or floats specifying the values that should be in the Type
+    /// 1/CFF FamilyOtherBlues field. This list must contain an even number of integers following
+    /// the rules defined in the Type 1/CFF specification.
+    #[serde(default)]
+    pub postscript_family_other_blues: Option<Vec<f64>>,
+    /// List of horizontal stems sorted in the order specified in the Type 1/CFF specification. Up
+    /// to 12 integers or floats are possible. This corresponds to the Type 1/CFF StemSnapH field.
+    #[serde(default)]
+    pub postscript_stem_snap_h: Option<Vec<f64>>,
+    /// List of vertical stems sorted in the order specified in the Type 1/CFF specification. Up to
+    /// 12 integers or floats are possible. This corresponds to the Type 1/CFF StemSnapV field.
+    #[serde(default)]
+    pub postscript_stem_snap_v: Option<Vec<f64>>,
+    /// BlueFuzz value. This corresponds to the Type 1/CFF BlueFuzz field.
+    #[serde(default)]
+    pub postscript_blue_fuzz: Option<f64>,
+    /// BlueShift value. This corresponds to the Type 1/CFF BlueShift field.
+    #[serde(default)]
+    pub postscript_blue_shift: Option<f64>,
+    /// BlueScale value. This corresponds to the Type 1/CFF BlueScale field.
+    #[serde(default)]
+    pub postscript_blue_scale: Option<f64>,
+    /// Indicates how the Type 1/CFF ForceBold field should be set.
+    #[serde(default)]
+    pub postscript_force_bold: Option<bool>,
+    /// Default width for glyphs.
+    #[serde(default)]
+    pub postscript_default_width_x: Option<f64>,
+    /// Nominal width for glyphs.
+    #[serde(default)]
+    pub postscript_nominal_width_x: Option<f64>,
+    /// A string indicating the overall weight of the font. This corresponds to the Type 1/CFF
+    /// Weight field. It should have a reasonable value that reflects the openTypeOS2WeightClass
+    /// value.
+    #[serde(default)]
+    pub postscript_weight_name: Option<String>,
+    /// The name of the glyph that should be used as the default character in PFM files.
+    #[serde(default)]
+    pub postscript_default_character: Option<String>,
+    /// The Windows character set. The values are defined below.
+    #[serde(default)]
+    pub postscript_windows_character_set: Option<PostscriptWindowsCharacterSet>,
     #[serde(default)]
     pub version_major: Option<i64>,
     #[serde(default)]
     pub version_minor: Option<u64>,
     #[serde(default)]
     pub guidelines: Vec<GuidelineInfo>,
+}
+
+/// gasp Range Record Format
+///
+/// UFO3 Spec:
+///
+/// > This file contains information about the font itself, such as naming and dimensions.
+/// > This file is optional. Not all values are required for a proper file.
+#[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenTypeGaspRangeRecord {
+    #[serde(rename = "rangeMaxPPEM")]
+    range_max_ppem: u8,
+    #[serde(default)]
+    range_gasp_behavior: Vec<RangeGaspBehavior>,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum RangeGaspBehavior {
+    /// 0x0001
+    GASP_GRIDFIT = 0,
+    /// 0x0002
+    GASP_DOGRAY = 1,
+    /// 0x0004
+    GASP_SYMMETRIC_GRIDFIT = 2,
+    /// 0x0008
+    GASP_SYMMETRIC_SMOOTHING = 3,
+}
+
+/// Name Record Format
+#[derive(Default, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NameRecord {
+    /// The name ID.
+    #[serde(default)]
+    name_id: Option<u64>,
+    /// The platform ID.
+    #[serde(default)]
+    platform_id: Option<u64>,
+    /// The encoding ID.
+    #[serde(default)]
+    encoding_id: Option<u64>,
+    /// The language ID.
+    #[serde(default)]
+    language_id: Option<u64>,
+    /// The string value for the record.
+    #[serde(default)]
+    string: Option<String>,
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PostscriptWindowsCharacterSet {
+    ANSI = 1,
+    Default = 2,
+    Symbol = 3,
+    Macintosh = 4,
+    ShiftJIS = 5,
+    Hangul = 6,
+    HangulJohab = 7,
+    GB2312 = 8,
+    ChineseBIG5 = 9,
+    Greek = 10,
+    Turkish = 11,
+    Vietnamese = 12,
+    Hebrew = 13,
+    Arabic = 14,
+    Baltic = 15,
+    Bitstream = 16,
+    Cyrillic = 17,
+    Thai = 18,
+    EuropeanEastern = 19,
+    OEM = 20,
 }
 
 #[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
@@ -333,6 +583,7 @@ fn test_plist_parse() {
     assert_eq!(p.note, None);
     assert_eq!(p.version_major, Some(3));
     assert_eq!(p.version_minor, Some(38));
+    assert_eq!(p.open_type_name_license.as_deref(), Some("This Font Software is licensed under the SIL Open Font License, Version 1.1. This license is available with a FAQ at: http://scripts.sil.org/OFL. This Font Software is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the SIL Open Font License for the specific language, permissions and limitations governing your use of this Font Software."));
     assert!(p.guidelines.is_empty());
     let c: Contents = Contents::new_from_str(
         r#"<?xml version="1.0" encoding="UTF-8"?>

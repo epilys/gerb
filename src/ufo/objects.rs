@@ -308,6 +308,7 @@ impl FontInfo {
             style_map_style_name,
             year,
             note,
+            ..
         } = fontinfo;
         ret.modified.set(false);
         *ret.last_saved.borrow_mut() = None;
