@@ -22,7 +22,9 @@
 #[cfg(feature = "python")]
 pub mod import;
 
+pub mod constants;
 pub mod glif;
+pub mod objects;
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};

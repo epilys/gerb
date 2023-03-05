@@ -19,9 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use glib::{
-    clone, ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
-};
 use gtk::cairo::Matrix;
 use indexmap::IndexMap;
 use once_cell::unsync::OnceCell;
@@ -192,117 +189,77 @@ impl ObjectImpl for EditorInner {
         obj.set_can_focus(true);
     }
 
-    fn properties() -> &'static [ParamSpec] {
-        static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
-                    ParamSpecString::new(
+                    glib::ParamSpecString::new(
                         Editor::TITLE,
                         Editor::TITLE,
                         Editor::TITLE,
                         Some("edit glyph"),
-                        ParamFlags::READABLE,
+                        glib::ParamFlags::READABLE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::CLOSEABLE,
                         Editor::CLOSEABLE,
                         Editor::CLOSEABLE,
                         true,
-                        ParamFlags::READABLE,
+                        glib::ParamFlags::READABLE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::PREVIEW,
                         Editor::PREVIEW,
                         Editor::PREVIEW,
                         false,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::IS_MENU_VISIBLE,
                         Editor::IS_MENU_VISIBLE,
                         Editor::IS_MENU_VISIBLE,
                         true,
-                        ParamFlags::READABLE,
+                        glib::ParamFlags::READABLE,
                     ),
-                    ParamSpecDouble::new(
-                        Editor::UNITS_PER_EM,
-                        Editor::UNITS_PER_EM,
-                        Editor::UNITS_PER_EM,
-                        1.0,
-                        std::f64::MAX,
-                        1000.0,
-                        ParamFlags::READWRITE,
-                    ),
-                    ParamSpecDouble::new(
-                        Editor::X_HEIGHT,
-                        Editor::X_HEIGHT,
-                        Editor::X_HEIGHT,
-                        1.0,
-                        std::f64::MAX,
-                        1000.0,
-                        ParamFlags::READWRITE,
-                    ),
-                    ParamSpecDouble::new(
-                        Editor::ASCENDER,
-                        Editor::ASCENDER,
-                        Editor::ASCENDER,
-                        std::f64::MIN,
-                        std::f64::MAX,
-                        700.0,
-                        ParamFlags::READWRITE,
-                    ),
-                    ParamSpecDouble::new(
-                        Editor::DESCENDER,
-                        Editor::DESCENDER,
-                        Editor::DESCENDER,
-                        std::f64::MIN,
-                        std::f64::MAX,
-                        -200.0,
-                        ParamFlags::READWRITE,
-                    ),
-                    ParamSpecDouble::new(
-                        Editor::CAP_HEIGHT,
-                        Editor::CAP_HEIGHT,
-                        Editor::CAP_HEIGHT,
-                        std::f64::MIN,
-                        std::f64::MAX,
-                        650.0,
-                        ParamFlags::READWRITE,
-                    ),
-                    ParamSpecBoolean::new(
+                    def_param!(f64 Editor::UNITS_PER_EM, 1.0, ufo::constants::UNITS_PER_EM),
+                    def_param!(f64 Editor::X_HEIGHT, 1.0, ufo::constants::X_HEIGHT),
+                    def_param!(f64 Editor::ASCENDER, std::f64::MIN, ufo::constants::ASCENDER),
+                    def_param!(f64 Editor::DESCENDER, std::f64::MIN, ufo::constants::DESCENDER),
+                    def_param!(f64 Editor::CAP_HEIGHT, std::f64::MIN, ufo::constants::CAP_HEIGHT),
+                    glib::ParamSpecBoolean::new(
                         Editor::LOCK_GUIDELINES,
                         Editor::LOCK_GUIDELINES,
                         Editor::LOCK_GUIDELINES,
                         false,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::SHOW_GLYPH_GUIDELINES,
                         Editor::SHOW_GLYPH_GUIDELINES,
                         Editor::SHOW_GLYPH_GUIDELINES,
                         true,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::SHOW_PROJECT_GUIDELINES,
                         Editor::SHOW_PROJECT_GUIDELINES,
                         Editor::SHOW_PROJECT_GUIDELINES,
                         true,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::SHOW_METRICS_GUIDELINES,
                         Editor::SHOW_METRICS_GUIDELINES,
                         Editor::SHOW_METRICS_GUIDELINES,
                         true,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
-                    ParamSpecBoolean::new(
+                    glib::ParamSpecBoolean::new(
                         Editor::MODIFYING_IN_PROCESS,
                         Editor::MODIFYING_IN_PROCESS,
                         Editor::MODIFYING_IN_PROCESS,
                         false,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecEnum::new(
                         Editor::SHOW_MINIMAP,
@@ -310,7 +267,7 @@ impl ObjectImpl for EditorInner {
                         Editor::SHOW_MINIMAP,
                         ShowMinimap::static_type(),
                         ShowMinimap::WhenManipulating as i32,
-                        ParamFlags::READWRITE | UI_EDITABLE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecObject::new(
                         Editor::ACTIVE_TOOL,
@@ -331,7 +288,7 @@ impl ObjectImpl for EditorInner {
                         Workspace::MENUBAR,
                         Workspace::MENUBAR,
                         gtk::MenuBar::static_type(),
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecUInt::new(
                         Editor::LOCK,
@@ -340,7 +297,7 @@ impl ObjectImpl for EditorInner {
                         0,
                         u32::MAX,
                         0,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecUInt::new(
                         Editor::SNAP,
@@ -349,7 +306,7 @@ impl ObjectImpl for EditorInner {
                         0,
                         u32::MAX,
                         0,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecUInt::new(
                         Editor::PRECISION,
@@ -358,14 +315,14 @@ impl ObjectImpl for EditorInner {
                         0,
                         u32::MAX,
                         0,
-                        ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE,
                     ),
                 ]
             });
         PROPERTIES.as_ref()
     }
 
-    fn property(&self, obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> Value {
+    fn property(&self, obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             Editor::TITLE => {
                 if let Some(name) = obj
@@ -410,7 +367,13 @@ impl ObjectImpl for EditorInner {
         }
     }
 
-    fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
         match pspec.name() {
             Editor::UNITS_PER_EM => {
                 self.units_per_em.set(value.get().unwrap());
@@ -582,16 +545,19 @@ impl std::ops::Deref for Editor {
 }
 
 impl Editor {
-    pub const ASCENDER: &str = Project::ASCENDER;
-    pub const CAP_HEIGHT: &str = Project::CAP_HEIGHT;
     pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
     pub const TITLE: &str = Workspace::TITLE;
     pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
     pub const MENUBAR: &str = Workspace::MENUBAR;
     pub const PREVIEW: &str = "preview";
-    pub const DESCENDER: &str = Project::DESCENDER;
-    pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
-    pub const X_HEIGHT: &str = Project::X_HEIGHT;
+    inherit_property!(
+        Project,
+        ASCENDER,
+        CAP_HEIGHT,
+        DESCENDER,
+        UNITS_PER_EM,
+        X_HEIGHT
+    );
     pub const LOCK_GUIDELINES: &str = "lock-guidelines";
     pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
     pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";

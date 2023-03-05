@@ -52,6 +52,7 @@ pub mod prelude {
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;
     pub use indexmap::{IndexMap, IndexSet};
     pub use project::Project;
+    pub use ufo;
     pub use utils::colors::*;
     pub use utils::points::*;
     pub use utils::property_window::*;
@@ -83,4 +84,68 @@ pub mod prelude {
 
     pub use once_cell::sync::{Lazy, OnceCell};
     pub use uuid::Uuid;
+
+    mod macros {
+        #[macro_export]
+        macro_rules! def_param {
+            (str $name:expr) => {
+                glib::ParamSpecString::new(
+                    $name,
+                    $name,
+                    $name,
+                    Some(""),
+                    ParamFlags::READWRITE | UI_EDITABLE,
+                )
+            };
+            (i64 $name:expr, $default:expr) => {
+                glib::ParamSpecInt64::new(
+                    $name,
+                    $name,
+                    $name,
+                    0,
+                    std::i64::MAX,
+                    $default,
+                    ParamFlags::READWRITE | UI_EDITABLE,
+                )
+            };
+            (i64 $name:expr) => {
+                $crate::def_param!(i64 $name, 1)
+            };
+            (u64 $name:expr, $default:expr) => {
+                glib::ParamSpecUInt64::new(
+                    $name,
+                    $name,
+                    $name,
+                    0,
+                    std::u64::MAX,
+                    $default,
+                    ParamFlags::READWRITE | UI_EDITABLE,
+                )
+            };
+            (u64 $name:expr) => {
+                $crate::def_param!(u64 $name, 1)
+            };
+            (f64 $name:expr, $min:expr, $default:expr) => {
+                glib::ParamSpecDouble::new(
+                    $name,
+                    $name,
+                    $name,
+                    $min,
+                    std::f64::MAX,
+                    $default,
+                    ParamFlags::READWRITE | UI_EDITABLE,
+                )
+            };
+        }
+
+        #[macro_export]
+        macro_rules! inherit_property {
+            ($t:ty, $($prop:ident),*) => {
+                $(
+                pub const $prop: &str = <$t>::$prop;
+                )*
+            }
+        }
+    }
+    pub use macros::*;
 }
