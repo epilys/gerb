@@ -341,6 +341,17 @@ impl WindowInner {
     }
 
     pub fn load_project(&self, project: Project) {
+        project
+            .bind_property(Project::MODIFIED, &self.instance(), "title")
+            .transform_to(|_b, v| {
+                if v.get::<bool>().ok()? {
+                    Some(format!("{APPLICATION_NAME}*").to_value())
+                } else {
+                    Some(APPLICATION_NAME.to_value())
+                }
+            })
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
         self.welcome_banner.set_visible(false);
         self.notebook.set_visible(true);
         project

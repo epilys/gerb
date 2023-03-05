@@ -300,7 +300,7 @@ impl Project {
         path.push("fontinfo.plist");
         let ret: Self = Self::new();
 
-        let fontinfo = ufo::objects::FontInfo::from_path(path.clone())
+        let fontinfo = ufo::objects::FontInfo::from_path(std::fs::canonicalize(&path)?)
             .map_err(|err| format!("couldn't read fontinfo.plist {}: {}", path.display(), err))?;
         path.pop();
         path.push("metainfo.plist");
@@ -372,9 +372,13 @@ impl Project {
         ] {
             fontinfo
                 .bind_property(property, &ret, property)
-                .flags(glib::BindingFlags::SYNC_CREATE)
+                .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::BIDIRECTIONAL)
                 .build();
         }
+        fontinfo
+            .bind_property(ufo::objects::FontInfo::MODIFIED, &ret, Project::MODIFIED)
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
         *ret.fontinfo.borrow_mut() = fontinfo;
         *ret.metainfo.borrow_mut() = metainfo;
         *ret.contents.borrow_mut() = contents;
@@ -409,6 +413,15 @@ impl Project {
             .load_bytes(gio::Cancellable::NONE)?
             .0;
         Ok(cairo::ImageSurface::create_from_png(&mut bytes.as_ref())?)
+    }
+
+    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+        self.fontinfo.borrow().save()?;
+        //if !self.modified.get() {
+        //    return Ok(());
+        //}
+        self.set_property(Self::MODIFIED, false);
+        Ok(())
     }
 }
 

@@ -148,6 +148,7 @@ impl ApplicationInner {
         application.set_accels_for_action("app.project.open", &["<Primary>O"]);
         application.set_accels_for_action("app.project.new", &["<Primary>N"]);
         application.set_accels_for_action("app.project.properties", &["<Primary><Shift>D"]);
+        application.set_accels_for_action("app.project.save", &["<Primary>S"]);
         application
             .set_accels_for_action("win.next_tab", &["<Primary>Page_Down", "<Primary>greater"]);
         application.set_accels_for_action("win.prev_tab", &["<Primary>Page_Up", "<Primary>less"]);
@@ -458,7 +459,26 @@ impl ApplicationInner {
                 w.present();
             }),
         );
+        let project_save = gtk::gio::SimpleAction::new("project.save", None);
+        project_save.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
+            if let Err(err) = window.project.borrow().save() {
+                let dialog = gtk::MessageDialog::new(
+                    Some(&window),
+                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+                    gtk::MessageType::Error,
+                    gtk::ButtonsType::Close,
+                    &err.to_string(),
+                );
+                dialog.set_title(
+                    "Error: could not perform conversion to UFOv3 with glyphsLib",
+                );
+                dialog.set_use_markup(true);
+                dialog.run();
+                dialog.emit_close();
+            };
+        }));
         application.add_action(&project_properties);
+        application.add_action(&project_save);
         application.add_action(&import_glyphs);
         application.add_action(&import_ufo2);
         application.add_action(&settings);
@@ -479,6 +499,7 @@ impl ApplicationInner {
             let import_menu = gio::Menu::new();
             file_menu.append(Some("New"), Some("app.project.new"));
             file_menu.append(Some("Open"), Some("app.project.open"));
+            file_menu.append(Some("Save"), Some("app.project.save"));
             import_menu.append(
                 Some("Import Glyphs file"),
                 Some("app.project.import.glyphs"),

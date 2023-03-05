@@ -103,6 +103,13 @@ impl ObjectImpl for FontInfoInner {
         static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
+                    ParamSpecBoolean::new(
+                        FontInfo::MODIFIED,
+                        FontInfo::MODIFIED,
+                        FontInfo::MODIFIED,
+                        false,
+                        glib::ParamFlags::READWRITE,
+                    ),
                     def_param!(str FontInfo::FAMILY_NAME),
                     def_param!(str FontInfo::STYLE_NAME),
                     def_param!(str FontInfo::STYLE_MAP_FAMILY_NAME),
@@ -126,6 +133,7 @@ impl ObjectImpl for FontInfoInner {
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
+            FontInfo::MODIFIED => self.modified.get().to_value(),
             FontInfo::FAMILY_NAME => self.family_name.borrow().to_value(),
             FontInfo::STYLE_NAME => self.style_name.borrow().to_value(),
             FontInfo::STYLE_MAP_FAMILY_NAME => self.style_map_family_name.borrow().to_value(),
@@ -150,23 +158,38 @@ impl ObjectImpl for FontInfoInner {
         macro_rules! set_cell {
             ($field:tt) => {{
                 let val = value.get().unwrap();
-                self.source.borrow_mut().$field = Some(val);
+                let mut src = self.source.borrow_mut();
+                if Some(val) != src.$field {
+                    self.instance().set_property(FontInfo::MODIFIED, true);
+                    src.$field = Some(val);
+                }
                 self.$field.set(val);
             }};
         }
         macro_rules! set_refcell {
             ($field:ident) => {{
                 let val: String = value.get().unwrap();
-                self.source.borrow_mut().$field = val.clone();
+                let mut src = self.source.borrow_mut();
+                if val != src.$field {
+                    self.instance().set_property(FontInfo::MODIFIED, true);
+                    src.$field = val.clone();
+                }
                 *self.$field.borrow_mut() = val;
             }};
             (opt $field:tt) => {{
                 let val: String = value.get().unwrap();
-                self.source.borrow_mut().$field = Some(val.clone());
+                let mut src = self.source.borrow_mut();
+                if Some(&val) != src.$field.as_ref() {
+                    self.instance().set_property(FontInfo::MODIFIED, true);
+                    src.$field = Some(val.clone());
+                }
                 *self.$field.borrow_mut() = val;
             }};
         }
         match pspec.name() {
+            FontInfo::MODIFIED => {
+                self.modified.set(value.get().unwrap());
+            }
             FontInfo::FAMILY_NAME => {
                 set_refcell!(family_name);
             }
@@ -233,6 +256,7 @@ impl std::ops::Deref for FontInfo {
 }
 
 impl FontInfo {
+    pub const MODIFIED: &str = "modified";
     pub const FAMILY_NAME: &str = "family-name";
     pub const STYLE_NAME: &str = "style-name";
     pub const STYLE_MAP_FAMILY_NAME: &str = "style-map-family-name";
@@ -322,7 +346,10 @@ impl FontInfo {
         if !self.modified.get() {
             return Ok(());
         }
-        self.source.borrow().save(self.path.get().unwrap())
+        // FIXME: add extra lib keys
+        self.source.borrow().save(self.path.get().unwrap())?;
+        self.set_property(Self::MODIFIED, false);
+        Ok(())
     }
 }
 

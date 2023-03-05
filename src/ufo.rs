@@ -131,6 +131,7 @@ impl FontInfo {
             .read(false)
             .write(true)
             .create(true)
+            .truncate(true)
             .open(destination)?;
         plist::to_writer_xml_with_options(file, self, &opts)?;
         Ok(())
