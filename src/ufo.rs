@@ -638,8 +638,37 @@ impl LayerContents {
     }
 }
 
+/// lib.plist
+///
+/// UFO3 Spec:
+///
+/// > This file is a place to store authoring tool specific, user specific or otherwise arbitrary
+/// > data for the font. It is optional. If it is not defined in the UFO, there is no lib data.
+#[derive(Default, PartialEq, Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Lib {
+    #[serde(default, flatten)]
+    pub values: IndexMap<String, plist::Value>,
+}
+
+impl Lib {
+    pub fn from_path(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        if !path.exists() {
+            // This file is is optional. If it is not defined in the UFO, there is no lib data.
+            return Ok(Self::default());
+        }
+        let retval: Self =
+            plist::from_file(path).map_err(|err| format!("Path {}: {err}", path.display()))?;
+        Ok(retval)
+    }
+
+    pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(plist::from_reader_xml(std::io::Cursor::new(xml))?)
+    }
+}
+
 #[test]
-fn test_plist_parse() {
+fn test_fontinfo_plist_parse() {
     let p: FontInfo = FontInfo::new_from_str(PLIST).unwrap();
     assert_eq!(&p.family_name, "Source Sans 3");
     assert_eq!(&p.style_name, "Regular");
@@ -681,6 +710,10 @@ fn test_plist_parse() {
         ]
         .into()
     );
+}
+
+#[test]
+fn test_metainfo_plist_parse() {
     let m: MetaInfo = MetaInfo::new_from_str(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -730,6 +763,10 @@ fn test_plist_parse() {
 "#,
     )
     .is_err());
+}
+
+#[test]
+fn test_layercontents_plist_parse() {
     let l: LayerContents = LayerContents::new_from_str(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
@@ -841,6 +878,88 @@ fn test_plist_parse() {
 ] {
     assert_eq!(&LayerContents::new_from_str(input).unwrap_err().to_string(), err_msg);
         }
+}
+
+#[test]
+fn test_lib_plist_parse() {
+    let l: Lib = Lib::new_from_str(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.epilys.gerb</key>
+  <string>Hello World.</string>
+  <key>public.glyphOrder</key>
+  <array>
+    <string>A</string>
+    <string>C</string>
+    <string>B</string>
+  </array>
+  <key>public.unicodeVariationSequences</key>
+  <dict>
+      <key>FE0E</key>
+      <dict>
+        <key>1F170</key>
+        <string>Anegativesquared.text</string>
+      </dict>
+      <key>FE0F</key>
+      <dict>
+        <key>1F170</key>
+        <string>Anegativesquared</string>
+      </dict>
+  </dict>
+</dict>
+</plist>
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        &l.values.keys().cloned().collect::<Vec<String>>(),
+        &[
+            "com.epilys.gerb",
+            "public.glyphOrder",
+            "public.unicodeVariationSequences"
+        ]
+    );
+
+    assert_eq!(
+        &l.values["com.epilys.gerb"],
+        &plist::Value::String("Hello World.".to_string())
+    );
+    assert_eq!(
+        &l.values["public.glyphOrder"],
+        &plist::Value::Array(vec![
+            plist::Value::String("A".to_string()),
+            plist::Value::String("C".to_string()),
+            plist::Value::String("B".to_string()),
+        ])
+    );
+    assert_eq!(
+        &l.values["public.unicodeVariationSequences"],
+        &plist::Value::Dictionary(
+            vec![
+                (
+                    "FE0E".to_string(),
+                    plist::Value::Dictionary(
+                        vec![("1F170".to_string(), "Anegativesquared.text".to_string())]
+                            .into_iter()
+                            .collect()
+                    )
+                ),
+                (
+                    "FE0F".to_string(),
+                    plist::Value::Dictionary(
+                        vec![("1F170".to_string(), "Anegativesquared".to_string())]
+                            .into_iter()
+                            .collect()
+                    )
+                ),
+            ]
+            .into_iter()
+            .collect()
+        )
+    );
 }
 
 #[test]
