@@ -81,6 +81,12 @@ pub struct FontInfo {
     /* Generic Miscellaneous Information */
     #[serde(default)]
     pub note: Option<String>,
+    #[serde(default)]
+    pub version_major: Option<i64>,
+    #[serde(default)]
+    pub version_minor: Option<u64>,
+    #[serde(default)]
+    pub guidelines: Vec<GuidelineInfo>,
     /// A list of gasp Range Records. These must be sorted in ascending order based on the `range_max_PPEM` value of the record.
     #[serde(default)]
     pub open_type_gasp_range_records: Option<Vec<OpenTypeGaspRangeRecord>>,
@@ -256,12 +262,80 @@ pub struct FontInfo {
     /// The Windows character set. The values are defined below.
     #[serde(default)]
     pub postscript_windows_character_set: Option<PostscriptWindowsCharacterSet>,
-    #[serde(default)]
-    pub version_major: Option<i64>,
-    #[serde(default)]
-    pub version_minor: Option<u64>,
-    #[serde(default)]
-    pub guidelines: Vec<GuidelineInfo>,
+
+    //OpenType OS/2 Table Fields↩
+    ///  non-negative integer  Width class value. Must be in the range 1-9. Corresponds to the OpenType OS/2 table usWidthClass field.
+    #[serde(default, rename = "openTypeOS2WidthClass")]
+    pub open_type_os2_width_class: Option<u64>,
+    /// non-negative integer  Weight class value. Corresponds to the OpenType OS/2 table usWeightClass field.
+    #[serde(default, rename = "openTypeOS2WeightClass")]
+    pub open_type_os2_weight_class: Option<u64>,
+    /// list  A list of bit numbers indicating the bits that should be set in fsSelection. The bit numbers are listed in the OpenType OS/2 specification. Corresponds to the OpenType OS/2 table selection field. Note: Bits 0 (italic), 5 (bold) and 6 (regular) must not be set here. These bits should be taken from the generic styleMapStyleName attribute.
+    #[serde(default, rename = "openTypeOS2Selection")]
+    pub open_type_os2_selection: Option<Vec<u32>>,
+    ///  string  Four character identifier for the creator of the font. Corresponds to the OpenType OS/2 table achVendID field.
+    #[serde(default, rename = "openTypeOS2VendorID")]
+    pub open_type_os2_vendor_id: Option<String>,
+    ///  list  The list must contain 10 non-negative integers that represent the setting for each category in the Panose specification. The integers correspond with the option numbers in each of the Panose categories. This corresponds to the OpenType OS/2 table Panose field.
+    #[serde(default, rename = "openTypeOS2Panose")]
+    pub open_type_os2_panose: Option<Vec<u64>>,
+    /// list  Two integers representing the IBM font class and font subclass of the font. The first number, representing the class ID, must be in the range 0-14. The second number, representing the subclass, must be in the range 0-15. The numbers are listed in the OpenType OS/2 specification. Corresponds to the OpenType OS/2 table sFamilyClass field.
+    #[serde(default, rename = "openTypeOS2FamilyClass")]
+    pub open_type_os2_family_class: Option<Vec<u64>>,
+    /// list  A list of bit numbers that are supported Unicode ranges in the font. The bit numbers are listed in the OpenType OS/2 specification. Corresponds to the OpenType OS/2 table ulUnicodeRange1, ulUnicodeRange2, ulUnicodeRange3 and ulUnicodeRange4 fields.
+    #[serde(default, rename = "openTypeOS2UnicodeRanges")]
+    pub open_type_os2_unicode_ranges: Option<Vec<u32>>,
+    ///  list  A list of bit numbers that are supported code page ranges in the font. The bit numbers are listed in the OpenType OS/2 specification. Corresponds to the OpenType OS/2 table ulCodePageRange1 and ulCodePageRange2 fields.
+    #[serde(default, rename = "openTypeOS2CodePageRanges")]
+    pub open_type_os2_code_page_ranges: Option<Vec<u32>>,
+    // Ascender value. Corresponds to the OpenType OS/2 table sTypoAscender field.
+    #[serde(default, rename = "openTypeOS2TypoAscender")]
+    pub open_type_os2_typo_ascender: Option<i64>,
+    /// integer   Descender value. Corresponds to the OpenType OS/2 table sTypoDescender field.
+    #[serde(default, rename = "openTypeOS2TypoDescender")]
+    pub open_type_os2_typo_descender: Option<i64>,
+    /// integer   Line gap value. Corresponds to the OpenType OS/2 table sTypoLineGap field.
+    #[serde(default, rename = "openTypeOS2TypoLineGap")]
+    pub open_type_os2_typo_line_gap: Option<i64>,
+    /// non-negative integer  Ascender value. Corresponds to the OpenType OS/2 table usWinAscent field.
+    #[serde(default, rename = "openTypeOS2WinAscent")]
+    pub open_type_os2_win_ascent: Option<u64>,
+    ///  non-negative integer  Descender value. Corresponds to the OpenType OS/2 table usWinDescent field.
+    #[serde(default, rename = "openTypeOS2WinDescent")]
+    pub open_type_os2_win_descent: Option<u64>,
+    ///  list  A list of bit numbers indicating the embedding type. The bit numbers are listed in the OpenType OS/2 specification. Corresponds to the OpenType OS/2 table fsType field.
+    #[serde(default, rename = "openTypeOS2Type")]
+    pub open_type_os2_type: Option<Vec<u32>>,
+    ///  integer   Subscript horizontal font size. Corresponds to the OpenType OS/2 table ySubscriptXSize field.
+    #[serde(default, rename = "openTypeOS2SubscriptXSize")]
+    pub open_type_os2_subscript_xsize: Option<i64>,
+    ///  integer   Subscript vertical font size. Corresponds to the OpenType OS/2 table ySubscriptYSize field.
+    #[serde(default, rename = "openTypeOS2SubscriptYSize")]
+    pub open_type_os2_subscript_ysize: Option<i64>,
+    ///  integer   Subscript x offset. Corresponds to the OpenType OS/2 table ySubscriptXOffset field.
+    #[serde(default, rename = "openTypeOS2SubscriptXOffset")]
+    pub open_type_os2_subscript_xoffset: Option<i64>,
+    ///  integer   Subscript y offset. Corresponds to the OpenType OS/2 table ySubscriptYOffset field.
+    #[serde(default, rename = "openTypeOS2SubscriptYOffset")]
+    pub open_type_os2_subscript_yoffset: Option<i64>,
+    ///  integer   Superscript horizontal font size. Corresponds to the OpenType OS/2 table ySuperscriptXSize field.
+    #[serde(default, rename = "openTypeOS2SuperscriptXSize")]
+    pub open_type_os2_superscript_xsize: Option<i64>,
+    ///  integer   Superscript vertical font size. Corresponds to the OpenType OS/2 table ySuperscriptYSize field.
+    #[serde(default, rename = "openTypeOS2SuperscriptYSize")]
+    pub open_type_os2_superscript_ysize: Option<i64>,
+    ///  integer   Superscript x offset. Corresponds to the OpenType OS/2 table ySuperscriptXOffset field.
+    #[serde(default, rename = "openTypeOS2SuperscriptXOffset")]
+    pub open_type_os2_superscript_xoffset: Option<i64>,
+    ///  integer   Superscript y offset. Corresponds to the OpenType OS/2 table ySuperscriptYOffset field.
+    #[serde(default, rename = "openTypeOS2SuperscriptYOffset")]
+    pub open_type_os2_superscript_yoffset: Option<i64>,
+    /// integer   Strikeout size. Corresponds to the OpenType OS/2 table yStrikeoutSize field.
+    #[serde(default, rename = "openTypeOS2StrikeoutSize")]
+    pub open_type_os2_strikeout_size: Option<i64>,
+    /// integer   Strikeout position. Corresponds to the OpenType OS/2 table yStrikeoutPosition field.
+    #[serde(default, rename = "openTypeOS2StrikeoutPosition")]
+    pub open_type_os2_strikeout_position: Option<i64>,
 }
 
 /// gasp Range Record Format
