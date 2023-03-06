@@ -64,7 +64,7 @@ pub struct ProjectInner {
     pub guidelines: RefCell<Vec<Guideline>>,
     pub metric_guidelines: RefCell<Vec<Guideline>>,
     pub fontinfo: RefCell<ufo::objects::FontInfo>,
-    pub contents: RefCell<ufo::Contents>,
+    pub contents: RefCell<(PathBuf, ufo::Contents)>,
     pub metainfo: RefCell<ufo::MetaInfo>,
     pub layercontents: RefCell<ufo::LayerContents>,
     #[cfg(feature = "git")]
@@ -98,7 +98,7 @@ impl Default for ProjectInner {
             guidelines: RefCell::new(vec![]),
             metric_guidelines: RefCell::new(vec![]),
             fontinfo: RefCell::new(ufo::objects::FontInfo::new()),
-            contents: RefCell::new(ufo::Contents::default()),
+            contents: RefCell::new((PathBuf::default(), ufo::Contents::default())),
             metainfo: RefCell::new(ufo::MetaInfo::default()),
             layercontents: RefCell::new(ufo::LayerContents::default()),
             #[cfg(feature = "git")]
@@ -290,7 +290,7 @@ impl Project {
     }
 
     pub fn from_path(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut path: PathBuf = Path::new(path).into();
+        let mut path: PathBuf = std::fs::canonicalize(Path::new(path))?;
         if !path.exists() {
             return Err(format!("Directory <i>{}</i> does not exist.", path.display()).into());
         }
@@ -300,12 +300,17 @@ impl Project {
         path.push("fontinfo.plist");
         let ret: Self = Self::new();
 
-        let fontinfo = ufo::objects::FontInfo::from_path(std::fs::canonicalize(&path)?)
+        let fontinfo = ufo::objects::FontInfo::from_path(path.clone())
             .map_err(|err| format!("couldn't read fontinfo.plist {}: {}", path.display(), err))?;
         path.pop();
         path.push("metainfo.plist");
+        let metainfo_exists = path.exists();
         let metainfo = ufo::MetaInfo::from_path(&path)
             .map_err(|err| format!("couldn't read metainfo.plist {}: {}", path.display(), err))?;
+        if !metainfo_exists {
+            metainfo.save(&path)?;
+        }
+
         path.pop();
         path.push("layercontents.plist");
         let layercontents = ufo::LayerContents::from_path(&path).map_err(|err| {
@@ -320,6 +325,7 @@ impl Project {
         path.push("contents.plist");
         let contents = ufo::Contents::from_path(&path)
             .map_err(|err| format!("couldn't read contents.plist {}: {}", path.display(), err))?;
+        let contents_path = path.to_path_buf();
         path.pop();
         path.pop();
         let glyphs = Glyph::from_ufo(&path, &contents);
@@ -381,7 +387,7 @@ impl Project {
             .build();
         *ret.fontinfo.borrow_mut() = fontinfo;
         *ret.metainfo.borrow_mut() = metainfo;
-        *ret.contents.borrow_mut() = contents;
+        *ret.contents.borrow_mut() = (contents_path, contents);
         *ret.layercontents.borrow_mut() = layercontents;
         {
             let mut metric_guidelines = ret.metric_guidelines.borrow_mut();
@@ -421,6 +427,29 @@ impl Project {
         //    return Ok(());
         //}
         self.set_property(Self::MODIFIED, false);
+        Ok(())
+    }
+
+    pub fn new_glyph(
+        &self,
+        name: String,
+        glyph: Rc<RefCell<Glyph>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut contents = self.contents.borrow_mut();
+        if let Some(f) = contents.1.glyphs.get(&name) {
+            return Err(format!("Glyph `{name}` already exists and its filename is `{f}`.").into());
+        }
+        contents
+            .1
+            .glyphs
+            .insert(name.clone(), glyph.borrow().metadata.filename().to_string());
+        self.glyphs.borrow_mut().insert(name, glyph);
+        contents.1.save(&contents.0).map_err(|err| {
+            format!(
+                "Saving contents.plist to {} failed: {err}",
+                contents.0.display()
+            )
+        })?;
         Ok(())
     }
 }

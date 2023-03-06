@@ -347,7 +347,6 @@ impl FontInfo {
         if !self.modified.get() {
             return Ok(());
         }
-        // FIXME: add extra lib keys
         self.source.borrow().save(self.path.get().unwrap())?;
         self.set_property(Self::MODIFIED, false);
         Ok(())

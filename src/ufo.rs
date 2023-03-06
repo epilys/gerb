@@ -28,7 +28,6 @@ pub mod objects;
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 
@@ -448,7 +447,7 @@ impl FontInfo {
     pub fn save(&self, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
         #[allow(deprecated)]
         let opts = plist::XmlWriteOptions::default()
-            .indent_string("  ")
+            .indent_string("    ")
             .root_element(true);
 
         let file = OpenOptions::new()
@@ -506,7 +505,7 @@ impl FontInfo {
 #[serde(rename_all = "camelCase")]
 pub struct Contents {
     #[serde(flatten)]
-    pub glyphs: HashMap<String, String>,
+    pub glyphs: IndexMap<String, String>,
 }
 
 impl Contents {
@@ -522,6 +521,22 @@ impl Contents {
     pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let retval: Self = plist::from_reader_xml(std::io::Cursor::new(xml))?;
         Ok(retval)
+    }
+
+    pub fn save(&self, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        #[allow(deprecated)]
+        let opts = plist::XmlWriteOptions::default()
+            .indent_string("    ")
+            .root_element(true);
+
+        let file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(destination)?;
+        plist::to_writer_xml_with_options(file, self, &opts)?;
+        Ok(())
     }
 }
 
@@ -570,6 +585,22 @@ impl MetaInfo {
     pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let retval: Self = plist::from_reader_xml(std::io::Cursor::new(xml))?;
         Ok(retval)
+    }
+
+    pub fn save(&self, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        #[allow(deprecated)]
+        let opts = plist::XmlWriteOptions::default()
+            .indent_string("    ")
+            .root_element(true);
+
+        let file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(destination)?;
+        plist::to_writer_xml_with_options(file, self, &opts)?;
+        Ok(())
     }
 }
 

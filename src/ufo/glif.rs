@@ -260,6 +260,7 @@ impl From<&glyphs::Guideline> for Guideline {
 struct Outline {
     #[serde(default)]
     #[serde(rename = "$value")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     contours: Vec<OutlineEntry>,
 }
 

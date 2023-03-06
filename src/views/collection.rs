@@ -175,7 +175,8 @@ impl ObjectImpl for CollectionInner {
                     let name = metadata.name().to_string();
                     let glyph = Rc::new(RefCell::new(metadata.clone().into()));
                     metadata.glyph_ref.set(glyph.clone()).unwrap();
-                    project.glyphs.borrow_mut().insert(name, glyph);
+                    //FIXME: show err msg
+                    project.new_glyph(name, glyph).unwrap();
                     obj.emit_by_name::<()>(Collection::NEW_GLYPH, &[&metadata]);
                     w.close();
                 }));

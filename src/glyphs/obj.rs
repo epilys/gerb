@@ -193,11 +193,17 @@ impl GlyphMetadata {
             let filename = &widgets[Self::FILENAME];
             let name = &widgets[Self::NAME];
             filename.set_sensitive(false);
-            name.bind_property("text", filename, "text")
-                .flags(glib::BindingFlags::SYNC_CREATE)
+            name.bind_property("text", self, Self::FILENAME)
                 .transform_to(|_, val| {
                     let n = val.get::<Option<String>>().ok()??;
                     Some(format!("{n}.glif").to_value())
+                })
+                .build();
+            filename
+                .bind_property("text", self, Self::RELATIVE_PATH)
+                .transform_to(|_, val| {
+                    let n = val.get::<Option<String>>().ok()??;
+                    Some(format!("glyphs/{n}").to_value())
                 })
                 .build();
         }

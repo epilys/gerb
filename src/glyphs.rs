@@ -220,12 +220,16 @@ impl Glyph {
     }
 
     pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
-        let contour = Contour::new_with_curves(curves);
+        let contours = if curves.is_empty() {
+            vec![]
+        } else {
+            vec![Contour::new_with_curves(curves)]
+        };
         let metadata = GlyphMetadata::new();
         *metadata.kinds.borrow_mut() = (GlyphKind::Char(char), vec![]);
         *metadata.name.borrow_mut() = name.into();
         Glyph {
-            contours: vec![contour],
+            contours,
             components: vec![],
             guidelines: vec![],
             metadata,
