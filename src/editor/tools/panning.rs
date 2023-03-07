@@ -724,6 +724,64 @@ impl ToolImplImpl for PanningToolInner {
                     return Inhibit(true);
                 };
             }
+        } else {
+            let (dx, dy) = event.delta();
+            if !((dx != 0.0) ^ (dy != 0.0)) {
+                return Inhibit(true);
+            }
+            let norm = if dx != 0.0 { dx } else { dy };
+            let is_corner = {
+                let scale: f64 = viewport
+                    .transformation
+                    .property::<f64>(Transformation::SCALE);
+                let ppu: f64 = viewport
+                    .transformation
+                    .property::<f64>(Transformation::PIXELS_PER_UNIT);
+                let state = view.state().borrow();
+                let UnitPoint(position) =
+                    viewport.view_to_unit_point(ViewPoint(event.position().into()));
+                let pts = state
+                    .kd_tree
+                    .borrow()
+                    .query_point(position, (10.0 / (scale * ppu)).ceil() as i64);
+                let is_corner = if pts.is_empty() {
+                    None
+                } else {
+                    let glyph = state.glyph.borrow();
+
+                    pts.iter().find_map(|p| {
+                        let contour = &glyph.contours[p.contour_index];
+                        let curves = contour.curves();
+                        let ret = curves[p.curve_index]
+                            .points()
+                            .iter()
+                            .find(|cp| cp.uuid == p.uuid && cp.continuity.is_some())
+                            .map(|cp| {
+                                (
+                                    cp.position,
+                                    contour.get_control_point(
+                                        cp.glyph_index(p.contour_index, p.curve_index),
+                                    ),
+                                )
+                            });
+                        ret
+                    })
+                };
+
+                is_corner
+            };
+            if let Some((pos, (Some((neighbor, npos)), _)))
+            | Some((pos, (None, Some((neighbor, npos))))) = is_corner
+            {
+                let delta_vector = (npos - pos).unit() * norm;
+                let state = view.state().borrow();
+                let mut m = Matrix::identity();
+                m.translate(delta_vector.x, delta_vector.y);
+                let mut action = state.transform_points(&[neighbor], m);
+                action.compress = true;
+                (action.redo)();
+                state.add_undo_action(action);
+            }
         }
         Inhibit(false)
     }

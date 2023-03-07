@@ -179,6 +179,14 @@ impl Point {
     pub fn dot(&self, rhs: Self) -> f64 {
         self.x * rhs.x + self.y * rhs.y
     }
+
+    pub fn unit(&self) -> Self {
+        let norm = self.norm();
+        if !norm.is_normal() || norm <= f64::MIN_POSITIVE {
+            return (0.0, 0.0).into();
+        }
+        *self / norm
+    }
 }
 
 impl From<Point> for (f64, f64) {

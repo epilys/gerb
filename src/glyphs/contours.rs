@@ -247,9 +247,7 @@ impl Contour {
         idxs_slice: &[GlyphPointIndex],
         m: Matrix,
     ) -> Vec<(GlyphPointIndex, Point)> {
-        if !self.is_contour_modified.get() {
-            self.is_contour_modified.set(true);
-        }
+        self.is_contour_modified.set(true);
 
         let uuids = idxs_slice
             .iter()
@@ -480,6 +478,90 @@ impl Contour {
                 .find(|cp| cp.uuid == uuid)?
                 .position,
         )
+    }
+
+    // FIXME: return None on line Beziers
+    #[allow(clippy::type_complexity)]
+    /// For an on-curve point, return neighboring control points.
+    pub fn get_control_point(
+        &self,
+        GlyphPointIndex {
+            contour_index,
+            curve_index,
+            uuid,
+        }: GlyphPointIndex,
+    ) -> (
+        Option<(GlyphPointIndex, Point)>,
+        Option<(GlyphPointIndex, Point)>,
+    ) {
+        let cl = || -> Option<(
+            Option<(GlyphPointIndex, Point)>,
+            Option<(GlyphPointIndex, Point)>,
+        )> {
+            let into_ret = |cp: &CurvePoint, curve_index: usize|-> (GlyphPointIndex, Point) {
+                (cp.glyph_index(contour_index, curve_index), cp.position)
+            };
+            let curves = self.curves();
+            let curve = curves.get(curve_index)?;
+            let points = curve.points();
+            let (index, continuity) = points
+                .iter()
+                .enumerate()
+                .find(|(_, cp)| cp.uuid == uuid && cp.continuity.is_some())
+                .and_then(|(i, cp)| Some((i, cp.continuity?)))?;
+            Some(match index {
+                _ if curve_index + 1 == curves.len() && index + 1 == points.len() && !self.open.get() => {
+                    let prev_point = if index > 1 && !matches!(continuity, Continuity::Positional) {
+                        points.get(index - 1).map(|cp| into_ret(cp, curve_index))
+                    } else {
+                        None
+                    };
+                    let next_point = curves[0].points().get(1).map(|cp| into_ret(cp, 0));
+                    (prev_point, next_point)
+                }
+                _ if curve_index == curves.len() && index == points.len() && self.open.get() => {
+                    (None, None)
+                }
+                _ if curve_index == 0 && index == 0 && !self.open.get() && curves.len() > 0 => {
+                    let prev_point = if !matches!(continuity, Continuity::Positional) {
+                        curves[curves.len()-1].points().iter().rev().nth(1).map(|cp| into_ret(cp, curves.len()-1))
+                    } else {
+                        None
+                    };
+                    let next_point = points.get(1).map(|cp| into_ret(cp, curve_index));
+                    (prev_point, next_point)
+                }
+                _ if curve_index == 0 && index == 0 && self.open.get() => (None, None),
+                _ if index + 1 == points.len() => {
+                    let prev_point = if index > 1 && !matches!(continuity, Continuity::Positional) {
+                        points.iter().rev().nth(1).map(|cp| into_ret(cp, curve_index))
+                    } else {
+                        None
+                    };
+                    let next_point = curves[curve_index+1].points().get(1).map(|cp| into_ret(cp, curve_index+1));
+                    (prev_point, next_point)
+                }
+                _ if index == 0 => {
+                    let prev_point =if !matches!(continuity, Continuity::Positional) {
+                        curves[curve_index-1].points().iter().rev().nth(1).map(|cp| into_ret(cp, curve_index-1))
+                    } else {
+                        None
+                    };
+                    let next_point = points.get(1).map(|cp| into_ret(cp, curve_index));
+                    (prev_point, next_point)
+                }
+                _ => {
+                    let prev_point = if index > 1 && !matches!(continuity, Continuity::Positional) {
+                        points.get(index - 1).map(|cp| into_ret(cp, curve_index))
+                    } else {
+                        None
+                    };
+                    let next_point = curves.get(curve_index+1).and_then(|c| c.points().get(1).map(|cp| into_ret(cp, curve_index+1)));
+                    (prev_point, next_point)
+                }
+            })
+        };
+        cl().unwrap_or((None, None))
     }
 
     pub fn pop_curve(&self) -> Option<Bezier> {
