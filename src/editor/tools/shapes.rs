@@ -22,6 +22,7 @@
 use super::{new_contour_action, tool_impl::*};
 use crate::glyphs::Contour;
 use crate::utils::curves::Bezier;
+use crate::views::canvas::{Layer, LayerBuilder};
 use gtk::Inhibit;
 
 use crate::prelude::*;

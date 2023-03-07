@@ -26,6 +26,7 @@ use gtk::Inhibit;
 use crate::glyphs::{Contour, GlyphPointIndex};
 use crate::prelude::*;
 use crate::utils::{curves::Bezier, distance_between_two_points};
+use crate::views::canvas::{Layer, LayerBuilder};
 
 // DOC
 ///```text

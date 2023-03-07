@@ -21,7 +21,7 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::Path;
 use std::rc::{Rc, Weak};
 
@@ -165,8 +165,8 @@ impl Glyph {
     pub fn from_ufo(
         root_path: &Path,
         contents: &ufo::Contents,
-    ) -> Result<HashMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
-        let mut ret: HashMap<String, Rc<RefCell<Glyph>>> = HashMap::default();
+    ) -> Result<IndexMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
+        let mut ret: IndexMap<String, Rc<RefCell<Glyph>>> = IndexMap::default();
         let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
         let mut path = root_path.to_path_buf();
         path.push("glyphs");

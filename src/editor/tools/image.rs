@@ -23,6 +23,7 @@ use super::tool_impl::*;
 use cairo::ImageSurface;
 
 use crate::prelude::*;
+use crate::views::canvas::{Layer, LayerBuilder};
 
 // DOC
 #[derive(Default)]

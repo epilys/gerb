@@ -358,3 +358,164 @@ impl Default for FontInfo {
         Self::new()
     }
 }
+
+mod layer {
+    use super::*;
+
+    #[derive(Debug)]
+    pub struct LayerInner {
+        modified: Cell<bool>,
+        pub last_saved: RefCell<Option<u64>>,
+        pub path: RefCell<PathBuf>,
+        pub name: RefCell<String>,
+        pub dir_name: RefCell<String>,
+    }
+
+    impl Default for LayerInner {
+        fn default() -> Self {
+            LayerInner {
+                modified: Cell::new(false),
+                last_saved: RefCell::new(None),
+                path: RefCell::new(PathBuf::default()),
+                name: RefCell::new(String::new()),
+                dir_name: RefCell::new(String::new()),
+            }
+        }
+    }
+
+    // The central trait for subclassing a GObject
+    #[glib::object_subclass]
+    impl ObjectSubclass for LayerInner {
+        const NAME: &'static str = "Layer";
+        type Type = Layer;
+        type ParentType = glib::Object;
+        type Interfaces = ();
+    }
+
+    // Trait shared by all GObjects
+    impl ObjectImpl for LayerInner {
+        fn properties() -> &'static [glib::ParamSpec] {
+            static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+                once_cell::sync::Lazy::new(|| {
+                    vec![
+                        ParamSpecBoolean::new(
+                            Layer::MODIFIED,
+                            Layer::MODIFIED,
+                            Layer::MODIFIED,
+                            false,
+                            glib::ParamFlags::READWRITE,
+                        ),
+                        def_param!(str Layer::NAME),
+                        def_param!(str Layer::DIR_NAME),
+                    ]
+                });
+            PROPERTIES.as_ref()
+        }
+
+        fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+            match pspec.name() {
+                Layer::MODIFIED => self.modified.get().to_value(),
+                Layer::NAME => self.name.borrow().to_value(),
+                Layer::DIR_NAME => self.dir_name.borrow().to_value(),
+                _ => unimplemented!("{}", pspec.name()),
+            }
+        }
+
+        fn set_property(
+            &self,
+            _obj: &Self::Type,
+            _id: usize,
+            value: &Value,
+            pspec: &glib::ParamSpec,
+        ) {
+            macro_rules! set_refcell {
+                ($field:ident) => {{
+                    let val: String = value.get().unwrap();
+                    let mut field = self.$field.borrow_mut();
+                    if &val != &*field {
+                        self.instance().set_property(Layer::MODIFIED, true);
+                    }
+                    *field = val;
+                }};
+            }
+            match pspec.name() {
+                Layer::MODIFIED => {
+                    self.modified.set(value.get().unwrap());
+                }
+                Layer::NAME => {
+                    set_refcell!(name);
+                }
+                Layer::DIR_NAME => {
+                    set_refcell!(dir_name);
+                }
+                _ => unimplemented!("{}", pspec.name()),
+            }
+        }
+    }
+
+    glib::wrapper! {
+        pub struct Layer(ObjectSubclass<LayerInner>);
+    }
+
+    impl std::ops::Deref for Layer {
+        type Target = LayerInner;
+
+        fn deref(&self) -> &Self::Target {
+            self.imp()
+        }
+    }
+
+    impl Layer {
+        pub const MODIFIED: &str = "modified";
+        pub const NAME: &str = "name";
+        pub const DIR_NAME: &str = "dir-name";
+
+        pub fn new() -> Self {
+            let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
+            ret
+        }
+
+        pub fn init_from_path(
+            &self,
+            name: String,
+            dir_name: String,
+            mut root_path: PathBuf,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+            root_path.push(&dir_name);
+            let path = root_path;
+            if !path.exists() {
+                return Err(format!("Path <i>{}</i> does not exist.", path.display()).into());
+            }
+            if !path.is_dir() {
+                return Err(format!("Path {} is not a directory.", path.display()).into());
+            }
+            self.modified.set(false);
+            *self.last_saved.borrow_mut() = None;
+            *self.path.borrow_mut() = path;
+            *self.dir_name.borrow_mut() = dir_name;
+            *self.name.borrow_mut() = name;
+            Ok(())
+        }
+
+        pub fn save(
+            &self,
+            _layercontents: &mut crate::ufo::LayerContents,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+            // TODO
+            self.modified.set(false);
+            Ok(())
+        }
+
+        pub fn modified(&self) -> bool {
+            self.modified.get()
+        }
+    }
+
+    impl Default for Layer {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+}
+
+pub use layer::*;

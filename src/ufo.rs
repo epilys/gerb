@@ -614,18 +614,27 @@ impl MetaInfo {
 #[derive(Debug)]
 pub struct LayerContents {
     pub layers: IndexMap<String, String>,
+    // #[serde(skip)]
+    pub objects: IndexMap<String, objects::Layer>,
 }
 
 impl Default for LayerContents {
     fn default() -> Self {
         let mut layers = IndexMap::new();
         layers.insert("public.default".to_string(), "glyphs".to_string());
-        LayerContents { layers }
+        LayerContents {
+            layers,
+            objects: IndexMap::default(),
+        }
     }
 }
 
 impl LayerContents {
-    fn inner_from_vec(vec: Vec<(String, String)>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn inner_from_vec(
+        vec: Vec<(String, String)>,
+        root_path: Option<&Path>,
+        create_missing_directories: bool,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         if vec.is_empty() {
             return Err("Input contains no layers: a valid UFOv3 project requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.".into());
         }
@@ -652,20 +661,56 @@ impl LayerContents {
             )
             .into());
         }
-        Ok(Self { layers })
+
+        let mut ret = Self {
+            objects: IndexMap::with_capacity(layers.len()),
+            layers,
+        };
+        if let Some(root_path) = root_path {
+            let mut path = root_path.to_path_buf();
+            for (layer_name, dir_name) in ret.layers.iter() {
+                path.push(dir_name);
+                if !path.exists() {
+                    if create_missing_directories {
+                        std::fs::create_dir(&path)?;
+                    } else {
+                        return Err(format!(
+                "layercontents.plist entry: {layer_name}: {dir_name} doesn't exist at expected location `{}`",
+                path.display()
+            )
+            .into());
+                    }
+                }
+                let new_layer = objects::Layer::new();
+                path.pop();
+                new_layer.init_from_path(layer_name.clone(), dir_name.clone(), path.clone())?;
+                ret.objects.insert(layer_name.clone(), new_layer);
+            }
+        }
+        Ok(ret)
     }
 
-    pub fn from_path(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_path(
+        path: &Path,
+        create_missing_directories: bool,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         if !path.exists() {
             // This file is not optional.
             return Err(format!("Path {} does not exist: a valid UFOv3 project requires the presence of a layercontents.plist file.", path.display()).into());
         }
-        Self::inner_from_vec(plist::from_file(path)?)
-            .map_err(|err| format!("Path {}: {err}", path.display()).into())
+        let vec =
+            plist::from_file(path).map_err(|err| format!("Path {}: {err}", path.display()))?;
+        let mut path = path.to_path_buf();
+        path.pop();
+        Self::inner_from_vec(vec, Some(&path), create_missing_directories)
     }
 
     pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        Self::inner_from_vec(plist::from_reader_xml(std::io::Cursor::new(xml))?)
+        Self::inner_from_vec(
+            plist::from_reader_xml(std::io::Cursor::new(xml))?,
+            None,
+            false,
+        )
     }
 }
 

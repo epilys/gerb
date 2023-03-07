@@ -27,7 +27,10 @@ use std::collections::HashSet;
 use crate::app::settings::types::ShowMinimap;
 use crate::glyphs::{Contour, Glyph, GlyphDrawingOptions, GlyphPointIndex, Guideline};
 use crate::prelude::*;
-use crate::views::overlay::Child;
+use crate::views::{
+    canvas::{Layer, LayerBuilder},
+    overlay::Child,
+};
 
 mod layers;
 mod menu;

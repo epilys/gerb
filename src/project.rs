@@ -22,7 +22,6 @@
 #[cfg(feature = "git")]
 use crate::git;
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::glyphs::{Glyph, Guideline};
@@ -33,7 +32,7 @@ pub struct ProjectInner {
     name: RefCell<String>,
     modified: Cell<bool>,
     pub last_saved: RefCell<Option<u64>>,
-    pub glyphs: RefCell<HashMap<String, Rc<RefCell<Glyph>>>>,
+    pub glyphs: RefCell<IndexMap<String, Rc<RefCell<Glyph>>>>,
     pub path: RefCell<PathBuf>,
     pub family_name: RefCell<String>,
     pub style_name: RefCell<String>,
@@ -67,6 +66,9 @@ pub struct ProjectInner {
     pub contents: RefCell<(PathBuf, ufo::Contents)>,
     pub metainfo: RefCell<ufo::MetaInfo>,
     pub layercontents: RefCell<ufo::LayerContents>,
+    pub default_layer: RefCell<ufo::objects::Layer>,
+    pub background_layer: RefCell<Option<ufo::objects::Layer>>,
+    pub all_layers: RefCell<Vec<ufo::objects::Layer>>,
     #[cfg(feature = "git")]
     pub repository: RefCell<Result<Option<git::Repository>, Box<dyn std::error::Error>>>,
 }
@@ -77,7 +79,7 @@ impl Default for ProjectInner {
             name: RefCell::new("New project".to_string()),
             modified: Cell::new(false),
             last_saved: RefCell::new(None),
-            glyphs: RefCell::new(HashMap::default()),
+            glyphs: RefCell::new(IndexMap::default()),
             path: RefCell::new(std::env::current_dir().unwrap_or_default()),
             family_name: RefCell::new("New project".to_string()),
             style_name: RefCell::new("New project".to_string()),
@@ -101,6 +103,9 @@ impl Default for ProjectInner {
             contents: RefCell::new((PathBuf::default(), ufo::Contents::default())),
             metainfo: RefCell::new(ufo::MetaInfo::default()),
             layercontents: RefCell::new(ufo::LayerContents::default()),
+            default_layer: RefCell::new(ufo::objects::Layer::new()),
+            background_layer: RefCell::new(None),
+            all_layers: RefCell::new(vec![]),
             #[cfg(feature = "git")]
             repository: RefCell::new(Ok(None)),
         }
@@ -313,13 +318,26 @@ impl Project {
 
         path.pop();
         path.push("layercontents.plist");
-        let layercontents = ufo::LayerContents::from_path(&path).map_err(|err| {
+        let layercontents = ufo::LayerContents::from_path(&path, false).map_err(|err| {
             format!(
                 "couldn't read layercontents.plist {}: {}",
                 path.display(),
                 err
             )
         })?;
+        *ret.default_layer.borrow_mut() = layercontents.objects[0].clone();
+        if let Some(background_layer) = layercontents.objects.get("public.background") {
+            *ret.background_layer.borrow_mut() = Some(background_layer.clone());
+        }
+        let all_layers: Vec<ufo::objects::Layer> =
+            layercontents.objects.values().cloned().collect();
+        for obj in all_layers.iter() {
+            obj.bind_property(ufo::objects::Layer::MODIFIED, &ret, Project::MODIFIED)
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
+        *ret.all_layers.borrow_mut() = all_layers;
+        *ret.layercontents.borrow_mut() = layercontents;
         path.pop();
         path.push("glyphs");
         path.push("contents.plist");
@@ -388,7 +406,6 @@ impl Project {
         *ret.fontinfo.borrow_mut() = fontinfo;
         *ret.metainfo.borrow_mut() = metainfo;
         *ret.contents.borrow_mut() = (contents_path, contents);
-        *ret.layercontents.borrow_mut() = layercontents;
         {
             let mut metric_guidelines = ret.metric_guidelines.borrow_mut();
             for (name, field) in [
@@ -423,6 +440,9 @@ impl Project {
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         self.fontinfo.borrow().save()?;
+        for obj in self.all_layers.borrow().iter().filter(|obj| obj.modified()) {
+            obj.save(&mut self.layercontents.borrow_mut())?;
+        }
         //if !self.modified.get() {
         //    return Ok(());
         //}

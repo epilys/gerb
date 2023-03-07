@@ -60,10 +60,7 @@ pub mod prelude {
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
     pub use utils::{ContextExt, ContextRef};
     pub use utils::{FieldRef, UI_EDITABLE, UI_PATH, UI_READABLE};
-    pub use views::{
-        canvas::{Layer, LayerBuilder},
-        Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint,
-    };
+    pub use views::{canvas, Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint};
     pub use window::Workspace;
 
     pub use glib::prelude::*;

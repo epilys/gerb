@@ -27,6 +27,7 @@ use std::collections::HashSet;
 
 use crate::glyphs::Contour;
 use crate::prelude::*;
+use crate::views::canvas::{Layer, LayerBuilder};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Mode {
