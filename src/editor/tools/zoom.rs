@@ -27,6 +27,7 @@ use crate::prelude::*;
 #[derive(Default)]
 pub struct ZoomInToolInner;
 
+// DOC
 #[glib::object_subclass]
 impl ObjectSubclass for ZoomInToolInner {
     const NAME: &'static str = "ZoomInTool";

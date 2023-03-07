@@ -52,6 +52,7 @@ impl Editor {
 }
 
 impl EditorInner {
+    // DOC
     pub fn setup_shortcuts(&self, obj: &Editor) {
         {
             use Editor as A;

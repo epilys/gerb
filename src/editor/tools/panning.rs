@@ -327,8 +327,10 @@ impl ToolImplImpl for PanningToolInner {
                                 .property::<f64>(Transformation::UNITS_PER_EM);
 
                             if (x - glyph_width).abs() <= 6.0 && (0.0..=units_per_em).contains(&y) {
+                                /* resize glyph width box */
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
+                                // DOC
                                 self.mode.set(Mode::ResizeDimensions { previous_value });
                                 viewport.set_cursor("grab");
                                 return Inhibit(true);
@@ -725,6 +727,8 @@ impl ToolImplImpl for PanningToolInner {
                 };
             }
         } else {
+            /* Grow/shrink control points when scrolling above an on-curve point.*/
+            // DOC
             let (dx, dy) = event.delta();
             if !((dx != 0.0) ^ (dy != 0.0)) {
                 return Inhibit(true);
@@ -829,6 +833,7 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
+                // DOC
                 match Lock::from_bits(view.property(Editor::LOCK)) {
                     Some(Lock::X) => {
                         delta.y = 0.0;

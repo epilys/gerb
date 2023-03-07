@@ -24,6 +24,7 @@ use cairo::ImageSurface;
 
 use crate::prelude::*;
 
+// DOC
 #[derive(Default)]
 pub struct ImageToolInner {
     image_data: RefCell<Option<ImageSurface>>,

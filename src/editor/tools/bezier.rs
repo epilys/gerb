@@ -27,6 +27,7 @@ use crate::glyphs::{Contour, GlyphPointIndex};
 use crate::prelude::*;
 use crate::utils::{curves::Bezier, distance_between_two_points};
 
+// DOC
 ///```text
 ///   States                             Beginning                        Before transition
 ///==============================================================================================================
