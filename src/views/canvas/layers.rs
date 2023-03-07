@@ -52,7 +52,7 @@ impl std::fmt::Debug for LayerInner {
 
 #[glib::object_subclass]
 impl ObjectSubclass for LayerInner {
-    const NAME: &'static str = "Layer";
+    const NAME: &'static str = "CanvasLayer";
     type Type = Layer;
     type ParentType = glib::Object;
     type Interfaces = ();

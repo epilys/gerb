@@ -48,7 +48,7 @@ pub struct SettingsInner {
     pub guideline_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
     pub mark_color: Cell<types::MarkColor>,
-    pub entries: RefCell<IndexMap<String, glib::Object>>,
+    pub entries: RefCell<IndexMap<String, Vec<glib::object::WeakRef<glib::Object>>>>,
     #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
@@ -140,41 +140,6 @@ impl SettingsInner {
     pub fn save_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some((_, file)) = self.file.borrow_mut().as_mut() {
             let mut document = self.document.borrow_mut();
-            for (type_name, obj) in self.entries.borrow().iter() {
-                document.insert_formatted(
-                    &type_name.as_str().into(),
-                    toml_edit::Item::Table(toml_edit::Table::new()),
-                );
-                for prop in glib::Object::list_properties(obj)
-                    .as_slice()
-                    .iter()
-                    .filter(|p| {
-                        p.flags()
-                            .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
-                            && p.owner_type() == obj.type_()
-                    })
-                {
-                    if prop.value_type() == bool::static_type() {
-                        document[type_name][prop.name()] =
-                            toml_value(obj.property::<bool>(prop.name()));
-                    } else if prop.value_type() == f64::static_type() {
-                        document[type_name][prop.name()] =
-                            toml_value(obj.property::<f64>(prop.name()));
-                    } else if prop.value_type() == Color::static_type() {
-                        document[type_name][prop.name()] =
-                            toml_value(obj.property::<Color>(prop.name()).to_string());
-                    } else if prop.value_type() == i64::static_type() {
-                        document[type_name][prop.name()] =
-                            toml_value(obj.property::<i64>(prop.name()));
-                    } else if prop.value_type() == types::MarkColor::static_type() {
-                        document[type_name][prop.name()] =
-                            toml_value(&obj.property::<MarkColor>(prop.name()).name());
-                    } else if prop.value_type() == types::ShowMinimap::static_type() {
-                        document[type_name][prop.name()] =
-                            toml_value(&obj.property::<ShowMinimap>(prop.name()).name());
-                    }
-                }
-            }
             document[Settings::HANDLE_SIZE] = toml_value(self.handle_size.get());
             document[Settings::LINE_WIDTH] = toml_value(self.line_width.get());
             document[Settings::GUIDELINE_WIDTH] = toml_value(self.guideline_width.get());
@@ -186,6 +151,111 @@ impl SettingsInner {
             file.flush()?;
         }
         Ok(())
+    }
+
+    fn read_new_setting(&self, obj: &glib::Object, prop: &glib::ParamSpec) {
+        if !(prop
+            .flags()
+            .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+            && prop.owner_type() == obj.type_())
+        {
+            return;
+        }
+        let mut document = self.document.borrow_mut();
+        let type_name = obj.type_().name().to_ascii_lowercase();
+        document.insert_formatted(
+            &type_name.as_str().into(),
+            toml_edit::Item::Table(toml_edit::Table::new()),
+        );
+        macro_rules! get_if_neq {
+            ($ty:ty, str) => {{
+                let new_val = obj.property::<$ty>(prop.name()).to_string();
+                if document[&type_name]
+                    .get(prop.name())
+                    .and_then(TomlItem::as_str)
+                    == Some(&new_val)
+                {
+                    return;
+                }
+                toml_value(new_val)
+            }};
+            ($ty:ty, enum) => {{
+                let new_val = obj.property::<$ty>(prop.name()).name();
+                if document[&type_name]
+                    .get(prop.name())
+                    .and_then(TomlItem::as_str)
+                    == Some(&new_val)
+                {
+                    return;
+                }
+                toml_value(new_val)
+            }};
+            ($ty:ty, $fn:expr) => {{
+                let new_val = obj.property::<$ty>(prop.name());
+                if document[&type_name].get(prop.name()).and_then($fn) == Some(new_val) {
+                    return;
+                }
+                toml_value(new_val)
+            }};
+        }
+        /* Avoid loading properties unless the value has changed */
+        let new_val = if prop.value_type() == bool::static_type() {
+            get_if_neq!(bool, TomlItem::as_bool)
+        } else if prop.value_type() == f64::static_type() {
+            get_if_neq!(f64, TomlItem::as_float)
+        } else if prop.value_type() == Color::static_type() {
+            get_if_neq!(Color, str)
+        } else if prop.value_type() == i64::static_type() {
+            get_if_neq!(i64, TomlItem::as_integer)
+        } else if prop.value_type() == types::ShowMinimap::static_type() {
+            get_if_neq!(types::ShowMinimap, enum)
+        } else if prop.value_type() == types::MarkColor::static_type() {
+            get_if_neq!(types::MarkColor, enum)
+        } else {
+            return;
+        };
+        document[&type_name][prop.name()] = new_val;
+
+        for e in self
+            .entries
+            .borrow()
+            .get(&type_name)
+            .map(|e| e.iter())
+            .into_iter()
+            .flatten()
+            .filter(|wref| wref.upgrade().as_ref() != Some(obj))
+        {
+            let Some(obj) = e.upgrade() else { continue; };
+            macro_rules! set_if_neq {
+                ($ty:ty, $val:expr) => {{
+                    if obj.property::<$ty>(prop.name()) != $val {
+                        obj.set_property(prop.name(), $val);
+                    }
+                }};
+                ($ty:ty, opt $val:expr) => {{
+                    if let Some(val) = $val {
+                        set_if_neq!($ty, val);
+                    }
+                }};
+            }
+            /* Avoid setting properties unless the value has changed */
+            if prop.value_type() == bool::static_type() {
+                set_if_neq!(bool, document[&type_name][prop.name()].as_bool().unwrap());
+            } else if prop.value_type() == f64::static_type() {
+                set_if_neq!(f64, document[&type_name][prop.name()].as_float().unwrap());
+            } else if prop.value_type() == Color::static_type() {
+                set_if_neq!(
+                    Color,
+                    Color::from_hex(document[&type_name][prop.name()].as_str().unwrap())
+                );
+            } else if prop.value_type() == i64::static_type() {
+                set_if_neq!(i64, document[&type_name][prop.name()].as_integer().unwrap());
+            } else if prop.value_type() == types::MarkColor::static_type() {
+                set_if_neq!(types::MarkColor, opt types::MarkColor::deserialize(document[&type_name].get(prop.name())));
+            } else if prop.value_type() == types::ShowMinimap::static_type() {
+                set_if_neq!(types::ShowMinimap, opt types::ShowMinimap::deserialize(document[&type_name].get(prop.name())));
+            }
+        }
     }
 
     pub fn load_settings(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -263,6 +333,18 @@ impl SettingsInner {
                             prop.name(),
                             document[&type_name][prop.name()].as_integer().unwrap(),
                         );
+                    } else if prop.value_type() == types::MarkColor::static_type() {
+                        if let Some(v) =
+                            types::MarkColor::deserialize(document[&type_name].get(prop.name()))
+                        {
+                            obj.set_property(prop.name(), v);
+                        }
+                    } else if prop.value_type() == types::ShowMinimap::static_type() {
+                        if let Some(v) =
+                            types::ShowMinimap::deserialize(document[&type_name].get(prop.name()))
+                        {
+                            obj.set_property(prop.name(), v);
+                        }
                     }
                 }
             }
@@ -274,14 +356,16 @@ impl SettingsInner {
                 if param.flags()
                     .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
                     && param.owner_type() == self_.type_() {
+                        obj.read_new_setting(self_, param);
                         _ = obj.save_settings();
 
                 }
             }),
         );
-        // TODO: keep list of weak references for each type, otherwise if more than one instance is
-        // alive new instances will overwrite old ones in this insert.
-        self.entries.borrow_mut().insert(type_name, obj);
+        let mut entries = self.entries.borrow_mut();
+        let entry = entries.entry(type_name).or_default();
+        entry.retain(|e| e.upgrade().is_some());
+        entry.push(obj.downgrade());
     }
 }
 
