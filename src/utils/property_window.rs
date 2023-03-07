@@ -51,7 +51,8 @@ impl Default for PropertyWindowButtons {
 pub struct PropertyWindowInner {
     pub obj: OnceCell<glib::Object>,
     pub app: OnceCell<crate::prelude::Application>,
-    pub grid: OnceCell<gtk::Grid>,
+    grid: gtk::Grid,
+    rows: Cell<i32>,
     pub buttons: OnceCell<PropertyWindowButtons>,
     widgets: RefCell<IndexMap<String, gtk::Widget>>,
     title: gtk::Label,
@@ -107,19 +108,17 @@ impl PropertyWindow {
         PropertyWindowBuilder::new(obj, app)
     }
 
-    pub fn widgets(&self) -> FieldRef<'_, IndexMap<String, gtk::Widget>> {
+    pub fn widgets(&mut self) -> FieldRef<'_, IndexMap<String, gtk::Widget>> {
         self.imp().widgets.borrow().into()
     }
 
-    pub fn object_to_property_grid(&self, obj: glib::Object, create: bool) -> gtk::Grid {
-        let grid = gtk::Grid::builder()
-            .expand(true)
-            .visible(true)
-            .can_focus(true)
-            .column_spacing(5)
-            .margin(10)
-            .row_spacing(5)
-            .build();
+    fn object_to_property_grid(&self, obj: glib::Object, create: bool) {
+        self.imp().grid.set_expand(true);
+        self.imp().grid.set_visible(true);
+        self.imp().grid.set_can_focus(true);
+        self.imp().grid.set_column_spacing(5);
+        self.imp().grid.set_margin(10);
+        self.imp().grid.set_row_spacing(5);
         self.imp().title.set_label(&if create {
             format!("<big>New <i>{}</i></big>", obj.type_().name())
         } else {
@@ -129,8 +128,8 @@ impl PropertyWindow {
         self.imp().title.set_margin_top(5);
         self.imp().title.set_halign(gtk::Align::Start);
         self.imp().title.set_visible(true);
-        grid.attach(&self.imp().title, 0, 0, 1, 1);
-        grid.attach(
+        self.imp().grid.attach(&self.imp().title, 0, 0, 1, 1);
+        self.imp().grid.attach(
             &gtk::Separator::builder()
                 .expand(true)
                 .visible(true)
@@ -143,64 +142,49 @@ impl PropertyWindow {
             2,
             1,
         );
-        let mut row: i32 = 2;
+        self.imp().rows.set(2);
         for prop in obj.list_properties().as_slice().iter().filter(|p| {
             (p.flags()
                 .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
                 || p.flags().contains(UI_READABLE))
                 && p.owner_type() == obj.type_()
         }) {
-            let label = gtk::Label::builder().label(&{
-                let blurb = prop.blurb();
-                let name = prop.name();
-                let type_name: &str = match prop.value_type().name() {
-                    "gboolean" => "bool",
-                    "gchararray" => "string",
-                    "guint64"|"gint64" => "int",
-                    "gdouble"=> "float",
-                    "Color" => "color",
-                    "DrawOptions" => "theme options",
-                    _other => _other,
-                };
-                if blurb == name {
-                    format!("Key: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
-                } else {
-                    format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
-                }
-            })
-            .visible(true)
-                .selectable(true)
-                .wrap_mode(gtk::pango::WrapMode::Char)
-                .use_markup(true)
-                .max_width_chars(30)
-                .halign(gtk::Align::Start)
-                .wrap(true)
-                .build();
-            grid.attach(&label, 0, row, 1, 1);
-            let widget = get_widget_for_value(&obj, prop);
-            grid.attach(&widget, 1, row, 1, 1);
-            self.imp()
-                .widgets
-                .borrow_mut()
-                .insert(prop.name().to_string(), widget);
-            grid.attach(
-                &gtk::Separator::builder()
-                    .expand(true)
-                    .visible(true)
-                    .vexpand(false)
-                    .valign(gtk::Align::Start)
-                    .build(),
-                0,
-                row + 1,
-                2,
-                1,
-            );
-            row += 2;
+            let label = get_label_for_property(prop);
+            let widget = get_widget_for_value(&obj, prop, create);
+            self.add(prop.name(), label, widget);
+            self.add_separator();
         }
-        if row != 2 {
-            grid.remove_row(row - 1);
+        if self.imp().rows.get() != 2 {
+            self.imp().grid.remove_row(self.imp().rows.get() - 1);
         }
-        grid
+    }
+
+    pub fn add(&self, name: &str, label: gtk::Label, widget: gtk::Widget) {
+        let row = self.imp().rows.get();
+        self.imp().grid.attach(&label, 0, row, 1, 1);
+        self.imp().grid.attach(&widget, 1, row, 1, 1);
+        self.imp()
+            .widgets
+            .borrow_mut()
+            .insert(name.to_string(), widget);
+        self.imp().rows.set(row + 1);
+    }
+
+    pub fn add_separator(&self) {
+        let row = self.imp().rows.get();
+        self.imp().grid.attach(
+            &gtk::Separator::builder()
+                .expand(true)
+                .visible(true)
+                .vexpand(false)
+                .valign(gtk::Align::Start)
+                .build(),
+            0,
+            row + 1,
+            2,
+            1,
+        );
+        self.imp().rows.set(row + 1);
     }
 }
 
@@ -239,17 +223,16 @@ impl PropertyWindowBuilder {
             .visible(true)
             .build();
         let ret: PropertyWindow = glib::Object::new(&[]).unwrap();
-        let grid = ret.object_to_property_grid(
+        ret.object_to_property_grid(
             self.obj.clone(),
             matches!(self.type_, PropertyWindowType::Create),
         );
-        b.pack_start(&grid, true, true, 0);
+        b.pack_start(&ret.imp().grid, true, true, 0);
 
         ret.set_transient_for(Some(&self.app.window));
         ret.set_attached_to(Some(&self.app.window));
         ret.set_application(Some(&self.app));
         ret.set_title(&self.title);
-        ret.imp().grid.set(grid).unwrap();
         ret.imp()
             .buttons
             .set(match self.type_ {
@@ -354,40 +337,8 @@ pub fn object_to_property_grid(obj: glib::Object, create: bool) -> gtk::Grid {
             || p.flags().contains(UI_READABLE))
             && p.owner_type() == obj.type_()
     }) {
-        grid.attach(
-            &gtk::Label::builder()
-                .label(&{
-                    let blurb = prop.blurb();
-                    let name = prop.name();
-                    let type_name: &str = match prop.value_type().name() {
-                        "gboolean" => "bool",
-                        "gchararray" => "string",
-                        "guint64"|"gint64" => "int",
-                        "gdouble"=> "float",
-                        "Color" => "color",
-                        "DrawOptions" => "theme options",
-                        _other => _other,
-                    };
-                    if blurb == name {
-                        format!("Key: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
-                    } else {
-                        format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
-                    }
-                })
-                .visible(true)
-                .selectable(true)
-                .wrap_mode(gtk::pango::WrapMode::Char)
-                .use_markup(true)
-                .max_width_chars(30)
-                .halign(gtk::Align::Start)
-                .wrap(true)
-                .build(),
-            0,
-            row,
-            1,
-            1,
-        );
-        grid.attach(&get_widget_for_value(&obj, prop), 1, row, 1, 1);
+        grid.attach(&get_label_for_property(prop), 0, row, 1, 1);
+        grid.attach(&get_widget_for_value(&obj, prop, create), 1, row, 1, 1);
         grid.attach(
             &gtk::Separator::builder()
                 .expand(true)
@@ -408,7 +359,11 @@ pub fn object_to_property_grid(obj: glib::Object, create: bool) -> gtk::Grid {
     grid
 }
 
-pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> gtk::Widget {
+pub fn get_widget_for_value(
+    obj: &glib::Object,
+    property: &glib::ParamSpec,
+    create: bool,
+) -> gtk::Widget {
     let val: glib::Value = obj.property(property.name());
     let readwrite = property.flags().contains(glib::ParamFlags::READWRITE)
         && !(property.flags().contains(UI_READABLE));
@@ -459,7 +414,7 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
                 obj.bind_property(property.name(), &l, "label")
                     .flags(flags)
                     .build();
-                if property.flags().contains(UI_PATH) {
+                if property.flags().contains(UI_PATH) && !create {
                     let b = gtk::Box::builder()
                         .visible(true)
                         .expand(false)
@@ -793,6 +748,35 @@ pub fn get_widget_for_value(obj: &glib::Object, property: &glib::ParamSpec) -> g
             .build()
             .upcast(),
     }
+}
+
+pub fn get_label_for_property(prop: &glib::ParamSpec) -> gtk::Label {
+    gtk::Label::builder().label(&{
+                let blurb = prop.blurb();
+                let name = prop.name();
+                let type_name: &str = match prop.value_type().name() {
+                    "gboolean" => "bool",
+                    "gchararray" => "string",
+                    "guint64"|"gint64" => "int",
+                    "gdouble"=> "float",
+                    "Color" => "color",
+                    "DrawOptions" => "theme options",
+                    _other => _other,
+                };
+                if blurb == name {
+                    format!("Key: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+                } else {
+                    format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+                }
+            })
+            .visible(true)
+                .selectable(true)
+                .wrap_mode(gtk::pango::WrapMode::Char)
+                .use_markup(true)
+                .max_width_chars(30)
+                .halign(gtk::Align::Start)
+                .wrap(true)
+                .build()
 }
 
 pub fn new_property_window(

@@ -271,6 +271,12 @@ pub struct Unicode {
     hex: String,
 }
 
+impl Unicode {
+    pub fn new(hex: String) -> Self {
+        Self { hex }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Advance {
     #[serde(rename = "@width")]

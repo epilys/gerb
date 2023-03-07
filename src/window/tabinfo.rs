@@ -145,7 +145,7 @@ impl TabInfo {
                 );
                 //let val: glib::Value = std::dbg!(obj.property(prop.name()));
                 grid.attach(
-                    &crate::utils::get_widget_for_value(&obj, prop),
+                    &crate::utils::get_widget_for_value(&obj, prop, false),
                     1,
                     row as i32 + 1,
                     1,

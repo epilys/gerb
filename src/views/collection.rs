@@ -168,11 +168,12 @@ impl ObjectImpl for CollectionInner {
 
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
             let metadata = GlyphMetadata::new();
-            let w = metadata.new_property_window(obj.app());
+            let w = metadata.new_property_window(obj.app(), true);
             if let PropertyWindowButtons::Create { cancel: _, ref save } = w.imp().buttons.get().unwrap() {
                 save.connect_clicked(clone!(@weak metadata, @weak w, @weak obj => move |_| {
                     let project = obj.project();
                     let name = metadata.name().to_string();
+                    //FIXME: set GlyphKind
                     let glyph = Rc::new(RefCell::new(metadata.clone().into()));
                     metadata.glyph_ref.set(glyph.clone()).unwrap();
                     //FIXME: show err msg

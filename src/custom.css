@@ -320,3 +320,7 @@ button:hover.text-button.shortcuts-more label {
   background: #222;
   font-family: mono;
 }
+
+entry.invalid {
+  background: #ee0000;
+}

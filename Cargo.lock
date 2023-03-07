@@ -781,6 +781,7 @@ dependencies = [
  "pyo3",
  "quick-xml 0.27.1",
  "rand",
+ "regex",
  "serde",
  "serde_json",
  "smallvec",

@@ -183,29 +183,108 @@ impl GlyphMetadata {
         self.width.get()
     }
 
-    pub fn new_property_window(&self, app: &Application) -> PropertyWindow {
-        let w = PropertyWindow::builder(self.clone().upcast(), app)
-            .title("Add glyph".into())
-            .type_(PropertyWindowType::Create)
+    pub fn new_property_window(&self, app: &Application, create: bool) -> PropertyWindow {
+        let mut w = PropertyWindow::builder(self.clone().upcast(), app)
+            .title(if create {
+                "Add glyph".into()
+            } else {
+                "Edit glyph".into()
+            })
+            .type_(if create {
+                PropertyWindowType::Create
+            } else {
+                PropertyWindowType::Modify
+            })
             .build();
         {
-            let widgets = w.widgets();
-            let filename = &widgets[Self::FILENAME];
-            let name = &widgets[Self::NAME];
-            filename.set_sensitive(false);
-            name.bind_property("text", self, Self::FILENAME)
-                .transform_to(|_, val| {
-                    let n = val.get::<Option<String>>().ok()??;
-                    Some(format!("{n}.glif").to_value())
-                })
+            {
+                let widgets = w.widgets();
+                let filename = &widgets[Self::FILENAME];
+                let name = &widgets[Self::NAME];
+                filename.set_sensitive(false);
+                name.bind_property("text", self, Self::FILENAME)
+                    .transform_to(|_, val| {
+                        let n = val.get::<Option<String>>().ok()??;
+                        Some(format!("{n}.glif").to_value())
+                    })
+                    .build();
+                filename
+                    .bind_property("text", self, Self::RELATIVE_PATH)
+                    .transform_to(|_, val| {
+                        let n = val.get::<Option<String>>().ok()??;
+                        Some(format!("glyphs/{n}").to_value())
+                    })
+                    .build();
+            }
+            let unicode_label = gtk::Label::builder().label(&{
+                    let blurb = "Unicode codepoint e.g. U+67";
+                    let name = "unicode";
+                    let type_name: &str = "unicode codepoint";
+                    format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+                }).visible(true)
+                .selectable(true)
+                .wrap_mode(gtk::pango::WrapMode::Char)
+                .use_markup(true)
+                .max_width_chars(30)
+                .halign(gtk::Align::Start)
+                .wrap(true)
                 .build();
-            filename
-                .bind_property("text", self, Self::RELATIVE_PATH)
-                .transform_to(|_, val| {
-                    let n = val.get::<Option<String>>().ok()??;
-                    Some(format!("glyphs/{n}").to_value())
-                })
+            let unicode_entry = gtk::Entry::builder()
+                .editable(true)
+                .visible(true)
+                .placeholder_text("^[uU]\\+[[:xdigit:]]{1,6}$")
+                .max_length(8)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Center)
                 .build();
+
+            // U+0 to U+10FFFF
+            let uni_hex = regex::Regex::new("^[uU]\\+[[:xdigit:]]{1,6}$").unwrap();
+            unicode_entry.connect_insert_text(move |entry, _new_text, _pos| {
+                let text = entry.text();
+                let text = text.trim();
+                if uni_hex.is_match(text) {
+                    entry.style_context().remove_class("invalid");
+                } else {
+                    entry.style_context().add_class("invalid");
+                }
+            });
+            let uni_hex = regex::Regex::new("^[uU]\\+[[:xdigit:]]{1,6}$").unwrap();
+            unicode_entry.connect_delete_text(move |entry, _start_pos, _end_pos| {
+                let text = entry.text();
+                let text = text.trim();
+                if uni_hex.is_match(text) {
+                    entry.style_context().remove_class("invalid");
+                } else {
+                    entry.style_context().add_class("invalid");
+                }
+            });
+            let uni_hex = regex::Regex::new("^[uU]\\+[[:xdigit:]]{1,6}$").unwrap();
+            unicode_entry.connect_changed(move |entry| {
+                let text = entry.text();
+                let text = text.trim();
+                if uni_hex.is_match(text) {
+                    entry.style_context().remove_class("invalid");
+                } else {
+                    entry.style_context().add_class("invalid");
+                }
+            });
+            unicode_entry.buffer().connect_notify_local(
+                Some("text"),
+                clone!(@strong self as obj => move |entry, _| {
+                    let mut unicodes = obj.imp().unicode.borrow_mut();
+                    let text = entry.text();
+                    if let Some(t) = text.strip_prefix("u+") {
+                        unicodes.clear();
+                        unicodes.push(Unicode::new(t.to_string()));
+                    } else if let Some(t) = text.strip_prefix("U+") {
+                        unicodes.clear();
+                        unicodes.push(Unicode::new(t.to_string()));
+                    }
+                }),
+            );
+            w.add_separator();
+            w.add("unicode", unicode_label, unicode_entry.upcast());
         }
         w
     }
