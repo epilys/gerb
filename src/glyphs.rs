@@ -149,7 +149,7 @@ impl Default for GlyphDrawingOptions<'_> {
             inner_fill: None,
             highlight: None,
             matrix: Matrix::identity(),
-            units_per_em: 1000.,
+            units_per_em: ufo::constants::UNITS_PER_EM,
             handle_connection: None,
             handle: None,
             corner: None,
@@ -641,8 +641,11 @@ impl Glyph {
         &self,
         path: P,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let surface =
-            gtk::cairo::SvgSurface::new(self.width().unwrap_or(500.0), 1000., Some(path))?;
+        let surface = gtk::cairo::SvgSurface::new(
+            self.width().unwrap_or(ufo::constants::UNITS_PER_EM),
+            ufo::constants::UNITS_PER_EM,
+            Some(path),
+        )?;
         let ctx = gtk::cairo::Context::new(&surface)?;
 
         let options = GlyphDrawingOptions {

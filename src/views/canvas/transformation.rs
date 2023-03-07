@@ -45,7 +45,7 @@ impl TransformationInner {
     const INIT_SCALE_VAL: f64 = 1.0;
     const INIT_CAMERA_X_VAL: f64 = 0.0;
     const INIT_CAMERA_Y_VAL: f64 = 0.0;
-    const INIT_UNITS_PER_EM_VAL: f64 = 1000.0;
+    const INIT_UNITS_PER_EM_VAL: f64 = ufo::constants::UNITS_PER_EM;
     const INIT_PIXELS_PER_UNIT_VAL: f64 = 200.0 / Self::INIT_UNITS_PER_EM_VAL;
     const INIT_VIEW_WIDTH_VAL: f64 = 800.0;
     const INIT_VIEW_HEIGHT_VAL: f64 = 600.0;

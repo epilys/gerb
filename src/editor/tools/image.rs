@@ -72,7 +72,7 @@ impl ObjectImpl for ImageToolInner {
                         ImageTool::ASCENDER,
                         std::f64::MIN,
                         std::f64::MAX,
-                        700.0,
+                        ufo::constants::ASCENDER,
                         glib::ParamFlags::READWRITE,
                     ),
                     glib::ParamSpecDouble::new(
@@ -81,7 +81,7 @@ impl ObjectImpl for ImageToolInner {
                         ImageTool::DESCENDER,
                         std::f64::MIN,
                         std::f64::MAX,
-                        -200.0,
+                        ufo::constants::DESCENDER,
                         glib::ParamFlags::READWRITE,
                     ),
                 ]
