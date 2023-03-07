@@ -205,13 +205,8 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
         cr2.rectangle(
             0.0,
             0.0,
-            state
-                .borrow()
-                .glyph
-                .borrow()
-                .width()
-                .unwrap_or(units_per_em),
-            1000.0,
+            state.borrow().glyph.borrow().width().unwrap_or(0.0),
+            units_per_em,
         );
         cr2.fill().unwrap();
     }
