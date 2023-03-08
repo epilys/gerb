@@ -362,28 +362,6 @@ pub struct Glif {
     //lib: Option<plist::Dictionary>,
 }
 
-//fn plist_deserialize<'de, D>(deserializer: D) -> Result<Option<plist::Dictionary>, D::Error>
-//where
-//    D: serde::Deserializer<'de>,
-//{
-//    let dict = plist::Dictionary::deserialize(deserializer)?;
-//    if dict.is_empty() {
-//        Ok(None)
-//    } else {
-//        Ok(Some(dict))
-//    }
-//}
-//
-//fn plist_serialize<S>(s: &Option<plist::Dictionary>, serializer: S) -> Result<S::Ok, S::Error>
-//where
-//    S: Serializer,
-//{
-//    match s.as_ref() {
-//        Some(dict) => dict.serialize(serializer),
-//        None => serializer.serialize_str(""),
-//    }
-//}
-
 impl Glif {
     #[allow(dead_code)]
     pub fn to_xml(&self) -> String {

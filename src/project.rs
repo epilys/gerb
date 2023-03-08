@@ -32,7 +32,6 @@ pub struct ProjectInner {
     name: RefCell<String>,
     modified: Cell<bool>,
     pub last_saved: RefCell<Option<u64>>,
-    pub glyphs: RefCell<IndexMap<String, Rc<RefCell<Glyph>>>>,
     pub path: RefCell<PathBuf>,
     pub family_name: RefCell<String>,
     pub style_name: RefCell<String>,
@@ -63,10 +62,9 @@ pub struct ProjectInner {
     pub guidelines: RefCell<Vec<Guideline>>,
     pub metric_guidelines: RefCell<Vec<Guideline>>,
     pub fontinfo: RefCell<ufo::objects::FontInfo>,
-    pub contents: RefCell<(PathBuf, ufo::Contents)>,
     pub metainfo: RefCell<ufo::MetaInfo>,
     pub layercontents: RefCell<ufo::LayerContents>,
-    pub default_layer: RefCell<ufo::objects::Layer>,
+    pub default_layer: ufo::objects::Layer,
     pub background_layer: RefCell<Option<ufo::objects::Layer>>,
     pub all_layers: RefCell<Vec<ufo::objects::Layer>>,
     #[cfg(feature = "git")]
@@ -79,7 +77,6 @@ impl Default for ProjectInner {
             name: RefCell::new("New project".to_string()),
             modified: Cell::new(false),
             last_saved: RefCell::new(None),
-            glyphs: RefCell::new(IndexMap::default()),
             path: RefCell::new(std::env::current_dir().unwrap_or_default()),
             family_name: RefCell::new("New project".to_string()),
             style_name: RefCell::new("New project".to_string()),
@@ -100,10 +97,9 @@ impl Default for ProjectInner {
             guidelines: RefCell::new(vec![]),
             metric_guidelines: RefCell::new(vec![]),
             fontinfo: RefCell::new(ufo::objects::FontInfo::new()),
-            contents: RefCell::new((PathBuf::default(), ufo::Contents::default())),
             metainfo: RefCell::new(ufo::MetaInfo::default()),
             layercontents: RefCell::new(ufo::LayerContents::default()),
-            default_layer: RefCell::new(ufo::objects::Layer::new()),
+            default_layer: ufo::objects::Layer::new(),
             background_layer: RefCell::new(None),
             all_layers: RefCell::new(vec![]),
             #[cfg(feature = "git")]
@@ -318,39 +314,28 @@ impl Project {
 
         path.pop();
         path.push("layercontents.plist");
-        let layercontents = ufo::LayerContents::from_path(&path, false).map_err(|err| {
-            format!(
-                "couldn't read layercontents.plist {}: {}",
-                path.display(),
-                err
-            )
-        })?;
-        *ret.default_layer.borrow_mut() = layercontents.objects[0].clone();
+        let layercontents = ufo::LayerContents::from_path(&path, ret.default_layer.clone(), false)
+            .map_err(|err| {
+                format!(
+                    "couldn't read layercontents.plist {}: {}",
+                    path.display(),
+                    err
+                )
+            })?;
         if let Some(background_layer) = layercontents.objects.get("public.background") {
             *ret.background_layer.borrow_mut() = Some(background_layer.clone());
         }
         let all_layers: Vec<ufo::objects::Layer> =
             layercontents.objects.values().cloned().collect();
         for obj in all_layers.iter() {
-            obj.bind_property(ufo::objects::Layer::MODIFIED, &ret, Project::MODIFIED)
-                .flags(glib::BindingFlags::SYNC_CREATE)
-                .build();
+            ret.link(obj);
         }
         *ret.all_layers.borrow_mut() = all_layers;
         *ret.layercontents.borrow_mut() = layercontents;
         path.pop();
-        path.push("glyphs");
-        path.push("contents.plist");
-        let contents = ufo::Contents::from_path(&path)
-            .map_err(|err| format!("couldn't read contents.plist {}: {}", path.display(), err))?;
-        let contents_path = path.to_path_buf();
-        path.pop();
-        path.pop();
-        let glyphs = Glyph::from_ufo(&path, &contents);
         ret.set_property(Project::NAME, fontinfo.family_name.borrow().clone());
         ret.set_property(Project::MODIFIED, false);
         *ret.last_saved.borrow_mut() = None;
-        *ret.glyphs.borrow_mut() = glyphs?;
 
         #[cfg(feature = "git")]
         {
@@ -399,13 +384,9 @@ impl Project {
                 .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::BIDIRECTIONAL)
                 .build();
         }
-        fontinfo
-            .bind_property(ufo::objects::FontInfo::MODIFIED, &ret, Project::MODIFIED)
-            .flags(glib::BindingFlags::SYNC_CREATE)
-            .build();
+        ret.link(&fontinfo);
         *ret.fontinfo.borrow_mut() = fontinfo;
         *ret.metainfo.borrow_mut() = metainfo;
-        *ret.contents.borrow_mut() = (contents_path, contents);
         {
             let mut metric_guidelines = ret.metric_guidelines.borrow_mut();
             for (name, field) in [
@@ -454,23 +435,10 @@ impl Project {
         &self,
         name: String,
         glyph: Rc<RefCell<Glyph>>,
+        layer: Option<&ufo::objects::Layer>,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let mut contents = self.contents.borrow_mut();
-        if let Some(f) = contents.1.glyphs.get(&name) {
-            return Err(format!("Glyph `{name}` already exists and its filename is `{f}`.").into());
-        }
-        contents
-            .1
-            .glyphs
-            .insert(name.clone(), glyph.borrow().metadata.filename().to_string());
-        self.glyphs.borrow_mut().insert(name, glyph);
-        contents.1.save(&contents.0).map_err(|err| {
-            format!(
-                "Saving contents.plist to {} failed: {err}",
-                contents.0.display()
-            )
-        })?;
-        Ok(())
+        let layer = layer.unwrap_or(&self.default_layer);
+        layer.new_glyph(name, glyph)
     }
 }
 
@@ -479,3 +447,5 @@ impl Default for Project {
         Self::new()
     }
 }
+
+impl_modified!(Project);

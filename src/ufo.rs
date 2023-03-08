@@ -505,7 +505,11 @@ impl FontInfo {
 #[serde(rename_all = "camelCase")]
 pub struct Contents {
     #[serde(flatten)]
-    pub glyphs: IndexMap<String, String>,
+    glyphs: IndexMap<String, String>,
+    #[serde(default, skip)]
+    absolute_path: PathBuf,
+    #[serde(default, skip)]
+    modified: bool,
 }
 
 impl Contents {
@@ -514,16 +518,33 @@ impl Contents {
             // This file is not optional.
             return Err(format!("Path {} does not exist: a valid UFOv3 project requires the presence of a contents.plist file.", path.display()).into());
         }
-        let retval: Self = plist::from_file(path)?;
+        let mut retval: Self = plist::from_file(path)?;
+        retval.absolute_path = path.to_path_buf();
+        retval.modified = false;
         Ok(retval)
     }
 
     pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let retval: Self = plist::from_reader_xml(std::io::Cursor::new(xml))?;
+        let mut retval: Self = plist::from_reader_xml(std::io::Cursor::new(xml))?;
+        retval.modified = true;
         Ok(retval)
     }
 
-    pub fn save(&self, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(&mut self, create: bool) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.modified {
+            return Ok(());
+        }
+        if !self.absolute_path.exists() {
+            if create {
+                std::fs::create_dir(&self.absolute_path)?;
+            } else {
+                return Err(format!(
+                    "contents.plist expected in `{}` but missing.",
+                    self.absolute_path.display()
+                )
+                .into());
+            }
+        }
         #[allow(deprecated)]
         let opts = plist::XmlWriteOptions::default()
             .indent_string("    ")
@@ -534,9 +555,19 @@ impl Contents {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(destination)?;
+            .open(&self.absolute_path)?;
         plist::to_writer_xml_with_options(file, self, &opts)?;
+        self.modified = false;
         Ok(())
+    }
+
+    pub fn glyphs(&self) -> &IndexMap<String, String> {
+        &self.glyphs
+    }
+
+    pub fn insert(&mut self, name: String, filename: String) {
+        self.glyphs.insert(name, filename);
+        self.modified = true;
     }
 }
 
@@ -633,6 +664,7 @@ impl LayerContents {
     fn inner_from_vec(
         vec: Vec<(String, String)>,
         root_path: Option<&Path>,
+        default_layer: objects::Layer,
         create_missing_directories: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         if vec.is_empty() {
@@ -668,7 +700,9 @@ impl LayerContents {
         };
         if let Some(root_path) = root_path {
             let mut path = root_path.to_path_buf();
-            for (layer_name, dir_name) in ret.layers.iter() {
+            for ((layer_name, dir_name), new_layer) in ret.layers.iter().zip(
+                std::iter::once(default_layer).chain(std::iter::repeat_with(objects::Layer::new)),
+            ) {
                 path.push(dir_name);
                 if !path.exists() {
                     if create_missing_directories {
@@ -681,7 +715,6 @@ impl LayerContents {
             .into());
                     }
                 }
-                let new_layer = objects::Layer::new();
                 path.pop();
                 new_layer.init_from_path(layer_name.clone(), dir_name.clone(), path.clone())?;
                 ret.objects.insert(layer_name.clone(), new_layer);
@@ -692,6 +725,7 @@ impl LayerContents {
 
     pub fn from_path(
         path: &Path,
+        default_layer: objects::Layer,
         create_missing_directories: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         if !path.exists() {
@@ -702,13 +736,17 @@ impl LayerContents {
             plist::from_file(path).map_err(|err| format!("Path {}: {err}", path.display()))?;
         let mut path = path.to_path_buf();
         path.pop();
-        Self::inner_from_vec(vec, Some(&path), create_missing_directories)
+        Self::inner_from_vec(vec, Some(&path), default_layer, create_missing_directories)
     }
 
-    pub fn new_from_str(xml: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new_from_str(
+        xml: &str,
+        default_layer: objects::Layer,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         Self::inner_from_vec(
             plist::from_reader_xml(std::io::Cursor::new(xml))?,
             None,
+            default_layer,
             false,
         )
     }
@@ -864,6 +902,7 @@ fn test_layercontents_plist_parse() {
 </array>
 </plist>
 "#,
+        Default::default(),
     )
     .unwrap();
     assert_eq!(
@@ -952,7 +991,7 @@ fn test_layercontents_plist_parse() {
 </plist>
 "#,"Input contains layer directory values that don't start with `glyphs.`: {\"2glyphs\"}."),
 ] {
-    assert_eq!(&LayerContents::new_from_str(input).unwrap_err().to_string(), err_msg);
+    assert_eq!(&LayerContents::new_from_str(input, Default::default()).unwrap_err().to_string(), err_msg);
         }
 }
 

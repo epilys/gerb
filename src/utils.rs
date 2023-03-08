@@ -197,3 +197,42 @@ impl<'a, T> From<std::cell::Ref<'a, T>> for FieldRef<'a, T> {
         Self { inner }
     }
 }
+
+/// Helper trait that propagates true modified property values to a parent object. This is so that
+/// when a modified child sets its value to false, the parent value doesn't become false as well.
+///
+/// It is mainly used for objects owned by [`Project`], to keep track of what is modified and use
+/// it for saving modifications to disk.
+pub trait Modified: glib::ObjectExt {
+    fn link<C: Modified>(&self, child: &C) {
+        use glib::ToValue;
+
+        child
+            .bind_property(child.property_name(), self, self.property_name())
+            .transform_to(|_, value| {
+                let value: bool = value.get().ok()?;
+                if value {
+                    Some(value.to_value())
+                } else {
+                    None
+                }
+            })
+            .build();
+    }
+
+    fn property_name(&self) -> &'static str;
+}
+
+#[macro_export]
+macro_rules! impl_modified {
+    ($ty:ty) => {
+        $crate::impl_modified!($ty, MODIFIED);
+    };
+    ($ty:ty, $property_name:ident) => {
+        impl $crate::utils::Modified for $ty {
+            fn property_name(&self) -> &'static str {
+                <$ty>::$property_name
+            }
+        }
+    };
+}

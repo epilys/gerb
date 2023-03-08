@@ -359,6 +359,8 @@ impl Default for FontInfo {
     }
 }
 
+impl_modified!(FontInfo);
+
 mod layer {
     use super::*;
 
@@ -369,6 +371,8 @@ mod layer {
         pub path: RefCell<PathBuf>,
         pub name: RefCell<String>,
         pub dir_name: RefCell<String>,
+        pub contents_plist: RefCell<ufo::Contents>,
+        pub glyphs: RefCell<IndexMap<String, Rc<RefCell<Glyph>>>>,
     }
 
     impl Default for LayerInner {
@@ -379,6 +383,8 @@ mod layer {
                 path: RefCell::new(PathBuf::default()),
                 name: RefCell::new(String::new()),
                 dir_name: RefCell::new(String::new()),
+                contents_plist: RefCell::new(ufo::Contents::default()),
+                glyphs: RefCell::new(IndexMap::default()),
             }
         }
     }
@@ -482,7 +488,7 @@ mod layer {
             mut root_path: PathBuf,
         ) -> Result<(), Box<dyn std::error::Error>> {
             root_path.push(&dir_name);
-            let path = root_path;
+            let mut path = root_path;
             if !path.exists() {
                 return Err(format!("Path <i>{}</i> does not exist.", path.display()).into());
             }
@@ -491,9 +497,21 @@ mod layer {
             }
             self.modified.set(false);
             *self.last_saved.borrow_mut() = None;
-            *self.path.borrow_mut() = path;
             *self.dir_name.borrow_mut() = dir_name;
             *self.name.borrow_mut() = name;
+            path.push("contents.plist");
+            let contents = ufo::Contents::from_path(&path).map_err(|err| {
+                format!("couldn't read contents.plist {}: {}", path.display(), err)
+            })?;
+            path.pop();
+            let glyphs = Glyph::from_ufo(path.clone(), &contents)?;
+            for g in glyphs.values() {
+                self.link(&g.borrow().metadata);
+            }
+            *self.glyphs.borrow_mut() = glyphs;
+            *self.contents_plist.borrow_mut() = contents;
+            *self.path.borrow_mut() = path;
+
             Ok(())
         }
 
@@ -501,9 +519,55 @@ mod layer {
             &self,
             _layercontents: &mut crate::ufo::LayerContents,
         ) -> Result<(), Box<dyn std::error::Error>> {
-            // TODO
+            if !self.modified.get() {
+                return Ok(());
+            }
+            self.contents_plist.borrow_mut().save(true).map_err(|err| {
+                format!(
+                    "Saving contents.plist of layer {} failed: {err}",
+                    self.name.borrow()
+                )
+            })?;
+            let prefix = self.path.borrow();
+            for g in self
+                .glyphs
+                .borrow()
+                .values()
+                .filter(|g| g.borrow().modified())
+            {
+                let g = g.borrow();
+                g.save(&prefix)?;
+                g.metadata.set_property(GlyphMetadata::MODIFIED, false);
+            }
             self.modified.set(false);
             Ok(())
+        }
+
+        pub fn new_glyph(
+            &self,
+            name: String,
+            glyph: Rc<RefCell<Glyph>>,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+            let mut contents = self.contents_plist.borrow_mut();
+            if let Some(f) = contents.glyphs().get(&name) {
+                return Err(format!(
+                    "Glyph `{name}` already exists in layer {layer} and its filename is `{f}`.",
+                    layer = self.name.borrow()
+                )
+                .into());
+            }
+            self.set_property(Self::MODIFIED, true);
+            contents.insert(name.clone(), glyph.borrow().metadata.filename().to_string());
+            self.glyphs.borrow_mut().insert(name, glyph);
+            Ok(())
+        }
+
+        pub fn path(&'_ self) -> FieldRef<'_, PathBuf> {
+            self.path.borrow().into()
+        }
+
+        pub fn glyphs(&'_ self) -> FieldRef<'_, IndexMap<String, Rc<RefCell<Glyph>>>> {
+            self.glyphs.borrow().into()
         }
 
         pub fn modified(&self) -> bool {
@@ -516,6 +580,8 @@ mod layer {
             Self::new()
         }
     }
+
+    impl_modified!(Layer);
 }
 
 pub use layer::*;

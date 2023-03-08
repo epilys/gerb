@@ -163,15 +163,14 @@ impl Default for GlyphDrawingOptions<'_> {
 impl Glyph {
     #[allow(clippy::type_complexity)]
     pub fn from_ufo(
-        root_path: &Path,
+        root_path: PathBuf,
         contents: &ufo::Contents,
     ) -> Result<IndexMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
         let mut ret: IndexMap<String, Rc<RefCell<Glyph>>> = IndexMap::default();
         let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
-        let mut path = root_path.to_path_buf();
-        path.push("glyphs");
+        let mut path = root_path;
 
-        for (name, filename) in contents.glyphs.iter() {
+        for (name, filename) in contents.glyphs().iter() {
             path.push(filename);
             use std::fs::File;
             use std::io::prelude::*;
@@ -191,11 +190,7 @@ impl Glyph {
                 }
                 Ok(g) => {
                     let glyph: Glyph = g.into();
-                    // TODO what if strip_prefix fails?
-                    *glyph.metadata.relative_path.borrow_mut() = path
-                        .strip_prefix(root_path)
-                        .map(Path::to_path_buf)
-                        .unwrap_or_default();
+                    *glyph.metadata.filename.borrow_mut() = filename.clone();
                     *glyph.metadata.glif_source.borrow_mut() = s;
                     let has_components = !glyph.components.is_empty();
                     let glyph = Rc::new(RefCell::new(glyph));

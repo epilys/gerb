@@ -177,7 +177,7 @@ impl ObjectImpl for CollectionInner {
                     let glyph = Rc::new(RefCell::new(metadata.clone().into()));
                     metadata.glyph_ref.set(glyph.clone()).unwrap();
                     //FIXME: show err msg
-                    project.new_glyph(name, glyph).unwrap();
+                    project.new_glyph(name, glyph, None).unwrap();
                     obj.emit_by_name::<()>(Collection::NEW_GLYPH, &[&metadata]);
                     w.close();
                 }));
@@ -471,11 +471,11 @@ impl Collection {
         let flow_box = &ret.imp().flow_box;
         let mut widgets = vec![];
         {
-            let glyphs_b = project.imp().glyphs.borrow();
-            let mut glyphs = glyphs_b.values().collect::<Vec<&Rc<RefCell<Glyph>>>>();
-            glyphs.sort();
-            for glyph in glyphs {
-                let glyph_box = GlyphBox::new(app.clone(), project.clone(), glyph.clone());
+            let glyphs_map = project.default_layer.glyphs();
+            let mut glyphs_refs = glyphs_map.values().collect::<Vec<&Rc<RefCell<Glyph>>>>();
+            glyphs_refs.sort();
+            for glyph_ref in glyphs_refs {
+                let glyph_box = GlyphBox::new(app.clone(), project.clone(), glyph_ref.clone());
                 ret.bind_property(Self::ZOOM_FACTOR, &glyph_box, GlyphBox::ZOOM_FACTOR)
                     .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
                     .build();
@@ -962,12 +962,11 @@ impl GlyphBox {
                 .bind_property(GlyphMetadata::MARK_COLOR, &ret, Self::MARK_COLOR)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
-            metadata
-                .bind_property(GlyphMetadata::MODIFIED, &ret, Self::MODIFIED)
-                .flags(glib::BindingFlags::SYNC_CREATE)
-                .build();
+            ret.link(metadata);
         }
         ret.imp().glyph.set(glyph).unwrap();
         ret
     }
 }
+
+impl_modified!(GlyphBox);

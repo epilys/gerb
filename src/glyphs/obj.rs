@@ -23,7 +23,7 @@ use super::*;
 
 #[derive(Debug, Default)]
 pub struct GlyphMetadataInner {
-    pub modified: Cell<bool>,
+    modified: Cell<bool>,
     pub mark_color: Cell<Color>,
     pub relative_path: RefCell<PathBuf>,
     pub image: RefCell<Option<ImageRef>>,
@@ -288,6 +288,11 @@ impl GlyphMetadata {
         }
         w
     }
+
+    #[inline(always)]
+    pub fn modified(&self) -> bool {
+        self.imp().modified.get()
+    }
 }
 
 impl Default for GlyphMetadata {
@@ -295,6 +300,8 @@ impl Default for GlyphMetadata {
         Self::new()
     }
 }
+
+impl_modified!(GlyphMetadata);
 
 impl From<GlyphMetadata> for Glyph {
     fn from(metadata: GlyphMetadata) -> Glyph {
