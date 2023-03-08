@@ -73,7 +73,7 @@ pub struct Glyph {
     pub contours: Vec<Contour>,
     pub components: Vec<Component>,
     pub guidelines: Vec<Guideline>,
-    //pub lib: Option<plist::Dictionary>,
+    pub lib: IndexMap<String, plist::Value>,
     pub metadata: GlyphMetadata,
 }
 
@@ -227,6 +227,7 @@ impl Glyph {
             contours,
             components: vec![],
             guidelines: vec![],
+            lib: IndexMap::default(),
             metadata,
         }
     }

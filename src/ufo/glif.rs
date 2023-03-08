@@ -30,6 +30,7 @@ use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
 use glib::subclass::types::ObjectSubclassIsExt;
+use indexmap::IndexMap;
 
 fn color_serialize<S>(v: &Option<Color>, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -352,14 +353,39 @@ pub struct Glif {
     #[serde(rename = "guideline", default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     guidelines: Vec<Guideline>,
-    //#[serde(
-    //    rename = "lib",
-    //    default,
-    //    serialize_with = "plist_serialize",
-    //    deserialize_with = "plist_deserialize",
-    //    skip_serializing_if = "Option::is_none"
-    //)]
-    //lib: Option<plist::Dictionary>,
+    // FIXME: impl ser de
+    // <https://github.com/ebarnard/rust-plist/issues/79>
+    #[serde(
+        default,
+        skip,
+        rename = "lib",
+        skip_serializing_if = "IndexMap::is_empty",
+        serialize_with = "_plist_ser",
+        deserialize_with = "_plist_de"
+    )]
+    lib: IndexMap<String, plist::Value>,
+}
+
+fn _plist_de<'de, D>(deserializer: D) -> Result<IndexMap<String, plist::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let dict: plist::Value = plist::Value::deserialize(deserializer)?;
+    let dict: plist::Dictionary = dict
+        .into_dictionary()
+        .ok_or_else(|| Error::custom(String::new()))?;
+    Ok(dict.into_iter().collect())
+}
+
+fn _plist_ser<S>(p: &IndexMap<String, plist::Value>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let dict: plist::Dictionary = p.clone().into_iter().collect();
+    let val = plist::Value::Dictionary(dict);
+    val.serialize(serializer)
 }
 
 impl Glif {
@@ -384,7 +410,7 @@ impl From<Glif> for glyphs::Glyph {
             guidelines,
             unicode,
             format: _,
-            //lib,
+            lib,
         } = val;
 
         let kinds = if unicode.is_empty() {
@@ -412,6 +438,7 @@ impl From<Glif> for glyphs::Glyph {
                         .build()
                 })
                 .collect::<Vec<_>>(),
+            lib,
             ..Glyph::default()
         };
         *ret.metadata.name.borrow_mut() = name;
@@ -654,7 +681,7 @@ impl From<&glyphs::Glyph> for Glif {
             outline: Some(Outline { contours: outline }),
             anchors: glyph.metadata.anchors.borrow().clone(),
             guidelines: glyph.guidelines.iter().map(Into::into).collect(),
-            //lib: glyph.lib.clone(),
+            lib: glyph.lib.clone(),
         }
     }
 }
