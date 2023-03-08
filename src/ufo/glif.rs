@@ -276,6 +276,45 @@ impl Unicode {
     pub fn new(hex: String) -> Self {
         Self { hex }
     }
+
+    #[inline(always)]
+    pub fn hex(&self) -> &str {
+        self.hex.as_str()
+    }
+}
+
+/// ```
+/// # use gerb::glyphs::GlyphKind;
+/// # use gerb::ufo::glif::Unicode;
+///
+/// assert_eq!(GlyphKind::try_from(&Unicode::new("0062".to_string())).unwrap(), GlyphKind::from('b'));
+/// assert_eq!(GlyphKind::try_from(&Unicode::new("0041".to_string())).unwrap(), GlyphKind::from('A'));
+/// assert_eq!(GlyphKind::try_from(&Unicode::new("00E6".to_string())).unwrap(), GlyphKind::from('æ'));
+/// assert_eq!(GlyphKind::try_from(&Unicode::new("0021".to_string())).unwrap(), GlyphKind::from('!'));
+/// ```
+impl TryFrom<&Unicode> for crate::glyphs::GlyphKind {
+    type Error = String;
+
+    fn try_from(val: &Unicode) -> Result<crate::glyphs::GlyphKind, Self::Error> {
+        let num = u32::from_str_radix(val.hex(), 16)
+            .map_err(|err| format!("{} is not a valid hex value: {err}.", val.hex()))?;
+        Ok(crate::glyphs::GlyphKind::Char(
+            char::from_u32(num)
+                .ok_or_else(|| format!("{} = {num} is not a valid codepoint value.", val.hex()))?,
+        ))
+    }
+}
+
+impl From<char> for crate::glyphs::GlyphKind {
+    fn from(val: char) -> crate::glyphs::GlyphKind {
+        crate::glyphs::GlyphKind::Char(val)
+    }
+}
+
+impl From<String> for crate::glyphs::GlyphKind {
+    fn from(val: String) -> crate::glyphs::GlyphKind {
+        crate::glyphs::GlyphKind::Component(val)
+    }
 }
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Default)]

@@ -173,7 +173,6 @@ impl ObjectImpl for CollectionInner {
                 save.connect_clicked(clone!(@weak metadata, @weak w, @weak obj => move |_| {
                     let project = obj.project();
                     let name = metadata.name().to_string();
-                    //FIXME: set GlyphKind
                     let glyph = Rc::new(RefCell::new(metadata.clone().into()));
                     metadata.glyph_ref.set(glyph.clone()).unwrap();
                     //FIXME: show err msg

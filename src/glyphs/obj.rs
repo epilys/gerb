@@ -273,18 +273,54 @@ impl GlyphMetadata {
                 Some("text"),
                 clone!(@strong self as obj => move |entry, _| {
                     let mut unicodes = obj.imp().unicode.borrow_mut();
+                    let mut kinds = obj.imp().kinds.borrow_mut();
                     let text = entry.text();
-                    if let Some(t) = text.strip_prefix("u+") {
-                        unicodes.clear();
-                        unicodes.push(Unicode::new(t.to_string()));
-                    } else if let Some(t) = text.strip_prefix("U+") {
-                        unicodes.clear();
-                        unicodes.push(Unicode::new(t.to_string()));
+                    if let Some(t) = text.strip_prefix("u+").or_else(|| text.strip_prefix("U+")) {
+                        let val = Unicode::new(t.to_string());
+                        // TODO show error to user
+                        if let Ok(kind) = GlyphKind::try_from(&val) {
+                            kinds.0 = kind;
+                            unicodes.clear();
+                            unicodes.push(val);
+                        }
                     }
                 }),
             );
+            let codepoint =
+                PropertyChoice::new("codepoint", gtk::RadioButton::new(), unicode_entry.upcast());
+            let name_entry = gtk::Entry::builder()
+                .visible(true)
+                .expand(false)
+                .placeholder_text("component name")
+                .build();
+            name_entry.buffer().connect_notify_local(
+                Some("text"),
+                clone!(@strong self as obj => move |entry, _| {
+                    let mut unicodes = obj.imp().unicode.borrow_mut();
+                    unicodes.clear();
+                    let mut kinds = obj.imp().kinds.borrow_mut();
+                    let text = entry.text();
+                    kinds.0 = GlyphKind::from(text);
+                }),
+            );
+
+            let component = PropertyChoice::new(
+                "component",
+                gtk::RadioButton::from_widget(codepoint.button()),
+                name_entry.upcast(),
+            );
+            let kind_box = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .spacing(5)
+                .expand(true)
+                .visible(true)
+                .can_focus(true)
+                .build();
+            kind_box.pack_start(&codepoint, false, false, 5);
+            kind_box.pack_start(&component, false, false, 5);
+            kind_box.show_all();
             w.add_separator();
-            w.add("unicode", unicode_label, unicode_entry.upcast());
+            w.add("unicode", unicode_label, kind_box.upcast());
         }
         w
     }

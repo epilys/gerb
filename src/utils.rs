@@ -236,3 +236,16 @@ macro_rules! impl_modified {
         }
     };
 }
+
+#[macro_export]
+macro_rules! impl_deref {
+    ($ty:ty, $inner:ty) => {
+        impl std::ops::Deref for $ty {
+            type Target = $inner;
+
+            fn deref(&self) -> &Self::Target {
+                self.imp()
+            }
+        }
+    };
+}

@@ -547,7 +547,7 @@ pub fn get_widget_for_value(
                 .sensitive(readwrite)
                 .visible(true)
                 .halign(gtk::Align::Start)
-                .valign(gtk::Align::Start)
+                .valign(gtk::Align::Center)
                 .use_alpha(true)
                 .show_editor(true)
                 .build();
@@ -828,3 +828,78 @@ pub fn new_property_window(
     w.set_child(Some(&scrolled_window));
     w
 }
+
+#[derive(Default, Debug)]
+pub struct PropertyChoiceInner {
+    pub btn: OnceCell<gtk::RadioButton>,
+    pub widget: OnceCell<gtk::Widget>,
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for PropertyChoiceInner {
+    const NAME: &'static str = "PropertyChoice";
+    type Type = PropertyChoice;
+    type ParentType = gtk::Box;
+}
+
+impl ObjectImpl for PropertyChoiceInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        obj.upcast_ref::<gtk::Box>()
+            .set_orientation(gtk::Orientation::Horizontal);
+        obj.set_spacing(1);
+        obj.set_expand(false);
+        obj.set_visible(true);
+        obj.set_can_focus(true);
+    }
+}
+
+impl WidgetImpl for PropertyChoiceInner {}
+impl ContainerImpl for PropertyChoiceInner {}
+impl BoxImpl for PropertyChoiceInner {}
+
+glib::wrapper! {
+    pub struct PropertyChoice(ObjectSubclass<PropertyChoiceInner>)
+        @extends gtk::Widget, gtk::Container, gtk::Box;
+}
+
+impl PropertyChoice {
+    pub fn new(label: &str, btn: gtk::RadioButton, widget: gtk::Widget) -> Self {
+        let ret: PropertyChoice = glib::Object::new(&[]).unwrap();
+        let label = gtk::Label::builder()
+            .label(label)
+            .visible(true)
+            .selectable(false)
+            .max_width_chars(30)
+            .halign(gtk::Align::Start)
+            .wrap(true)
+            .expand(false)
+            .build();
+        let event_box = gtk::EventBox::builder()
+            .events(gtk::gdk::EventMask::BUTTON_PRESS_MASK)
+            .above_child(true)
+            .child(&label)
+            .visible(true)
+            .build();
+        ret.pack_start(&event_box, false, false, 5);
+        ret.pack_start(&btn, false, false, 5);
+        ret.pack_start(&widget, false, false, 5);
+        btn.bind_property("active", &widget, "sensitive")
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
+        event_box.connect_button_press_event(clone!(@weak btn => @default-return Inhibit(false), move |_, event| {
+            if event.button() == gtk::gdk::BUTTON_PRIMARY && event.event_type() == gtk::gdk::EventType::ButtonPress {
+                btn.set_active(true);
+            }
+            Inhibit(false)
+        }));
+        ret.btn.set(btn).unwrap();
+        ret
+    }
+
+    pub fn button(&self) -> &gtk::RadioButton {
+        self.btn.get().unwrap()
+    }
+}
+
+impl_deref!(PropertyChoice, PropertyChoiceInner);
