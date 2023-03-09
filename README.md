@@ -1,47 +1,76 @@
-# `gerb`
+# gerb
 
 1. _*gerb ʰ-_: [reconstructed Proto-Indo-European root](https://en.wiktionary.org/wiki/Reconstruction:Proto-Indo-European/gerb%CA%B0-), meaning _to carve_
-2. `gerb`: a WIP font editor in `gtk3` and `rust`
+2. `gerb`: a font editor in gtk3 and Rust
 
-## Introduction
+<p align="center">
+<a href="./screenshot-small.png?raw=true">
+<img alt="Editing a glyph inside gerb." src="./screenshot-small.png?raw=true" width="450" height="429" style="object-fit: scale-down; height: auto; max-width: 450px;">
+</a><br />
+<kbd><strong>Editing a glyph.</strong></kbd>
+</p>
 
-`gerb` is an experimental, developed for fun GUI font editor. Still in prototype phase, it opens fonts in [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) format but hasn't implemented exporting to `otf`/`ttf` files yet.
+<sup><sub>&#x261B; <em>See the <strong><a href="#screenshots">Screenshots</a></strong> section.</em></sub></sup>
 
-![./screenshot-small.png](./screenshot-small.png)
+`gerb` is a GUI font editor and IDE.
+It is not production ready, but all the basics are implemented.
 
-### Goals
+It uses the [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) format and can import:
 
-- Fun
-- Good UX not necessarily tied to prior art
-- Reasonable performance
-- Configurability
-- Use visual feedback for all kinds of operations to inform the user of the current state (for example, a Bézier path tool that shows you the current curve's degree and progress).
+- UFOv2 directories
+- Glyphs files
 
-### Roadmap to a minimum working prototype
+Integrated export to `{ttf, otf}` files is planned by using [`ufo2ft`](https://github.com/googlefonts/ufo2ft).
 
-- [x] save modifications to disk ([Tracking issue #5](https://github.com/epilys/gerb/issues/5))
-- [x] be able to create new paths/contours in a glyph ([Tracking issue #3](https://github.com/epilys/gerb/issues/3))
-- [x] be able to add/remove glyphs
-- [x] create new projects ([Tracking issue #4](https://github.com/epilys/gerb/issues/4))
-- [x] {un,re}do (event sourcing) ([Tracking issue #2](https://github.com/epilys/gerb/issues/2))
-- [x] import UFOv2
-- [x] import Glyphs
-- [ ] work with designspaces
+## Build & Run
 
-## Running the demo
+To build, you will need Rust's `cargo` tool.
+You can get it from your distribution's packages, or directly with the official [`rustup`](https://rustup.rs) tool.
+If the build fails because of missing system libraries, see the [Dependencies](#dependencies) section of the `README`.
 
-You can open a UFOv3 project from the GUI or directly in the command line.
+Download or clone the git repository with your method of choice, e.g.:
+
+```shell
+git clone https://github.com/epilys/gerb.git
+cd gerb
+cargo build --release
+```
+
+You can open a UFOv3 project from the GUI (&thinsp;*File->Open* or <kbd>Ctrl+O</kbd>&thinsp;) or directly in the command line with the `-u` flag.
 Assuming the project directory is "/path/to/font.ufo":
 
 ```shell
+# Directly calling the binary:
+gerb -u /path/to/font.ufo
+# Running through cargo
 cargo run --release -- -u /path/to/font.ufo
 ```
 
-The screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).
+Configuration of various settings is stored at the `$XDG_CONFIG_HOME/gerb` directory in a TOML file.
+The usual location would be `$HOME/.config/gerb/config.toml`.
+[**dconf**](https://en.wikipedia.org/wiki/Dconf) is not used but PRs that add dconf support are welcome.
 
-![./screenshot.png](./screenshot.png)
+## Features
 
-![./screenshot2.png](./screenshot2.png)
+- mechanism for import from other font formats
+- configurable shortcuts system
+- unlimited undos
+- embedded python shell and API for scripting and plugins (work in progress)
+- git integration (work in progress)
+- themeable (work in progress)
+
+### Future features
+
+- [ ] work with designspaces ([tracking issue #22](https://github.com/epilys/gerb/issues/22))
+
+## Screenshots
+
+<sup><sub>the screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).</sub></sup>
+
+<p align="center" width="100%">
+<a href="./screenshot.png?raw=true"><img width="49%" src="./screenshot.png?raw=true"></a>
+<a href="./screenshot2.png?raw=true"><img width="49%" src="./screenshot2.png?raw=true"></a>
+</p>
 
 ### Dependencies
 
