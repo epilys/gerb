@@ -216,8 +216,7 @@ impl ApplicationInner {
         let settings = gtk::gio::SimpleAction::new("settings", None);
         settings.connect_activate(
             glib::clone!(@strong self.settings as settings, @weak obj as app => move |_, _| {
-                let obj: glib::Object = settings.borrow().clone().upcast();
-                let w = crate::utils::new_property_window(&app, obj, "Settings");
+                let w = settings.borrow().new_property_window(&app, false);
                 w.present();
             }),
         );
