@@ -21,85 +21,11 @@
 
 mod workspace;
 pub use workspace::*;
-mod tabinfo;
-pub use tabinfo::*;
 mod minimap;
 pub use minimap::*;
 
-use gtk::glib::subclass::Signal;
-
 use crate::prelude::*;
-
-#[derive(Debug)]
-pub struct WindowSidebar {
-    pub tabinfo: TabInfo,
-    pub main: gtk::Paned,
-    pub project_info_sidebar: gtk::Paned,
-    pub project_label: gtk::Label,
-    pub minimap: Minimap,
-}
-
-impl WindowSidebar {
-    #[inline(always)]
-    #[allow(dead_code)]
-    fn new(main: gtk::Paned, _obj: &<WindowInner as ObjectSubclass>::Type) -> Self {
-        let ret = Self {
-            tabinfo: TabInfo::new(),
-            main,
-            project_info_sidebar: gtk::Paned::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .expand(true)
-                .position(50)
-                .visible(true)
-                .can_focus(true)
-                .name("main-window-subsidebar")
-                .build(),
-            project_label: gtk::Label::builder()
-                .label("No project loaded.")
-                .expand(true)
-                .visible(true)
-                .name("main-window-project-label")
-                .build(),
-            minimap: Minimap::new(),
-        };
-        let sidebar = gtk::Paned::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .expand(true)
-            .position(300)
-            .visible(true)
-            .can_focus(true)
-            .name("main-window-sidebar")
-            .build();
-        ret.project_label.set_valign(gtk::Align::Start);
-        ret.project_label.style_context().add_class("project-label");
-        sidebar.pack2(&ret.minimap, true, false);
-        sidebar.style_context().add_class("sidebar");
-
-        ret.project_info_sidebar.pack1(&ret.tabinfo, true, true);
-        ret.project_info_sidebar
-            .pack2(&ret.project_label, true, true);
-
-        sidebar.pack1(&ret.project_info_sidebar, true, false);
-        ret.main.pack1(&sidebar, true, true);
-        ret
-    }
-
-    #[allow(dead_code)]
-    fn load_project(&self, project: &Project) {
-        self.project_label.set_markup(&format!("<big>{name}</big>\n\nMajor version: {version_major}\nMinor version: {version_minor}\n\nUnits per <i>em</i>: {units_per_em}\ndescender: {descender}\nascender: {ascender}\n<i>x</i>-height: {x_height}\ncap height: {cap_height}\nitalic angle: {italic_angle}", name=&project.property::<String>("name").as_str(), version_major=project.property::<i64>("version-major"), version_minor=project.property::<u64>("version-minor"), units_per_em=project.property::<f64>("units-per-em"), descender=project.property::<f64>("descender"), x_height=project.property::<f64>("x-height"), cap_height=project.property::<f64>("cap-height"), ascender=project.property::<f64>("ascender"), italic_angle=project.property::<f64>("italic-angle")));
-        self.project_label.set_single_line_mode(false);
-        self.project_label.set_use_markup(true);
-        self.project_label.queue_draw();
-        self.minimap.queue_draw();
-    }
-
-    #[allow(dead_code)]
-    fn unload_project(&self) {
-        self.project_label.set_markup("No project loaded.");
-        self.project_label.queue_draw();
-        self.minimap.queue_draw();
-    }
-}
+use gtk::glib::subclass::Signal;
 
 #[derive(Debug, Default)]
 pub struct WindowInner {

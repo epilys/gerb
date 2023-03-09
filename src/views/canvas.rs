@@ -825,3 +825,5 @@ impl Default for Canvas {
         Self::new()
     }
 }
+
+impl_property_window!(Canvas);

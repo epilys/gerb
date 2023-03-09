@@ -32,7 +32,7 @@ pub mod shortcuts;
 pub mod widgets;
 pub use colors::*;
 pub use points::{CurvePoint, IPoint, Point};
-pub use property_window::{get_widget_for_value, new_property_window, object_to_property_grid};
+pub use property_window::{CreatePropertyWindow, PropertyChoice, PropertyWindow};
 
 pub const CODEPOINTS: &str = r##"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##;
 
@@ -247,5 +247,12 @@ macro_rules! impl_deref {
                 self.imp()
             }
         }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_property_window {
+    ($ty:ty) => {
+        impl $crate::utils::property_window::CreatePropertyWindow for $ty {}
     };
 }

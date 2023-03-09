@@ -449,3 +449,5 @@ impl Default for Project {
 }
 
 impl_modified!(Project);
+
+impl_property_window!(Project);

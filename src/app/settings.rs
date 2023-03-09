@@ -514,11 +514,6 @@ impl Settings {
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()
     }
-
-    pub fn new_property_window(&self, app: &Application, _create: bool) -> PropertyWindow {
-        PropertyWindow::builder(self.clone().upcast(), app)
-            .title("Settings".into())
-            .type_(PropertyWindowType::Modify)
-            .build()
-    }
 }
+
+impl_property_window!(Settings);

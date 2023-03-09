@@ -83,8 +83,7 @@ impl EditorInner {
             let settings = gtk::gio::SimpleAction::new("open.settings", None);
             settings.connect_activate(
                 glib::clone!(@weak self.viewport as viewport, @weak app => move |_, _| {
-                    let obj = viewport.upcast::<gtk::glib::Object>();
-                    let w = crate::utils::new_property_window(&app, obj, "Settings");
+                    let w = viewport.new_property_window(&app, false);
                     w.present();
                 }),
             );
@@ -206,8 +205,7 @@ impl EditorInner {
             action_group.add_action(&save);
             let properties = gtk::gio::SimpleAction::new("properties", None);
             properties.connect_activate(glib::clone!(@weak obj, @weak app => move |_, _| {
-                let metadata: glib::Object = obj.glyph().borrow().metadata.clone().upcast();
-                let w = crate::utils::new_property_window(&app, metadata, "Glyph properties");
+                let w = obj.glyph().borrow().metadata.new_property_window(&app, false);
                 w.present();
             }));
             action_group.add_action(&properties);

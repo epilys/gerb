@@ -321,6 +321,8 @@ impl Guideline {
     }
 }
 
+impl_property_window!(Guideline);
+
 pub struct GuidelineBuilder(Guideline);
 
 impl Default for GuidelineBuilder {

@@ -1205,56 +1205,6 @@ pub fn get_label_for_property(prop: &glib::ParamSpec) -> gtk::Label {
                 .build()
 }
 
-pub fn new_property_window(
-    app: &crate::prelude::Application,
-    obj: glib::Object,
-    title: &str,
-) -> gtk::Window {
-    let w = gtk::Window::builder()
-        .deletable(true)
-        .transient_for(&app.window)
-        .attached_to(&app.window)
-        .application(app)
-        .destroy_with_parent(true)
-        .focus_on_map(true)
-        .resizable(true)
-        .title(title)
-        .visible(true)
-        .expand(true)
-        .type_hint(gtk::gdk::WindowTypeHint::Utility)
-        .window_position(gtk::WindowPosition::CenterOnParent)
-        .build();
-    let scrolled_window = gtk::ScrolledWindow::builder()
-        .min_content_height(400)
-        .min_content_width(400)
-        .expand(true)
-        .visible(true)
-        .can_focus(true)
-        .build();
-    let grid = crate::utils::object_to_property_grid(obj, false);
-    let b = gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .margin(5)
-        .margin_bottom(10)
-        .visible(true)
-        .build();
-    b.pack_start(&grid, true, true, 0);
-    let close_button = gtk::Button::builder()
-        .label("Close")
-        .relief(gtk::ReliefStyle::None)
-        .visible(true)
-        .halign(gtk::Align::Center)
-        .valign(gtk::Align::Center)
-        .build();
-    close_button.connect_clicked(clone!(@weak w => move |_| {
-        w.close();
-    }));
-    b.pack_end(&close_button, false, false, 0);
-    scrolled_window.set_child(Some(&b));
-    w.set_child(Some(&scrolled_window));
-    w
-}
-
 #[derive(Default, Debug)]
 pub struct PropertyChoiceInner {
     pub btn: OnceCell<gtk::RadioButton>,
@@ -1329,3 +1279,18 @@ impl PropertyChoice {
 }
 
 impl_deref!(PropertyChoice, PropertyChoiceInner);
+
+pub trait CreatePropertyWindow: glib::object::ObjectExt {
+    fn new_property_window(&self, app: &Application, _create: bool) -> PropertyWindow
+    where
+        Self: glib::IsA<glib::Object>,
+    {
+        PropertyWindow::builder(
+            self.downgrade().upgrade().unwrap().upcast::<glib::Object>(),
+            app,
+        )
+        .title(self.type_().name().into())
+        .type_(PropertyWindowType::Modify)
+        .build()
+    }
+}

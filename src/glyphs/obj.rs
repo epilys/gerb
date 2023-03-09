@@ -183,7 +183,31 @@ impl GlyphMetadata {
         self.width.get()
     }
 
-    pub fn new_property_window(&self, app: &Application, create: bool) -> PropertyWindow {
+    #[inline(always)]
+    pub fn modified(&self) -> bool {
+        self.imp().modified.get()
+    }
+}
+
+impl Default for GlyphMetadata {
+    fn default() -> GlyphMetadata {
+        Self::new()
+    }
+}
+
+impl_modified!(GlyphMetadata);
+
+impl From<GlyphMetadata> for Glyph {
+    fn from(metadata: GlyphMetadata) -> Glyph {
+        Glyph {
+            metadata,
+            ..Glyph::default()
+        }
+    }
+}
+
+impl CreatePropertyWindow for GlyphMetadata {
+    fn new_property_window(&self, app: &Application, create: bool) -> PropertyWindow {
         let mut w = PropertyWindow::builder(self.clone().upcast(), app)
             .title(if create {
                 "Add glyph".into()
@@ -323,27 +347,5 @@ impl GlyphMetadata {
             w.add("unicode", unicode_label, kind_box.upcast());
         }
         w
-    }
-
-    #[inline(always)]
-    pub fn modified(&self) -> bool {
-        self.imp().modified.get()
-    }
-}
-
-impl Default for GlyphMetadata {
-    fn default() -> GlyphMetadata {
-        Self::new()
-    }
-}
-
-impl_modified!(GlyphMetadata);
-
-impl From<GlyphMetadata> for Glyph {
-    fn from(metadata: GlyphMetadata) -> Glyph {
-        Glyph {
-            metadata,
-            ..Glyph::default()
-        }
     }
 }

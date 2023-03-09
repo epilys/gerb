@@ -23,6 +23,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 use once_cell::unsync::OnceCell;
 
+use crate::utils::property_window::CreatePropertyWindow;
 use crate::window::Window;
 
 use gio::ApplicationFlags;
@@ -453,8 +454,7 @@ impl ApplicationInner {
         let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
         project_properties.connect_activate(
             glib::clone!(@weak self.window as window, @weak obj as app => move |_, _| {
-                let obj: glib::Object = window.project.borrow().clone().upcast();
-                let w = crate::utils::new_property_window(&app, obj, "Project");
+                let w = window.project.borrow().new_property_window(&app, false);
                 w.present();
             }),
         );
