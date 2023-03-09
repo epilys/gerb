@@ -171,7 +171,9 @@ impl ToolImplImpl for PanningToolInner {
                 Lock::clear(&view);
                 Precision::clear(&view);
                 self.mode.set(Mode::None);
-                view.set_property(Editor::MODIFYING_IN_PROCESS, false);
+                if matches!(m, Mode::Drag) {
+                    view.set_property(Editor::MODIFYING_IN_PROCESS, false);
+                }
                 view.hovering.set(None);
                 viewport.queue_draw();
                 self.instance()
@@ -255,9 +257,7 @@ impl ToolImplImpl for PanningToolInner {
                     if g.on_line_query(position, None) {
                         g.set_property(Guideline::X, position.x);
                         g.set_property(Guideline::Y, position.y);
-                        //view.select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
                         self.mode.set(Mode::DragGuideline(i));
-                        view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                         self.instance()
                             .set_property::<bool>(PanningTool::ACTIVE, true);
                         is_guideline = true;
@@ -426,28 +426,23 @@ impl ToolImplImpl for PanningToolInner {
             Mode::ResizeDimensions { previous_value }
                 if event_button == gtk::gdk::BUTTON_PRIMARY =>
             {
-                let new_value = {
+                let (metadata, new_value) = {
                     let state = view.state().borrow();
                     let glyph = state.glyph.borrow();
-                    glyph.width()
+                    (glyph.metadata.clone(), glyph.width())
                 };
                 let action = Action {
                     stamp: EventStamp {
                         t: std::any::TypeId::of::<Editor>(),
-                        // FIXME: add correct type here (Glyph is not a GType)
-                        property: Contour::static_type().name(),
+                        property: GlyphMetadata::static_type().name(),
                         id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[]).into() },
                     },
                     compress: false,
-                    redo: Box::new(clone!(@weak view => move || {
-                        let state = view.state().borrow();
-                        let glyph = state.glyph.borrow();
-                        glyph.width.set(new_value);
+                    redo: Box::new(clone!(@weak metadata => move || {
+                        metadata.width.set(new_value);
                     })),
-                    undo: Box::new(clone!(@weak view => move || {
-                        let state = view.state().borrow();
-                        let glyph = state.glyph.borrow();
-                        glyph.width.set(previous_value);
+                    undo: Box::new(clone!(@weak metadata => move || {
+                        metadata.width.set(previous_value);
                     })),
                 };
                 let app: &Application = view.app();
@@ -563,7 +558,6 @@ impl ToolImplImpl for PanningToolInner {
                     let undo_db = app.undo_db.borrow();
                     undo_db.event(action);
                     self.mode.set(Mode::None);
-                    view.set_property(Editor::MODIFYING_IN_PROCESS, false);
                     view.hovering.set(None);
                     viewport.queue_draw();
                     self.instance()
@@ -1092,10 +1086,12 @@ impl PanningToolInner {
                     view.set_property(Editor::MODIFYING_IN_PROCESS, true);
                     view.viewport.set_cursor("grab");
                 }
-                Mode::Drag | Mode::DragGuideline(_) => {
+                m @ Mode::Drag | m @ Mode::DragGuideline(_) => {
                     obj.set_property::<bool>(PanningTool::ACTIVE, false);
                     obj.imp().mode.set(Mode::Drag);
-                    view.set_property(Editor::MODIFYING_IN_PROCESS, true);
+                    if matches!(m, Mode::Drag) {
+                        view.set_property(Editor::MODIFYING_IN_PROCESS, true);
+                    }
                     view.viewport.set_cursor("grab");
                 }
                 _ => {}
