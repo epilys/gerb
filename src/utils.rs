@@ -209,11 +209,13 @@ pub enum Either<A, B> {
 /// It is mainly used for objects owned by [`Project`], to keep track of what is modified and use
 /// it for saving modifications to disk.
 pub trait Modified: glib::ObjectExt {
+    const PROPERTY_NAME: &'static str;
+
     fn link<C: Modified>(&self, child: &C) {
         use glib::ToValue;
 
         child
-            .bind_property(child.property_name(), self, self.property_name())
+            .bind_property(C::PROPERTY_NAME, self, Self::PROPERTY_NAME)
             .transform_to(|_, value| {
                 let value: bool = value.get().ok()?;
                 if value {
@@ -224,8 +226,6 @@ pub trait Modified: glib::ObjectExt {
             })
             .build();
     }
-
-    fn property_name(&self) -> &'static str;
 }
 
 #[macro_export]
@@ -235,9 +235,7 @@ macro_rules! impl_modified {
     };
     ($ty:ty, $property_name:ident) => {
         impl $crate::utils::Modified for $ty {
-            fn property_name(&self) -> &'static str {
-                <$ty>::$property_name
-            }
+            const PROPERTY_NAME: &'static str = <$ty>::$property_name;
         }
     };
 }
