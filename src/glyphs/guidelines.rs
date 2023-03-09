@@ -26,12 +26,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GuidelineInner {
-    pub name: RefCell<Option<String>>,
-    pub identifier: RefCell<Option<String>>,
-    pub angle: Cell<f64>,
-    pub x: Cell<f64>,
-    pub y: Cell<f64>,
-    pub color: Cell<Option<Color>>,
+    name: RefCell<Option<String>>,
+    identifier: RefCell<Option<String>>,
+    angle: Cell<Option<f64>>,
+    x: Cell<Option<f64>>,
+    y: Cell<Option<f64>>,
+    color: Cell<Option<Color>>,
     pub modified: Cell<bool>,
 }
 
@@ -116,10 +116,10 @@ impl ObjectImpl for GuidelineInner {
         match pspec.name() {
             Guideline::NAME => self.name.borrow().to_value(),
             Guideline::IDENTIFIER => self.identifier.borrow().to_value(),
-            Guideline::ANGLE => self.angle.get().to_value(),
-            Guideline::X => self.x.get().to_value(),
-            Guideline::Y => self.y.get().to_value(),
-            Guideline::COLOR => self.color.get().unwrap_or(Self::COLOR).to_value(),
+            Guideline::ANGLE => self.angle().to_value(),
+            Guideline::X => self.x().to_value(),
+            Guideline::Y => self.y().to_value(),
+            Guideline::COLOR => self.color().to_value(),
             Guideline::MODIFIED => self.modified.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -129,15 +129,12 @@ impl ObjectImpl for GuidelineInner {
         macro_rules! set_cell {
             ($field:tt) => {{
                 let val = value.get().unwrap();
-                if val != self.$field.get() {
-                    self.instance().set_property(Guideline::MODIFIED, true);
-                    self.$field.set(val);
-                }
+                set_cell!(val, $field);
             }};
             ($val:ident, $field:tt) => {{
-                if $val != self.$field.get() {
+                if Some($val) != self.$field.get() {
                     self.instance().set_property(Guideline::MODIFIED, true);
-                    self.$field.set($val);
+                    self.$field.set(Some($val));
                 }
             }};
         }
@@ -207,12 +204,12 @@ impl GuidelineInner {
         } else {
             cr.set_source_color_alpha(self.color.get().unwrap_or(Self::COLOR));
         }
-        let p = (self.x.get(), self.y.get());
+        let p = (self.x(), self.y());
         if show_origin {
             cr.arc(p.0, p.1, 8.0, 0.0, 2.0 * std::f64::consts::PI);
             cr.stroke().unwrap();
         }
-        let r = self.angle.get() * 0.01745;
+        let r = self.angle() * 0.01745;
         let top = move_point(p, height * 10.0, r);
         cr.move_to(top.0, top.1);
         let bottom = move_point(p, -height * 10.0, r);
@@ -225,9 +222,9 @@ impl GuidelineInner {
         // Using an 𝐿 defined by a point 𝑃𝑙 and angle 𝜃
         //𝑑 = ∣cos(𝜃)(𝑃𝑙𝑦 − 𝑦𝑝) − sin(𝜃)(𝑃𝑙𝑥 − 𝑃𝑥)∣
         // d = |cos(θˆ)⋅(Pₗᵧ - yₚ) - sin(θˆ)⋅(Pₗₓ - Pₓ)|
-        let r = self.angle.get() * 0.01745;
+        let r = self.angle() * 0.01745;
         let (sin, cos) = r.sin_cos();
-        (cos * (self.y.get() - yp) - sin * (self.x.get() - xp)).abs()
+        (cos * (self.y() - yp) - sin * (self.x() - xp)).abs()
     }
 
     pub fn on_line_query(&self, point: Point, error: Option<f64>) -> bool {
@@ -236,15 +233,65 @@ impl GuidelineInner {
     }
 
     pub fn project_point(&self, p: Point) -> Point {
-        let r = self.angle.get() * 0.01745;
+        let r = self.angle() * 0.01745;
         let (sin, cos) = r.sin_cos();
-        let p1 = Point::from((self.x.get(), self.y.get()));
+        let p1 = Point::from((self.x(), self.y()));
         let p2 = Point::from((p1.x + 10.0 * cos, p1.y + 10.0 * sin));
         let alpha = p - p1;
         let beta = p2 - p1;
         let bunit = beta / beta.norm();
         let scalar = alpha.dot(beta) / beta.norm();
         scalar * bunit + p1
+    }
+
+    #[inline(always)]
+    pub fn name(&self) -> Option<String> {
+        self.name.borrow().clone()
+    }
+
+    #[inline(always)]
+    pub fn identifier(&self) -> Option<String> {
+        self.identifier.borrow().clone()
+    }
+
+    #[inline(always)]
+    pub fn color(&self) -> Color {
+        self.color.get().unwrap_or(Self::COLOR)
+    }
+
+    #[inline(always)]
+    pub fn color_inner(&self) -> Option<Color> {
+        self.color.get()
+    }
+
+    #[inline(always)]
+    pub fn angle(&self) -> f64 {
+        self.angle.get().unwrap_or_default()
+    }
+
+    #[inline(always)]
+    pub fn angle_inner(&self) -> Option<f64> {
+        self.angle.get()
+    }
+
+    #[inline(always)]
+    pub fn x(&self) -> f64 {
+        self.x.get().unwrap_or_default()
+    }
+
+    #[inline(always)]
+    pub fn x_inner(&self) -> Option<f64> {
+        self.x.get()
+    }
+
+    #[inline(always)]
+    pub fn y(&self) -> f64 {
+        self.y.get().unwrap_or_default()
+    }
+
+    #[inline(always)]
+    pub fn y_inner(&self) -> Option<f64> {
+        self.y.get()
     }
 }
 
@@ -280,12 +327,9 @@ impl TryFrom<serde_json::Value> for Guideline {
     }
 }
 
-impl TryFrom<ufo::GuidelineInfo> for Guideline {
-    type Error = String;
-
-    fn try_from(v: ufo::GuidelineInfo) -> Result<Guideline, Self::Error> {
+impl From<ufo::GuidelineInfo> for Guideline {
+    fn from(v: ufo::GuidelineInfo) -> Guideline {
         let ret = Self::new();
-        // FIXME: check for invalid optional set value combinations
         let ufo::GuidelineInfo {
             x,
             y,
@@ -295,25 +339,26 @@ impl TryFrom<ufo::GuidelineInfo> for Guideline {
             identifier,
         } = v;
 
-        if let Some(x) = x {
-            ret.x.set(x);
+        ret.x.set(x);
+        ret.y.set(y);
+        *ret.name.borrow_mut() = name;
+        *ret.identifier.borrow_mut() = identifier;
+        ret.color.set(color);
+        ret.angle.set(angle);
+        ret
+    }
+}
+
+impl From<&Guideline> for ufo::GuidelineInfo {
+    fn from(v: &Guideline) -> ufo::GuidelineInfo {
+        ufo::GuidelineInfo {
+            x: v.x_inner(),
+            y: v.y_inner(),
+            angle: v.angle_inner(),
+            name: v.name(),
+            identifier: v.identifier(),
+            color: v.color_inner(),
         }
-        if let Some(y) = y {
-            ret.y.set(y);
-        }
-        if let Some(name) = name {
-            *ret.name.borrow_mut() = Some(name);
-        }
-        if let Some(identifier) = identifier {
-            *ret.identifier.borrow_mut() = Some(identifier);
-        }
-        if let Some(color) = color {
-            ret.color.set(Some(color));
-        }
-        if let Some(angle) = angle {
-            ret.angle.set(angle);
-        }
-        Ok(ret)
     }
 }
 
@@ -329,30 +374,6 @@ impl Guideline {
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
         ret
-    }
-
-    pub fn name(&self) -> Option<String> {
-        self.property(Guideline::NAME)
-    }
-
-    pub fn identifier(&self) -> Option<String> {
-        self.property(Guideline::IDENTIFIER)
-    }
-
-    pub fn color(&self) -> Option<Color> {
-        self.property(Guideline::COLOR)
-    }
-
-    pub fn angle(&self) -> f64 {
-        self.property(Guideline::ANGLE)
-    }
-
-    pub fn x(&self) -> f64 {
-        self.property(Guideline::X)
-    }
-
-    pub fn y(&self) -> f64 {
-        self.property(Guideline::Y)
     }
 
     #[inline(always)]
@@ -401,17 +422,17 @@ impl GuidelineBuilder {
         self
     }
 
-    pub fn angle(self, angle: f64) -> Self {
+    pub fn angle(self, angle: Option<f64>) -> Self {
         self.0.angle.set(angle);
         self
     }
 
-    pub fn x(self, x: f64) -> Self {
+    pub fn x(self, x: Option<f64>) -> Self {
         self.0.x.set(x);
         self
     }
 
-    pub fn y(self, y: f64) -> Self {
+    pub fn y(self, y: Option<f64>) -> Self {
         self.0.y.set(y);
         self
     }

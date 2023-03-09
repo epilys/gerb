@@ -218,39 +218,38 @@ pub struct Anchor {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Guideline {
-    #[serde(default)]
-    #[serde(rename = "@name")]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, rename = "@name", skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "@identifier")]
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "@identifier",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub identifier: Option<String>,
-    #[serde(default)]
-    #[serde(rename = "@color")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(serialize_with = "color_serialize")]
+    #[serde(
+        default,
+        rename = "@color",
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "color_serialize"
+    )]
     pub color: Option<Color>,
-    #[serde(default)]
-    #[serde(rename = "@angle")]
-    pub angle: f64,
-    #[serde(default)]
-    #[serde(rename = "@x")]
-    pub x: f64,
-    #[serde(default)]
-    #[serde(rename = "@y")]
-    pub y: f64,
+    #[serde(default, rename = "@angle", skip_serializing_if = "Option::is_none")]
+    pub angle: Option<f64>,
+    #[serde(default, rename = "@x", skip_serializing_if = "Option::is_none")]
+    pub x: Option<f64>,
+    #[serde(default, rename = "@y", skip_serializing_if = "Option::is_none")]
+    pub y: Option<f64>,
 }
 
 impl From<&glyphs::Guideline> for Guideline {
     fn from(g: &glyphs::Guideline) -> Guideline {
         Guideline {
-            name: g.imp().name.borrow().clone(),
-            identifier: g.imp().identifier.borrow().clone(),
-            color: g.imp().color.get(),
-            angle: g.imp().angle.get(),
-            x: g.imp().x.get(),
-            y: g.imp().y.get(),
+            name: g.name(),
+            identifier: g.identifier(),
+            color: g.color_inner(),
+            angle: g.angle_inner(),
+            x: g.x_inner(),
+            y: g.y_inner(),
         }
     }
 }

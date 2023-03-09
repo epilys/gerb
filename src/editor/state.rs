@@ -86,7 +86,9 @@ impl State {
     }
 
     pub fn new_guideline(&self, angle: f64, p: Point) -> Action {
-        let (x, y) = (p.x, p.y);
+        let x = Some(p.x).filter(|&v| v != 0.0);
+        let y = Some(p.y).filter(|&v| v != 0.0);
+        let angle = Some(angle).filter(|&v| v != 0.0);
         let identifier = crate::ufo::make_random_identifier();
 
         Action {

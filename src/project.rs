@@ -364,14 +364,12 @@ impl Project {
             .guidelines
             .clone()
             .into_iter()
-            .map(Guideline::try_from)
+            .map(Guideline::from)
             .map(|g| {
-                if let Ok(g) = g.as_ref() {
-                    ret.link(g);
-                }
+                ret.link(&g);
                 g
             })
-            .collect::<Result<Vec<Guideline>, String>>()?;
+            .collect::<Vec<Guideline>>();
         for property in [
             Project::FAMILY_NAME,
             Project::STYLE_NAME,
@@ -380,7 +378,7 @@ impl Project {
             Project::YEAR,
             Project::COPYRIGHT,
             Project::TRADEMARK,
-            Project::UNITS_PER_EM,
+            Project::UNITS_PER_EM, // [tag:project_bind_metrics]
             Project::DESCENDER,
             Project::X_HEIGHT,
             Project::CAP_HEIGHT,
@@ -409,10 +407,13 @@ impl Project {
                 let g = Guideline::builder()
                     .name(Some(name.to_string()))
                     .identifier(Some(name.to_string()))
-                    .y(field)
+                    .y(Some(field))
                     .color(Some(Color::from_hex("#bbbaae")))
                     .build();
                 ret.link(&g);
+                ret.bind_property(name, &g, Guideline::Y)
+                    .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::BIDIRECTIONAL)
+                    .build();
                 metric_guidelines.push(g);
             }
         }
@@ -431,13 +432,39 @@ impl Project {
     }
 
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
-        self.fontinfo.borrow().save()?;
+        let fontinfo = self.fontinfo.borrow();
+        {
+            let mut f_guidelines = fontinfo.guidelines.borrow_mut();
+            for (i, g) in self
+                .guidelines
+                .borrow()
+                .iter()
+                .enumerate()
+                .filter(|(_, obj)| obj.modified())
+            {
+                g.set_property(Guideline::MODIFIED, false);
+                if i >= f_guidelines.len() {
+                    f_guidelines.push(g.into());
+                    debug_assert_eq!(f_guidelines.len(), i + 1);
+                } else {
+                    f_guidelines[i] = g.into();
+                }
+            }
+        }
+        fontinfo.save()?;
         for obj in self.all_layers.borrow().iter().filter(|obj| obj.modified()) {
             obj.save(&mut self.layercontents.borrow_mut())?;
         }
-        //if !self.modified.get() {
-        //    return Ok(());
-        //}
+        /* Metric guidelines have their value properties bound with FontInfo via Project
+         * [ref:project_bind_metrics] */
+        for g in self
+            .metric_guidelines
+            .borrow()
+            .iter()
+            .filter(|obj| obj.modified())
+        {
+            g.set_property(Guideline::MODIFIED, false);
+        }
         self.set_property(Self::MODIFIED, false);
         Ok(())
     }

@@ -253,8 +253,8 @@ impl ToolImplImpl for PanningToolInner {
                         break;
                     }
                     if g.on_line_query(position, None) {
-                        g.x.set(position.x);
-                        g.y.set(position.y);
+                        g.set_property(Guideline::X, position.x);
+                        g.set_property(Guideline::Y, position.y);
                         //view.select_object(Some(g.clone().upcast::<gtk::glib::Object>()));
                         self.mode.set(Mode::DragGuideline(i));
                         view.set_property(Editor::MODIFYING_IN_PROCESS, true);
@@ -713,7 +713,7 @@ impl ToolImplImpl for PanningToolInner {
                 let (_dx, dy) = event.delta();
                 let state = view.state().borrow();
                 if let Some(g) = state.glyph.borrow().guidelines().get(idx) {
-                    let (x, y) = (g.x.get(), g.y.get());
+                    let (x, y) = (g.x(), g.y());
                     let UnitPoint(u_p) =
                         viewport.view_to_unit_point(ViewPoint(event.position().into()));
                     let mut delta = u_p - (x, y).into();

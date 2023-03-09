@@ -739,6 +739,9 @@ impl Glyph {
             .truncate(true)
             .open(&path)?;
         file.write_all(glif.to_xml().as_bytes())?;
+        for g in self.guidelines.iter().filter(|obj| obj.modified()) {
+            g.set_property(Guideline::MODIFIED, false);
+        }
         Ok(())
     }
 }
