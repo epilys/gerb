@@ -22,6 +22,8 @@
 use gtk::{gdk, glib};
 use std::hash::Hash;
 
+// [ref:needs_user_doc]
+// [ref:needs_dev_doc]
 #[derive(Clone, Debug, PartialEq, Eq, Copy, Hash, glib::Boxed)]
 #[boxed_type(name = "Color", nullable)]
 #[repr(transparent)]

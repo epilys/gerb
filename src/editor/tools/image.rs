@@ -25,7 +25,7 @@ use cairo::ImageSurface;
 use crate::prelude::*;
 use crate::views::canvas::{Layer, LayerBuilder};
 
-// DOC
+// [ref:needs_user_doc]
 #[derive(Default)]
 pub struct ImageToolInner {
     image_data: RefCell<Option<ImageSurface>>,
@@ -208,7 +208,7 @@ impl ImageTool {
 
         if let Some(image_ref) = glyph.borrow().image.borrow().as_ref() {
             if let Some(file_name) = image_ref.file_name.as_ref() {
-                // FIXME error handling
+                // [ref:FIXME] error handling
                 *ret.imp().image_data.borrow_mut() = Some(project.load_image(file_name).unwrap());
                 ret.imp().active.set(true);
                 ret.imp().color.set(image_ref.color);

@@ -279,7 +279,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
                 }
             } else if g.angle() == 0.0 {
                 let cr2 = cr1.push();
-                cr2.set_source_color_alpha(Color::from_hex("#bbbaae"));
+                cr2.set_source_color_alpha(Color::from_hex("#bbbaae")); // [ref:hardcoded_color_value]
                 let ViewPoint(Point { y, .. }) =
                     viewport.unit_to_view_point(UnitPoint((0.0, g.y()).into()));
                 let label = if let Some(name) = g.name().as_deref() {

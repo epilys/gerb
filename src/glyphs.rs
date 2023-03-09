@@ -864,7 +864,7 @@ impl From<glif::Glif> for Glyph {
                             type_: PointKind::Move,
                             ..
                         }) => {
-                            panic!() // FIXME return Err
+                            panic!() // [ref:FIXME] return Err
                         }
                         Some(Point {
                             type_: PointKind::Offcurve,

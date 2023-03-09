@@ -27,7 +27,7 @@ use gtk::Inhibit;
 
 use crate::prelude::*;
 
-// DOC
+// [ref:needs_user_doc]
 #[derive(Default)]
 pub struct QuadrilateralToolInner {
     layer: OnceCell<Layer>,

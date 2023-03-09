@@ -32,6 +32,8 @@ const VOID: u32 = gdk_sys::GDK_KEY_VoidSymbol as u32;
 
 pub type ShortcutCb = dyn Fn(&gtk::gio::SimpleActionGroup) -> bool;
 
+// [ref:needs_user_doc]
+// [ref:needs_dev_doc]
 pub struct Shortcut {
     keys: SmallVec<[u32; 8]>,
 }

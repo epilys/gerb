@@ -40,6 +40,19 @@ pub mod window;
 pub const APPLICATION_NAME: &str = "gerb";
 pub const APPLICATION_ID: &str = "com.epilys.gerb";
 
+/* Annotations:
+ *
+ * Global tags (in tagref format <https://github.com/stepchowfun/tagref>) for source code
+ * annotation:
+ *
+ * - [tag:hardcoded_color_value] Replace hardcoded color values with user configurable ones.
+ * - [tag:needs_unit_test]
+ * - [tag:needs_user_doc]
+ * - [tag:needs_dev_doc]
+ * - [tag:FIXME]
+ * - [tag:TODO]
+ */
+
 pub mod prelude {
     pub use super::*;
     pub use app::Application;

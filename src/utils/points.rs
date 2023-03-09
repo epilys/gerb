@@ -127,6 +127,7 @@ impl From<&CurvePoint> for Point {
 }
 
 impl Point {
+    // [ref:needs_unit_test]
     pub fn collinear(&self, other_a: &Self, other_b: &Self) -> bool {
         //Putting all this together, the points (a,b), (m,n) and (x,y) are collinear if and only if
         //    (n−b)(x−m)=(y−n)(m−a)
@@ -144,6 +145,7 @@ impl Point {
         old_val
     }
 
+    // [ref:needs_unit_test]
     pub fn mirror(&self, c: Self) -> Self {
         let line = Line::from_two_points(*self, c);
         let perp = line.perpendicular(c);

@@ -27,13 +27,15 @@ const SYS_PS1: &str = ">>> ";
 const SYS_PS2: &str = "... ";
 const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more information.";
 
-// FIXME: show errors in UI instead of unwrapping
+// [ref:needs_user_doc]
+// [ref:needs_dev_doc]
+// [ref:FIXME]: show errors in UI instead of unwrapping
 
-// FIXME: Ctrl-C not working when issuing `help(gerb)`?
+// [ref:FIXME]: Ctrl-C not working when issuing `help(gerb)`?
 
-// TODO: Serialize messages and exceptions in JSON.
+// [ref:TODO]: Serialize messages and exceptions in JSON.
 //
-// TODO: Typing hints?
+// [ref:TODO]: Typing hints?
 
 #[derive(Clone, Copy)]
 pub enum LinePrefix {
@@ -135,7 +137,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         clone!(@weak app, @weak list, @weak adj => @default-return Continue(false), move |msg: String| {
             match msg.as_str() {
                 "project-name" => tx_py2.send(app.window.project().property::<String>(Project::NAME)).unwrap(),
-                //FIXME: send serialized error
+                // [ref:FIXME]: send serialized error
                 _ => tx_py2.send(String::new()).unwrap(),
             }
             Continue(true)

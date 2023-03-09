@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 use crate::glyphs::{Glyph, Guideline};
 use crate::prelude::*;
 
-// FIXME: how do we detect if a Project is no longer modified when a user undos the modifications?
+// [ref:FIXME]: how do we detect if a Project is no longer modified when a user undos the modifications?
 //
 // An idea is to keep a counter of single modifications, and decrease it when the user performs an
 // undo action.
@@ -408,7 +408,7 @@ impl Project {
                     .name(Some(name.to_string()))
                     .identifier(Some(name.to_string()))
                     .y(Some(field))
-                    .color(Some(Color::from_hex("#bbbaae")))
+                    .color(Some(Color::from_hex("#bbbaae"))) // [ref:hardcoded_color_value]
                     .build();
                 ret.link(&g);
                 ret.bind_property(name, &g, Guideline::Y)

@@ -331,7 +331,7 @@ impl ToolImplImpl for PanningToolInner {
                                 /* resize glyph width box */
                                 self.instance()
                                     .set_property::<bool>(PanningTool::ACTIVE, true);
-                                // DOC
+                                // [ref:needs_user_doc]
                                 self.mode.set(Mode::ResizeDimensions { previous_value });
                                 viewport.set_cursor("grab");
                                 return Inhibit(true);
@@ -709,6 +709,7 @@ impl ToolImplImpl for PanningToolInner {
             return Inhibit(true);
         } else if event.state().contains(gtk::gdk::ModifierType::CONTROL_MASK) {
             if let Mode::DragGuideline(idx) = self.mode.get() {
+                // [ref:needs_user_doc]
                 /* rotate guideline that is currently being dragged */
                 let (_dx, dy) = event.delta();
                 let state = view.state().borrow();
@@ -728,7 +729,8 @@ impl ToolImplImpl for PanningToolInner {
             }
         } else {
             /* Grow/shrink control points when scrolling above an on-curve point.*/
-            // DOC
+            // [ref:needs_user_doc]
+            // [ref:needs_unit_test]
             let (dx, dy) = event.delta();
             if !((dx != 0.0) ^ (dy != 0.0)) {
                 return Inhibit(true);
@@ -833,7 +835,7 @@ impl ToolImplImpl for PanningToolInner {
                 let mut delta =
                     (<_ as Into<Point>>::into(event.position()) - mouse.0) / (scale * ppu);
                 delta.y *= -1.0;
-                // DOC
+                // [ref:needs_user_doc]
                 match Lock::from_bits(view.property(Editor::LOCK)) {
                     Some(Lock::X) => {
                         delta.y = 0.0;
@@ -842,7 +844,7 @@ impl ToolImplImpl for PanningToolInner {
                         delta.x = 0.0;
                     }
                     Some(Lock::LOCAL) => {
-                        // FIXME ugly, wobbly but mostly works
+                        // [ref:FIXME] ugly, wobbly but mostly works
                         let selection = state.get_selection();
                         if !selection.is_empty() {
                             let UnitPoint(upos) = viewport
@@ -1221,8 +1223,8 @@ impl PanningTool {
             let extents = cr2.text_extents("Cancel").unwrap();
             let ViewPoint(mouse) = viewport.get_mouse();
             let scale_factor = viewport.scale_factor();
-            // FIXME remove unwraps
-            // FIXME don't allocate a pixbuf in every draw call
+            // [ref:FIXME] remove unwraps
+            // [ref:FIXME] don't allocate a pixbuf in every draw call
             /*
             let esc = crate::resources::icons::ESC_BUTTON
                 .to_pixbuf()

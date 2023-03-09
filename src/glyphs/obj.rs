@@ -301,7 +301,7 @@ impl CreatePropertyWindow for GlyphMetadata {
                     let text = entry.text();
                     if let Some(t) = text.strip_prefix("u+").or_else(|| text.strip_prefix("U+")) {
                         let val = Unicode::new(t.to_string());
-                        // TODO show error to user
+                        // [ref:TODO] show error to user
                         if let Ok(kind) = GlyphKind::try_from(&val) {
                             kinds.0 = kind;
                             unicodes.clear();

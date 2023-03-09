@@ -124,14 +124,16 @@ impl ObjectImpl for CanvasInner {
         self.show_direction
             .set(CanvasInner::SHOW_DIRECTION_INIT_VAL);
         self.direction_options
-            .set((Color::from_hex("#0478A2").with_alpha_f64(0.9), 2.0).into());
+            .set((Color::from_hex("#0478A2").with_alpha_f64(0.9), 2.0).into()); // [ref:hardcoded_color_value]
         self.handle_connection_options.set(DrawOptions::from((
+            // [ref:hardcoded_color_value]
             Color::BLACK.with_alpha_f64(0.9),
             1.0,
             Canvas::LINE_WIDTH,
         )));
         self.handle_options.set(
             DrawOptions::from((
+                // [ref:hardcoded_color_value]
                 Color::from_hex("#333333").with_alpha_f64(0.6),
                 5.0,
                 Canvas::HANDLE_SIZE,
@@ -140,7 +142,7 @@ impl ObjectImpl for CanvasInner {
         );
         self.smooth_corner_options.set(
             (
-                Color::from_hex("#333333").with_alpha_f64(0.6),
+                Color::from_hex("#333333").with_alpha_f64(0.6), // [ref:hardcoded_color_value]
                 5.0,
                 Canvas::HANDLE_SIZE,
             )
@@ -148,7 +150,7 @@ impl ObjectImpl for CanvasInner {
         );
         self.corner_options.set(
             (
-                Color::from_hex("#333333").with_alpha_f64(0.6),
+                Color::from_hex("#333333").with_alpha_f64(0.6), // [ref:hardcoded_color_value]
                 5.0,
                 Canvas::HANDLE_SIZE,
             )
@@ -156,7 +158,7 @@ impl ObjectImpl for CanvasInner {
         );
         self.outline_options.set(
             (
-                Color::from_hex("#333333").with_alpha_f64(0.6),
+                Color::from_hex("#333333").with_alpha_f64(0.6), // [ref:hardcoded_color_value]
                 5.0,
                 Canvas::LINE_WIDTH,
             )
@@ -164,18 +166,18 @@ impl ObjectImpl for CanvasInner {
         );
         self.warp_cursor.set(CanvasInner::WARP_CURSOR_INIT_VAL);
         self.bg_color.set(Color::WHITE);
-        self.bg_color.set(Color::from_hex("#EEF8F8"));
+        self.bg_color.set(Color::from_hex("#EEF8F8")); // [ref:hardcoded_color_value]
         self.glyph_bbox_bg_color
-            .set(Color::new_alpha(210, 227, 252, 153));
-        self.glyph_inner_fill_color.set(Color::from_hex("#E6E6E4"));
+            .set(Color::new_alpha(210, 227, 252, 153)); // [ref:hardcoded_color_value]
+        self.glyph_inner_fill_color.set(Color::from_hex("#E6E6E4")); // [ref:hardcoded_color_value]
         self.ruler_fg_color
-            .set(CanvasInner::RULER_FG_COLOR_INIT_VAL);
+            .set(CanvasInner::RULER_FG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
         self.ruler_bg_color
-            .set(CanvasInner::RULER_BG_COLOR_INIT_VAL);
+            .set(CanvasInner::RULER_BG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
         self.ruler_indicator_color
-            .set(CanvasInner::RULER_INDICATOR_COLOR_INIT_VAL);
-        self.ruler_fg_color.set(Color::from_hex("#8B9494"));
-        self.ruler_bg_color.set(Color::from_hex("#F2F8F8"));
+            .set(CanvasInner::RULER_INDICATOR_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
+        self.ruler_fg_color.set(Color::from_hex("#8B9494")); // [ref:hardcoded_color_value]
+        self.ruler_bg_color.set(Color::from_hex("#F2F8F8")); // [ref:hardcoded_color_value]
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))

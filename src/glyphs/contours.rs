@@ -62,6 +62,7 @@ impl Contour {
         self.imp().curves.borrow().into()
     }
 
+    // [ref:needs_unit_test]
     pub fn recalc_continuities(&self) {
         let closed: bool = !self.imp().open.get();
         let curves = self.curves();
@@ -202,6 +203,7 @@ impl Contour {
         curves[curves.len() - 1].set_property(Bezier::CONTINUITY_OUT, Some(new));
     }
 
+    // [ref:needs_unit_test]
     fn calc_smooth_continuity(prev: &[CurvePoint], curr: &[CurvePoint]) -> Continuity {
         match (prev, curr) {
             (&[_, _, ref p2, ref p3_1], &[ref p3_2, ref p4, _, _])
@@ -241,6 +243,7 @@ impl Contour {
         }
     }
 
+    // [ref:needs_unit_test]
     pub fn transform_points(
         &self,
         contour_index: usize,
@@ -369,7 +372,7 @@ impl Contour {
                     // also transform neighbored handle if continuity constraints demand so
                     macro_rules! cont {
                         (between ($idx:expr) and next) => {{
-                            // FIXME
+                            // [ref:FIXME]
                             if $idx + 1 == curves.len() {
                                 debug_assert!(closed);
                                 curves[$idx]
@@ -480,7 +483,8 @@ impl Contour {
         )
     }
 
-    // FIXME: return None on line Beziers
+    // [ref:needs_unit_test]
+    // [ref:FIXME]: return None on line Beziers
     #[allow(clippy::type_complexity)]
     /// For an on-curve point, return neighboring control points.
     pub fn get_control_point(
@@ -572,6 +576,7 @@ impl Contour {
         curves.pop()
     }
 
+    // [ref:needs_unit_test]
     pub fn change_continuity(
         &self,
         GlyphPointIndex {

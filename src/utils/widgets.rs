@@ -117,6 +117,7 @@ impl BinImpl for ToggleButtonInner {}
 impl ContainerImpl for ToggleButtonInner {}
 impl WidgetImpl for ToggleButtonInner {}
 
+// [ref:needs_dev_doc]
 glib::wrapper! {
     pub struct ToggleButton(ObjectSubclass<ToggleButtonInner>)
         @extends gtk::Button, gtk::Widget;

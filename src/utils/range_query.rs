@@ -368,7 +368,7 @@ pub enum KdNode<Identifier: std::fmt::Debug + Copy, const N: usize> {
         split_at: Coordinate,
         min: IPoint,
         max: IPoint,
-        //TODO: use an inline array instead of Vec
+        // [ref:TODO]: use an inline array instead of Vec and measure if it's faster
         points: Vec<(Identifier, IPoint)>,
         size: usize,
     },
@@ -709,6 +709,7 @@ const MIN_IPOINT: IPoint = IPoint {
 
 type TDArena = Arena<KdNode<GlyphPointIndex, 2>>;
 
+// [ref:needs_dev_doc]
 #[derive(Debug, Clone, Default)]
 pub struct KdTree {
     arena: TDArena,

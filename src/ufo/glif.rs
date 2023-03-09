@@ -389,7 +389,7 @@ pub struct Glif {
     #[serde(rename = "guideline", default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub guidelines: Vec<Guideline>,
-    // FIXME: impl ser de
+    // [ref:FIXME]: impl ser de
     // <https://github.com/ebarnard/rust-plist/issues/79>
     #[serde(
         default,

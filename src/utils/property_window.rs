@@ -272,7 +272,7 @@ impl PropertyWindow {
                             .tooltip_text("Open file location.")
                             .build();
                         btn.connect_clicked(clone!(@weak obj, @strong property => move |_self| {
-                        //FIXME: show error to user, if any.
+                        // [ref:FIXME]: show error to user, if any.
                         let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
                         let Ok(prefix) = std::env::current_dir() else { return; };
                         let mut abs_path = prefix.join(&path);
@@ -863,7 +863,7 @@ pub fn get_widget_for_value(
                         .tooltip_text("Open file location.")
                         .build();
                     btn.connect_clicked(clone!(@weak obj, @strong property => move |_self| {
-                        //FIXME: show error to user, if any.
+                        // [ref:FIXME]: show error to user, if any.
                         let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
                         let Ok(prefix) = std::env::current_dir() else { return; };
                         let mut abs_path = prefix.join(&path);

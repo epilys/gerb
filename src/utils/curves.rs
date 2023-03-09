@@ -456,6 +456,7 @@ impl Bezier {
         ret
     }
 
+    // [ref:needs_unit_test]
     pub fn on_curve_query(&self, point: Point, error: Option<f64>) -> bool {
         let error = error.unwrap_or(15.0);
         let lut = self.get_lut(None);

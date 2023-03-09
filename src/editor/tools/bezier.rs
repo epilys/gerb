@@ -28,7 +28,7 @@ use crate::prelude::*;
 use crate::utils::{curves::Bezier, distance_between_two_points};
 use crate::views::canvas::{Layer, LayerBuilder};
 
-// DOC
+// [ref:needs_user_doc]
 ///```text
 ///   States                             Beginning                        Before transition
 ///==============================================================================================================
@@ -63,18 +63,21 @@ enum InnerState {
     Empty,
     FirstHandle {
         handle: Point,
+        // [ref:needs_user_doc]
         unlinked: bool,
         snap_to_angle: bool,
     },
     OnCurve,
     SecondHandle {
         handle: Point,
+        // [ref:needs_user_doc]
         unlinked: bool,
         snap_to_angle: bool,
     },
     ClosingHandle {
         handle: Point,
         unlinked: bool,
+        // [ref:needs_user_doc]
         snap_to_angle: bool,
     },
 }
