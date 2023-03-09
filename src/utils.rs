@@ -198,6 +198,11 @@ impl<'a, T> From<std::cell::Ref<'a, T>> for FieldRef<'a, T> {
     }
 }
 
+pub enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
 /// Helper trait that propagates true modified property values to a parent object. This is so that
 /// when a modified child sets its value to false, the parent value doesn't become false as well.
 ///

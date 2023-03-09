@@ -234,7 +234,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
         for (show_origin, g) in state_ref
             .glyph
             .borrow()
-            .guidelines
+            .guidelines()
             .iter()
             .filter(|_| show_glyph_guidelines)
             .map(|g| (true, g))

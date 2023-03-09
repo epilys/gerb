@@ -72,7 +72,7 @@ impl Default for GlyphKind {
 pub struct Glyph {
     pub contours: Vec<Contour>,
     pub components: Vec<Component>,
-    pub guidelines: Vec<Guideline>,
+    guidelines: Vec<Guideline>,
     pub lib: IndexMap<String, plist::Value>,
     pub metadata: GlyphMetadata,
 }
@@ -230,6 +230,33 @@ impl Glyph {
             lib: IndexMap::default(),
             metadata,
         }
+    }
+
+    pub fn guidelines(&self) -> &[Guideline] {
+        self.guidelines.as_slice()
+    }
+
+    pub fn add_guideline(&mut self, g: Guideline) {
+        self.metadata.link(&g);
+        self.guidelines.push(g);
+    }
+
+    pub fn remove_guideline(&mut self, g: Either<&Guideline, usize>) {
+        let i = match g {
+            Either::A(g) => {
+                if let Some(i) = self.guidelines.iter().position(|el| el == g) {
+                    i
+                } else {
+                    return;
+                }
+            }
+            Either::B(i) => i,
+        };
+        self.guidelines.remove(i);
+    }
+
+    pub fn pop_guideline(&mut self) {
+        self.guidelines.pop();
     }
 
     pub fn new_empty(name: &'static str, char: char) -> Self {
@@ -713,6 +740,200 @@ impl Glyph {
             .open(&path)?;
         file.write_all(glif.to_xml().as_bytes())?;
         Ok(())
+    }
+}
+
+impl From<glif::Glif> for Glyph {
+    fn from(val: glif::Glif) -> Glyph {
+        use glif::{Component, OutlineEntry, Point, PointKind};
+        let glif::Glif {
+            name,
+            outline,
+            advance,
+            image,
+            anchors,
+            guidelines,
+            unicode,
+            format: _,
+            lib,
+        } = val;
+
+        let kinds = if unicode.is_empty() {
+            (GlyphKind::Component(name.clone()), vec![])
+        } else {
+            let mut iter = unicode
+                .iter()
+                .filter_map(|unicode| u32::from_str_radix(unicode.hex(), 16).ok())
+                .filter_map(|n| n.try_into().ok())
+                .map(GlyphKind::Char);
+            let first = iter.next().unwrap();
+            (first, iter.collect::<Vec<_>>())
+        };
+        let mut ret = Glyph {
+            guidelines: guidelines
+                .into_iter()
+                .map(|g| {
+                    Guideline::builder()
+                        .name(g.name)
+                        .identifier(g.identifier)
+                        .color(g.color)
+                        .angle(g.angle)
+                        .x(g.x)
+                        .y(g.y)
+                        .build()
+                })
+                .collect::<Vec<_>>(),
+            lib,
+            ..Glyph::default()
+        };
+        *ret.metadata.name.borrow_mut() = name;
+        *ret.metadata.kinds.borrow_mut() = kinds;
+        *ret.metadata.unicode.borrow_mut() = unicode;
+        *ret.metadata.anchors.borrow_mut() = anchors;
+        *ret.metadata.image.borrow_mut() = image;
+        ret.metadata.advance.set(advance);
+        ret.metadata.width.set(advance.map(|a| a.width));
+
+        if let Some(outline) = outline {
+            for contour in outline.contours {
+                let contour = match contour {
+                    OutlineEntry::Contour(c) => c,
+                    OutlineEntry::Component(Component {
+                        base,
+                        x_offset,
+                        y_offset,
+                        x_scale,
+                        xy_scale,
+                        yx_scale,
+                        y_scale,
+                    }) => {
+                        ret.components.push(crate::glyphs::Component {
+                            base_name: base,
+                            base: std::rc::Weak::new(),
+                            x_offset,
+                            y_offset,
+                            x_scale,
+                            xy_scale,
+                            yx_scale,
+                            y_scale,
+                        });
+                        continue;
+                    }
+                };
+
+                let mut open = false;
+                let mut points = contour
+                    .point
+                    .iter()
+                    .collect::<std::collections::VecDeque<&_>>();
+                if points.is_empty() {
+                    continue;
+                }
+                let mut c;
+                let mut prev_point;
+                let mut last_oncurve;
+                if points.front().unwrap().is_move() {
+                    open = true;
+                    // Open contour
+                    let p = points.pop_front().unwrap();
+                    prev_point = (p.x, p.y);
+                    last_oncurve = prev_point;
+                    c = vec![prev_point];
+                } else {
+                    c = vec![];
+                    let first_point = points.front().unwrap();
+                    last_oncurve = (first_point.x, first_point.y);
+                    // Closed contour
+                    while points.front().unwrap().is_curve() {
+                        points.rotate_left(1);
+                    }
+                    let last_point = points.back().unwrap();
+                    prev_point = (last_point.x, last_point.y);
+                }
+                if points.front().unwrap().is_line() {
+                    let p = points.back().unwrap();
+                    prev_point = (p.x, p.y);
+                }
+                let super_ = crate::glyphs::Contour::new();
+                loop {
+                    match points.pop_front() {
+                        Some(Point {
+                            type_: PointKind::Move,
+                            ..
+                        }) => {
+                            panic!() // FIXME return Err
+                        }
+                        Some(Point {
+                            type_: PointKind::Offcurve,
+                            x,
+                            y,
+                            ..
+                        }) => {
+                            prev_point = (*x, *y);
+                            c.push(prev_point);
+                        }
+                        Some(Point {
+                            type_: PointKind::Curve,
+                            x,
+                            y,
+                            smooth,
+                            ..
+                        }) => {
+                            prev_point = (*x, *y);
+                            c.push(prev_point);
+                            c.insert(0, last_oncurve);
+                            let curv = Bezier::new(c.into_iter().map(Into::into).collect());
+                            if *smooth == Some(true) {
+                                curv.set_property(Bezier::SMOOTH, true);
+                            }
+                            super_.push_curve(curv);
+                            c = vec![];
+                            last_oncurve = prev_point;
+                        }
+                        Some(Point {
+                            type_: PointKind::Line,
+                            x,
+                            y,
+                            ..
+                        }) => {
+                            assert!(c.is_empty() || c.len() == 1);
+                            if c.is_empty() {
+                                c.push(prev_point);
+                            }
+                            c.push((*x, *y));
+                            super_.push_curve(Bezier::new(c.into_iter().map(Into::into).collect()));
+                            c = vec![];
+                            prev_point = (*x, *y);
+                            last_oncurve = prev_point;
+                        }
+                        Some(Point {
+                            type_: PointKind::Qcurve,
+                            ..
+                        }) => {
+                            todo!()
+                        }
+                        None => {
+                            if !c.is_empty() {
+                                if !c.contains(&prev_point) {
+                                    c.push(prev_point);
+                                }
+                                super_.push_curve(Bezier::new(
+                                    c.into_iter().map(Into::into).collect(),
+                                ));
+                            }
+                            break;
+                        }
+                    }
+                }
+                if !open {
+                    super_.close();
+                }
+                super_.is_contour_modified.set(true);
+                ret.contours.push(super_);
+            }
+        }
+
+        ret
     }
 }
 

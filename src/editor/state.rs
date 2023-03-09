@@ -87,13 +87,8 @@ impl State {
 
     pub fn new_guideline(&self, angle: f64, p: Point) -> Action {
         let (x, y) = (p.x, p.y);
-        let viewport = self.viewport.clone();
-        let guideline = Guideline::builder()
-            .angle(angle)
-            .x(x)
-            .y(y)
-            .with_random_identifier()
-            .build();
+        let identifier = crate::ufo::make_random_identifier();
+
         Action {
             stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
@@ -102,14 +97,21 @@ impl State {
             },
             compress: false,
             redo: Box::new(
-                clone!(@weak self.glyph as glyph, @weak viewport, @strong guideline => move || {
-                    glyph.borrow_mut().guidelines.push(guideline.clone());
+                clone!(@weak self.glyph as glyph, @weak self.viewport as viewport, @weak self.app as app => move || {
+                    let guideline = Guideline::builder()
+                        .angle(angle)
+                        .x(x)
+                        .y(y)
+                        .identifier(Some(identifier.clone()))
+                        .build();
+                    app.window.project.borrow().link(&guideline);
+                    glyph.borrow_mut().add_guideline(guideline);
                     viewport.queue_draw();
                 }),
             ),
             undo: Box::new(
-                clone!(@weak self.glyph as glyph, @weak viewport => move || {
-                    glyph.borrow_mut().guidelines.pop();
+                clone!(@weak self.glyph as glyph, @weak self.viewport as viewport => move || {
+                    glyph.borrow_mut().pop_guideline();
                     viewport.queue_draw();
                 }),
             ),
@@ -119,7 +121,7 @@ impl State {
     pub fn delete_guideline(&self, idx: usize) -> Action {
         let viewport = self.viewport.clone();
         let json: serde_json::Value =
-            { serde_json::to_value(self.glyph.borrow().guidelines[idx].imp()).unwrap() };
+            { serde_json::to_value(self.glyph.borrow().guidelines()[idx].imp()).unwrap() };
         Action {
             stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
@@ -129,13 +131,13 @@ impl State {
             compress: false,
             redo: Box::new(
                 clone!(@weak self.glyph as glyph, @weak viewport => move || {
-                    glyph.borrow_mut().guidelines.remove(idx);
+                    glyph.borrow_mut().remove_guideline(Either::B(idx));
                     viewport.queue_draw();
                 }),
             ),
             undo: Box::new(
                 clone!(@weak self.glyph as glyph, @weak viewport => move || {
-                    glyph.borrow_mut().guidelines.push(Guideline::try_from(json.clone()).unwrap());
+                    glyph.borrow_mut().add_guideline(Guideline::try_from(json.clone()).unwrap());
                     viewport.queue_draw();
                 }),
             ),
@@ -158,7 +160,7 @@ impl State {
             redo: Box::new(
                 clone!(@weak self.glyph as glyph, @weak viewport => move || {
                     let glyph = glyph.borrow();
-                    let g = &glyph.guidelines[idx];
+                    let g = &glyph.guidelines()[idx];
                     let x = g.property(Guideline::X);
                     let y = g.property(Guideline::Y);
                     let angle: f64 = g.property(Guideline::ANGLE);
@@ -173,7 +175,7 @@ impl State {
                 clone!(@weak self.glyph as glyph, @weak viewport => move || {
                     let m = if let Ok(m) = m.try_invert() {m} else {return;};
                     let glyph = glyph.borrow();
-                    let g = &glyph.guidelines[idx];
+                    let g = &glyph.guidelines()[idx];
                     let x = g.property(Guideline::X);
                     let y = g.property(Guideline::Y);
                     let angle: f64 = g.property(Guideline::ANGLE);

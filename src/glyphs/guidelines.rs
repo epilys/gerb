@@ -32,6 +32,7 @@ pub struct GuidelineInner {
     pub x: Cell<f64>,
     pub y: Cell<f64>,
     pub color: Cell<Option<Color>>,
+    pub modified: Cell<bool>,
 }
 
 #[glib::object_subclass]
@@ -51,6 +52,13 @@ impl ObjectImpl for GuidelineInner {
         static PROPERTIES: once_cell::sync::Lazy<Vec<ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
                 vec![
+                    glib::ParamSpecBoolean::new(
+                        Guideline::MODIFIED,
+                        Guideline::MODIFIED,
+                        Guideline::MODIFIED,
+                        false,
+                        ParamFlags::READWRITE,
+                    ),
                     ParamSpecString::new(
                         Guideline::NAME,
                         Guideline::NAME,
@@ -112,17 +120,49 @@ impl ObjectImpl for GuidelineInner {
             Guideline::X => self.x.get().to_value(),
             Guideline::Y => self.y.get().to_value(),
             Guideline::COLOR => self.color.get().unwrap_or(Self::COLOR).to_value(),
+            Guideline::MODIFIED => self.modified.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
 
     fn set_property(&self, _obj: &Self::Type, _id: usize, value: &Value, pspec: &ParamSpec) {
+        macro_rules! set_cell {
+            ($field:tt) => {{
+                let val = value.get().unwrap();
+                if val != self.$field.get() {
+                    self.instance().set_property(Guideline::MODIFIED, true);
+                    self.$field.set(val);
+                }
+            }};
+            ($val:ident, $field:tt) => {{
+                if $val != self.$field.get() {
+                    self.instance().set_property(Guideline::MODIFIED, true);
+                    self.$field.set($val);
+                }
+            }};
+        }
+        macro_rules! set_refcell {
+            ($field:ident) => {{
+                let val: String = value.get().unwrap();
+                if val != self.$field.borrow() {
+                    self.instance().set_property(Guideline::MODIFIED, true);
+                    *self.$field.borrow_mut() = val;
+                }
+            }};
+            (opt $field:tt) => {{
+                let val: String = value.get().unwrap();
+                if Some(&val) != self.$field.borrow().as_ref() {
+                    self.instance().set_property(Guideline::MODIFIED, true);
+                    *self.$field.borrow_mut() = Some(val);
+                }
+            }};
+        }
         match pspec.name() {
             Guideline::NAME => {
-                *self.name.borrow_mut() = value.get().unwrap();
+                set_refcell!(opt name);
             }
             Guideline::IDENTIFIER => {
-                *self.identifier.borrow_mut() = value.get().unwrap();
+                set_refcell!(opt identifier);
             }
             Guideline::ANGLE => {
                 let mut val: f64 = value.get().unwrap();
@@ -130,17 +170,15 @@ impl ObjectImpl for GuidelineInner {
                     while val < 0.0 {
                         val += 360.0;
                     }
-                    self.angle.set(val % 180.0);
+                    val %= 180.0;
+                    set_cell!(val, angle);
                 }
             }
-            Guideline::X => {
-                self.x.set(value.get().unwrap());
-            }
-            Guideline::Y => {
-                self.y.set(value.get().unwrap());
-            }
-            Guideline::COLOR => {
-                self.color.set(Some(value.get().unwrap()));
+            Guideline::X => set_cell!(x),
+            Guideline::Y => set_cell!(y),
+            Guideline::COLOR => set_cell!(color),
+            Guideline::MODIFIED => {
+                self.modified.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -286,6 +324,7 @@ impl Guideline {
     pub const ANGLE: &str = "angle";
     pub const X: &str = "x";
     pub const Y: &str = "y";
+    pub const MODIFIED: &str = "modified";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -316,11 +355,17 @@ impl Guideline {
         self.property(Guideline::Y)
     }
 
+    #[inline(always)]
+    pub fn modified(&self) -> bool {
+        self.imp().modified.get()
+    }
+
     pub fn builder() -> GuidelineBuilder {
         GuidelineBuilder::new()
     }
 }
 
+impl_modified!(Guideline);
 impl_property_window!(Guideline);
 
 pub struct GuidelineBuilder(Guideline);
@@ -372,6 +417,7 @@ impl GuidelineBuilder {
     }
 
     pub fn build(self) -> Guideline {
+        self.0.imp().modified.set(true);
         self.0
     }
 }

@@ -59,7 +59,7 @@ pub mod prelude {
     pub use utils::range_query::Coordinate;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
     pub use utils::{ContextExt, ContextRef};
-    pub use utils::{FieldRef, Modified, UI_EDITABLE, UI_PATH, UI_READABLE};
+    pub use utils::{Either, FieldRef, Modified, UI_EDITABLE, UI_PATH, UI_READABLE};
     pub use views::{canvas, Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint};
     pub use window::Workspace;
 

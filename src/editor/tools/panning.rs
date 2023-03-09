@@ -245,7 +245,7 @@ impl ToolImplImpl for PanningToolInner {
                     .borrow()
                     .glyph
                     .borrow()
-                    .guidelines
+                    .guidelines()
                     .iter()
                     .enumerate()
                 {
@@ -371,7 +371,7 @@ impl ToolImplImpl for PanningToolInner {
                     .borrow()
                     .glyph
                     .borrow()
-                    .guidelines
+                    .guidelines()
                     .iter()
                     .enumerate()
                 {
@@ -394,7 +394,7 @@ impl ToolImplImpl for PanningToolInner {
                                 "Delete",
                                 clone!(@weak view as obj, @weak viewport =>  move |_| {
                                     let state = obj.state().borrow();
-                                    if state.glyph.borrow().guidelines.get(i).is_some() { // Prevent panic if `i` out of bounds
+                                    if state.glyph.borrow().guidelines().get(i).is_some() { // Prevent panic if `i` out of bounds
                                         let mut action = state.delete_guideline(i);
                                         (action.redo)();
                                         state.add_undo_action(action);
@@ -712,7 +712,7 @@ impl ToolImplImpl for PanningToolInner {
                 /* rotate guideline that is currently being dragged */
                 let (_dx, dy) = event.delta();
                 let state = view.state().borrow();
-                if let Some(g) = state.glyph.borrow().guidelines.get(idx) {
+                if let Some(g) = state.glyph.borrow().guidelines().get(idx) {
                     let (x, y) = (g.x.get(), g.y.get());
                     let UnitPoint(u_p) =
                         viewport.view_to_unit_point(ViewPoint(event.position().into()));
@@ -1459,7 +1459,7 @@ fn snap_to_closest_anchor(
         for g in state
             .glyph
             .borrow()
-            .guidelines
+            .guidelines()
             .iter()
             .filter(|_| guidelines)
             .chain(

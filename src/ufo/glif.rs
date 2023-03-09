@@ -22,10 +22,8 @@
 extern crate quick_xml;
 extern crate serde;
 
-use crate::glib::ObjectExt;
 use crate::glyphs;
 use crate::utils::colors::Color;
-use crate::utils::curves::Bezier;
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 
@@ -73,9 +71,9 @@ fn pointkind_is_default(val: &PointKind) -> bool {
     *val == PointKind::Offcurve
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-enum PointKind {
+pub enum PointKind {
     /// A point of this type MUST be the first in a contour. The reverse is not true: a contour does not necessarily start with a move point. When a contour does start with a move point, it signifies the beginning of an open contour. A closed contour does not start with a move and is defined as a cyclic list of points, with no predominant start point. There is always a next point and a previous point. For this purpose the list of points can be seen as endless in both directions. The actual list of points can be rotated arbitrarily (by removing the first N points and appending them at the end) while still describing the same outline.
     Move,
     /// Draw a straight line from the previous point to this point. The previous point may be a move, a line, a curve or a qcurve, but not an offcurve.
@@ -124,86 +122,86 @@ where
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename = "point")]
-struct Point {
+pub struct Point {
     #[serde(rename = "@x")]
-    x: f64,
+    pub x: f64,
     #[serde(rename = "@y")]
-    y: f64,
+    pub y: f64,
     #[serde(default)]
     #[serde(rename = "@name")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
     #[serde(default)]
     #[serde(rename = "@identifier")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    identifier: Option<String>,
+    pub identifier: Option<String>,
     #[serde(rename = "@type", default)]
     #[serde(skip_serializing_if = "pointkind_is_default")]
-    type_: PointKind,
+    pub type_: PointKind,
     #[serde(rename = "@smooth")]
     #[serde(default)]
     #[serde(serialize_with = "smooth_serialize")]
     #[serde(deserialize_with = "smooth_deserialize")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    smooth: Option<bool>,
+    pub smooth: Option<bool>,
 }
 
 impl Point {
     #[inline(always)]
-    fn is_curve(&self) -> bool {
+    pub fn is_curve(&self) -> bool {
         matches!(self.type_, PointKind::Curve)
     }
 
     #[inline(always)]
-    fn is_move(&self) -> bool {
+    pub fn is_move(&self) -> bool {
         matches!(self.type_, PointKind::Move)
     }
 
     #[inline(always)]
-    fn is_line(&self) -> bool {
+    pub fn is_line(&self) -> bool {
         matches!(self.type_, PointKind::Line)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename = "contour")]
-struct Contour {
+pub struct Contour {
     #[serde(default)]
     #[serde(rename = "@identifier")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    identifier: Option<String>,
+    pub identifier: Option<String>,
     #[serde(default)]
-    point: Vec<Point>,
+    pub point: Vec<Point>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
-struct Component {
+pub struct Component {
     #[serde(rename = "@base")]
-    base: String,
+    pub base: String,
     #[serde(rename = "@xOffset")]
     #[serde(default)]
-    x_offset: f64,
+    pub x_offset: f64,
     #[serde(default)]
     #[serde(rename = "@yOffset")]
-    y_offset: f64,
+    pub y_offset: f64,
     #[serde(default = "f64_one_val")]
     #[serde(rename = "@xScale")]
-    x_scale: f64,
+    pub x_scale: f64,
     #[serde(default)]
     #[serde(rename = "@xyScale")]
-    xy_scale: f64,
+    pub xy_scale: f64,
     #[serde(default)]
     #[serde(rename = "@yxScale")]
-    yx_scale: f64,
+    pub yx_scale: f64,
     #[serde(default = "f64_one_val")]
     #[serde(rename = "@yScale")]
-    y_scale: f64,
+    pub y_scale: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
-enum OutlineEntry {
+pub enum OutlineEntry {
     Contour(Contour),
     Component(Component),
 }
@@ -211,37 +209,37 @@ enum OutlineEntry {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Anchor {
     #[serde(rename = "@name")]
-    name: String,
+    pub name: String,
     #[serde(rename = "@x")]
-    x: f64,
+    pub x: f64,
     #[serde(rename = "@y")]
-    y: f64,
+    pub y: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-struct Guideline {
+pub struct Guideline {
     #[serde(default)]
     #[serde(rename = "@name")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
     #[serde(default)]
     #[serde(rename = "@identifier")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    identifier: Option<String>,
+    pub identifier: Option<String>,
     #[serde(default)]
     #[serde(rename = "@color")]
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(serialize_with = "color_serialize")]
-    color: Option<Color>,
+    pub color: Option<Color>,
     #[serde(default)]
     #[serde(rename = "@angle")]
-    angle: f64,
+    pub angle: f64,
     #[serde(default)]
     #[serde(rename = "@x")]
-    x: f64,
+    pub x: f64,
     #[serde(default)]
     #[serde(rename = "@y")]
-    y: f64,
+    pub y: f64,
 }
 
 impl From<&glyphs::Guideline> for Guideline {
@@ -258,11 +256,11 @@ impl From<&glyphs::Guideline> for Guideline {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-struct Outline {
+pub struct Outline {
     #[serde(default)]
     #[serde(rename = "$value")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    contours: Vec<OutlineEntry>,
+    pub contours: Vec<OutlineEntry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -322,11 +320,11 @@ pub struct Advance {
     #[serde(rename = "@width")]
     #[serde(default)]
     #[serde(skip_serializing_if = "f64_is_zero")]
-    width: f64,
+    pub width: f64,
     #[serde(rename = "@height")]
     #[serde(default)]
     #[serde(skip_serializing_if = "f64_is_zero")]
-    height: f64,
+    pub height: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -370,28 +368,28 @@ pub struct ImageRef {
 #[serde(rename = "glyph")]
 pub struct Glif {
     #[serde(rename = "@name")]
-    name: String,
+    pub name: String,
     #[serde(rename = "@format")]
     #[serde(skip_serializing_if = "Option::is_none")]
-    format: Option<String>,
+    pub format: Option<String>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    unicode: Vec<Unicode>,
+    pub unicode: Vec<Unicode>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    image: Option<ImageRef>,
+    pub image: Option<ImageRef>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    advance: Option<Advance>,
+    pub advance: Option<Advance>,
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    outline: Option<Outline>,
+    pub outline: Option<Outline>,
     #[serde(rename = "anchor", default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    anchors: Vec<Anchor>,
+    pub anchors: Vec<Anchor>,
     #[serde(rename = "guideline", default)]
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    guidelines: Vec<Guideline>,
+    pub guidelines: Vec<Guideline>,
     // FIXME: impl ser de
     // <https://github.com/ebarnard/rust-plist/issues/79>
     #[serde(
@@ -402,7 +400,7 @@ pub struct Glif {
         serialize_with = "_plist_ser",
         deserialize_with = "_plist_de"
     )]
-    lib: IndexMap<String, plist::Value>,
+    pub lib: IndexMap<String, plist::Value>,
 }
 
 fn _plist_de<'de, D>(deserializer: D) -> Result<IndexMap<String, plist::Value>, D::Error>
@@ -434,200 +432,6 @@ impl Glif {
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}\n",
             quick_xml::se::to_string(&self).unwrap(),
         )
-    }
-}
-
-impl From<Glif> for glyphs::Glyph {
-    fn from(val: Glif) -> glyphs::Glyph {
-        use glyphs::Glyph;
-        let Glif {
-            name,
-            outline,
-            advance,
-            image,
-            anchors,
-            guidelines,
-            unicode,
-            format: _,
-            lib,
-        } = val;
-
-        let kinds = if unicode.is_empty() {
-            (glyphs::GlyphKind::Component(name.clone()), vec![])
-        } else {
-            let mut iter = unicode
-                .iter()
-                .filter_map(|unicode| u32::from_str_radix(unicode.hex.as_str(), 16).ok())
-                .filter_map(|n| n.try_into().ok())
-                .map(glyphs::GlyphKind::Char);
-            let first = iter.next().unwrap();
-            (first, iter.collect::<Vec<_>>())
-        };
-        let mut ret = Glyph {
-            guidelines: guidelines
-                .into_iter()
-                .map(|g| {
-                    glyphs::Guideline::builder()
-                        .name(g.name)
-                        .identifier(g.identifier)
-                        .color(g.color)
-                        .angle(g.angle)
-                        .x(g.x)
-                        .y(g.y)
-                        .build()
-                })
-                .collect::<Vec<_>>(),
-            lib,
-            ..Glyph::default()
-        };
-        *ret.metadata.name.borrow_mut() = name;
-        *ret.metadata.kinds.borrow_mut() = kinds;
-        *ret.metadata.unicode.borrow_mut() = unicode;
-        *ret.metadata.anchors.borrow_mut() = anchors;
-        *ret.metadata.image.borrow_mut() = image;
-        ret.metadata.advance.set(advance);
-        ret.metadata.width.set(advance.map(|a| a.width));
-
-        if let Some(outline) = outline {
-            for contour in outline.contours {
-                let contour = match contour {
-                    OutlineEntry::Contour(c) => c,
-                    OutlineEntry::Component(Component {
-                        base,
-                        x_offset,
-                        y_offset,
-                        x_scale,
-                        xy_scale,
-                        yx_scale,
-                        y_scale,
-                    }) => {
-                        ret.components.push(glyphs::Component {
-                            base_name: base,
-                            base: std::rc::Weak::new(),
-                            x_offset,
-                            y_offset,
-                            x_scale,
-                            xy_scale,
-                            yx_scale,
-                            y_scale,
-                        });
-                        continue;
-                    }
-                };
-
-                let mut open = false;
-                let mut points = contour
-                    .point
-                    .iter()
-                    .collect::<std::collections::VecDeque<&_>>();
-                if points.is_empty() {
-                    continue;
-                }
-                let mut c;
-                let mut prev_point;
-                let mut last_oncurve;
-                if points.front().unwrap().is_move() {
-                    open = true;
-                    // Open contour
-                    let p = points.pop_front().unwrap();
-                    prev_point = (p.x, p.y);
-                    last_oncurve = prev_point;
-                    c = vec![prev_point];
-                } else {
-                    c = vec![];
-                    let first_point = points.front().unwrap();
-                    last_oncurve = (first_point.x, first_point.y);
-                    // Closed contour
-                    while points.front().unwrap().is_curve() {
-                        points.rotate_left(1);
-                    }
-                    let last_point = points.back().unwrap();
-                    prev_point = (last_point.x, last_point.y);
-                }
-                if points.front().unwrap().is_line() {
-                    let p = points.back().unwrap();
-                    prev_point = (p.x, p.y);
-                }
-                let super_ = glyphs::Contour::new();
-                loop {
-                    match points.pop_front() {
-                        Some(Point {
-                            type_: PointKind::Move,
-                            ..
-                        }) => {
-                            panic!() // FIXME return Err
-                        }
-                        Some(Point {
-                            type_: PointKind::Offcurve,
-                            x,
-                            y,
-                            ..
-                        }) => {
-                            prev_point = (*x, *y);
-                            c.push(prev_point);
-                        }
-                        Some(Point {
-                            type_: PointKind::Curve,
-                            x,
-                            y,
-                            smooth,
-                            ..
-                        }) => {
-                            prev_point = (*x, *y);
-                            c.push(prev_point);
-                            c.insert(0, last_oncurve);
-                            let curv = Bezier::new(c.into_iter().map(Into::into).collect());
-                            if *smooth == Some(true) {
-                                curv.set_property(Bezier::SMOOTH, true);
-                            }
-                            super_.push_curve(curv);
-                            c = vec![];
-                            last_oncurve = prev_point;
-                        }
-                        Some(Point {
-                            type_: PointKind::Line,
-                            x,
-                            y,
-                            ..
-                        }) => {
-                            assert!(c.is_empty() || c.len() == 1);
-                            if c.is_empty() {
-                                c.push(prev_point);
-                            }
-                            c.push((*x, *y));
-                            super_.push_curve(Bezier::new(c.into_iter().map(Into::into).collect()));
-                            c = vec![];
-                            prev_point = (*x, *y);
-                            last_oncurve = prev_point;
-                        }
-                        Some(Point {
-                            type_: PointKind::Qcurve,
-                            ..
-                        }) => {
-                            todo!()
-                        }
-                        None => {
-                            if !c.is_empty() {
-                                if !c.contains(&prev_point) {
-                                    c.push(prev_point);
-                                }
-                                super_.push_curve(Bezier::new(
-                                    c.into_iter().map(Into::into).collect(),
-                                ));
-                            }
-                            break;
-                        }
-                    }
-                }
-                if !open {
-                    super_.close();
-                }
-                super_.is_contour_modified.set(true);
-                ret.contours.push(super_);
-            }
-        }
-
-        ret
     }
 }
 
@@ -719,7 +523,7 @@ impl From<&glyphs::Glyph> for Glif {
             advance: glyph.metadata.advance.get(),
             outline: Some(Outline { contours: outline }),
             anchors: glyph.metadata.anchors.borrow().clone(),
-            guidelines: glyph.guidelines.iter().map(Into::into).collect(),
+            guidelines: glyph.guidelines().iter().map(Into::into).collect(),
             lib: glyph.lib.clone(),
         }
     }

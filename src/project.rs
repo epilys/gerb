@@ -27,6 +27,11 @@ use std::path::{Path, PathBuf};
 use crate::glyphs::{Glyph, Guideline};
 use crate::prelude::*;
 
+// FIXME: how do we detect if a Project is no longer modified when a user undos the modifications?
+//
+// An idea is to keep a counter of single modifications, and decrease it when the user performs an
+// undo action.
+
 #[derive(Debug)]
 pub struct ProjectInner {
     name: RefCell<String>,
@@ -360,6 +365,12 @@ impl Project {
             .clone()
             .into_iter()
             .map(Guideline::try_from)
+            .map(|g| {
+                if let Ok(g) = g.as_ref() {
+                    ret.link(g);
+                }
+                g
+            })
             .collect::<Result<Vec<Guideline>, String>>()?;
         for property in [
             Project::FAMILY_NAME,
@@ -395,14 +406,14 @@ impl Project {
                 (Project::DESCENDER, ret.descender.get()),
                 (Project::CAP_HEIGHT, ret.cap_height.get()),
             ] {
-                metric_guidelines.push(
-                    Guideline::builder()
-                        .name(Some(name.to_string()))
-                        .identifier(Some(name.to_string()))
-                        .y(field)
-                        .color(Some(Color::from_hex("#bbbaae")))
-                        .build(),
-                );
+                let g = Guideline::builder()
+                    .name(Some(name.to_string()))
+                    .identifier(Some(name.to_string()))
+                    .y(field)
+                    .color(Some(Color::from_hex("#bbbaae")))
+                    .build();
+                ret.link(&g);
+                metric_guidelines.push(g);
             }
         }
         Ok(ret)
