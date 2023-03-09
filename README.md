@@ -22,6 +22,9 @@ It uses the [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) form
 
 Integrated export to `{ttf, otf}` files is planned by using [`ufo2ft`](https://github.com/googlefonts/ufo2ft).
 
+| :information_source: Interested in contributing? Consult [`CONTRIBUTING.md`](./CONTRIBUTING.md).|
+| ---                                                                                             |
+
 ## Build & Run
 
 To build, you will need Rust's `cargo` tool.
