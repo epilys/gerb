@@ -50,6 +50,7 @@ const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more inform
 // [ref:TODO]: Typing hints?
 
 #[derive(Clone, Copy)]
+#[repr(u8)]
 pub enum LinePrefix {
     Output,
     Ps1,
@@ -58,7 +59,73 @@ pub enum LinePrefix {
 
 /// Python shell history
 pub struct ShellHistory {
+    cursor: Cell<usize>,
     history: Vec<(LinePrefix, String)>,
+}
+
+impl ShellHistory {
+    pub fn prev(&self) -> Option<&str> {
+        let cursor = self.cursor.get();
+        if cursor == 0 {
+            return None;
+        }
+        let (i, ret) = self
+            .history
+            .get(..cursor)?
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(i, (lp, l))| {
+                if !matches!(lp, LinePrefix::Output) && !l.is_empty() {
+                    Some((i, l.as_str()))
+                } else {
+                    None
+                }
+            })?;
+        self.cursor.set(i);
+        Some(ret)
+    }
+
+    pub fn next(&self) -> Option<&str> {
+        let cursor = self.cursor.get();
+        if cursor + 1 == self.history.len() {
+            return None;
+        }
+        let (i, ret) = self
+            .history
+            .get(cursor + 1..)?
+            .iter()
+            .enumerate()
+            .find_map(|(i, (lp, l))| {
+                if !matches!(lp, LinePrefix::Output) && !l.is_empty() {
+                    Some((i, l.as_str()))
+                } else {
+                    None
+                }
+            })?;
+        self.cursor.set(cursor + 1 + i);
+        Some(ret)
+    }
+
+    pub fn push(&mut self, (prefix, line): (LinePrefix, String)) {
+        match self.history.last_mut() {
+            Some((LinePrefix::Ps1 | LinePrefix::Ps2, llast))
+                if matches!(prefix, LinePrefix::Ps2) =>
+            {
+                llast.push('\n');
+                llast.push_str(&line);
+                return;
+            }
+            _ => {}
+        }
+        self.cursor.set(self.history.len());
+        self.history.push((prefix, line));
+    }
+
+    pub fn clear(&mut self) {
+        self.history.clear();
+        self.cursor.set(0);
+    }
 }
 
 /// Setup python shell window
@@ -134,7 +201,10 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     });
     let globals_dict: Py<PyDict> = Python::with_gil(|py| setup_globals(py, &locals_dict).unwrap());
 
-    let hist = Rc::new(RefCell::new(ShellHistory { history: vec![] }));
+    let hist = Rc::new(RefCell::new(ShellHistory {
+        cursor: Cell::new(0),
+        history: vec![],
+    }));
 
     // shell stdout channel
     let (tx, rx) = MainContext::channel::<(LinePrefix, String)>(PRIORITY_DEFAULT);
@@ -168,7 +238,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
                     LinePrefix::Ps1 => SYS_PS1,
                     LinePrefix::Ps2 => SYS_PS2,
                 })));
-                hist.borrow_mut().history.push((prefix, msg));
+                hist.borrow_mut().push((prefix, msg));
                 label.set_wrap(true);
                 label.set_selectable(true);
                 label.set_visible(true);
@@ -193,6 +263,26 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             eprintln!("Internal error: {err}");
         }
     }));
+    entry.set_events(gdk::EventMask::KEY_PRESS_MASK);
+    entry.connect_key_press_event(
+        clone!(@weak app, @weak list, @weak adj, @weak hist => @default-return Inhibit(false), move |entry, event| {
+            if event.keyval() == gdk::keys::constants::Up {
+                if let Some(prev) = hist.borrow().prev() {
+                    entry.buffer().set_text(prev);
+                    entry.set_position(-1);
+                }
+                Inhibit(true)
+            } else if event.keyval() == gdk::keys::constants::Down {
+                if let Some(next) = hist.borrow().next() {
+                    entry.buffer().set_text(next);
+                    entry.set_position(-1);
+                }
+                Inhibit(true)
+            } else {
+                Inhibit(false)
+            }
+        }),
+    );
 
     {
         let clear_btn = gtk::Button::builder()
@@ -206,7 +296,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             for c in list.children() {
                 list.remove(&c);
             }
-            hist.borrow_mut().history.clear();
+            hist.borrow_mut().clear();
         }));
         let save_history_btn = gtk::Button::builder()
             .label("Save history")
@@ -282,13 +372,16 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             .halign(gtk::Align::Fill)
             .valign(gtk::Align::Fill)
             .build();
-        enter_btn.connect_clicked(clone!(@weak w => move |_| {
+        enter_btn.connect_clicked(clone!(@weak entry => move |_| {
+            entry.activate();
+            entry.set_has_focus(true);
         }));
         entry_container.pack_start(&entry, true, true, 0);
         entry_container.pack_end(&enter_btn, false, false, 0);
         b.pack_start(&entry_container, false, true, 0);
     }
     w.set_child(Some(&b));
+    entry.set_has_focus(true);
     w.show_all();
     w
 }
