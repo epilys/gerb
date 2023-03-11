@@ -183,7 +183,7 @@ impl ToolImplImpl for BezierToolInner {
             let mut c = self.contour.borrow_mut();
             let UnitPoint(point) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
             if c.is_none() {
-                let mut state = view.state().borrow_mut();
+                let state = view.state().borrow();
                 let current_curve = Bezier::new(vec![point]);
                 current_curve.set_property(Bezier::SMOOTH, true);
                 let contour_index = state.glyph.borrow().contours.len();

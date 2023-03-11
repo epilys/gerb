@@ -36,7 +36,7 @@ pub struct State {
 
 impl State {
     pub fn new(glyph: &Rc<RefCell<Glyph>>, app: Application, viewport: Canvas) -> Self {
-        let mut ret = Self {
+        let ret = Self {
             app,
             glyph: Rc::clone(glyph),
             viewport,
@@ -54,7 +54,7 @@ impl State {
         ret
     }
 
-    pub fn add_contour(&mut self, contour: &Contour, contour_index: usize) -> Action {
+    pub fn add_contour(&self, contour: &Contour, contour_index: usize) -> Action {
         Action {
             stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
@@ -82,6 +82,35 @@ impl State {
                     }
                 }),
             ),
+        }
+    }
+
+    pub fn reverse_contour(&self, contour: &Contour, contour_index: usize) -> Action {
+        let cl = Box::new(
+            clone!(@weak self.kd_tree as kd_tree, @weak contour as contour  => move || {
+                let mut kd_tree = kd_tree.borrow_mut();
+                for (curve_index, curve) in contour.curves().iter().enumerate() {
+                    for idx in curve.points().iter().map(|p| p.glyph_index(contour_index, curve_index)) {
+                        kd_tree.remove(idx);
+                    }
+                }
+                contour.reverse_direction();
+                for (curve_index, curve) in contour.curves().iter().enumerate() {
+                    for (idx, pos) in curve.points().iter().map(|p| (p.glyph_index(contour_index, curve_index), p.position)) {
+                        kd_tree.add(idx, pos);
+                    }
+                }
+            }),
+        );
+        Action {
+            stamp: EventStamp {
+                t: std::any::TypeId::of::<Self>(),
+                property: Contour::static_type().name(),
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
+            },
+            compress: false,
+            redo: cl.clone(),
+            undo: cl,
         }
     }
 

@@ -654,12 +654,14 @@ impl ToolImplImpl for PanningToolInner {
                     };
                     menu.popup(event.time());
                     return Inhibit(true);
-                } else if let Some(((i, _), _curve)) = on_curve_query {
+                } else if let Some(((contour_index, _), _curve)) = on_curve_query {
                     crate::utils::menu::Menu::new()
                         .add_button_cb(
                             "reverse",
                             clone!(@strong view => move |_| {
-                                let mut action = reverse_contour(&view, i);
+                                let state = view.state().borrow();
+                                let mut action = state
+                                    .reverse_contour(&state.glyph.borrow().contours[contour_index], contour_index);
                                 (action.redo)();
                                 let app: &Application = view.app();
                                 let undo_db = app.undo_db.borrow();
@@ -1487,27 +1489,6 @@ fn snap_to_closest_anchor(
     }
     candidates.sort_by(|(_, a), (_, b)| a.total_cmp(b));
     candidates.get(0).map(|(p, _)| *p)
-}
-
-fn reverse_contour(view: &Editor, contour_index: usize) -> Action {
-    let contour: Contour = {
-        let c = view.state().borrow().glyph.borrow().contours[contour_index].clone();
-        c
-    };
-    Action {
-        stamp: EventStamp {
-            t: std::any::TypeId::of::<Editor>(),
-            property: Contour::static_type().name(),
-            id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[contour_index]).into() },
-        },
-        compress: false,
-        redo: Box::new(clone!(@weak contour as contour  => move || {
-            contour.reverse_direction();
-        })),
-        undo: Box::new(clone!(@weak contour as contour  => move || {
-            contour.reverse_direction();
-        })),
-    }
 }
 
 fn change_continuity(

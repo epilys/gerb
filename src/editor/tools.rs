@@ -338,8 +338,8 @@ pub fn new_contour_action(
         ),
         undo: Box::new(
             clone!(@strong glyph, @strong contour, @strong subaction => move || {
-                glyph.borrow_mut().contours.pop();
                 (subaction.borrow_mut().undo)();
+                glyph.borrow_mut().contours.pop();
             }),
         ),
     }
