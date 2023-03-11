@@ -19,7 +19,19 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-//! Python shell
+//! # Python shell
+//!
+//! A shell window is created, and communication channels are set up in order to make data
+//! transfer through threads safe.
+//!
+//! Python's stdout is replaced with a `StringIO` object so we can read from it and update the
+//! gtk window.
+//!
+//! User input is sent to the python thread via a regular [`std::sync::mpsc::channel`] channel.
+//!
+//! The python thread sends API requests to a [`glib::MainContext`] channel. The [`Application`]
+//! object handles it, and replies to the python thread through another
+//! [`std::sync::mpsc::channel`].
 
 use super::*;
 
@@ -129,17 +141,18 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     // shell stdin channel
     let (tx_shell, rx_shell) = std::sync::mpsc::channel::<String>();
     // shell -> app channel
+    // [ref:python_api_main_loop_channel]
     let (tx_py, rx_py) = MainContext::channel(PRIORITY_DEFAULT);
     // app -> shell channel
+    // [ref:python_api_response_channel]
     let (tx_py2, rx_py2) = std::sync::mpsc::channel::<String>();
     rx_py.attach(
         None,
+        // [ref:python_api_main_loop_channel]
         clone!(@weak app, @weak list, @weak adj => @default-return Continue(false), move |msg: String| {
-            match msg.as_str() {
-                "project-name" => tx_py2.send(app.window.project().property::<String>(Project::NAME)).unwrap(),
-                // [ref:FIXME]: send serialized error
-                _ => tx_py2.send(String::new()).unwrap(),
-            }
+            let (Err(response) | Ok(response)) = process_api_request(&app, msg);
+            // [ref:python_api_response_channel]
+            tx_py2.send(response).unwrap();
             Continue(true)
         }),
     );
@@ -374,7 +387,9 @@ fn setup_globals<'py>(
             .getattr("InteractiveConsole")?
             .call1((locals_dict.as_ref(py),))?
             .into(),
+        // [ref:python_api_main_loop_channel]
         __send: Py::new(py, Sender(None))?,
+        // [ref:python_api_response_channel]
         __rcv: Py::new(py, Receiver(None))?,
         __types_dict: Gerb::types(py),
     };
@@ -405,6 +420,7 @@ fn shell_thread(
     let locals = &locals_dict;
     let res: Result<(), Box<dyn std::error::Error>> = Python::with_gil(|py| {
         {
+            // [ref:python_api_main_loop_channel]
             let c: &PyCell<Sender> = globals
                 .as_ref(py)
                 .get_item("gerb")
@@ -416,6 +432,7 @@ fn shell_thread(
             n_mutable.0 = Some(tx_py);
         }
         {
+            // [ref:python_api_response_channel]
             let c: &PyCell<Receiver> = globals
                 .as_ref(py)
                 .get_item("gerb")
@@ -436,6 +453,7 @@ fn shell_thread(
     while let Ok(text) = rx_shell.recv() {
         if text.is_empty() && !needs_more_input.get() {
             let res: Result<(), Box<dyn std::error::Error>> = Python::with_gil(|py| {
+                // [ref:python_api_main_loop_channel]
                 let c: &PyCell<Sender> = globals
                     .as_ref(py)
                     .get_item("gerb")

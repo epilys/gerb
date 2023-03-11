@@ -209,7 +209,7 @@ impl ApplicationInner {
             let shell = gtk::gio::SimpleAction::new("shell", None);
             shell.connect_activate(glib::clone!(@weak obj => move |_, _| {
                 // [ref:FIXME]: prevent more than one window from launching.
-                crate::api::new_shell_window(obj).present();
+                crate::api::shell::new_shell_window(obj).present();
             }));
             application.add_action(&shell);
         }
