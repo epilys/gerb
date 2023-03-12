@@ -118,7 +118,7 @@ impl Repository {
         };
 
         ret.state.set(val.state().into());
-        {
+        /*{
             let diff = val.diff_index_to_workdir(
                 None,
                 Some(
@@ -132,6 +132,7 @@ impl Repository {
                 dbg!(&d.old_file().path());
             }
         }
+        */
         _ = ret.repository.set(val);
         Ok(Some(ret))
     }
@@ -139,10 +140,10 @@ impl Repository {
     pub fn status_file(&self, path: &Path) -> Option<git2::Status> {
         if path.is_absolute() {
             let r = self.repository.get().unwrap();
-            dbg!(r.status_file(path.strip_prefix(&*self.workdir.borrow()).ok()?)).ok()
+            r.status_file(path.strip_prefix(&*self.workdir.borrow()).ok()?)
+                .ok()
         } else {
-            dbg!(&path);
-            dbg!(self.repository.get().unwrap().status_file(path)).ok()
+            self.repository.get().unwrap().status_file(path).ok()
         }
     }
 }

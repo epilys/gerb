@@ -19,6 +19,8 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#![deny(clippy::dbg_macro)]
+
 use gerb::prelude::*;
 
 fn main() {

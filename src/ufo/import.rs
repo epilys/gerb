@@ -257,6 +257,7 @@ pub mod glyphsapp {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
                     Some("Error: could not perform conversion to UFOv3 with glyphsLib"),
                     &err.to_string(),
+                    None,
                     &window,
                 );
                 dialog.run();
@@ -346,10 +347,7 @@ pub mod ufo2 {
         dialog2.hide();
         let Some(f) = dialog2.filename() else { return; };
         let Some(output_dir) = f.to_str() else { return; };
-        match crate::ufo::import::ufo2::import(crate::ufo::import::ufo2::UFO2ToUFO3Options::new(
-            input_dir.into(),
-            output_dir.into(),
-        )) {
+        match import(UFO2ToUFO3Options::new(input_dir.into(), output_dir.into())) {
             Ok(instance) => {
                 ApplicationInner::show_notification(
                     &format!("Succesfully converted {} to UFOv3.", &instance.family_name),
@@ -364,6 +362,7 @@ pub mod ufo2 {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
                     Some("Error: could not perform conversion to UFOv3 with fontTools"),
                     &err.to_string(),
+                    None,
                     &window,
                 );
                 dialog.run();

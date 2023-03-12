@@ -142,6 +142,7 @@ impl ObjectImpl for WindowInner {
                     let dialog = crate::utils::widgets::new_simple_error_dialog(
                         Some("Error: Could not open project"),
                         &err.to_string(),
+                        None,
                         obj.upcast_ref(),
                     );
                     dialog.run();

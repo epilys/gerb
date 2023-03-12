@@ -15,12 +15,18 @@
 `gerb` is a GUI font editor and IDE.
 It is not production ready, but all the basics are implemented.
 
-It uses the [UFOv3](https://unifiedfontobject.org/versions/ufo3/index.html) format and can import:
+It uses the [_UFOv3_](https://unifiedfontobject.org/versions/ufo3/index.html) format and can import:[^0]
 
-- UFOv2 directories
-- Glyphs files
+- _UFOv2_ directories
+- _Glyphs_ files
 
-Integrated export to `{ttf, otf}` files is planned by using [`ufo2ft`](https://github.com/googlefonts/ufo2ft).
+and export:[^1]
+
+- OpenType files (`.otf`)
+- TrueType files (`.ttf`)
+
+[^0]: Import is performed with [`fontTools`](https://github.com/fonttools/fonttools) and [`glyphsLib`](https://github.com/googlefonts/glyphsLib).
+[^1]: Export is performed with [`ufo2ft`](https://github.com/googlefonts/ufo2ft).
 
 | :information_source: Interested in contributing? Consult [`CONTRIBUTING.md`](./CONTRIBUTING.md).|
 | ---                                                                                             |
@@ -55,7 +61,8 @@ The usual location would be `$HOME/.config/gerb/config.toml`.
 
 ## Features
 
-- mechanism for import from other font formats
+- import from other font source formats
+- export to `.otf` and `.ttf`
 - configurable shortcuts system
 - unlimited undos
 - embedded python shell and API for scripting and plugins (work in progress)
@@ -66,9 +73,9 @@ The usual location would be `$HOME/.config/gerb/config.toml`.
 
 - [ ] work with designspaces ([tracking issue #22](https://github.com/epilys/gerb/issues/22))
 
-## Screenshots
+## Screenshots [^2]
 
-<sup><sub>the screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).</sub></sup>
+[^2]: The screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).
 
 <p align="center" width="100%">
 <a href="./screenshot.png?raw=true"><img width="49%" src="./screenshot.png?raw=true"></a>

@@ -144,7 +144,8 @@ impl ToggleButton {
 
 pub fn new_simple_error_dialog(
     title: Option<&str>,
-    msg: &str,
+    text: &str,
+    secondary_text: Option<&str>,
     window: &gtk::Window,
 ) -> gtk::MessageDialog {
     let dialog = gtk::MessageDialog::new(
@@ -152,9 +153,31 @@ pub fn new_simple_error_dialog(
         gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
         gtk::MessageType::Error,
         gtk::ButtonsType::Close,
-        msg,
+        text,
     );
+    dialog.set_secondary_text(secondary_text);
+    dialog.set_secondary_use_markup(true);
     dialog.set_title(title.unwrap_or("Error"));
+    dialog.set_use_markup(true);
+    dialog
+}
+
+pub fn new_simple_info_dialog(
+    title: Option<&str>,
+    text: &str,
+    secondary_text: Option<&str>,
+    window: &gtk::Window,
+) -> gtk::MessageDialog {
+    let dialog = gtk::MessageDialog::new(
+        Some(window),
+        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+        gtk::MessageType::Info,
+        gtk::ButtonsType::Close,
+        text,
+    );
+    dialog.set_secondary_text(secondary_text);
+    dialog.set_secondary_use_markup(true);
+    dialog.set_title(title.unwrap_or("Information"));
     dialog.set_use_markup(true);
     dialog
 }

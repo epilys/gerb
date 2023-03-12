@@ -135,6 +135,13 @@ impl ObjectImpl for ProjectInner {
                         Some("New project"),
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
+                    ParamSpecString::new(
+                        Project::FILENAME_STEM,
+                        Project::FILENAME_STEM,
+                        Project::FILENAME_STEM,
+                        None,
+                        glib::ParamFlags::READABLE,
+                    ),
                     ParamSpecBoolean::new(
                         Project::MODIFIED,
                         Project::MODIFIED,
@@ -167,6 +174,16 @@ impl ObjectImpl for ProjectInner {
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             Project::NAME => self.name.borrow().to_value(),
+            Project::FILENAME_STEM => {
+                let family_name = self.family_name.borrow();
+                let style_name = self.style_name.borrow();
+                match (family_name.len(), style_name.len()) {
+                    (0, 0) => None::<String>.to_value(),
+                    (0, 1..) => Some(style_name.to_string()).to_value(),
+                    (_, 0) => Some(family_name.to_string()).to_value(),
+                    _ => Some(format!("{family_name}-{style_name}")).to_value(),
+                }
+            }
             Project::FAMILY_NAME => self.family_name.borrow().to_value(),
             Project::STYLE_NAME => self.style_name.borrow().to_value(),
             Project::STYLE_MAP_FAMILY_NAME => self.style_map_family_name.borrow().to_value(),
@@ -270,6 +287,7 @@ impl std::ops::Deref for Project {
 impl Project {
     pub const MODIFIED: &str = "modified";
     pub const NAME: &str = "name";
+    pub const FILENAME_STEM: &str = "filename-stem";
     inherit_property!(
         ufo::objects::FontInfo,
         ASCENDER,
@@ -345,16 +363,16 @@ impl Project {
         #[cfg(feature = "git")]
         {
             *ret.repository.borrow_mut() = if path.is_relative() {
-                dbg!(git::Repository::new(&path))
+                git::Repository::new(&path)
             } else {
-                dbg!(git::Repository::new(
+                git::Repository::new(
                     &path
                         .strip_prefix(&*ret.path.borrow())
                         .map(Path::to_path_buf)
-                        .unwrap_or_default()
-                ))
+                        .unwrap_or_default(),
+                )
             };
-            dbg!(&ret.repository);
+            //dbg!(&ret.repository);
         }
         std::env::set_current_dir(&path).unwrap();
         *ret.path.borrow_mut() = path;

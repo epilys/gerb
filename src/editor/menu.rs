@@ -192,6 +192,7 @@ impl EditorInner {
                     let dialog = crate::utils::widgets::new_simple_error_dialog(
                         Some("Error: Could not save glyph."),
                         &err.to_string(),
+                        None,
                         obj.app().window.upcast_ref(),
                     );
                     dialog.run();
@@ -229,6 +230,7 @@ impl EditorInner {
                             let dialog = crate::utils::widgets::new_simple_error_dialog(
                                 Some("Error: Could not generate SVG file"),
                                 &err.to_string(),
+                                None,
                                 obj.app().window.upcast_ref(),
                             );
                             dialog.run();

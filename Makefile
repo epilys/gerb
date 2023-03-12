@@ -19,7 +19,10 @@ pyfmt:
 feature-check: check
 	# No features
 	@sh -c 'cargo check --bin gerb --no-default-features || (export EXIT="$$?"; /usr/bin/printf "--no-default-features fails cargo check.\n" && exit $$EXIT)'
+	@cargo clippy --bin gerb --no-default-features
 	# `git`
 	@sh -c 'cargo check --bin gerb --no-default-features --features git || (export EXIT="$$?"; /usr/bin/printf "--features git fails cargo check.\n" && exit $$EXIT)'
+	@cargo clippy --bin gerb --no-default-features --features git
 	# `python`
 	@sh -c 'cargo check --bin gerb --no-default-features --features python || (export EXIT="$$?"; /usr/bin/printf "--features python fails cargo check.\n" && exit $$EXIT)'
+	@cargo clippy --bin gerb --no-default-features --features python

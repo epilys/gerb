@@ -234,6 +234,7 @@ impl ApplicationInner {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
                     None,
                     "This application build doesn't include python support. <i>Glyphs</i> import is performed with the <tt>glyphsLib</tt> python3 library.\n\nCompile or install the app with <tt>python</tt> Cargo feature enabled.",
+                    None,
                     &window,
                 );
                 dialog.run();
@@ -253,6 +254,7 @@ impl ApplicationInner {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
                     None,
                     "This application build doesn't include python support. <i>UFOv2</i> import is performed with the <tt>fontTools</tt> python3 library.\n\nCompile or install the app with <tt>python</tt> Cargo feature enabled.",
+                    None,
                     &window,
                 );
                 dialog.run();
@@ -313,11 +315,35 @@ impl ApplicationInner {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
                     Some("Error: could not perform conversion to UFOv3 with glyphsLib"),
                     &err.to_string(),
+                    None,
                     window.upcast_ref(),
                 );
                 dialog.run();
                 dialog.emit_close();
             };
+        }));
+        let project_export = gtk::gio::SimpleAction::new("project.export", None);
+        project_export
+            .connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
+            #[cfg(feature = "python")]
+            {
+                crate::ufo::export::ufo_compile::export_action_cb(
+                    window.clone().upcast(),
+                    window.project().clone(),
+                );
+            }
+            #[cfg(not(feature = "python"))]
+            {
+                // [ref:needs_user_doc] Add compilation instructions and/or url to docs.
+                let dialog = crate::utils::widgets::new_simple_error_dialog(
+                    None,
+                    "This application build doesn't include python support. <i>UFOv3</i> export is performed with the <tt>ufo2ft</tt> python3 library.\n\nCompile or install the app with <tt>python</tt> Cargo feature enabled.",
+                    None,
+                    window.upcast_ref(),
+                );
+                dialog.run();
+                dialog.emit_close();
+            }
         }));
         let bug_report = gtk::gio::SimpleAction::new("bug_report", None);
         bug_report.connect_activate(|_, _| {
@@ -329,6 +355,7 @@ impl ApplicationInner {
         });
         application.add_action(&project_properties);
         application.add_action(&project_save);
+        application.add_action(&project_export);
         application.add_action(&import_glyphs);
         application.add_action(&import_ufo2);
         application.add_action(&settings);
@@ -360,6 +387,7 @@ impl ApplicationInner {
                 Some("app.project.import.ufo2"),
             );
             file_menu.append_submenu(Some("Import"), &import_menu);
+            file_menu.append(Some("Export"), Some("app.project.export"));
             let project_section = gio::Menu::new();
             project_section.append(Some("Properties"), Some("app.project.properties"));
             #[cfg(feature = "python")]

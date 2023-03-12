@@ -20,6 +20,8 @@
  */
 
 #[cfg(feature = "python")]
+pub mod export;
+#[cfg(feature = "python")]
 pub mod import;
 
 pub mod constants;
