@@ -310,8 +310,11 @@ impl CreatePropertyWindow for GlyphMetadata {
                     }
                 }),
             );
-            let codepoint =
-                PropertyChoice::new("codepoint", gtk::RadioButton::new(), unicode_entry.upcast());
+            let codepoint = PropertyChoice::new(
+                "codepoint",
+                gtk::RadioButton::new(),
+                unicode_entry.clone().upcast(),
+            );
             let name_entry = gtk::Entry::builder()
                 .visible(true)
                 .expand(false)
@@ -324,14 +327,14 @@ impl CreatePropertyWindow for GlyphMetadata {
                     unicodes.clear();
                     let mut kinds = obj.imp().kinds.borrow_mut();
                     let text = entry.text();
-                    kinds.0 = GlyphKind::from(text);
+                    kinds.0 = GlyphKind::Component(text);
                 }),
             );
 
             let component = PropertyChoice::new(
                 "component",
                 gtk::RadioButton::from_widget(codepoint.button()),
-                name_entry.upcast(),
+                name_entry.clone().upcast(),
             );
             let kind_box = gtk::Box::builder()
                 .orientation(gtk::Orientation::Vertical)
@@ -343,6 +346,21 @@ impl CreatePropertyWindow for GlyphMetadata {
             kind_box.pack_start(&codepoint, false, false, 5);
             kind_box.pack_start(&component, false, false, 5);
             kind_box.show_all();
+            let kind = self.kinds.borrow().0.clone();
+            match kind {
+                GlyphKind::Component(ref n) => {
+                    codepoint.button().set_active(false);
+                    component.button().set_active(true);
+                    name_entry.buffer().set_text(n);
+                }
+                GlyphKind::Char(c) => {
+                    codepoint.button().set_active(true);
+                    component.button().set_active(false);
+                    unicode_entry
+                        .buffer()
+                        .set_text(&format!("U+{:X}", c as u32));
+                }
+            }
             w.add_separator();
             w.add("unicode", unicode_label, kind_box.upcast());
         }
