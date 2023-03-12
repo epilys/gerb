@@ -189,15 +189,11 @@ impl EditorInner {
                 let project = obj.project();
                 let path = project.path.borrow();
                 if let Err(err) = obj.state().borrow().glyph.borrow().save(&path.join("glyphs")) {
-                    let dialog = gtk::MessageDialog::new(
-                        gtk::Window::NONE,
-                        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                        gtk::MessageType::Error,
-                        gtk::ButtonsType::Close,
+                    let dialog = crate::utils::widgets::new_simple_error_dialog(
+                        Some("Error: Could not save glyph."),
                         &err.to_string(),
+                        obj.app().window.upcast_ref(),
                     );
-                    dialog.set_title("Error: Could not save glyph.");
-                    dialog.set_use_markup(true);
                     dialog.run();
                     dialog.emit_close();
                 };
@@ -230,15 +226,11 @@ impl EditorInner {
                 if dialog.run() == gtk::ResponseType::Ok {
                     if let Some(f) = dialog.filename() {
                         if let Err(err) = glyph.borrow().save_to_svg(f) {
-                            let dialog = gtk::MessageDialog::new(
-                                gtk::Window::NONE,
-                                gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                                gtk::MessageType::Error,
-                                gtk::ButtonsType::Close,
+                            let dialog = crate::utils::widgets::new_simple_error_dialog(
+                                Some("Error: Could not generate SVG file"),
                                 &err.to_string(),
+                                obj.app().window.upcast_ref(),
                             );
-                            dialog.set_title("Error: Could not generate SVG file");
-                            dialog.set_use_markup(true);
                             dialog.run();
                             dialog.emit_close();
                         }

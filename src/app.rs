@@ -226,113 +226,16 @@ impl ApplicationInner {
         import_glyphs.connect_activate(glib::clone!(@weak window => move |_, _| {
             #[cfg(feature = "python")]
             {
-                let dialog = gtk::FileChooserNative::new(
-                    Some("Select glyphs file"),
-                    Some(&window),
-                    gtk::FileChooserAction::Open,
-                    None,
-                    None,
-                );
-                let _response = dialog.run();
-                dialog.hide();
-                let Some(f) = dialog.filename() else { return; };
-                let Some(path) = f.to_str() else { return; };
-                match crate::ufo::import::glyphsapp::import(
-                    crate::ufo::import::glyphsapp::Glyphs2UFOOptions::new(path.into()).output_dir(None),
-                ) {
-                    Ok(instances) => {
-                        if instances.len() == 1 {
-                            window.emit_by_name::<()>(
-                                "open-project",
-                                &[&instances[0].full_path.display().to_string()],
-                            );
-                        } else {
-                            let dialog = gtk::Dialog::builder()
-                                .attached_to(&window)
-                                .application(&window.application().unwrap())
-                                .destroy_with_parent(true)
-                                .modal(true).build();
-                            dialog.add_button("Open", gtk::ResponseType::Accept);
-                            dialog.add_button("Close", gtk::ResponseType::Close);
-                            let b = dialog.content_area();
-                            b.pack_start(&gtk::Label::builder().label(&format!(
-                                        "Generated more than once instance, select and open one manually.\n\nGenerated {} instances:",
-                                        instances.len(),
-                            )).visible(true).wrap(true).halign(gtk::Align::Start).build(), true, false, 5);
-                            let listbox = gtk::ListBox::new();
-                            listbox.set_selection_mode(gtk::SelectionMode::Single);
-                            listbox.set_visible(true);
-                            listbox.set_valign(gtk::Align::Center);
-                            let mut rows = vec![];
-                            for i in &instances {
-                                let row = gtk::ListBoxRow::builder().child(&gtk::Label::builder().label(&format!(
-                                            "{} <i>{}</i> <tt>{}</tt>",
-                                            i.family_name.as_str(),
-                                            i.style_name.as_str(),
-                                            i.full_path.as_path().display()
-                                ),
-                                ).use_markup(true).visible(true).wrap(true).halign(gtk::Align::Start).build()).visible(true).selectable(true).build();
-                                listbox.add(&row);
-                                rows.push((i.full_path.as_path().display().to_string(), row));
-                            }
-                            b.pack_start(&listbox, true, false, 5);
-                            b.set_border_width(15);
-                            b.set_spacing(5);
-                            b.set_valign(gtk::Align::Start);
-                            dialog.set_title(
-                                "Info: generated more than once instance, open one manually.",
-                            );
-                            for _ in 0..3 {
-                                match dialog.run() {
-                                    gtk::ResponseType::Accept => {
-                                        if let Some(path) = listbox.selected_row().and_then(|row| rows.iter().find_map(|(p,r)| if r == &row { Some(p) } else { None })) {
-                                            dialog.emit_close();
-                                            window.emit_by_name::<()>(
-                                                "open-project",
-                                                &[&path],
-                                            );
-                                        }
-                                    },
-                                    gtk::ResponseType::Close => {
-                                        dialog.emit_close();
-                                    }
-                                    gtk::ResponseType::DeleteEvent => {
-                                        dialog.emit_close();
-                                        break;
-                                    }
-                                    _other => unreachable!("{_other:?}"),
-                                }
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        let dialog = gtk::MessageDialog::new(
-                            Some(&window),
-                            gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                            gtk::MessageType::Error,
-                            gtk::ButtonsType::Close,
-                            &err.to_string(),
-                        );
-                        dialog.set_title(
-                            "Error: could not perform conversion to UFOv3 with glyphsLib",
-                        );
-                        dialog.set_use_markup(true);
-                        dialog.run();
-                        dialog.emit_close();
-                    }
-                }
+                crate::ufo::import::glyphsapp::import_action_cb(window);
             }
             #[cfg(not(feature = "python"))]
             {
-                let dialog = gtk::MessageDialog::new(
-                    Some(&window),
-                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                    gtk::MessageType::Error,
-                    gtk::ButtonsType::Close,
-                    "This application build doesn't include python support. Glyphs import is performed with the glyphsLib python3 library. Compile the app with `python` Cargo feature.",
+                // [ref:needs_user_doc] Add compilation instructions and/or url to docs.
+                let dialog = crate::utils::widgets::new_simple_error_dialog(
+                    None,
+                    "This application build doesn't include python support. <i>Glyphs</i> import is performed with the <tt>glyphsLib</tt> python3 library.\n\nCompile or install the app with <tt>python</tt> Cargo feature enabled.",
+                    &window,
                 );
-                dialog.set_title("Error");
-                dialog.set_use_markup(true);
                 dialog.run();
                 dialog.emit_close();
             }
@@ -342,70 +245,16 @@ impl ApplicationInner {
         import_ufo2.connect_activate(glib::clone!(@weak window => move |_, _| {
             #[cfg(feature = "python")]
             {
-                let dialog = gtk::FileChooserNative::new(
-                    Some("Select UFOv2 input path"),
-                    Some(&window),
-                    gtk::FileChooserAction::SelectFolder,
-                    None,
-                    None,
-                );
-                let _response = dialog.run();
-                dialog.hide();
-                let Some(f) = dialog.filename() else { return; };
-                let Some(input_dir) = f.to_str() else { return; };
-                let dialog2 = gtk::FileChooserNative::new(
-                    Some("Select UFOv3 output path"),
-                    Some(&window),
-                    gtk::FileChooserAction::SelectFolder,
-                    None,
-                    None,
-                );
-                let _response = dialog2.run();
-                dialog2.hide();
-                let Some(f) = dialog2.filename() else { return; };
-                let Some(output_dir) = f.to_str() else { return; };
-                match crate::ufo::import::ufo2::import(
-                    crate::ufo::import::ufo2::UFO2ToUFO3Options::new(
-                        input_dir.into(),
-                        output_dir.into(),
-                    ),
-                ) {
-                    Ok(instance) => {
-                        ApplicationInner::show_notification(
-                            &format!("Succesfully converted {} to UFOv3.", &instance.family_name),
-                            &format!("Project saved at {}", instance.full_path.display()),
-                        );
-                        window.emit_by_name::<()>(
-                            "open-project",
-                            &[&instance.full_path.display().to_string()],
-                        );
-                    }
-                    Err(err) => {
-                        let dialog = gtk::MessageDialog::new(
-                            Some(&window),
-                            gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                            gtk::MessageType::Error,
-                            gtk::ButtonsType::Close,
-                            &err.to_string(),
-                        );
-                        dialog.set_title("Error: could not perform conversion to UFOv3 with fontTools");
-                        dialog.set_use_markup(true);
-                        dialog.run();
-                        dialog.emit_close();
-                    }
-                }
+                crate::ufo::import::ufo2::import_action_cb(window);
             }
             #[cfg(not(feature = "python"))]
             {
-                let dialog = gtk::MessageDialog::new(
-                    Some(&window),
-                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                    gtk::MessageType::Error,
-                    gtk::ButtonsType::Close,
-                    "This application build doesn't include python support. UFOv2 import is performed with the fontTools python3 library. Compile the app with `python` Cargo feature.",
+                // [ref:needs_user_doc] Add compilation instructions and/or url to docs.
+                let dialog = crate::utils::widgets::new_simple_error_dialog(
+                    None,
+                    "This application build doesn't include python support. <i>UFOv2</i> import is performed with the <tt>fontTools</tt> python3 library.\n\nCompile or install the app with <tt>python</tt> Cargo feature enabled.",
+                    &window,
                 );
-                dialog.set_title("Error");
-                dialog.set_use_markup(true);
                 dialog.run();
                 dialog.emit_close();
             }
@@ -461,17 +310,11 @@ impl ApplicationInner {
         let project_save = gtk::gio::SimpleAction::new("project.save", None);
         project_save.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
             if let Err(err) = window.project.borrow().save() {
-                let dialog = gtk::MessageDialog::new(
-                    Some(&window),
-                    gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                    gtk::MessageType::Error,
-                    gtk::ButtonsType::Close,
+                let dialog = crate::utils::widgets::new_simple_error_dialog(
+                    Some("Error: could not perform conversion to UFOv3 with glyphsLib"),
                     &err.to_string(),
+                    window.upcast_ref(),
                 );
-                dialog.set_title(
-                    "Error: could not perform conversion to UFOv3 with glyphsLib",
-                );
-                dialog.set_use_markup(true);
                 dialog.run();
                 dialog.emit_close();
             };

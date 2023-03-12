@@ -139,14 +139,11 @@ impl ObjectImpl for WindowInner {
                     obj.queue_draw();
                 }
                 Err(err) => {
-                    let dialog = gtk::MessageDialog::new(
-                        Some(&obj),
-                        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
-                        gtk::MessageType::Error,
-                        gtk::ButtonsType::Close,
-                        &err.to_string());
-                    dialog.set_title("Error: Could not open project");
-                    dialog.set_use_markup(true);
+                    let dialog = crate::utils::widgets::new_simple_error_dialog(
+                        Some("Error: Could not open project"),
+                        &err.to_string(),
+                        obj.upcast_ref(),
+                    );
                     dialog.run();
                     dialog.emit_close();
                 },

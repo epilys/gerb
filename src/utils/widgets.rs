@@ -141,3 +141,20 @@ impl ToggleButton {
         self.set_property(Self::ACTIVE, val);
     }
 }
+
+pub fn new_simple_error_dialog(
+    title: Option<&str>,
+    msg: &str,
+    window: &gtk::Window,
+) -> gtk::MessageDialog {
+    let dialog = gtk::MessageDialog::new(
+        Some(window),
+        gtk::DialogFlags::DESTROY_WITH_PARENT | gtk::DialogFlags::MODAL,
+        gtk::MessageType::Error,
+        gtk::ButtonsType::Close,
+        msg,
+    );
+    dialog.set_title(title.unwrap_or("Error"));
+    dialog.set_use_markup(true);
+    dialog
+}
