@@ -476,12 +476,21 @@ impl ApplicationInner {
                 dialog.emit_close();
             };
         }));
+        let bug_report = gtk::gio::SimpleAction::new("bug_report", None);
+        bug_report.connect_activate(|_, _| {
+            gtk::gio::AppInfo::launch_default_for_uri(
+                crate::ISSUE_TRACKER,
+                gtk::gio::AppLaunchContext::NONE,
+            )
+            .unwrap();
+        });
         application.add_action(&project_properties);
         application.add_action(&project_save);
         application.add_action(&import_glyphs);
         application.add_action(&import_ufo2);
         application.add_action(&settings);
         application.add_action(&about);
+        application.add_action(&bug_report);
         application.add_action(&open);
         application.add_action(&new_project);
         application.add_action(&undo);

@@ -39,6 +39,7 @@ pub mod window;
 
 pub const APPLICATION_NAME: &str = "gerb";
 pub const APPLICATION_ID: &str = "com.epilys.gerb";
+pub const ISSUE_TRACKER: &str = "https://github.com/epilys/gerb/issues";
 
 /* Annotations:
  *
