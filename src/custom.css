@@ -97,7 +97,7 @@ toolpalette  {
 }
 
 .glyph-edit-toolbox * {
-  padding: 2px;
+  padding: 5px;
 }
 
 label.zoom-label {
@@ -169,8 +169,8 @@ button.image-button > box {
   min-width: 0;
 }
 
-.glyph-edit-toolbox toolbar toolbutton button {
-  margin: 2px;
+.glyphs_area_toolbar * {
+  margin-right: 3px;
 }
 
 toolbutton.active button:checked {

@@ -86,7 +86,7 @@ impl ObjectImpl for CollectionInner {
         let tool_palette = gtk::Toolbar::builder()
             .orientation(gtk::Orientation::Horizontal)
             .expand(true)
-            .halign(gtk::Align::End)
+            .halign(gtk::Align::Center)
             .valign(gtk::Align::End)
             .visible(true)
             .can_focus(true)
@@ -102,7 +102,7 @@ impl ObjectImpl for CollectionInner {
 
         let zoom_pop_box = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(5)
+            .spacing(0)
             .expand(false)
             .visible(true)
             .can_focus(true)
@@ -115,27 +115,27 @@ impl ObjectImpl for CollectionInner {
             .visible(true)
             .build();
 
-        zoom_pop_box.pack_start(&close_zoom_pop_box, false, false, 0);
-        zoom_pop_box.pack_start(&zoom_scale, true, false, 0);
+        zoom_pop_box.pack_start(&zoom_scale, true, false, 5);
+        zoom_pop_box.pack_start(&close_zoom_pop_box, false, false, 5);
 
-        let zoom_pop = gtk::Popover::builder()
-            .expand(false)
-            .visible(false)
-            .modal(true)
-            .child(&zoom_pop_box)
-            .relative_to(&tool_palette)
-            .width_request(200)
-            .build();
         let show_zoom_pop = gtk::ToolButton::builder()
             .label("Scale")
             .valign(gtk::Align::Center)
             .halign(gtk::Align::Start)
             .visible(true)
             .build();
-        show_zoom_pop.connect_clicked(clone!(@strong zoom_pop => move |_| {
+        let zoom_pop = gtk::Popover::builder()
+            .expand(false)
+            .visible(false)
+            .modal(true)
+            .child(&zoom_pop_box)
+            .relative_to(&show_zoom_pop)
+            .width_request(200)
+            .build();
+        show_zoom_pop.connect_clicked(clone!(@weak zoom_pop => move |_| {
             zoom_pop.show();
         }));
-        close_zoom_pop_box.connect_clicked(clone!(@strong zoom_pop => move |_| {
+        close_zoom_pop_box.connect_clicked(clone!(@weak zoom_pop => move |_| {
             zoom_pop.hide();
         }));
 
@@ -229,7 +229,7 @@ impl ObjectImpl for CollectionInner {
             cell.set_radio(false);
             cell.set_active(true);
             cell.set_activatable(true);
-            cell.connect_toggled(clone!(@strong store, @weak obj => move |_self, treepath| {
+            cell.connect_toggled(clone!(@weak store, @weak obj => move |_self, treepath| {
                 if let Some(iter) = store.iter(&treepath) {
                     let prev_value: bool = store.value(&iter, 0).get().unwrap();
                     let cat_value = store.value(&iter, 1);
@@ -309,10 +309,10 @@ impl ObjectImpl for CollectionInner {
             .halign(gtk::Align::Start)
             .visible(true)
             .build();
-        show_filter_pop.connect_clicked(clone!(@strong filter_pop => move |_| {
+        show_filter_pop.connect_clicked(clone!(@weak filter_pop => move |_| {
             filter_pop.show();
         }));
-        close_filter_pop_box.connect_clicked(clone!(@strong filter_pop => move |_| {
+        close_filter_pop_box.connect_clicked(clone!(@weak filter_pop => move |_| {
             filter_pop.hide();
         }));
 
@@ -331,7 +331,7 @@ impl ObjectImpl for CollectionInner {
                 .visible(true)
                 .can_focus(true)
                 .tooltip_text("Overview tools")
-                .halign(gtk::Align::End)
+                .halign(gtk::Align::Center)
                 .valign(gtk::Align::End)
                 .build(),
         );
@@ -650,11 +650,25 @@ impl ObjectImpl for GlyphBoxInner {
                             let context_menu = crate::utils::menu::Menu::new()
                                 .add_button_cb(
                                     "Edit in canvas",
-                                    clone!(@strong obj => move |_| {
+                                    clone!(@weak obj => move |_| {
                                         obj.emit_open_glyph_edit();
                                     }),
                                 )
-                                .add_button("Edit properties")
+                                .add_button_cb(
+                                    "Edit properties",
+                                    clone!(@weak obj => move |_| {
+                                        let app = obj.imp().app.get().unwrap();
+                                        let w = obj
+                                            .imp()
+                                            .glyph
+                                            .get()
+                                            .unwrap()
+                                            .borrow()
+                                            .metadata
+                                            .new_property_window(app, false);
+                                        w.present();
+                                    }),
+                                )
                                 .add_button("Delete glyph")
                                 .add_button("Export SVG");
                             context_menu.popup(event.time());
