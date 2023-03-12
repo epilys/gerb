@@ -206,7 +206,7 @@ impl Contour {
     // [ref:needs_unit_test]
     fn calc_smooth_continuity(prev: &[CurvePoint], curr: &[CurvePoint]) -> Continuity {
         match (prev, curr) {
-            (&[_, _, ref p2, ref p3_1], &[ref p3_2, ref p4, _, _])
+            ([_, _, p2, p3_1], [p3_2, p4, _, _])
                 if p3_1.position == p3_2.position
                     && p2.position.collinear(&p3_1.position, &p4.position) =>
             {
@@ -222,10 +222,10 @@ impl Contour {
                     Continuity::Tangent { beta }
                 }
             }
-            (&[_, _, ref p2, ref p3_1], &[ref p3_2, ref p4, _, _])
-            | (&[_, ref p2, ref p3_1], &[ref p3_2, ref p4, _, _])
-            | (&[_, ref p2, ref p3_1], &[ref p3_2, ref p4, _])
-            | (&[_, _, ref p2, ref p3_1], &[ref p3_2, ref p4, _])
+            ([_, _, p2, p3_1], [p3_2, p4, _, _])
+            | ([_, p2, p3_1], [p3_2, p4, _, _])
+            | ([_, p2, p3_1], [p3_2, p4, _])
+            | ([_, _, p2, p3_1], [p3_2, p4, _])
                 if p3_1.position == p3_2.position
                     && p4.position == 2.0 * p3_1.position - p2.position =>
             {

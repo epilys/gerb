@@ -29,20 +29,17 @@ use crate::glyphs::Contour;
 use crate::prelude::*;
 use crate::views::canvas::{Layer, LayerBuilder};
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, PartialEq)]
 pub enum Mode {
+    #[default]
     None,
     Pan,
     Drag,
     DragGuideline(usize),
-    ResizeDimensions { previous_value: Option<f64> },
+    ResizeDimensions {
+        previous_value: Option<f64>,
+    },
     Select,
-}
-
-impl Default for Mode {
-    fn default() -> Mode {
-        Mode::None
-    }
 }
 
 #[derive(Default)]

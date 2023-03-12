@@ -71,25 +71,33 @@ fn pointkind_is_default(val: &PointKind) -> bool {
     *val == PointKind::Offcurve
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Default, Debug, Copy, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PointKind {
-    /// A point of this type MUST be the first in a contour. The reverse is not true: a contour does not necessarily start with a move point. When a contour does start with a move point, it signifies the beginning of an open contour. A closed contour does not start with a move and is defined as a cyclic list of points, with no predominant start point. There is always a next point and a previous point. For this purpose the list of points can be seen as endless in both directions. The actual list of points can be rotated arbitrarily (by removing the first N points and appending them at the end) while still describing the same outline.
+    /// A point of this type MUST be the first in a contour. The reverse is not true: a contour
+    /// does not necessarily start with a move point. When a contour does start with a move point,
+    /// it signifies the beginning of an open contour. A closed contour does not start with a move
+    /// and is defined as a cyclic list of points, with no predominant start point. There is always
+    /// a next point and a previous point. For this purpose the list of points can be seen as
+    /// endless in both directions. The actual list of points can be rotated arbitrarily (by
+    /// removing the first N points and appending them at the end) while still describing the same
+    /// outline.
     Move,
-    /// Draw a straight line from the previous point to this point. The previous point may be a move, a line, a curve or a qcurve, but not an offcurve.
+    /// Draw a straight line from the previous point to this point. The previous point may be a
+    /// move, a line, a curve or a qcurve, but not an offcurve.
     Line,
-    /// This point is part of a curve segment, that goes up to the next point that is either a curve or a qcurve.
+    /// This point is part of a curve segment, that goes up to the next point that is either a
+    /// curve or a qcurve.
+    #[default]
     Offcurve,
-    /// Draw a cubic bezier curve from the last non-offcurve point to this point. If the number of offcurve points is zero, a straight line is drawn. If it is one, a quadratic curve is drawn. If it is two, a regular cubic bezier is drawn. If it is larger than 2, a series of cubic bezier segments are drawn, as defined by the Super Bezier algorithm.
+    /// Draw a cubic bezier curve from the last non-offcurve point to this point. If the number of
+    /// offcurve points is zero, a straight line is drawn. If it is one, a quadratic curve is
+    /// drawn. If it is two, a regular cubic bezier is drawn. If it is larger than 2, a series of
+    /// cubic bezier segments are drawn, as defined by the Super Bezier algorithm.
     Curve,
-    /// Similar to curve, but uses quadratic curves, using the TrueType “implied on-curve points” principle.
+    /// Similar to curve, but uses quadratic curves, using the TrueType “implied on-curve points”
+    /// principle.
     Qcurve,
-}
-
-impl Default for PointKind {
-    fn default() -> Self {
-        PointKind::Offcurve
-    }
 }
 
 fn smooth_deserialize<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>

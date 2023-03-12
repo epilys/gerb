@@ -103,7 +103,7 @@ pub fn distance_between_two_points<K: Into<Point>, L: Into<Point>>(p_k: K, p_l: 
     let p_l: Point = p_l.into();
     let xlk = p_l.x - p_k.x;
     let ylk = p_l.y - p_k.y;
-    f64::sqrt((xlk * xlk + ylk * ylk) as f64) // [ref:FIXME] overflow check
+    (xlk * xlk + ylk * ylk).sqrt() // [ref:FIXME] overflow check
 }
 
 #[repr(transparent)]

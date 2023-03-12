@@ -275,7 +275,7 @@ impl PropertyWindow {
                         // [ref:FIXME]: show error to user, if any.
                         let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
                         let Ok(prefix) = std::env::current_dir() else { return; };
-                        let mut abs_path = prefix.join(&path);
+                        let mut abs_path = prefix.join(path);
                         if abs_path.is_file() {
                             abs_path.pop();
                         }
@@ -866,7 +866,7 @@ pub fn get_widget_for_value(
                         // [ref:FIXME]: show error to user, if any.
                         let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
                         let Ok(prefix) = std::env::current_dir() else { return; };
-                        let mut abs_path = prefix.join(&path);
+                        let mut abs_path = prefix.join(path);
                         if abs_path.is_file() {
                             abs_path.pop();
                         }

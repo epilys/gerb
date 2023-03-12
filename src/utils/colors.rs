@@ -152,7 +152,7 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(u8, u8, u8)> {
     if s.starts_with('#')
         && s.len() == 7
         && s[1..].as_bytes().iter().all(|&b| {
-            (b'0'..=b'9').contains(&b) || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
+            b.is_ascii_digit() || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
         })
     {
         Some((
@@ -163,7 +163,7 @@ pub fn hex_color_to_rgb(s: &str) -> Option<(u8, u8, u8)> {
     } else if s.starts_with('#')
         && s.len() == 4
         && s[1..].as_bytes().iter().all(|&b| {
-            (b'0'..=b'9').contains(&b) || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
+            b.is_ascii_digit() || (b'a'..=b'f').contains(&b) || (b'A'..=b'F').contains(&b)
         })
     {
         Some((
