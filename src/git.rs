@@ -39,7 +39,7 @@ impl std::fmt::Debug for RepositoryInner {
 
 impl Default for RepositoryInner {
     fn default() -> Self {
-        RepositoryInner {
+        Self {
             repository: OnceCell::new(),
             state: Cell::new(RepositoryState::Clean),
             absolute_path: RefCell::new(PathBuf::default()),
@@ -167,20 +167,20 @@ pub enum RepositoryState {
 }
 
 impl From<git2::RepositoryState> for RepositoryState {
-    fn from(original: git2::RepositoryState) -> RepositoryState {
+    fn from(original: git2::RepositoryState) -> Self {
         match original {
-            git2::RepositoryState::Clean => RepositoryState::Clean,
-            git2::RepositoryState::Merge => RepositoryState::Merge,
-            git2::RepositoryState::Revert => RepositoryState::Revert,
-            git2::RepositoryState::RevertSequence => RepositoryState::RevertSequence,
-            git2::RepositoryState::CherryPick => RepositoryState::CherryPick,
-            git2::RepositoryState::CherryPickSequence => RepositoryState::CherryPickSequence,
-            git2::RepositoryState::Bisect => RepositoryState::Bisect,
-            git2::RepositoryState::Rebase => RepositoryState::Rebase,
-            git2::RepositoryState::RebaseInteractive => RepositoryState::RebaseInteractive,
-            git2::RepositoryState::RebaseMerge => RepositoryState::RebaseMerge,
-            git2::RepositoryState::ApplyMailbox => RepositoryState::ApplyMailbox,
-            git2::RepositoryState::ApplyMailboxOrRebase => RepositoryState::ApplyMailboxOrRebase,
+            git2::RepositoryState::Clean => Self::Clean,
+            git2::RepositoryState::Merge => Self::Merge,
+            git2::RepositoryState::Revert => Self::Revert,
+            git2::RepositoryState::RevertSequence => Self::RevertSequence,
+            git2::RepositoryState::CherryPick => Self::CherryPick,
+            git2::RepositoryState::CherryPickSequence => Self::CherryPickSequence,
+            git2::RepositoryState::Bisect => Self::Bisect,
+            git2::RepositoryState::Rebase => Self::Rebase,
+            git2::RepositoryState::RebaseInteractive => Self::RebaseInteractive,
+            git2::RepositoryState::RebaseMerge => Self::RebaseMerge,
+            git2::RepositoryState::ApplyMailbox => Self::ApplyMailbox,
+            git2::RepositoryState::ApplyMailboxOrRebase => Self::ApplyMailboxOrRebase,
         }
     }
 }

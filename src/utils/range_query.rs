@@ -39,8 +39,8 @@ impl Coordinate {
     #[inline(always)]
     fn next(self) -> Self {
         match self {
-            Coordinate::X => Coordinate::Y,
-            Coordinate::Y => Coordinate::X,
+            Self::X => Self::Y,
+            Self::Y => Self::X,
         }
     }
 }
@@ -394,7 +394,7 @@ struct TempLeaf<Identifier: std::fmt::Debug> {
 
 impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, N> {
     fn split(index: Index, arena: &mut Arena<Self>) {
-        if let Some(KdNode::Leaf {
+        if let Some(Self::Leaf {
             split_at,
             min,
             max,
@@ -445,21 +445,21 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
             }
             let left_size = left.size;
             let right_size = right.size;
-            let left = arena.insert(KdNode::Leaf {
+            let left = arena.insert(Self::Leaf {
                 split_at: left.split_at,
                 min: left.min,
                 max: left.max,
                 points: left.points,
                 size: left.size,
             });
-            let right = arena.insert(KdNode::Leaf {
+            let right = arena.insert(Self::Leaf {
                 split_at: right.split_at,
                 min: right.min,
                 max: right.max,
                 points: right.points,
                 size: right.size,
             });
-            *arena.get_mut(index).unwrap() = KdNode::Division {
+            *arena.get_mut(index).unwrap() = Self::Division {
                 split_value,
                 split_at: next_split,
                 min,
@@ -484,7 +484,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
 
         loop {
             match arena.get_mut(index) {
-                Some(KdNode::Leaf {
+                Some(Self::Leaf {
                     split_at: _,
                     min,
                     max,
@@ -501,7 +501,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
                     }
                     break;
                 }
-                Some(KdNode::Division {
+                Some(Self::Division {
                     split_value,
                     split_at,
                     min,
@@ -537,7 +537,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
             Coordinate::Y
         };
         if points.len() == 1 {
-            return arena.insert(KdNode::Leaf {
+            return arena.insert(Self::Leaf {
                 split_at,
                 size: 1,
                 min: points[0].1,
@@ -572,7 +572,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
 
         if left.is_empty() || right.is_empty() {
             let points = if left.is_empty() { right } else { left };
-            return arena.insert(KdNode::Leaf {
+            return arena.insert(Self::Leaf {
                 split_at,
                 size: points.len(),
                 min,
@@ -583,7 +583,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
         let left = Self::create(&left, depth + 1, arena);
         let right = Self::create(&right, depth + 1, arena);
 
-        arena.insert(KdNode::Division {
+        arena.insert(Self::Division {
             split_value,
             split_at,
             min,
@@ -608,7 +608,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
         loop {
             path.push(index);
             match arena.get_mut(index) {
-                Some(KdNode::Leaf {
+                Some(Self::Leaf {
                     split_at: _,
                     min,
                     max,
@@ -638,7 +638,7 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
                     }
                     break;
                 }
-                Some(KdNode::Division {
+                Some(Self::Division {
                     split_value,
                     split_at,
                     min: _,
@@ -666,10 +666,10 @@ impl<I: std::fmt::Debug + Copy + std::cmp::PartialEq, const N: usize> KdNode<I, 
 
         while let Some(((leaf, index), (leaf_min, leaf_max))) = update_path.take() {
             match arena.get_mut(index) {
-                Some(KdNode::Leaf { .. }) => {
+                Some(Self::Leaf { .. }) => {
                     unreachable!()
                 }
-                Some(KdNode::Division {
+                Some(Self::Division {
                     split_value: _,
                     split_at: _,
                     min,

@@ -293,7 +293,10 @@ impl Transformation {
         let content_width = self.property::<f64>(Self::CONTENT_WIDTH);
         let ppu = self.property::<f64>(Self::PIXELS_PER_UNIT);
         let half_unit = (ppu * content_width, ppu * units_per_em / 4.0);
-        let (x, y) = (width / 2.0 - half_unit.0, height / 2.0 + half_unit.1 * 2.0);
+        let (x, y) = (
+            width / 2.0 - half_unit.0,
+            half_unit.1.mul_add(2.0, height / 2.0),
+        );
         if !x.is_finite() || !y.is_finite() {
             return;
         }
@@ -360,17 +363,17 @@ impl Transformation {
 
     pub fn zoom_in(&self) -> bool {
         self.set_property::<bool>(Self::FIT_VIEW, false);
-        self.set_zoom(self.property::<f64>(Transformation::SCALE) + 0.1)
+        self.set_zoom(self.property::<f64>(Self::SCALE) + 0.1)
     }
 
     pub fn zoom_out(&self) -> bool {
         self.set_property::<bool>(Self::FIT_VIEW, false);
-        self.set_zoom(self.property::<f64>(Transformation::SCALE) - 0.1)
+        self.set_zoom(self.property::<f64>(Self::SCALE) - 0.1)
     }
 
     pub fn reset_zoom(&self) {
         let previous_value = self.previous_scale.get();
-        let current_value = self.property::<f64>(Transformation::SCALE);
+        let current_value = self.property::<f64>(Self::SCALE);
         match previous_value {
             None if current_value == 1.0 => {}
             Some(v) if current_value == 1.0 => {

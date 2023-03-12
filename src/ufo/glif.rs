@@ -37,10 +37,10 @@ where
     match *v {
         Some(Color((r, g, b, a))) => {
             let (r, g, b, a) = (
-                r as f64 / 255.0,
-                g as f64 / 255.0,
-                b as f64 / 255.0,
-                a as f64 / 255.0,
+                f64::from(r) / 255.0,
+                f64::from(g) / 255.0,
+                f64::from(b) / 255.0,
+                f64::from(a) / 255.0,
             );
             let cl = move |v: f64| {
                 if v == 0.0 || v == 1.0 {
@@ -250,8 +250,8 @@ pub struct Guideline {
 }
 
 impl From<&glyphs::Guideline> for Guideline {
-    fn from(g: &glyphs::Guideline) -> Guideline {
-        Guideline {
+    fn from(g: &glyphs::Guideline) -> Self {
+        Self {
             name: g.name(),
             identifier: g.identifier(),
             color: g.color_inner(),
@@ -300,25 +300,24 @@ impl Unicode {
 impl TryFrom<&Unicode> for crate::glyphs::GlyphKind {
     type Error = String;
 
-    fn try_from(val: &Unicode) -> Result<crate::glyphs::GlyphKind, Self::Error> {
+    fn try_from(val: &Unicode) -> Result<Self, Self::Error> {
         let num = u32::from_str_radix(val.hex(), 16)
             .map_err(|err| format!("{} is not a valid hex value: {err}.", val.hex()))?;
-        Ok(crate::glyphs::GlyphKind::Char(
-            char::from_u32(num)
-                .ok_or_else(|| format!("{} = {num} is not a valid codepoint value.", val.hex()))?,
-        ))
+        Ok(Self::Char(char::from_u32(num).ok_or_else(|| {
+            format!("{} = {num} is not a valid codepoint value.", val.hex())
+        })?))
     }
 }
 
 impl From<char> for crate::glyphs::GlyphKind {
-    fn from(val: char) -> crate::glyphs::GlyphKind {
-        crate::glyphs::GlyphKind::Char(val)
+    fn from(val: char) -> Self {
+        Self::Char(val)
     }
 }
 
 impl From<String> for crate::glyphs::GlyphKind {
-    fn from(val: String) -> crate::glyphs::GlyphKind {
-        crate::glyphs::GlyphKind::Component(val)
+    fn from(val: String) -> Self {
+        Self::Component(val)
     }
 }
 
@@ -443,7 +442,7 @@ impl Glif {
 }
 
 impl From<&glyphs::Glyph> for Glif {
-    fn from(glyph: &glyphs::Glyph) -> Glif {
+    fn from(glyph: &glyphs::Glyph) -> Self {
         let mut outline: Vec<OutlineEntry> =
             Vec::with_capacity(glyph.components.len() + glyph.contours.len());
         outline.extend(glyph.components.iter().map(|c| {
@@ -522,7 +521,7 @@ impl From<&glyphs::Glyph> for Glif {
             })
         }));
 
-        Glif {
+        Self {
             name: glyph.name().to_string(),
             format: Some("2".to_string()),
             unicode: glyph.metadata.unicode.borrow().clone(),
@@ -539,15 +538,13 @@ impl From<&glyphs::Glyph> for Glif {
 impl std::str::FromStr for Glif {
     type Err = Box<dyn std::error::Error>;
     fn from_str(s: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let g: Glif = quick_xml::de::from_str(s)?;
-        Ok(g)
+        Ok(quick_xml::de::from_str(s)?)
     }
 }
 
 impl Default for Glif {
     fn default() -> Self {
-        let g: Glif = quick_xml::de::from_str(_LOWERCASE_B_GLIF).unwrap();
-        g
+        quick_xml::de::from_str(_LOWERCASE_B_GLIF).unwrap()
     }
 }
 

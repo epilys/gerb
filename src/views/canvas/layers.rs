@@ -35,7 +35,7 @@ pub struct LayerInner {
 
 impl Default for LayerInner {
     fn default() -> Self {
-        LayerInner {
+        Self {
             callback: Rc::new(RefCell::new(Rc::new(|_canvas, _context| Inhibit(false)))),
             active: Cell::new(true),
             hidden: Cell::new(false),

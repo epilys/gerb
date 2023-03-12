@@ -111,18 +111,15 @@ impl ObjectSubclass for CanvasInner {
 impl ObjectImpl for CanvasInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.handle_size.set(CanvasInner::HANDLE_SIZE_INIT_VAL);
-        self.line_width.set(CanvasInner::LINE_WIDTH_INIT_VAL);
-        self.show_grid.set(CanvasInner::SHOW_GRID_INIT_VAL);
-        self.show_guidelines
-            .set(CanvasInner::SHOW_GUIDELINES_INIT_VAL);
-        self.show_handles.set(CanvasInner::SHOW_HANDLES_INIT_VAL);
-        self.inner_fill.set(CanvasInner::INNER_FILL_INIT_VAL);
-        self.show_total_area
-            .set(CanvasInner::SHOW_TOTAL_AREA_INIT_VAL);
-        self.show_rulers.set(CanvasInner::SHOW_RULERS_INIT_VAL);
-        self.show_direction
-            .set(CanvasInner::SHOW_DIRECTION_INIT_VAL);
+        self.handle_size.set(Self::HANDLE_SIZE_INIT_VAL);
+        self.line_width.set(Self::LINE_WIDTH_INIT_VAL);
+        self.show_grid.set(Self::SHOW_GRID_INIT_VAL);
+        self.show_guidelines.set(Self::SHOW_GUIDELINES_INIT_VAL);
+        self.show_handles.set(Self::SHOW_HANDLES_INIT_VAL);
+        self.inner_fill.set(Self::INNER_FILL_INIT_VAL);
+        self.show_total_area.set(Self::SHOW_TOTAL_AREA_INIT_VAL);
+        self.show_rulers.set(Self::SHOW_RULERS_INIT_VAL);
+        self.show_direction.set(Self::SHOW_DIRECTION_INIT_VAL);
         self.direction_options
             .set((Color::from_hex("#0478A2").with_alpha_f64(0.9), 2.0).into()); // [ref:hardcoded_color_value]
         self.handle_connection_options.set(DrawOptions::from((
@@ -164,18 +161,16 @@ impl ObjectImpl for CanvasInner {
             )
                 .into(),
         );
-        self.warp_cursor.set(CanvasInner::WARP_CURSOR_INIT_VAL);
+        self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
         self.bg_color.set(Color::WHITE);
         self.bg_color.set(Color::from_hex("#EEF8F8")); // [ref:hardcoded_color_value]
         self.glyph_bbox_bg_color
             .set(Color::new_alpha(210, 227, 252, 153)); // [ref:hardcoded_color_value]
         self.glyph_inner_fill_color.set(Color::from_hex("#E6E6E4")); // [ref:hardcoded_color_value]
-        self.ruler_fg_color
-            .set(CanvasInner::RULER_FG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
-        self.ruler_bg_color
-            .set(CanvasInner::RULER_BG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
+        self.ruler_fg_color.set(Self::RULER_FG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
+        self.ruler_bg_color.set(Self::RULER_BG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
         self.ruler_indicator_color
-            .set(CanvasInner::RULER_INDICATOR_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
+            .set(Self::RULER_INDICATOR_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
         self.ruler_fg_color.set(Color::from_hex("#8B9494")); // [ref:hardcoded_color_value]
         self.ruler_bg_color.set(Color::from_hex("#F2F8F8")); // [ref:hardcoded_color_value]
         self.pre_layers.borrow_mut().push(
@@ -198,8 +193,8 @@ impl ObjectImpl for CanvasInner {
                 | gtk::gdk::EventMask::POINTER_MOTION_MASK,
         );
         obj.connect_size_allocate(|self_, _rect| {
-            self_.set_property::<f64>(Canvas::VIEW_HEIGHT, self_.allocated_height() as f64);
-            self_.set_property::<f64>(Canvas::VIEW_WIDTH, self_.allocated_width() as f64);
+            self_.set_property::<f64>(Canvas::VIEW_HEIGHT, f64::from(self_.allocated_height()));
+            self_.set_property::<f64>(Canvas::VIEW_WIDTH, f64::from(self_.allocated_width()));
         });
         obj.connect_draw(
             move |viewport: &Canvas, mut cr: &gtk::cairo::Context| -> Inhibit {
@@ -442,8 +437,8 @@ impl ObjectImpl for CanvasInner {
             Canvas::SHOW_TOTAL_AREA => self.show_total_area.get().to_value(),
             Canvas::SHOW_RULERS => self.show_rulers.get().to_value(),
             Canvas::WARP_CURSOR => self.warp_cursor.get().to_value(),
-            Canvas::VIEW_HEIGHT => (self.instance().allocated_height() as f64).to_value(),
-            Canvas::VIEW_WIDTH => (self.instance().allocated_width() as f64).to_value(),
+            Canvas::VIEW_HEIGHT => (f64::from(self.instance().allocated_height())).to_value(),
+            Canvas::VIEW_WIDTH => (f64::from(self.instance().allocated_width())).to_value(),
             Canvas::CONTENT_WIDTH => self.content_width.get().to_value(),
             Canvas::BG_COLOR => self.bg_color.get().to_value(),
             Canvas::GLYPH_INNER_FILL_COLOR => self.glyph_inner_fill_color.get().to_value(),
@@ -630,16 +625,16 @@ impl Canvas {
     }
 
     pub fn draw_grid(&self, cr: ContextRef<'_, '_>) -> Inhibit {
-        cr.set_source_color(self.property::<Color>(Canvas::BG_COLOR));
+        cr.set_source_color(self.property::<Color>(Self::BG_COLOR));
         cr.paint().unwrap();
 
-        if self.property::<bool>(Canvas::SHOW_GRID) {
+        if self.property::<bool>(Self::SHOW_GRID) {
             let scale: f64 = self.transformation.property::<f64>(Transformation::SCALE);
             let ppu = self
                 .transformation
                 .property::<f64>(Transformation::PIXELS_PER_UNIT);
-            let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
-            let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
+            let width: f64 = self.property::<f64>(Self::VIEW_WIDTH);
+            let height: f64 = self.property::<f64>(Self::VIEW_HEIGHT);
             let ViewPoint(camera) = self.transformation.camera();
 
             cr.set_line_width(1.5);
@@ -669,17 +664,17 @@ impl Canvas {
         if !self.show_rulers.get() {
             return Inhibit(false);
         }
-        let width: f64 = self.property::<f64>(Canvas::VIEW_WIDTH);
-        let height: f64 = self.property::<f64>(Canvas::VIEW_HEIGHT);
-        let ruler_breadth: f64 = self.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
+        let width: f64 = self.property::<f64>(Self::VIEW_WIDTH);
+        let height: f64 = self.property::<f64>(Self::VIEW_HEIGHT);
+        let ruler_breadth: f64 = self.property::<f64>(Self::RULER_BREADTH_PIXELS);
         let scale = self.transformation.property::<f64>(Transformation::SCALE);
         let ppu = self
             .transformation
             .property::<f64>(Transformation::PIXELS_PER_UNIT);
         let (ruler_fg, ruler_bg, ruler_indicator_color) = (
-            self.property::<Color>(Canvas::RULER_FG_COLOR),
-            self.property::<Color>(Canvas::RULER_BG_COLOR),
-            self.property::<Color>(Canvas::RULER_INDICATOR_COLOR),
+            self.property::<Color>(Self::RULER_FG_COLOR),
+            self.property::<Color>(Self::RULER_BG_COLOR),
+            self.property::<Color>(Self::RULER_INDICATOR_COLOR),
         );
         let ViewPoint(camera) = self.transformation.camera();
 
@@ -705,8 +700,8 @@ impl Canvas {
             cr1.move_to(0.0, y);
             cr1.line_to(ruler_breadth, y);
             for i in 1..10 {
-                cr1.move_to(ruler_breadth / 2.0, y + i as f64 * step / 10.0);
-                cr1.line_to(ruler_breadth, y + i as f64 * step / 10.0);
+                cr1.move_to(ruler_breadth / 2.0, y + f64::from(i) * step / 10.0);
+                cr1.line_to(ruler_breadth, y + f64::from(i) * step / 10.0);
             }
             y += step;
         }
@@ -745,8 +740,8 @@ impl Canvas {
             cr4.move_to(x, 0.0);
             cr4.line_to(x, ruler_breadth);
             for i in 1..10 {
-                cr4.move_to(x + i as f64 * step / 10.0, ruler_breadth / 2.0);
-                cr4.line_to(x + i as f64 * step / 10.0, ruler_breadth);
+                cr4.move_to(x + f64::from(i) * step / 10.0, ruler_breadth / 2.0);
+                cr4.line_to(x + f64::from(i) * step / 10.0, ruler_breadth);
             }
             x += step;
         }

@@ -66,27 +66,20 @@ impl SettingsInner {
             if !path.exists() && path.parent().is_some() {
                 let parent = path.parent().unwrap();
                 std::fs::create_dir_all(parent)?;
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(path)?;
-            } else {
-                if OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(false)
-                    .open(path)
-                    .is_ok()
-                {
-                    return Ok(());
-                }
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(path)?;
+            } else if OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(false)
+                .open(path)
+                .is_ok()
+            {
+                return Ok(());
             }
+            OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(path)?;
             Ok(())
         }
 
@@ -380,11 +373,10 @@ impl ObjectSubclass for SettingsInner {
 impl ObjectImpl for SettingsInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.handle_size.set(SettingsInner::HANDLE_SIZE_INIT_VAL);
-        self.line_width.set(SettingsInner::LINE_WIDTH_INIT_VAL);
-        self.guideline_width
-            .set(SettingsInner::GUIDELINE_WIDTH_INIT_VAL);
-        self.warp_cursor.set(SettingsInner::WARP_CURSOR_INIT_VAL);
+        self.handle_size.set(Self::HANDLE_SIZE_INIT_VAL);
+        self.line_width.set(Self::LINE_WIDTH_INIT_VAL);
+        self.guideline_width.set(Self::GUIDELINE_WIDTH_INIT_VAL);
+        self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
 
         self.init_file().unwrap();
         self.load_settings().unwrap();

@@ -69,7 +69,7 @@ impl Color {
     }
 
     pub fn try_from_hex(s: &str) -> Option<Self> {
-        hex_color_to_rgb(s).map(|(r, g, b)| Color::new(r, g, b))
+        hex_color_to_rgb(s).map(|(r, g, b)| Self::new(r, g, b))
     }
 
     pub const fn from_hex(s: &str) -> Self {
@@ -108,8 +108,8 @@ impl Default for Color {
 }
 
 impl From<gdk::RGBA> for Color {
-    fn from(val: gdk::RGBA) -> Color {
-        Color((
+    fn from(val: gdk::RGBA) -> Self {
+        Self((
             (val.red() * 255.0) as u8,
             (val.green() * 255.0) as u8,
             (val.blue() * 255.0) as u8,
@@ -119,23 +119,23 @@ impl From<gdk::RGBA> for Color {
 }
 
 impl From<Color> for gdk::RGBA {
-    fn from(color: Color) -> gdk::RGBA {
-        gdk::RGBA::new(
-            (color.0).0 as f64 / 255.0,
-            (color.0).1 as f64 / 255.0,
-            (color.0).2 as f64 / 255.0,
-            (color.0).3 as f64 / 255.0,
+    fn from(color: Color) -> Self {
+        Self::new(
+            f64::from((color.0).0) / 255.0,
+            f64::from((color.0).1) / 255.0,
+            f64::from((color.0).2) / 255.0,
+            f64::from((color.0).3) / 255.0,
         )
     }
 }
 
 impl From<&Color> for gdk::RGBA {
-    fn from(color: &Color) -> gdk::RGBA {
-        gdk::RGBA::new(
-            (color.0).0 as f64 / 255.0,
-            (color.0).1 as f64 / 255.0,
-            (color.0).2 as f64 / 255.0,
-            (color.0).3 as f64 / 255.0,
+    fn from(color: &Color) -> Self {
+        Self::new(
+            f64::from((color.0).0) / 255.0,
+            f64::from((color.0).1) / 255.0,
+            f64::from((color.0).2) / 255.0,
+            f64::from((color.0).3) / 255.0,
         )
     }
 }
@@ -143,7 +143,7 @@ impl From<&Color> for gdk::RGBA {
 impl std::fmt::Display for Color {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         let (r, g, b, a) = self.0;
-        let [r, g, b, _] = [r as u64, g as u64, b as u64, a as u64];
+        let [r, g, b, _] = [u64::from(r), u64::from(g), u64::from(b), u64::from(a)];
         write!(fmt, "#{r:02X}{g:02X}{b:02X}")
     }
 }
@@ -240,18 +240,18 @@ pub trait ColorExt {
 impl ColorExt for gtk::cairo::Context {
     fn set_source_color(&self, color: Color) {
         self.set_source_rgb(
-            (color.0).0 as f64 / 255.0,
-            (color.0).1 as f64 / 255.0,
-            (color.0).2 as f64 / 255.0,
+            f64::from((color.0).0) / 255.0,
+            f64::from((color.0).1) / 255.0,
+            f64::from((color.0).2) / 255.0,
         );
     }
 
     fn set_source_color_alpha(&self, color: Color) {
         self.set_source_rgba(
-            (color.0).0 as f64 / 255.0,
-            (color.0).1 as f64 / 255.0,
-            (color.0).2 as f64 / 255.0,
-            (color.0).3 as f64 / 255.0,
+            f64::from((color.0).0) / 255.0,
+            f64::from((color.0).1) / 255.0,
+            f64::from((color.0).2) / 255.0,
+            f64::from((color.0).3) / 255.0,
         );
     }
 
@@ -268,8 +268,8 @@ impl ColorExt for gtk::cairo::Context {
         self.rectangle(
             x - margin,
             y - extents.height - margin,
-            extents.width + 2.0 * margin,
-            extents.height + 2.0 * margin,
+            2.0f64.mul_add(margin, extents.width),
+            2.0f64.mul_add(margin, extents.height),
         );
         self.fill().unwrap();
         self.restore().unwrap();
@@ -294,7 +294,7 @@ mod rgba_serde {
     }
 
     impl<'de> Deserialize<'de> for Color {
-        fn deserialize<D>(de: D) -> Result<Color, D::Error>
+        fn deserialize<D>(de: D) -> Result<Self, D::Error>
         where
             D: Deserializer<'de>,
         {
@@ -308,7 +308,7 @@ mod rgba_serde {
             }
             let val = <Val>::deserialize(de)?;
             match val {
-                Val::Raw((r, g, b, a)) => Ok(Color::new_alpha(
+                Val::Raw((r, g, b, a)) => Ok(Self::new_alpha(
                     (r * 255.0) as u8,
                     (g * 255.0) as u8,
                     (b * 255.0) as u8,
@@ -335,9 +335,9 @@ mod rgba_serde {
                                 s
                             )));
                         }
-                        Ok(Color::new_alpha(acc[0], acc[1], acc[2], acc[3]))
+                        Ok(Self::new_alpha(acc[0], acc[1], acc[2], acc[3]))
                     } else {
-                        Ok(Color::try_from_hex(s).ok_or_else(|| {
+                        Ok(Self::try_from_hex(s).ok_or_else(|| {
                             D::Error::custom(format!("{:?} is not a valid hex color value.", s))
                         })?)
                     }
@@ -369,8 +369,8 @@ impl DrawOptions {
 }
 
 impl From<(Color, f64)> for DrawOptions {
-    fn from((color, size): (Color, f64)) -> DrawOptions {
-        DrawOptions {
+    fn from((color, size): (Color, f64)) -> Self {
+        Self {
             color,
             bg: None,
             size,
@@ -380,8 +380,8 @@ impl From<(Color, f64)> for DrawOptions {
 }
 
 impl From<(Color, f64, &'static str)> for DrawOptions {
-    fn from((color, size, inherit_size): (Color, f64, &'static str)) -> DrawOptions {
-        DrawOptions {
+    fn from((color, size, inherit_size): (Color, f64, &'static str)) -> Self {
+        Self {
             color,
             bg: None,
             size,

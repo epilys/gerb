@@ -746,12 +746,12 @@ impl BezierTool {
 
     pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
         let state = obj.state().borrow();
-        if BezierTool::static_type() != state.active_tool {
+        if Self::static_type() != state.active_tool {
             return Inhibit(false);
         }
         let t = state.tools[&state.active_tool]
             .clone()
-            .downcast::<BezierTool>()
+            .downcast::<Self>()
             .unwrap();
         if !t.imp().active.get() {
             return Inhibit(false);

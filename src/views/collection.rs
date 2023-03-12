@@ -32,6 +32,8 @@ use crate::unicode::blocks::*;
 
 const GLYPH_BOX_WIDTH: f64 = 110.0;
 const GLYPH_BOX_HEIGHT: f64 = 140.0;
+const GLYPH_BOX_WIDTH_I32: i32 = 110;
+const GLYPH_BOX_HEIGHT_I32: i32 = 140;
 
 #[derive(Debug, Default)]
 pub struct CollectionInner {
@@ -636,8 +638,8 @@ impl ObjectSubclass for GlyphBoxInner {
 impl ObjectImpl for GlyphBoxInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        obj.set_height_request(GLYPH_BOX_HEIGHT as _);
-        obj.set_width_request(GLYPH_BOX_WIDTH as _);
+        obj.set_height_request(GLYPH_BOX_HEIGHT_I32);
+        obj.set_width_request(GLYPH_BOX_WIDTH_I32);
         obj.set_can_focus(true);
         obj.set_expand(false);
         obj.set_halign(gtk::Align::Start);
@@ -766,7 +768,7 @@ impl ObjectImpl for GlyphBoxInner {
             }
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.4);
             // View height.
-            let vh = viewport.allocated_height() as f64;
+            let vh = f64::from(viewport.allocated_height());
             cr.set_font_size(zoom_factor * 62.0);
 
 
@@ -797,12 +799,12 @@ impl ObjectImpl for GlyphBoxInner {
 
             cr.set_line_width(2.0);
             cr.set_source_rgb(0.0, 0.0, 0.0);
-            cr.move_to(x, point.y + 2.0 * (height / 3.0));
-            cr.line_to(x + width * 1.2, point.y + 2.0 * (height / 3.0));
+            cr.move_to(x, 2.0f64.mul_add(height / 3.0, point.y));
+            cr.line_to(width.mul_add(1.2, x), 2.0f64.mul_add(height / 3.0, point.y));
             cr.stroke().expect("Invalid cairo surface state");
             cr.set_source_rgb(196.0 / 255.0, 196.0 / 255.0, 196.0 / 255.0);
             cr.new_path();
-            cr.rectangle(x, point.y + 2.0 * (height / 3.0), width * 1.2, 1.2 * height / 3.0);
+            cr.rectangle(x, 2.0f64.mul_add(height / 3.0, point.y), width * 1.2, 1.2 * height / 3.0);
             cr.fill().expect("Invalid cairo surface state");
             cr.reset_clip();
 
@@ -821,7 +823,7 @@ impl ObjectImpl for GlyphBoxInner {
             let extents = cr
                 .text_extents(&label)
                 .expect("Invalid cairo surface state");
-            cr.move_to(point.x + width / 2.0 - extents.width  / 2.0, point.y + 2.4 * height / 3.0 + 1.5 * sextents.height);
+            cr.move_to(point.x + width / 2.0 - extents.width  / 2.0, 1.5f64.mul_add(sextents.height, point.y + 2.4 * height / 3.0));
             cr.show_text(&label).expect("Invalid cairo surface state");
 
             Inhibit(false)

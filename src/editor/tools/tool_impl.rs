@@ -578,7 +578,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     ) -> Inhibit {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.on_button_press_event)(obj, view, viewport, event)
         }
     }
@@ -592,7 +595,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     ) -> Inhibit {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.on_button_release_event)(obj, view, viewport, event)
         }
     }
@@ -606,7 +612,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     ) -> Inhibit {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.on_scroll_event)(obj, view, viewport, event)
         }
     }
@@ -620,7 +629,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     ) -> Inhibit {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.on_motion_notify_event)(obj, view, viewport, event)
         }
     }
@@ -628,7 +640,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_setup_toolbox(&self, obj: &ToolImpl, toolbox: &gtk::Toolbar, view: &Editor) {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.setup_toolbox)(obj, toolbox, view)
         }
     }
@@ -636,7 +651,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_on_activate(&self, obj: &ToolImpl, view: &Editor) {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.on_activate)(obj, view)
         }
     }
@@ -644,7 +662,10 @@ impl<T: ToolImplImpl> ToolImplImplExt for T {
     fn parent_on_deactivate(&self, obj: &ToolImpl, view: &Editor) {
         unsafe {
             let data = Self::type_data();
-            let parent_class = &*(data.as_ref().parent_class() as *mut ToolImplClass);
+            let parent_class = &*data
+                .as_ref()
+                .parent_class()
+                .cast::<editor::tools::tool_impl::ToolImplClass>();
             (parent_class.on_deactivate)(obj, view)
         }
     }

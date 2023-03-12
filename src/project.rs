@@ -78,7 +78,7 @@ pub struct ProjectInner {
 
 impl Default for ProjectInner {
     fn default() -> Self {
-        ProjectInner {
+        Self {
             name: RefCell::new("New project".to_string()),
             modified: Cell::new(false),
             last_saved: RefCell::new(None),
@@ -356,8 +356,8 @@ impl Project {
         *ret.all_layers.borrow_mut() = all_layers;
         *ret.layercontents.borrow_mut() = layercontents;
         path.pop();
-        ret.set_property(Project::NAME, fontinfo.family_name.borrow().clone());
-        ret.set_property(Project::MODIFIED, false);
+        ret.set_property(Self::NAME, fontinfo.family_name.borrow().clone());
+        ret.set_property(Self::MODIFIED, false);
         *ret.last_saved.borrow_mut() = None;
 
         #[cfg(feature = "git")]
@@ -389,22 +389,22 @@ impl Project {
             })
             .collect::<Vec<Guideline>>();
         for property in [
-            Project::FAMILY_NAME,
-            Project::STYLE_NAME,
-            Project::STYLE_MAP_FAMILY_NAME,
-            Project::STYLE_MAP_STYLE_NAME,
-            Project::YEAR,
-            Project::COPYRIGHT,
-            Project::TRADEMARK,
-            Project::UNITS_PER_EM, // [tag:project_bind_metrics]
-            Project::DESCENDER,
-            Project::X_HEIGHT,
-            Project::CAP_HEIGHT,
-            Project::ASCENDER,
-            Project::ITALIC_ANGLE,
-            Project::NOTE,
-            Project::VERSION_MAJOR,
-            Project::VERSION_MINOR,
+            Self::FAMILY_NAME,
+            Self::STYLE_NAME,
+            Self::STYLE_MAP_FAMILY_NAME,
+            Self::STYLE_MAP_STYLE_NAME,
+            Self::YEAR,
+            Self::COPYRIGHT,
+            Self::TRADEMARK,
+            Self::UNITS_PER_EM, // [tag:project_bind_metrics]
+            Self::DESCENDER,
+            Self::X_HEIGHT,
+            Self::CAP_HEIGHT,
+            Self::ASCENDER,
+            Self::ITALIC_ANGLE,
+            Self::NOTE,
+            Self::VERSION_MAJOR,
+            Self::VERSION_MINOR,
         ] {
             fontinfo
                 .bind_property(property, &ret, property)
@@ -417,10 +417,10 @@ impl Project {
         {
             let mut metric_guidelines = ret.metric_guidelines.borrow_mut();
             for (name, field) in [
-                (Project::X_HEIGHT, ret.x_height.get()),
-                (Project::ASCENDER, ret.ascender.get()),
-                (Project::DESCENDER, ret.descender.get()),
-                (Project::CAP_HEIGHT, ret.cap_height.get()),
+                (Self::X_HEIGHT, ret.x_height.get()),
+                (Self::ASCENDER, ret.ascender.get()),
+                (Self::DESCENDER, ret.descender.get()),
+                (Self::CAP_HEIGHT, ret.cap_height.get()),
             ] {
                 let g = Guideline::builder()
                     .name(Some(name.to_string()))

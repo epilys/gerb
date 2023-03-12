@@ -37,9 +37,9 @@ pub mod blocks {
     impl CharBlock for u32 {
         fn char_block(self) -> Option<usize> {
             match UNICODE_BLOCKS.binary_search_by(|&((lo, hi), _, _, _, _)| {
-                if lo as u32 <= self && self <= hi as u32 {
+                if lo as Self <= self && self <= hi as Self {
                     Ordering::Equal
-                } else if (hi as u32) < self {
+                } else if (hi as Self) < self {
                     Ordering::Less
                 } else {
                     Ordering::Greater

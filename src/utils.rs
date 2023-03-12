@@ -103,7 +103,7 @@ pub fn distance_between_two_points<K: Into<Point>, L: Into<Point>>(p_k: K, p_l: 
     let p_l: Point = p_l.into();
     let xlk = p_l.x - p_k.x;
     let ylk = p_l.y - p_k.y;
-    (xlk * xlk + ylk * ylk).sqrt() // [ref:FIXME] overflow check
+    xlk.hypot(ylk) // [ref:FIXME] overflow check
 }
 
 #[repr(transparent)]
@@ -235,7 +235,7 @@ macro_rules! impl_modified {
     };
     ($ty:ty, $property_name:ident) => {
         impl $crate::utils::Modified for $ty {
-            const PROPERTY_NAME: &'static str = <$ty>::$property_name;
+            const PROPERTY_NAME: &'static str = Self::$property_name;
         }
     };
 }

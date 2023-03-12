@@ -36,7 +36,7 @@ const JAMO_T_TABLE: &[&str] = &[
     "B", "BS", "S", "SS", "NG", "J", "C", "K", "T", "P", "H",
 ];
 
-pub(crate) fn hangul_name(s: u32) -> String {
+pub fn hangul_name(s: u32) -> String {
     let s_index = s - S_BASE;
     assert!(s_index < S_COUNT);
     let l_index = s_index / N_COUNT;

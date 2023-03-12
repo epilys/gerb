@@ -301,12 +301,12 @@ impl QuadrilateralTool {
 
     pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
         let state = obj.state().borrow();
-        if QuadrilateralTool::static_type() != state.active_tool {
+        if Self::static_type() != state.active_tool {
             return Inhibit(false);
         }
         let t = state.tools[&state.active_tool]
             .clone()
-            .downcast::<QuadrilateralTool>()
+            .downcast::<Self>()
             .unwrap();
         if !t.imp().active.get() {
             return Inhibit(false);
@@ -622,12 +622,12 @@ impl EllipseTool {
 
     pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
         let state = obj.state().borrow();
-        if EllipseTool::static_type() != state.active_tool {
+        if Self::static_type() != state.active_tool {
             return Inhibit(false);
         }
         let t = state.tools[&state.active_tool]
             .clone()
-            .downcast::<EllipseTool>()
+            .downcast::<Self>()
             .unwrap();
         if !t.imp().active.get() {
             return Inhibit(false);

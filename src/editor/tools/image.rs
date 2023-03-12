@@ -199,7 +199,7 @@ impl ImageTool {
 
     pub fn new(glyph: Rc<RefCell<Glyph>>, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
-        for property in [ImageTool::ASCENDER, ImageTool::DESCENDER] {
+        for property in [Self::ASCENDER, Self::DESCENDER] {
             project
                 .bind_property(property, &ret, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
@@ -229,9 +229,9 @@ impl ImageTool {
     }
 
     pub fn draw_layer(viewport: &Canvas, cr: ContextRef, obj: Editor) -> Inhibit {
-        let t = obj.state().borrow().tools[&ImageTool::static_type()]
+        let t = obj.state().borrow().tools[&Self::static_type()]
             .clone()
-            .downcast::<ImageTool>()
+            .downcast::<Self>()
             .unwrap();
         if !t.imp().active.get() {
             return Inhibit(false);
@@ -246,7 +246,7 @@ impl ImageTool {
                 .property::<f64>(Transformation::UNITS_PER_EM);
 
             let m = t.imp().matrix.get();
-            let (h, w) = (surface.height() as f64, surface.width() as f64);
+            let (h, w) = (f64::from(surface.height()), f64::from(surface.width()));
             let mut gm = cairo::Matrix::identity();
             let width: f64 = ppu
                 * viewport

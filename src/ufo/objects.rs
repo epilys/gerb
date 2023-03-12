@@ -62,7 +62,7 @@ pub struct FontInfoInner {
 
 impl Default for FontInfoInner {
     fn default() -> Self {
-        FontInfoInner {
+        Self {
             modified: Cell::new(false),
             last_saved: RefCell::new(None),
             path: OnceCell::new(),
@@ -377,7 +377,7 @@ mod layer {
 
     impl Default for LayerInner {
         fn default() -> Self {
-            LayerInner {
+            Self {
                 modified: Cell::new(false),
                 last_saved: RefCell::new(None),
                 path: RefCell::new(PathBuf::default()),

@@ -141,7 +141,7 @@ impl ObjectImpl for EditorInner {
             clone!(@weak obj => @default-return Inhibit(false), move |viewport, event| {
                 let prev_mouse = viewport.get_mouse();
                 let retval = Tool::on_motion_notify_event(obj, viewport, event);
-                if let Inhibit(true) = retval {
+                if retval == Inhibit(true) {
                     viewport.queue_draw();
                 }
                 if prev_mouse == viewport.get_mouse() {
@@ -583,7 +583,7 @@ impl Editor {
             status.remove(&self_.shortcut_status);
         });
         {
-            let property = Editor::UNITS_PER_EM;
+            let property = Self::UNITS_PER_EM;
             ret.bind_property(property, &ret.viewport.transformation, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
@@ -593,14 +593,14 @@ impl Editor {
             glyph
                 .borrow()
                 .width()
-                .unwrap_or_else(|| ret.property::<f64>(Editor::UNITS_PER_EM)),
+                .unwrap_or_else(|| ret.property::<f64>(Self::UNITS_PER_EM)),
         );
         for property in [
-            Editor::ASCENDER,
-            Editor::CAP_HEIGHT,
-            Editor::DESCENDER,
-            Editor::UNITS_PER_EM,
-            Editor::X_HEIGHT,
+            Self::ASCENDER,
+            Self::CAP_HEIGHT,
+            Self::DESCENDER,
+            Self::UNITS_PER_EM,
+            Self::X_HEIGHT,
         ] {
             project
                 .bind_property(property, &ret, property)
@@ -704,7 +704,7 @@ impl Editor {
         let mut action = Action {
             stamp: EventStamp {
                 t: std::any::TypeId::of::<Self>(),
-                property: Editor::static_type().name(),
+                property: Self::static_type().name(),
                 id: unsafe { std::mem::transmute::<&[GlyphPointIndex], &[u8]>(selection).into() },
             },
             compress: true,

@@ -37,8 +37,8 @@ pub struct CurvePoint {
 }
 
 impl Default for CurvePoint {
-    fn default() -> CurvePoint {
-        CurvePoint {
+    fn default() -> Self {
+        Self {
             uuid: Uuid::new_v4(),
             position: Point::default(),
             degree: None,
@@ -115,13 +115,13 @@ impl PartialEq for Point {
 impl Eq for Point {}
 
 impl From<CurvePoint> for Point {
-    fn from(cp: CurvePoint) -> Point {
+    fn from(cp: CurvePoint) -> Self {
         cp.position
     }
 }
 
 impl From<&CurvePoint> for Point {
-    fn from(cp: &CurvePoint) -> Point {
+    fn from(cp: &CurvePoint) -> Self {
         cp.position
     }
 }
@@ -159,12 +159,12 @@ impl Point {
     }
 
     pub fn norm(&self) -> f64 {
-        (self.x.powi(2) + self.y.powi(2)).sqrt()
+        self.x.hypot(self.y)
     }
 
     pub fn angle(&self, rhs: Self) -> f64 {
         let a = rhs.x * self.y - self.x * rhs.y;
-        let b = self.x * self.y + rhs.x * rhs.y;
+        let b = self.x.mul_add(self.y, rhs.x * rhs.y);
         a.atan2(b)
     }
 
@@ -175,11 +175,11 @@ impl Point {
     pub fn distance(&self, rhs: Self) -> f64 {
         let xlk = rhs.x - self.x;
         let ylk = rhs.y - self.y;
-        (xlk * xlk + ylk * ylk).sqrt()
+        xlk.hypot(ylk)
     }
 
     pub fn dot(&self, rhs: Self) -> f64 {
-        self.x * rhs.x + self.y * rhs.y
+        self.x.mul_add(rhs.x, self.y * rhs.y)
     }
 
     pub fn unit(&self) -> Self {
@@ -198,8 +198,8 @@ impl From<Point> for (f64, f64) {
 }
 
 impl From<(f64, f64)> for Point {
-    fn from((x, y): (f64, f64)) -> Point {
-        Point { x, y }
+    fn from((x, y): (f64, f64)) -> Self {
+        Self { x, y }
     }
 }
 
@@ -297,8 +297,8 @@ pub struct IPoint {
 }
 
 impl From<Point> for IPoint {
-    fn from(p: Point) -> IPoint {
-        IPoint {
+    fn from(p: Point) -> Self {
+        Self {
             x: p.x as i64,
             y: p.y as i64,
         }
@@ -306,8 +306,8 @@ impl From<Point> for IPoint {
 }
 
 impl From<&Point> for IPoint {
-    fn from(p: &Point) -> IPoint {
-        IPoint {
+    fn from(p: &Point) -> Self {
+        Self {
             x: p.x as i64,
             y: p.y as i64,
         }
@@ -315,8 +315,8 @@ impl From<&Point> for IPoint {
 }
 
 impl From<(i64, i64)> for IPoint {
-    fn from((x, y): (i64, i64)) -> IPoint {
-        IPoint { x, y }
+    fn from((x, y): (i64, i64)) -> Self {
+        Self { x, y }
     }
 }
 
@@ -358,7 +358,7 @@ impl Line {
         Self { a, b, c }
     }
 
-    pub fn perpendicular(self: Line, p: Point) -> Self {
+    pub fn perpendicular(self, p: Point) -> Self {
         let Self { a, b, c: _ } = self;
         Self {
             a: b,

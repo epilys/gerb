@@ -77,12 +77,12 @@ impl Bezier {
     pub fn reverse(&self) {
         self.set_modified();
         self.imp().points.borrow_mut().reverse();
-        let tmp = self.property::<Option<Continuity>>(Bezier::CONTINUITY_IN);
+        let tmp = self.property::<Option<Continuity>>(Self::CONTINUITY_IN);
         self.set_property(
-            Bezier::CONTINUITY_IN,
-            self.property::<Option<Continuity>>(Bezier::CONTINUITY_OUT),
+            Self::CONTINUITY_IN,
+            self.property::<Option<Continuity>>(Self::CONTINUITY_OUT),
         );
-        self.set_property(Bezier::CONTINUITY_OUT, tmp);
+        self.set_property(Self::CONTINUITY_OUT, tmp);
     }
 }
 
@@ -155,19 +155,6 @@ impl ObjectImpl for BezierInner {
                         true,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
-                    glib::ParamSpecValueArray::new(
-                        Bezier::POINTS,
-                        Bezier::POINTS,
-                        Bezier::POINTS,
-                        &glib::ParamSpecBoxed::new(
-                            Bezier::POINT,
-                            Bezier::POINT,
-                            Bezier::POINT,
-                            CurvePoint::static_type(),
-                            glib::ParamFlags::READWRITE,
-                        ),
-                        glib::ParamFlags::READABLE,
-                    ),
                 ]
             });
         PROPERTIES.as_ref()
@@ -176,14 +163,6 @@ impl ObjectImpl for BezierInner {
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             Bezier::SMOOTH => self.smooth.get().to_value(),
-            Bezier::POINTS => {
-                let points = self.points.borrow();
-                let mut ret = glib::ValueArray::new(points.len() as u32);
-                for p in points.iter() {
-                    ret.append(&p.to_value());
-                }
-                ret.to_value()
-            }
             Bezier::CONTINUITY_IN => self.continuity_in.get().to_value(),
             Bezier::CONTINUITY_OUT => self.continuity_out.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
@@ -237,14 +216,12 @@ impl BezierInner {
 
 impl Default for Bezier {
     fn default() -> Self {
-        Bezier::new(vec![])
+        Self::new(vec![])
     }
 }
 
 impl Bezier {
     pub const SMOOTH: &str = "smooth";
-    pub const POINTS: &str = "points";
-    pub const POINT: &str = "point";
     pub const CONTINUITY_IN: &str = "continuity-in";
     pub const CONTINUITY_OUT: &str = "continuity-out";
 
@@ -317,8 +294,8 @@ impl Bezier {
         // linear?
         if order == 1 {
             let ret = (
-                (mt * points[0].x + t * points[1].x),
-                (mt * points[0].y + t * points[1].y),
+                mt.mul_add(points[0].x, t * points[1].x),
+                mt.mul_add(points[0].y, t * points[1].y),
             );
             return ret.into();
         }
@@ -347,8 +324,8 @@ impl Bezier {
                 d = t * t2;
             }
             let ret = (
-                (a * p[0].x + b * p[1].x + c * p[2].x + d * p[3].x),
-                (a * p[0].y + b * p[1].y + c * p[2].y + d * p[3].y),
+                d.mul_add(p[3].x, c.mul_add(p[2].x, a.mul_add(p[0].x, b * p[1].x))),
+                d.mul_add(p[3].y, c.mul_add(p[2].y, a.mul_add(p[0].y, b * p[1].y))),
             )
                 .into();
             return ret;
@@ -413,7 +390,11 @@ impl Bezier {
                     .into(),
             ];
 
-            return (mt * d[0].x + t * d[1].x, mt * d[0].y + t * d[1].y).into();
+            return (
+                mt.mul_add(d[0].x, t * d[1].x),
+                mt.mul_add(d[0].y, t * d[1].y),
+            )
+                .into();
         } else if order == 3 {
             let a = mt * mt;
             let b = 2.0 * mt * t;
@@ -437,8 +418,8 @@ impl Bezier {
             ];
 
             return (
-                a * d[0].x + b * d[1].x + c * d[2].x,
-                a * d[0].y + b * d[1].y + c * d[2].y,
+                c.mul_add(d[2].x, a.mul_add(d[0].x, b * d[1].x)),
+                c.mul_add(d[2].y, a.mul_add(d[0].y, b * d[1].y)),
             )
                 .into();
         }
@@ -555,8 +536,8 @@ impl Bezier {
         let initial_temp = 10.0;
 
         for i in 1..1001 {
-            let throw = die.sample(&mut rng);
-            let candidate = (curr_t + throw * step_size).clamp(0.0, 1.0);
+            let throw: f64 = die.sample(&mut rng);
+            let candidate = throw.mul_add(step_size, curr_t).clamp(0.0, 1.0);
             let c_point = self.compute(candidate);
             let c_eval = eval(self, c_point);
 
@@ -565,7 +546,7 @@ impl Bezier {
             }
 
             let diff = c_eval - curr_eval;
-            let temperature = initial_temp / (i as f64);
+            let temperature = initial_temp / f64::from(i);
             let metropolis = (-diff / temperature).exp();
             if diff < 0.0 || rand::random::<f64>() < metropolis {
                 curr_t = candidate;

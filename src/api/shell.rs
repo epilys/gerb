@@ -417,39 +417,35 @@ fn handle_input(
                     if !r.is_empty() {
                         if needed_more {
                             tx.send((LinePrefix::Ps2, format!("{}\n", &text,)))?;
-                            tx.send((LinePrefix::Output, r.to_string()))?;
                         } else {
                             tx.send((LinePrefix::Ps1, format!("{}\n", &text,)))?;
-                            tx.send((LinePrefix::Output, r.to_string()))?;
                         }
+                        tx.send((LinePrefix::Output, r.to_string()))?;
                     } else if needed_more {
                         tx.send((LinePrefix::Ps2, text))?;
                     } else {
                         tx.send((LinePrefix::Ps1, text))?;
                     }
-                    needs_more_input
+                } else if needed_more {
+                    tx.send((
+                        LinePrefix::Ps2,
+                        if text.is_empty() {
+                            "\n".to_string()
+                        } else {
+                            text
+                        },
+                    ))?;
                 } else {
-                    if needed_more {
-                        tx.send((
-                            LinePrefix::Ps2,
-                            if text.is_empty() {
-                                "\n".to_string()
-                            } else {
-                                text
-                            },
-                        ))?;
-                    } else {
-                        tx.send((
-                            LinePrefix::Ps1,
-                            if text.is_empty() {
-                                "\n".to_string()
-                            } else {
-                                text
-                            },
-                        ))?;
-                    }
-                    needs_more_input
+                    tx.send((
+                        LinePrefix::Ps1,
+                        if text.is_empty() {
+                            "\n".to_string()
+                        } else {
+                            text
+                        },
+                    ))?;
                 }
+                needs_more_input
             }
             Err(err) => {
                 tx.send((LinePrefix::Output, err.to_string()))?;

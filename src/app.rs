@@ -170,7 +170,7 @@ impl ApplicationInner {
             snapshot.connect_activate(glib::clone!(@weak window, @weak application => move |_, _| {
                 let path = "/tmp/t.svg";
                 let (w, h) = (window.allocated_width(), window.allocated_height());
-                let svg_surface = cairo::SvgSurface::new(w as f64, h as f64, Some(path)).unwrap();
+                let svg_surface = cairo::SvgSurface::new(f64::from(w), f64::from(h), Some(path)).unwrap();
                 let ctx = gtk::cairo::Context::new(&svg_surface).unwrap();
                 window.draw(&ctx);
                 svg_surface.flush();

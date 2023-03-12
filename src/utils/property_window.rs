@@ -332,7 +332,12 @@ impl PropertyWindow {
                     };
                 let entry = gtk::SpinButton::new(
                     Some(&gtk::Adjustment::new(
-                        val as f64, min as f64, max as f64, 1.00, 1.00, 1.00,
+                        val as f64,
+                        f64::from(min),
+                        max as f64,
+                        1.00,
+                        1.00,
+                        1.00,
                     )),
                     1.0,
                     0,
@@ -921,7 +926,12 @@ pub fn get_widget_for_value(
             };
             let entry = gtk::SpinButton::new(
                 Some(&gtk::Adjustment::new(
-                    val as f64, min as f64, max as f64, 1.00, 1.00, 1.00,
+                    val as f64,
+                    f64::from(min),
+                    max as f64,
+                    1.00,
+                    1.00,
+                    1.00,
                 )),
                 1.0,
                 0,
@@ -1241,7 +1251,7 @@ glib::wrapper! {
 
 impl PropertyChoice {
     pub fn new(label: &str, btn: gtk::RadioButton, widget: gtk::Widget) -> Self {
-        let ret: PropertyChoice = glib::Object::new(&[]).unwrap();
+        let ret: Self = glib::Object::new(&[]).unwrap();
         let label = gtk::Label::builder()
             .label(label)
             .visible(true)

@@ -118,7 +118,7 @@ impl Eq for Glyph {}
 
 impl Default for Glyph {
     fn default() -> Self {
-        Glyph::new_empty("space", ' ')
+        Self::new_empty("space", ' ')
     }
 }
 
@@ -165,8 +165,8 @@ impl Glyph {
     pub fn from_ufo(
         root_path: PathBuf,
         contents: &ufo::Contents,
-    ) -> Result<IndexMap<String, Rc<RefCell<Glyph>>>, Box<dyn std::error::Error>> {
-        let mut ret: IndexMap<String, Rc<RefCell<Glyph>>> = IndexMap::default();
+    ) -> Result<IndexMap<String, Rc<RefCell<Self>>>, Box<dyn std::error::Error>> {
+        let mut ret: IndexMap<String, Rc<RefCell<Self>>> = IndexMap::default();
         let mut glyphs_with_refs: Vec<Rc<_>> = vec![];
         let mut path = root_path;
 
@@ -189,7 +189,7 @@ impl Glyph {
                     eprintln!("couldn't parse {}: {}", path.display(), err);
                 }
                 Ok(g) => {
-                    let glyph: Glyph = g.into();
+                    let glyph: Self = g.into();
                     *glyph.metadata.filename.borrow_mut() = filename.clone();
                     *glyph.metadata.glif_source.borrow_mut() = s;
                     let has_components = !glyph.components.is_empty();
@@ -223,7 +223,7 @@ impl Glyph {
         let metadata = GlyphMetadata::new();
         *metadata.kinds.borrow_mut() = (GlyphKind::Char(char), vec![]);
         *metadata.name.borrow_mut() = name.into();
-        Glyph {
+        Self {
             contours,
             components: vec![],
             guidelines: vec![],
@@ -260,7 +260,7 @@ impl Glyph {
     }
 
     pub fn new_empty(name: &'static str, char: char) -> Self {
-        Glyph::new(name, char, vec![])
+        Self::new(name, char, vec![])
     }
 
     pub fn draw(&self, mut cr: ContextRef, options: GlyphDrawingOptions<'_>) {
@@ -323,10 +323,10 @@ impl Glyph {
                         let b = curv_points[1].position;
                         let c = curv_points[2].position;
                         cr1.curve_to(
-                            2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
-                            2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
-                            2.0 / 3.0 * b.x + 1.0 / 3.0 * c.x,
-                            2.0 / 3.0 * b.y + 1.0 / 3.0 * c.y,
+                            (2.0 / 3.0_f64).mul_add(b.x, 1.0 / 3.0 * a.x),
+                            (2.0 / 3.0_f64).mul_add(b.y, 1.0 / 3.0 * a.y),
+                            (2.0 / 3.0_f64).mul_add(b.x, 1.0 / 3.0 * c.x),
+                            (2.0 / 3.0_f64).mul_add(b.y, 1.0 / 3.0 * c.y),
                             c.x,
                             c.y,
                         );
@@ -390,10 +390,10 @@ impl Glyph {
                     let b = curv_points[1].position;
                     let c = curv_points[2].position;
                     cr1.curve_to(
-                        2.0 / 3.0 * b.x + 1.0 / 3.0 * a.x,
-                        2.0 / 3.0 * b.y + 1.0 / 3.0 * a.y,
-                        2.0 / 3.0 * b.x + 1.0 / 3.0 * c.x,
-                        2.0 / 3.0 * b.y + 1.0 / 3.0 * c.y,
+                        (2.0 / 3.0_f64).mul_add(b.x, 1.0 / 3.0 * a.x),
+                        (2.0 / 3.0_f64).mul_add(b.y, 1.0 / 3.0 * a.y),
+                        (2.0 / 3.0_f64).mul_add(b.x, 1.0 / 3.0 * c.x),
+                        (2.0 / 3.0_f64).mul_add(b.y, 1.0 / 3.0 * c.y),
                         c.x,
                         c.y,
                     );
@@ -747,7 +747,7 @@ impl Glyph {
 }
 
 impl From<glif::Glif> for Glyph {
-    fn from(val: glif::Glif) -> Glyph {
+    fn from(val: glif::Glif) -> Self {
         use glif::{Component, OutlineEntry, Point, PointKind};
         let glif::Glif {
             name,
@@ -772,7 +772,7 @@ impl From<glif::Glif> for Glyph {
             let first = iter.next().unwrap();
             (first, iter.collect::<Vec<_>>())
         };
-        let mut ret = Glyph {
+        let mut ret = Self {
             guidelines: guidelines
                 .into_iter()
                 .map(|g| {
@@ -787,7 +787,7 @@ impl From<glif::Glif> for Glyph {
                 })
                 .collect::<Vec<_>>(),
             lib,
-            ..Glyph::default()
+            ..Self::default()
         };
         *ret.metadata.name.borrow_mut() = name;
         *ret.metadata.kinds.borrow_mut() = kinds;

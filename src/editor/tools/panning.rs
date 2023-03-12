@@ -949,8 +949,8 @@ impl ToolImplImpl for PanningToolInner {
             Mode::Pan => {
                 if warp_cursor {
                     let (width, height) = (
-                        viewport.allocated_width() as f64,
-                        viewport.allocated_height() as f64,
+                        f64::from(viewport.allocated_width()),
+                        f64::from(viewport.allocated_height()),
                     );
                     let ruler_breadth = viewport.property::<f64>(Canvas::RULER_BREADTH_PIXELS);
                     let (x, y) = event.position();
@@ -1159,7 +1159,7 @@ impl PanningTool {
         let state = obj.state().borrow();
         let t = state.tools[&Self::static_type()]
             .clone()
-            .downcast::<PanningTool>()
+            .downcast::<Self>()
             .unwrap();
         if !t.imp().active.get()
             || !matches!(
@@ -1232,12 +1232,12 @@ impl PanningTool {
                 .unwrap()
                 .scale_simple(64, 64, gtk::gdk_pixbuf::InterpType::Bilinear)
                 .unwrap();
-            let mut x = mouse.x + (rmb.width() as f64) * 0.1;
+            let mut x = (f64::from(rmb.width())).mul_add(0.1, mouse.x);
             let mut y = mouse.y;
             let mut row_height = 0.0;
             let (h, w) = (
-                (rmb.height() as f64) / (scale_factor as f64),
-                (rmb.width() as f64) / (scale_factor as f64),
+                (f64::from(rmb.height())) / (f64::from(scale_factor)),
+                (f64::from(rmb.width())) / (f64::from(scale_factor)),
             );
             if h > row_height {
                 row_height = h;
@@ -1253,8 +1253,11 @@ impl PanningTool {
             x += w;
             cr2.set_source_color(Color::BLACK);
             cr2.move_to(
-                x + (rmb.width() as f64) * 0.1 + 0.5,
-                mouse.y + row_height * 0.5 + extents.height * 0.5 + 0.5,
+                (f64::from(rmb.width())).mul_add(0.1, x) + 0.5,
+                extents
+                    .height
+                    .mul_add(0.5, row_height.mul_add(0.5, mouse.y))
+                    + 0.5,
             );
             cr2.show_text("Cancel").unwrap();
 
@@ -1266,8 +1269,8 @@ impl PanningTool {
                 .scale_simple(64, 64, gtk::gdk_pixbuf::InterpType::Bilinear)
                 .unwrap();
             let (h, w) = (
-                (i.height() as f64) / (scale_factor as f64),
-                (i.width() as f64) / (scale_factor as f64),
+                (f64::from(i.height())) / (f64::from(scale_factor)),
+                (f64::from(i.width())) / (f64::from(scale_factor)),
             );
             cr2.set_source_surface(
                 &i.create_surface(scale_factor, viewport.window().as_ref())
@@ -1280,8 +1283,8 @@ impl PanningTool {
 
             cr2.set_source_color(Color::BLACK);
             cr2.move_to(
-                x + (rmb.width() as f64) * 0.1 + 0.5,
-                y + h * 0.5 + extents.height * 0.5 + 0.5,
+                (f64::from(rmb.width())).mul_add(0.1, x) + 0.5,
+                extents.height.mul_add(0.5, h.mul_add(0.5, y)) + 0.5,
             );
             cr2.show_text("Apply").unwrap();
 

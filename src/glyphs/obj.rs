@@ -190,7 +190,7 @@ impl GlyphMetadata {
 }
 
 impl Default for GlyphMetadata {
-    fn default() -> GlyphMetadata {
+    fn default() -> Self {
         Self::new()
     }
 }
@@ -198,10 +198,10 @@ impl Default for GlyphMetadata {
 impl_modified!(GlyphMetadata);
 
 impl From<GlyphMetadata> for Glyph {
-    fn from(metadata: GlyphMetadata) -> Glyph {
-        Glyph {
+    fn from(metadata: GlyphMetadata) -> Self {
+        Self {
             metadata,
-            ..Glyph::default()
+            ..Self::default()
         }
     }
 }

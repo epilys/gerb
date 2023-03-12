@@ -354,15 +354,15 @@ pub enum SelectionModifier {
 }
 
 impl From<gtk::gdk::ModifierType> for SelectionModifier {
-    fn from(modifier: gtk::gdk::ModifierType) -> SelectionModifier {
+    fn from(modifier: gtk::gdk::ModifierType) -> Self {
         if modifier.contains(gtk::gdk::ModifierType::SHIFT_MASK) {
             if modifier.contains(gtk::gdk::ModifierType::CONTROL_MASK) {
-                SelectionModifier::Remove
+                Self::Remove
             } else {
-                SelectionModifier::Add
+                Self::Add
             }
         } else {
-            SelectionModifier::default()
+            Self::default()
         }
     }
 }
@@ -405,19 +405,19 @@ pub mod constraints {
 
         pub fn as_str(&self) -> &'static str {
             match *self {
-                Lock::EMPTY => "",
-                v if v == (Lock::X | Lock::LOCAL) => "Locked X axis. | Local coordinates.",
-                v if v == (Lock::X | Lock::CONTROLS) => {
+                Self::EMPTY => "",
+                v if v == (Self::X | Self::LOCAL) => "Locked X axis. | Local coordinates.",
+                v if v == (Self::X | Self::CONTROLS) => {
                     "Locked X axis. | Control point axis coordinates."
                 }
-                v if v == Lock::X => "Locked X axis.",
-                v if v == (Lock::Y | Lock::LOCAL) => "Locked Y axis. | Local coordinates.",
-                v if v == (Lock::Y | Lock::CONTROLS) => {
+                v if v == Self::X => "Locked X axis.",
+                v if v == (Self::Y | Self::LOCAL) => "Locked Y axis. | Local coordinates.",
+                v if v == (Self::Y | Self::CONTROLS) => {
                     "Locked Y axis. | Control point axis coordinates."
                 }
-                v if v == Lock::Y => "Locked Y axis.",
-                v if v == Lock::LOCAL => "Local coordinates.",
-                v if v == Lock::CONTROLS => "Control point axis coordinates.",
+                v if v == Self::Y => "Locked Y axis.",
+                v if v == Self::LOCAL => "Local coordinates.",
+                v if v == Self::CONTROLS => "Control point axis coordinates.",
                 other => unreachable!("{other:?}"),
             }
         }
@@ -519,8 +519,8 @@ pub mod constraints {
                 }
 
                 impl glib::variant::FromVariant for $ty {
-                    fn from_variant(variant: &glib::Variant) -> Option<$ty> {
-                        <$ty>::from_bits(variant.get::<u32>()?)
+                    fn from_variant(variant: &glib::Variant) -> Option<Self>{
+                        Self::from_bits(variant.get::<u32>()?)
                     }
                 }
 
@@ -531,7 +531,7 @@ pub mod constraints {
 
                         view
                             .action_group
-                            .change_action_state(Self::ACTION_NAME, &<$ty>::empty().to_variant());
+                            .change_action_state(Self::ACTION_NAME, &Self::empty().to_variant());
                     }
                 }
             )*
@@ -575,12 +575,11 @@ pub mod constraints {
                 }
                 if lock_flags.intersects(opt) {
                     lock_flags.set(opt, false);
-                    lock.change_state(&lock_flags.to_variant());
                 } else {
                     lock_flags.set(Lock::LOCAL|Lock::CONTROLS, false);
                     lock_flags.set(opt, true);
-                    lock.change_state(&lock_flags.to_variant());
                 }
+                lock.change_state(&lock_flags.to_variant());
             }));
             obj.action_group.add_action(&change_opt);
         }

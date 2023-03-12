@@ -223,6 +223,7 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
         notebook.set_tab_label(widget, Some(&tab_label));
     }
     notebook.set_tab_reorderable(widget, reorderable);
+    #[allow(clippy::cast_possible_wrap)]
     notebook.set_page(notebook.n_pages() as i32 - 1);
     widget.grab_focus();
     notebook.queue_draw();
@@ -230,6 +231,7 @@ fn add_tab(notebook: &gtk::Notebook, widget: &gtk::Widget, reorderable: bool, cl
 }
 
 impl WindowInner {
+    #[allow(clippy::cast_possible_wrap)]
     pub fn setup_actions(&self) {
         let action_group = &self.action_group;
         let next_tab = gtk::gio::SimpleAction::new("next_tab", None);

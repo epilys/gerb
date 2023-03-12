@@ -32,8 +32,8 @@ pub struct ChildInner {
 }
 
 impl Default for ChildInner {
-    fn default() -> ChildInner {
-        ChildInner {
+    fn default() -> Self {
+        Self {
             widget: RefCell::new(
                 gtk::builders::FrameBuilder::new()
                     .build()

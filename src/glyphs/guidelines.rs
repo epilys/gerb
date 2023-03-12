@@ -195,7 +195,7 @@ impl GuidelineInner {
     ) {
         fn move_point(p: (f64, f64), d: f64, r: f64) -> (f64, f64) {
             let (x, y) = p;
-            (x + (d * f64::cos(r)), y + (d * f64::sin(r)))
+            (d.mul_add(f64::cos(r), x), d.mul_add(f64::sin(r), y))
         }
         if highlight {
             cr.set_source_color_alpha(Self::HIGHLIGHT_COLOR);
@@ -236,7 +236,7 @@ impl GuidelineInner {
         let r = self.angle() * 0.01745;
         let (sin, cos) = r.sin_cos();
         let p1 = Point::from((self.x(), self.y()));
-        let p2 = Point::from((p1.x + 10.0 * cos, p1.y + 10.0 * sin));
+        let p2 = Point::from((10.0f64.mul_add(cos, p1.x), 10.0f64.mul_add(sin, p1.y)));
         let alpha = p - p1;
         let beta = p2 - p1;
         let bunit = beta / beta.norm();
@@ -314,7 +314,7 @@ impl Default for Guideline {
 
 impl TryFrom<serde_json::Value> for Guideline {
     type Error = serde_json::Error;
-    fn try_from(v: serde_json::Value) -> Result<Guideline, Self::Error> {
+    fn try_from(v: serde_json::Value) -> Result<Self, Self::Error> {
         let inner: GuidelineInner = serde_json::from_value(v)?;
         let ret = Self::new();
         ret.name.swap(&inner.name);
@@ -328,7 +328,7 @@ impl TryFrom<serde_json::Value> for Guideline {
 }
 
 impl From<ufo::GuidelineInfo> for Guideline {
-    fn from(v: ufo::GuidelineInfo) -> Guideline {
+    fn from(v: ufo::GuidelineInfo) -> Self {
         let ret = Self::new();
         let ufo::GuidelineInfo {
             x,
@@ -350,8 +350,8 @@ impl From<ufo::GuidelineInfo> for Guideline {
 }
 
 impl From<&Guideline> for ufo::GuidelineInfo {
-    fn from(v: &Guideline) -> ufo::GuidelineInfo {
-        ufo::GuidelineInfo {
+    fn from(v: &Guideline) -> Self {
+        Self {
             x: v.x_inner(),
             y: v.y_inner(),
             angle: v.angle_inner(),
@@ -399,7 +399,7 @@ impl Default for GuidelineBuilder {
 
 impl GuidelineBuilder {
     pub fn new() -> Self {
-        GuidelineBuilder(Guideline::new())
+        Self(Guideline::new())
     }
 
     pub fn name(self, name: Option<String>) -> Self {

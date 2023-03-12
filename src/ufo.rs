@@ -597,7 +597,7 @@ pub struct MetaInfo {
 
 impl Default for MetaInfo {
     fn default() -> Self {
-        MetaInfo {
+        Self {
             creator: crate::APPLICATION_ID.to_string(),
             format_version: 3,
             format_version_minor: 0,
@@ -655,7 +655,7 @@ impl Default for LayerContents {
     fn default() -> Self {
         let mut layers = IndexMap::new();
         layers.insert("public.default".to_string(), "glyphs".to_string());
-        LayerContents {
+        Self {
             layers,
             objects: IndexMap::default(),
         }

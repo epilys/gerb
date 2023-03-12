@@ -19,6 +19,8 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#![allow(clippy::use_self)] // pyo3 derive macros cause this lint
+
 //! # Python API
 //!
 //! To access application data from the python side, we create a [`Gerb`] object that contains
@@ -188,30 +190,30 @@ pub enum Response {
 }
 
 impl From<glib::Value> for Response {
-    fn from(value: glib::Value) -> Response {
+    fn from(value: glib::Value) -> Self {
         use serde_json::json;
         match value.type_() {
-            glib::types::Type::UNIT => Response::Object {
+            glib::types::Type::UNIT => Self::Object {
                 py_type: PyType::None,
                 value: json!(null),
             },
-            glib::types::Type::BOOL => Response::Object {
+            glib::types::Type::BOOL => Self::Object {
                 py_type: PyType::Bool,
                 value: json! {value.get::<bool>().unwrap()},
             },
-            glib::types::Type::STRING => Response::Object {
+            glib::types::Type::STRING => Self::Object {
                 py_type: PyType::String,
                 value: json! {value.get::<String>().unwrap()},
             },
-            glib::types::Type::F64 => Response::Object {
+            glib::types::Type::F64 => Self::Object {
                 py_type: PyType::Float,
                 value: json! {value.get::<f64>().unwrap()},
             },
-            glib::types::Type::U64 => Response::Object {
+            glib::types::Type::U64 => Self::Object {
                 py_type: PyType::Int,
                 value: json! {value.get::<u64>().unwrap()},
             },
-            glib::types::Type::I64 => Response::Object {
+            glib::types::Type::I64 => Self::Object {
                 py_type: PyType::Int,
                 value: json! {value.get::<i64>().unwrap()},
             },

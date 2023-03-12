@@ -19,7 +19,40 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#![deny(clippy::dbg_macro)]
+#![deny(
+    /* groups */
+    clippy::correctness,
+    clippy::suspicious,
+    clippy::complexity,
+    clippy::perf,
+    clippy::style,
+    clippy::cargo,
+    clippy::nursery,
+    /* restriction */
+    clippy::dbg_macro,
+    clippy::rc_buffer,
+    clippy::as_underscore,
+    clippy::assertions_on_result_states,
+    /* pedantic */
+    clippy::cast_lossless,
+    clippy::cast_possible_wrap,
+    clippy::ptr_as_ptr,
+    clippy::bool_to_int_with_if,
+    clippy::borrow_as_ptr,
+    clippy::case_sensitive_file_extension_comparisons,
+    clippy::cast_lossless,
+    clippy::cast_ptr_alignment,
+    clippy::naive_bytecount,
+)]
+// known problems/false negative
+#![allow(
+    clippy::use_self,
+    clippy::multiple_crate_versions, // [ref:TODO] bundle generational-arena? it seems unmaintained.
+    clippy::missing_const_for_fn,
+    clippy::fallible_impl_from, // [ref:TODO]
+    clippy::option_if_let_else, // [ref:TODO]
+    clippy::cognitive_complexity, // [ref:TODO]
+)]
 
 #[macro_use]
 extern crate glib;

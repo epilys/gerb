@@ -274,7 +274,7 @@ pub fn draw_guidelines(viewport: &Canvas, mut cr: ContextRef, obj: Editor) -> In
                 .into_iter()
                 .enumerate()
                 {
-                    cr1.move_to(mouse.0.x, mouse.0.y + (i + 1) as f64 * line_height);
+                    cr1.move_to(mouse.0.x, ((i + 1) as f64).mul_add(line_height, mouse.0.y));
                     cr1.show_text(&line).unwrap();
                 }
             } else if g.angle() == 0.0 {
