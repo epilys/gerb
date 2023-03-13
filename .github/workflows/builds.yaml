@@ -4,9 +4,16 @@ env:
   RUST_BACKTRACE: 1
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - '**'
+      - 'main'
+    paths:
+      - 'src/**'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
+    tags:
+      - v*
 
 jobs:
   build:
