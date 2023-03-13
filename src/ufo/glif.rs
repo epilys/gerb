@@ -553,7 +553,7 @@ fn test_glif_parse() {
     let g: Glif = quick_xml::de::from_str(_UPPERCASE_A_GLIF).unwrap();
     let _: glyphs::Glyph = g.into();
     let glif: Glif = quick_xml::de::from_str(EXCLAM_GLYPH).unwrap();
-    let glyph: glyphs::Glyph = glif.clone().into();
+    let glyph: glyphs::Glyph = glif.into();
     let _glif2: Glif = Glif::from(&glyph);
     //print!("{}\n\n{}", glif.to_xml(), glif2.to_xml());
     //assert_eq!(glif.to_xml(), glif2.to_xml());

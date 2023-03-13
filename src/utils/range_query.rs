@@ -971,7 +971,6 @@ impl KdTree {
         output: &mut Vec<String>,
         group_ctr: &mut usize,
         queue: &mut Vec<Index>,
-        max_depth: usize,
     ) {
         const WIDTHS: &[f64] = &[1.5, 1., 0.6, 0.3, 0.1, 0.05];
         let stroke_width = WIDTHS.get(depth).unwrap_or_else(|| WIDTHS.last().unwrap());
@@ -1037,7 +1036,6 @@ impl KdTree {
                         output,
                         group_ctr,
                         queue,
-                        max_depth,
                     );
                     self.new_group(
                         *right,
@@ -1049,7 +1047,6 @@ impl KdTree {
                         output,
                         group_ctr,
                         queue,
-                        max_depth,
                     );
                 }
                 None => {}
@@ -1078,7 +1075,6 @@ impl KdTree {
         let mut queue = vec![];
         let mut group_ctr = 0;
         // fn new_group(&self, root: Index, desc: String, depth: usize, output: &mut Vec<String>, group_ctr: &mut usize, queue: &mut Vec<Index>) {
-        let max_depth = self.depth(root);
         self.new_group(
             root,
             "root".to_string(),
@@ -1086,7 +1082,6 @@ impl KdTree {
             &mut output,
             &mut group_ctr,
             &mut queue,
-            max_depth,
         );
         //output.push(format!(
         //    r#"  <path d="M {} {} L {} {}" stroke="{color}" fill="none"/>"#,

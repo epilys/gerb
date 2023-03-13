@@ -895,7 +895,7 @@ fn test_metainfo_plist_parse() {
     assert!(m.creator.is_empty());
     assert_eq!(m.format_version, 3);
     assert_eq!(m.format_version_minor, 0);
-    assert!(MetaInfo::new_from_str(
+    MetaInfo::new_from_str(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -907,7 +907,7 @@ fn test_metainfo_plist_parse() {
 </plist>
 "#,
     )
-    .is_err());
+    .unwrap_err();
 }
 
 #[test]

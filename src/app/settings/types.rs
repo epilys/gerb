@@ -81,7 +81,7 @@ color = "#E6E6E4"
 "##;
     let doc = TOML.parse::<Document>().unwrap();
     assert_eq!(doc["line-width"].as_float().unwrap(), 1.0);
-    assert_eq!(doc["warp-cursor"].as_bool().unwrap(), false);
+    assert!(!doc["warp-cursor"].as_bool().unwrap());
     assert_eq!(
         <MarkColor as EnumValue>::deserialize(Some(&doc["mark-color"])).unwrap(),
         MarkColor::None
