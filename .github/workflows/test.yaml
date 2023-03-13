@@ -103,7 +103,8 @@ jobs:
         run: |
           cargo test
       - name: Spell check markdown files
-        if: success() || failure()
+        if: (success() || failure()) && matrix.os == 'ubuntu-latest'
+        shell: bash
         run: |
           for m in README.md CONTRIBUTING.md; do
             aspell --mode markdown --dont-suggest --personal <(
