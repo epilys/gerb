@@ -1,4 +1,4 @@
-name: profile.release builds
+name: run tests
 
 env:
   RUST_BACKTRACE: 1
@@ -7,17 +7,17 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - 'main'
+      - '**'
     paths:
       - 'src/**'
+      - 'tests/**'
       - 'Cargo.lock'
       - 'Cargo.toml'
-    tags:
-      - v*
+      - '*.md'
 
 jobs:
-  build:
-    name: Build on ${{ matrix.build }}
+  test:
+    name: Test on ${{ matrix.build }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -67,6 +67,12 @@ jobs:
           [build]
           target = "${{ matrix.target }}"
           EOF
+      - name: Add lint dependencies
+        if: matrix.target
+        run: |
+          rustup component add --target "${{ matrix.target }}" clippy
+          rustup component add --target "${{ matrix.target }}" rustfmt
+          cargo install --target "${{ matrix.target }}" cargo-sort
       - name: Install dependencies (macos x86_64)
         if: matrix.os == 'macos-latest' && matrix.target == 'x86_64-apple-darwin'
         shell: bash
@@ -88,16 +94,61 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           set -ex
-          sudo apt install libgtk-3-dev
-      - name: Build binary
+          sudo apt install libgtk-3-dev aspell aspell-en
+      - name: Cargo check
         run: |
-          cargo build --release
-          mv target/*/release/gerb target/gerb || true
-          mv target/release/gerb target/gerb || true
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ matrix.artifact_name }}
-          path: target/gerb
-          if-no-files-found: error
-          retention-days: 30
+          make feature-check
+      - name: Cargo test
+        if: success() || failure() # always run even if other steps fail, except when cancelled <https://stackoverflow.com/questions/58858429/how-to-run-a-github-actions-step-even-if-the-previous-step-fails-while-still-f>
+        run: |
+          cargo test
+      - name: Spell check markdown files
+        if: success() || failure()
+        run: |
+          for m in README.md CONTRIBUTING.md; do
+            aspell --mode markdown --dont-suggest --personal <(
+          cat << EOF
+          personal_ws-1.1 en 0
+          gerb
+          gtk
+          proto
+          indo
+          href
+          png
+          src
+          px
+          br
+          kbd
+          README
+          cd
+          UFOv
+          thinsp
+          kbd
+          Ctrl
+          kbd
+          thinsp
+          ufo
+          XDG
+          CONFIG
+          TOML
+          PRs
+          dconf
+          img
+          libgtk
+          dev
+          macOS
+          Homebrew
+          librsvg
+          Glyphs
+          OpenType
+          TrueType
+          undos
+          themeable
+          designspaces
+          github
+          cli
+          svg
+          github's
+          EOF
+          ) list < $m
+          done
