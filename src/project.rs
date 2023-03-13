@@ -133,7 +133,7 @@ impl ObjectImpl for ProjectInner {
                         Project::NAME,
                         Project::NAME,
                         Some("New project"),
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                        glib::ParamFlags::READWRITE,
                     ),
                     ParamSpecString::new(
                         Project::FILENAME_STEM,
@@ -313,7 +313,12 @@ impl Project {
         ret
     }
 
-    pub fn from_path(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, Box<dyn std::error::Error>> {
+        let path = path.as_ref();
+        Self::from_path_inner(path)
+    }
+
+    fn from_path_inner(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let mut path: PathBuf = std::fs::canonicalize(Path::new(path))?;
         if !path.exists() {
             return Err(format!("Directory <i>{}</i> does not exist.", path.display()).into());
@@ -356,21 +361,25 @@ impl Project {
         *ret.all_layers.borrow_mut() = all_layers;
         *ret.layercontents.borrow_mut() = layercontents;
         path.pop();
-        ret.set_property(Self::NAME, fontinfo.family_name.borrow().clone());
+        let name = fontinfo.family_name.borrow().clone();
+        if !name.is_empty() {
+            ret.set_property(Self::NAME, name);
+        } else if let Some(name) = path.file_name() {
+            let name = name.to_string_lossy();
+            ret.set_property(
+                Self::NAME,
+                name.strip_suffix(".ufo").unwrap_or_else(|| name.as_ref()),
+            );
+        }
         ret.set_property(Self::MODIFIED, false);
         *ret.last_saved.borrow_mut() = None;
 
         #[cfg(feature = "git")]
         {
-            *ret.repository.borrow_mut() = if path.is_relative() {
-                git::Repository::new(&path)
-            } else {
-                git::Repository::new(
-                    &path
-                        .strip_prefix(&*ret.path.borrow())
-                        .map(Path::to_path_buf)
-                        .unwrap_or_default(),
-                )
+            if let Ok(path) = std::fs::canonicalize(&path) {
+                *ret.repository.borrow_mut() = git::Repository::new(&path);
+            } else if !path.is_relative() {
+                *ret.repository.borrow_mut() = git::Repository::new(&path);
             };
             //dbg!(&ret.repository);
         }
@@ -485,6 +494,46 @@ impl Project {
         }
         self.set_property(Self::MODIFIED, false);
         Ok(())
+    }
+
+    pub fn create(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut path: PathBuf = std::fs::canonicalize(Path::new(path))
+            .map_err(|err| format!("Path looks invalid: {err}"))?;
+        if !path.exists() {
+            std::fs::create_dir_all(&path)
+                .map_err(|err| format!("Could not create project: {err}"))?;
+        }
+        path.push("fontinfo.plist");
+        let fontinfo_plist = ufo::FontInfo::default();
+        fontinfo_plist
+            .save(&path)
+            .map_err(|err| format!("Could not create fontinfo.plist: {err}"))?;
+        path.pop();
+        path.push("layercontents.plist");
+        let layercontents_plist = ufo::LayerContents::default();
+        layercontents_plist
+            .save(&path)
+            .map_err(|err| format!("Could not create layercontents.plist: {err}"))?;
+        path.pop();
+        path.push("metainfo.plist");
+        let metainfo = ufo::MetaInfo::default();
+        metainfo
+            .save(&path)
+            .map_err(|err| format!("Could not create metainfo.plist: {err}"))?;
+        path.pop();
+
+        path.push("glyphs");
+        if !path.exists() {
+            std::fs::create_dir_all(&path)
+                .map_err(|err| format!("Could not create glyphs/ folder: {err}"))?;
+        }
+        path.push("contents.plist");
+        ufo::Contents::default()
+            .save(Some(&path), true)
+            .map_err(|err| format!("Could not create glyphs/contents.plist: {err}"))?;
+        path.pop();
+        path.pop();
+        Self::from_path(path)
     }
 
     pub fn new_glyph(

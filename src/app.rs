@@ -279,7 +279,35 @@ impl ApplicationInner {
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
             new_project.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
-                window.load_project(crate::prelude::Project::default());
+                let filechooser = gtk::FileChooserNative::builder()
+                    .accept_label("Select")
+                    .create_folders(true)
+                    .do_overwrite_confirmation(true)
+                    .title("Select UFO project path")
+                    .action(gtk::FileChooserAction::SelectFolder)
+                    .transient_for(&window)
+                    .build();
+                filechooser.set_filename("new_project.ufo");
+                if matches!(filechooser.run(), gtk::ResponseType::Cancel) {
+                    return;
+                }
+                let Some(f) = filechooser.filename() else { return; };
+                filechooser.hide();
+                window.imp().welcome_banner.set_visible(false);
+                window.imp().notebook.set_visible(true);
+                match crate::prelude::Project::create(&f) {
+                    Ok(p) => window.load_project(p),
+                    Err(err) => {
+                        let dialog = crate::utils::widgets::new_simple_error_dialog(
+                            Some("Error: Could not create project"),
+                            &err.to_string(),
+                            Some(&format!("Path: {}", f.display())),
+                            window.upcast_ref(),
+                        );
+                        dialog.run();
+                        dialog.emit_close();
+                    },
+                }
             }));
         }
         let undo = gtk::gio::SimpleAction::new("undo", None);
@@ -375,9 +403,9 @@ impl ApplicationInner {
         {
             let file_menu = gio::Menu::new();
             let import_menu = gio::Menu::new();
-            file_menu.append(Some("New"), Some("app.project.new"));
-            file_menu.append(Some("Open"), Some("app.project.open"));
-            file_menu.append(Some("Save"), Some("app.project.save"));
+            file_menu.append(Some("_New"), Some("app.project.new"));
+            file_menu.append(Some("_Open"), Some("app.project.open"));
+            file_menu.append(Some("_Save"), Some("app.project.save"));
             import_menu.append(
                 Some("Import Glyphs file"),
                 Some("app.project.import.glyphs"),
@@ -386,40 +414,40 @@ impl ApplicationInner {
                 Some("Import UFOv2 directory"),
                 Some("app.project.import.ufo2"),
             );
-            file_menu.append_submenu(Some("Import"), &import_menu);
-            file_menu.append(Some("Export"), Some("app.project.export"));
+            file_menu.append_submenu(Some("_Import"), &import_menu);
+            file_menu.append(Some("_Export"), Some("app.project.export"));
             let project_section = gio::Menu::new();
-            project_section.append(Some("Properties"), Some("app.project.properties"));
+            project_section.append(Some("_Properties"), Some("app.project.properties"));
             #[cfg(feature = "python")]
             {
                 project_section.append(Some("Open Python Shell"), Some("app.shell"));
             }
             file_menu.append_section(Some("Project"), &project_section);
-            file_menu.append(Some("Quit"), Some("app.quit"));
+            file_menu.append(Some("_Quit"), Some("app.quit"));
             menu_bar.append_submenu(Some("_File"), &file_menu);
         }
 
         {
             let edit_menu = gio::Menu::new();
-            edit_menu.append(Some("Settings"), Some("app.settings"));
+            edit_menu.append(Some("_Settings"), Some("app.settings"));
             let undo_section = gio::Menu::new();
-            undo_section.append(Some("Undo"), Some("app.undo"));
-            undo_section.append(Some("Redo"), Some("app.redo"));
+            undo_section.append(Some("_Undo"), Some("app.undo"));
+            undo_section.append(Some("_Redo"), Some("app.redo"));
             edit_menu.append_section(Some("Action history"), &undo_section);
             menu_bar.append_submenu(Some("_Edit"), &edit_menu);
         }
 
         {
             let win_menu = gio::Menu::new();
-            win_menu.append(Some("Next tab"), Some("win.next_tab"));
-            win_menu.append(Some("Previous tab"), Some("win.prev_tab"));
+            win_menu.append(Some("_Next tab"), Some("win.next_tab"));
+            win_menu.append(Some("_Previous tab"), Some("win.prev_tab"));
             menu_bar.append_submenu(Some("_Window"), &win_menu);
         }
 
         {
             let meta_menu = gio::Menu::new();
-            meta_menu.append(Some("Report issue"), Some("app.bug_report"));
-            meta_menu.append(Some("About"), Some("app.about"));
+            meta_menu.append(Some("_Report issue"), Some("app.bug_report"));
+            meta_menu.append(Some("_About"), Some("app.about"));
             menu_bar.append_submenu(Some("Gerb"), &meta_menu);
         }
 

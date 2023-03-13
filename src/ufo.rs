@@ -532,20 +532,21 @@ impl Contents {
         Ok(retval)
     }
 
-    pub fn save(&mut self, create: bool) -> Result<(), Box<dyn std::error::Error>> {
-        if !self.modified {
+    pub fn save(
+        &mut self,
+        destination_path: Option<&Path>,
+        create: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.modified && !create {
             return Ok(());
         }
-        if !self.absolute_path.exists() {
-            if create {
-                std::fs::create_dir(&self.absolute_path)?;
-            } else {
-                return Err(format!(
-                    "contents.plist expected in `{}` but missing.",
-                    self.absolute_path.display()
-                )
-                .into());
-            }
+        let path = destination_path.unwrap_or_else(|| self.absolute_path.as_ref());
+        if !path.exists() && !create {
+            return Err(format!(
+                "contents.plist expected in `{}` but missing.",
+                path.display()
+            )
+            .into());
         }
         #[allow(deprecated)]
         let opts = plist::XmlWriteOptions::default()
@@ -557,7 +558,7 @@ impl Contents {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(&self.absolute_path)?;
+            .open(path)?;
         plist::to_writer_xml_with_options(file, self, &opts)?;
         self.modified = false;
         Ok(())
@@ -644,10 +645,12 @@ impl MetaInfo {
 /// # Specification
 ///
 /// <https://unifiedfontobject.org/versions/ufo3/layercontents.plist/>
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
+#[serde(transparent)]
 pub struct LayerContents {
+    #[serde(serialize_with = "ser_layers")]
     pub layers: IndexMap<String, String>,
-    // #[serde(skip)]
+    #[serde(skip)]
     pub objects: IndexMap<String, objects::Layer>,
 }
 
@@ -660,6 +663,16 @@ impl Default for LayerContents {
             objects: IndexMap::default(),
         }
     }
+}
+
+fn ser_layers<S>(s: &IndexMap<String, String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    s.iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect::<Vec<(String, String)>>()
+        .serialize(serializer)
 }
 
 impl LayerContents {
@@ -751,6 +764,22 @@ impl LayerContents {
             default_layer,
             false,
         )
+    }
+
+    pub fn save(&self, destination: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        #[allow(deprecated)]
+        let opts = plist::XmlWriteOptions::default()
+            .indent_string("    ")
+            .root_element(true);
+
+        let file = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(destination)?;
+        plist::to_writer_xml_with_options(file, self, &opts)?;
+        Ok(())
     }
 }
 

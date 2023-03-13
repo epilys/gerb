@@ -522,12 +522,15 @@ mod layer {
             if !self.modified.get() {
                 return Ok(());
             }
-            self.contents_plist.borrow_mut().save(true).map_err(|err| {
-                format!(
-                    "Saving contents.plist of layer {} failed: {err}",
-                    self.name.borrow()
-                )
-            })?;
+            self.contents_plist
+                .borrow_mut()
+                .save(None, false)
+                .map_err(|err| {
+                    format!(
+                        "Saving contents.plist of layer {} failed: {err}",
+                        self.name.borrow()
+                    )
+                })?;
             let prefix = self.path.borrow();
             for g in self
                 .glyphs

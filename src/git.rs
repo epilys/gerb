@@ -106,9 +106,9 @@ impl std::ops::Deref for Repository {
 impl Repository {
     pub const STATE: &str = "state";
 
-    pub fn new(path: &Path) -> Result<Option<Self>, Box<dyn std::error::Error>> {
+    pub fn new(abs_path: &Path) -> Result<Option<Self>, Box<dyn std::error::Error>> {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
-        let abs_path: PathBuf = std::fs::canonicalize(path).unwrap();
+        let abs_path: PathBuf = abs_path.to_path_buf();
         let val = git2::Repository::discover(&abs_path)?;
         *ret.absolute_path.borrow_mut() = abs_path;
         *ret.workdir.borrow_mut() = if let Some(p) = val.workdir() {

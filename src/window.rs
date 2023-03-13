@@ -76,15 +76,11 @@ impl ObjectImpl for WindowInner {
             .pack_start(&welcome_label, true, false, 5);
         let add_glyph_btn = gtk::Button::builder()
             .relief(gtk::ReliefStyle::None)
-            .label("Add glyph")
+            .label("Start…")
             .halign(gtk::Align::Center)
             .visible(true)
             .build();
-        add_glyph_btn.connect_clicked(clone!(@weak obj as window => move |_self| {
-            window.imp().welcome_banner.set_visible(false);
-            window.imp().notebook.set_visible(true);
-            window.load_project(Project::default());
-        }));
+        add_glyph_btn.set_action_name(Some("app.project.new"));
         self.welcome_banner
             .pack_end(&add_glyph_btn, false, false, 5);
 
@@ -133,7 +129,7 @@ impl ObjectImpl for WindowInner {
         }));
 
         obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
-            match v[1].get::<String>().map_err(|err| err.into()).and_then(|path| Project::from_path(&path)) {
+            match v[1].get::<String>().map_err(|err| err.into()).and_then(Project::from_path) {
                 Ok(project) => {
                     obj.load_project(project);
                     obj.queue_draw();
