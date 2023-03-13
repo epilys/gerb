@@ -153,9 +153,9 @@ impl Point {
         let (x, y) = (self.x, self.y);
         let Line { a, b, c } = perp;
         let b2a = (b * b) / a;
-        let mx = (b2a * x - c - b * y) / (a + b2a);
-        let my = (-a * mx - c) / b;
-        (2.0 * mx - x, 2.0 * my - y).into()
+        let mx = b.mul_add(-y, b2a.mul_add(x, -c)) / (a + b2a);
+        let my = (-a).mul_add(mx, -c) / b;
+        (2.0f64.mul_add(mx, -x), 2.0f64.mul_add(my, -y)).into()
     }
 
     pub fn norm(&self) -> f64 {
@@ -163,7 +163,7 @@ impl Point {
     }
 
     pub fn angle(&self, rhs: Self) -> f64 {
-        let a = rhs.x * self.y - self.x * rhs.y;
+        let a = rhs.x.mul_add(self.y, -self.x * rhs.y);
         let b = self.x.mul_add(self.y, rhs.x * rhs.y);
         a.atan2(b)
     }
@@ -347,7 +347,7 @@ impl Line {
         let (xb, yb) = (point_b.x, point_b.y);
         let a = yb - ya;
         let b = xa - xb;
-        let c = xb * ya - xa * yb;
+        let c = xb.mul_add(ya, -xa * yb);
         let mut ret = [a, b, c];
         while ret.iter().any(|i| *i == 0.0) {
             ret[0] += 1.0;
@@ -363,7 +363,7 @@ impl Line {
         Self {
             a: b,
             b: -1.0 * a,
-            c: a * p.y - b * p.x,
+            c: a.mul_add(p.y, -b * p.x),
         }
     }
 }

@@ -94,7 +94,10 @@ pub fn draw_round_rectangle(
 
     (
         (x + line_width, y + line_width).into(),
-        (width - 2. * line_width, height - 2. * line_width),
+        (
+            2.0f64.mul_add(-line_width, width),
+            2.0f64.mul_add(-line_width, height),
+        ),
     )
 }
 

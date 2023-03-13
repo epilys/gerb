@@ -224,7 +224,7 @@ impl GuidelineInner {
         // d = |cos(θˆ)⋅(Pₗᵧ - yₚ) - sin(θˆ)⋅(Pₗₓ - Pₓ)|
         let r = self.angle() * 0.01745;
         let (sin, cos) = r.sin_cos();
-        (cos * (self.y() - yp) - sin * (self.x() - xp)).abs()
+        cos.mul_add(self.y() - yp, -sin * (self.x() - xp)).abs()
     }
 
     pub fn on_line_query(&self, point: Point, error: Option<f64>) -> bool {
