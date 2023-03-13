@@ -2,7 +2,8 @@
 name = "gerb"
 version = "0.0.0"
 edition = "2021"
-authors = ["Manos Pitsidianakis <epilys@nessuent.xyz>"]
+resolver = "2"
+authors = ["Manos Pitsidianakis <manos@pitsidianak.is>"]
 description = "font editor"
 license-file = "LICENSE"
 readme = "README.md"
@@ -12,6 +13,7 @@ keywords = ["font", "fonts", "editor", "ufo", "typography"]
 categories = ["graphics"]
 
 [dependencies]
+build-info = { version = "0.0.29", default-features = false }
 chrono = { version = "0.4", default-features = false }
 futures = "0.3"
 futures-util = "0.3"
@@ -55,11 +57,14 @@ features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
 ]
 
+[build-dependencies]
+build-info-build = { version = "0.0.29" }
+
 [features]
 default = ["python", "git"]
-python = ["pyo3", ]
+python = ["pyo3"]
 notifications = ["notify-rust", "image"]
-git = ["git2", ]
+git = ["git2"]
 
 [profile.release]
 lto = "fat"

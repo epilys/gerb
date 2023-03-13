@@ -22,6 +22,7 @@
 #![deny(clippy::dbg_macro)]
 
 use gerb::prelude::*;
+use gtk::glib::{OptionArg, OptionFlags};
 
 fn main() {
     gtk::init().expect("Failed to initialize gtk");
@@ -29,11 +30,27 @@ fn main() {
     let app = Application::new();
     app.add_main_option(
         "ufo",
-        gtk::glib::Char('u' as i8),
-        gtk::glib::OptionFlags::IN_MAIN,
-        gtk::glib::OptionArg::Filename,
-        "some description",
-        Some("some other description"),
+        glib::Char('u' as i8),
+        OptionFlags::IN_MAIN,
+        OptionArg::Filename,
+        "UFO project path to load on launch",
+        Some("Specify a UFO directory in your filesystem to load on launch"),
+    );
+    app.add_main_option(
+        "version",
+        glib::Char('v' as i8),
+        OptionFlags::IN_MAIN,
+        OptionArg::None,
+        "show version",
+        None,
+    );
+    app.add_main_option(
+        "info",
+        glib::Char(0),
+        OptionFlags::IN_MAIN,
+        OptionArg::None,
+        "show program and build info",
+        None,
     );
 
     app.connect_handle_local_options(|_self, dict| {
@@ -63,6 +80,22 @@ fn main() {
                 .env_args
                 .set(vec![])
                 .expect("Failed to initialize gtk");
+        }
+        if dict
+            .lookup_value("version", Some(glib::VariantTy::BOOLEAN))
+            .is_some()
+        {
+            println!("{}", crate::VERSION_INFO);
+            // Exit with success code.
+            return 0;
+        }
+        if dict
+            .lookup_value("info", Some(glib::VariantTy::BOOLEAN))
+            .is_some()
+        {
+            println!("{}", crate::INFO);
+            // Exit with success code.
+            return 0;
         }
 
         -1

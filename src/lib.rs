@@ -75,6 +75,8 @@ pub mod window;
 pub const APPLICATION_NAME: &str = "gerb";
 pub const APPLICATION_ID: &str = "com.epilys.gerb";
 pub const ISSUE_TRACKER: &str = "https://github.com/epilys/gerb/issues";
+pub const VERSION_INFO: &str = build_info::format!("{} v{} commit {}", $.crate_info.name, $.crate_info.version, $.version_control?.git()?.commit_short_id);
+pub const INFO: &str = build_info::format!("\n                 ,adPPYb,d8  \n                a8\"    `Y88  \n                8b       88  \n                \"8a,   ,d88  \n                 `\"YbbdP\"Y8  \n                 aa,    ,88  \n                  \"Y8bbdP\"   \n\n{} Copyright (C) 2022 Emmanouil Pitsidianakis\nThis program comes with ABSOLUTELY NO WARRANTY.\nThis is free software, and you are welcome to\nredistribute it under certain conditions; See\nLICENSE.md for more details.\n\nVersion: {}\nCommit SHA: {}\nAuthors: {}\nLicense: GPL version 3 or later\nCompiler: {}\nBuild-Date: {}\nEnabled-features: {}", $.crate_info.name, $.crate_info.version, $.version_control?.git()?.commit_short_id, $.crate_info.authors, $.compiler, $.timestamp, $.crate_info.enabled_features);
 
 /* Annotations:
  *
