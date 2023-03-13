@@ -185,9 +185,122 @@ impl ObjectImpl for CollectionInner {
             }
             w.present();
         }));
+        let new_glyph_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Horizontal)
+            .spacing(0)
+            .expand(true)
+            .visible(true)
+            .can_focus(true)
+            .build();
 
-        tool_palette.add(&add_glyph_button);
-        tool_palette.set_item_homogeneous(&add_glyph_button, false);
+        let new_glyph_box_item = gtk::ToolItem::builder()
+            .child(&new_glyph_box)
+            .visible(true)
+            .build();
+        tool_palette.add(&new_glyph_box_item);
+        tool_palette.set_item_homogeneous(&new_glyph_box_item, false);
+
+        new_glyph_box.add(&add_glyph_button);
+        let add_glyph_more = gtk::Button::builder()
+            .tooltip_text("Add glyph")
+            .valign(gtk::Align::Center)
+            .halign(gtk::Align::Center)
+            .visible(true)
+            .image(
+                &gtk::Image::builder()
+                    .icon_name("pan-down-symbolic")
+                    .icon_size(gtk::IconSize::Button)
+                    .expand(false)
+                    .margin(0)
+                    .valign(gtk::Align::Center)
+                    .halign(gtk::Align::Center)
+                    .build(),
+            )
+            .build();
+
+        add_glyph_more.connect_clicked(clone!(@weak obj => move |_btn| {
+            let context_menu = crate::utils::menu::Menu::new().add_button_cb(
+                "Add unicode ranges",
+                clone!(@weak obj => move |_| {
+                    let dialog = gtk::Dialog::builder()
+                        .attached_to(&obj.app().window)
+                        .application(obj.app())
+                        .border_width(10)
+                        .destroy_with_parent(true)
+                        .modal(true)
+                        .title("Add unicode ranges")
+                        .build();
+                    dialog.add_button("Add", gtk::ResponseType::Accept);
+                    dialog.add_button("Cancel", gtk::ResponseType::Close);
+                    let b = dialog.content_area();
+                    b.pack_start(&gtk::Label::builder()
+                        .label("Insert one valid unicode range or unicode codepoint per line, e.g. a:z or u+0300:u+033F")
+                        .visible(true)
+                        .wrap(true)
+                        .halign(gtk::Align::Start)
+                        .build(), true, false, 5);
+                    let buffer = gtk::TextBuffer::new(gtk::TextTagTable::NONE);
+                    let text_view = gtk::TextView::builder()
+                        .visible(true)
+                        .monospace(true)
+                        .buffer(&buffer)
+                        .build();
+                    b.pack_start(&text_view, true, false, 0);
+                    loop {
+                        match dialog.run() {
+                            gtk::ResponseType::Accept => {
+                                let (start, end) = buffer.bounds();
+                                let kinds = buffer
+                                    .text(&start, &end, false)
+                                    .map(|gstr| gstr.to_string())
+                                    .unwrap_or_default()
+                                    .lines()
+                                    .filter(|l| !l.is_empty())
+                                    .map(GlyphKind::from_range)
+                                    .collect::<Option<Vec<Vec<GlyphKind>>>>();
+                                if let Some(kinds) = kinds {
+                                    let mut glyphs = kinds
+                                        .into_iter()
+                                        .flat_map(|v| v.into_iter().map(Glyph::from))
+                                        .collect::<Vec<Glyph>>();
+                                    glyphs.sort_by(|a, b| {
+                                        a.metadata
+                                            .kinds
+                                            .borrow()
+                                            .0
+                                            .cmp(&b.metadata.kinds.borrow().0)
+                                    });
+                                    if !glyphs.is_empty() {
+                                        let project = obj.project();
+                                        for glyph in glyphs {
+                                            let metadata = glyph.metadata.clone();
+                                            let name = metadata.name().to_string();
+                                            let glyph = Rc::new(RefCell::new(metadata.clone().into()));
+                                            metadata.glyph_ref.set(glyph.clone()).unwrap();
+                                            project.new_glyph(name, glyph, None).unwrap();
+                                            obj.emit_by_name::<()>(Collection::NEW_GLYPH, &[&metadata]);
+                                        }
+                                        dialog.emit_close();
+                                        break;
+                                    }
+                                }
+                            }
+                            gtk::ResponseType::Close => {
+                                dialog.emit_close();
+                                break;
+                            }
+                            gtk::ResponseType::DeleteEvent => {
+                                dialog.emit_close();
+                                break;
+                            }
+                            _other => unreachable!("{_other:?}"),
+                        }
+                    }
+                })
+            );
+            context_menu.popup(0);
+        }));
+        new_glyph_box.add(&add_glyph_more);
 
         let search_entry = gtk::Entry::builder()
             .expand(true)

@@ -80,7 +80,6 @@ toolpalette  {
 .text-button {
   background: none;
   padding:0;
-  padding-right: 5px;
   margin:0;
   border:none;
 }
@@ -94,6 +93,14 @@ toolpalette  {
   background: none;
   border: none;
   box-shadow: none;
+}
+
+toolbar > * > * {
+  margin-left: 2px;
+}
+
+toolitem box button {
+  padding: 0px;
 }
 
 .glyph-edit-toolbox * {
@@ -169,12 +176,16 @@ button.image-button > box {
   min-width: 0;
 }
 
-.glyphs_area_toolbar * {
-  margin-right: 3px;
-}
-
 toolbutton.active button:checked {
   background: lightgrey;
+}
+
+toolitem + toolitem {
+  margin-left: 2px;
+}
+toolitem button {
+  min-height: 0;
+  min-width: 0;
 }
 
 button.active.toggle {

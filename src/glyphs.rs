@@ -56,7 +56,7 @@ pub struct Component {
     pub y_scale: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Ord, PartialOrd, Clone, PartialEq, Eq)]
 pub enum GlyphKind {
     Char(char),
     Component(String),
@@ -65,6 +65,82 @@ pub enum GlyphKind {
 impl Default for GlyphKind {
     fn default() -> Self {
         Self::Char(' ')
+    }
+}
+
+impl GlyphKind {
+    /// Create `GlyphKind`s from a range.
+    ///
+    /// A valid unicode range example is a character range separated with colon e.g. a:z or unicode
+    /// codepoints separated with colon e.g. u+0300:u+033F. The range is inclusive.
+    ///
+    /// ```rust
+    /// # use gerb::glyphs::GlyphKind;
+    /// let range = GlyphKind::from_range("a:z").unwrap();
+    /// assert_eq!(range, ('a'..='z').map(GlyphKind::Char).collect::<Vec<GlyphKind>>());
+    /// let range = GlyphKind::from_range("u+0300:u+033F").unwrap();
+    /// assert_eq!(range, ('\u{300}'..='\u{33F}').map(GlyphKind::Char).collect::<Vec<GlyphKind>>());
+    /// let range = GlyphKind::from_range("γ").unwrap();
+    /// assert_eq!(range, vec![GlyphKind::Char('γ')]);
+    /// let range = GlyphKind::from_range("U+0022").unwrap();
+    /// assert_eq!(range, vec![GlyphKind::Char('"')]);
+    /// ```
+    pub fn from_range(range: &str) -> Option<Vec<Self>> {
+        fn strip_fn(slice: &'_ str) -> (bool, &'_ str) {
+            slice
+                .strip_prefix("u+")
+                .map(|s| (false, s))
+                .or_else(|| slice.strip_prefix("U+").map(|s| (false, s)))
+                .unwrap_or((true, slice))
+        }
+        fn to_char_fn(is_char: bool, slice: &str) -> Option<GlyphKind> {
+            if is_char {
+                let mut iter = slice.chars();
+                let ret = iter.next();
+                if iter.next().is_some() {
+                    None
+                } else {
+                    ret.map(GlyphKind::Char)
+                }
+            } else {
+                GlyphKind::try_from(&Unicode::new(slice.to_string())).ok()
+            }
+        }
+
+        let range = range.trim();
+        if let Some((start, end)) = range.split_once(':') {
+            let (start_is_char, start) = strip_fn(start);
+            let (end_is_char, end) = strip_fn(end);
+            let start: Option<GlyphKind> = to_char_fn(start_is_char, start);
+            let end: Option<GlyphKind> = to_char_fn(end_is_char, end);
+            if let (Some(GlyphKind::Char(start)), Some(GlyphKind::Char(end))) = (start, end) {
+                let vec = (start..=end).map(GlyphKind::Char).collect::<Vec<_>>();
+                return Some(vec).filter(|v| !v.is_empty());
+            }
+            None
+        } else if range.contains(':') {
+            return None;
+        } else {
+            let (is_char, range) = strip_fn(range);
+            let kind: GlyphKind = to_char_fn(is_char, range)?;
+            Some(vec![kind]).filter(|v| !v.is_empty())
+        }
+    }
+
+    pub fn name(&self) -> String {
+        let mut b = [0; 4];
+        match self {
+            GlyphKind::Char(c) => c.encode_utf8(&mut b).to_string(),
+            GlyphKind::Component(ref name) => name.to_string(),
+        }
+    }
+}
+
+impl From<GlyphKind> for Glyph {
+    fn from(val: GlyphKind) -> Self {
+        let ret = Self::new(val.name(), ' ', vec![]);
+        *ret.metadata.kinds.borrow_mut() = (val, vec![]);
+        ret
     }
 }
 
@@ -118,7 +194,7 @@ impl Eq for Glyph {}
 
 impl Default for Glyph {
     fn default() -> Self {
-        Self::new_empty("space", ' ')
+        Self::new_empty("space".to_string(), ' ')
     }
 }
 
@@ -214,7 +290,7 @@ impl Glyph {
         Ok(ret)
     }
 
-    pub fn new(name: &'static str, char: char, curves: Vec<Bezier>) -> Self {
+    pub fn new(name: String, char: char, curves: Vec<Bezier>) -> Self {
         let contours = if curves.is_empty() {
             vec![]
         } else {
@@ -222,7 +298,7 @@ impl Glyph {
         };
         let metadata = GlyphMetadata::new();
         *metadata.kinds.borrow_mut() = (GlyphKind::Char(char), vec![]);
-        *metadata.name.borrow_mut() = name.into();
+        *metadata.name.borrow_mut() = name;
         Self {
             contours,
             components: vec![],
@@ -259,7 +335,7 @@ impl Glyph {
         self.guidelines.pop();
     }
 
-    pub fn new_empty(name: &'static str, char: char) -> Self {
+    pub fn new_empty(name: String, char: char) -> Self {
         Self::new(name, char, vec![])
     }
 
