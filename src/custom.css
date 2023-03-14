@@ -335,3 +335,7 @@ button:hover.text-button.shortcuts-more label {
 entry.invalid {
   background: #ee0000;
 }
+
+window.property-window separator {
+  margin: .5rem 0px;
+}

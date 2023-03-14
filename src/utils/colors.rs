@@ -347,7 +347,9 @@ mod rgba_serde {
     }
 }
 
-#[derive(Clone, Default, Debug, Copy, glib::Boxed)]
+// [ref:needs_user_doc]
+// [ref:needs_dev_doc]
+#[derive(Clone, PartialEq, Default, Debug, Copy, glib::Boxed)]
 #[boxed_type(name = "DrawOptions")]
 pub struct DrawOptions {
     pub color: Color,

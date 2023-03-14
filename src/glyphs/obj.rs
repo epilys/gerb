@@ -208,6 +208,9 @@ impl From<GlyphMetadata> for Glyph {
 
 impl CreatePropertyWindow for GlyphMetadata {
     fn new_property_window(&self, app: &Application, create: bool) -> PropertyWindow {
+        if create {
+            self.set_property(Self::FILENAME, "glyph_name.glif");
+        }
         let mut w = PropertyWindow::builder(self.clone().upcast(), app)
             .title(if create {
                 "Add glyph".into()
@@ -228,7 +231,9 @@ impl CreatePropertyWindow for GlyphMetadata {
                 filename.set_sensitive(false);
                 name.bind_property("text", self, Self::FILENAME)
                     .transform_to(|_, val| {
-                        let n = val.get::<Option<String>>().ok()??;
+                        let Some(n) = val.get::<Option<String>>().ok()?.filter(|n| !n.is_empty()) else {
+                            return Some("glyph_name.glif".to_value());
+                        };
                         Some(format!("{n}.glif").to_value())
                     })
                     .build();

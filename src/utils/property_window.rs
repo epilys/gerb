@@ -63,8 +63,9 @@ pub struct PropertyWindowInner {
     rows: Cell<i32>,
     pub buttons: OnceCell<PropertyWindowButtons>,
     widgets: RefCell<IndexMap<String, gtk::Widget>>,
-    initial_values: RefCell<IndexMap<String, glib::Value>>,
-    title: gtk::Label,
+    initial_values: RefCell<IndexMap<String, (Cell<bool>, glib::Value)>>,
+    title_label: gtk::Label,
+    title: RefCell<Cow<'static, str>>,
 }
 
 #[glib::object_subclass]
@@ -85,6 +86,43 @@ impl ObjectImpl for PropertyWindowInner {
         obj.set_expand(true);
         obj.set_type_hint(gtk::gdk::WindowTypeHint::Utility);
         obj.set_window_position(gtk::WindowPosition::CenterOnParent);
+        obj.connect_key_press_event(move |window, event| {
+            if event.keyval() == gdk::keys::constants::Escape && !window.is_dirty() {
+                window.close();
+
+                Inhibit(true)
+            } else {
+                Inhibit(false)
+            }
+        });
+    }
+
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![glib::ParamSpecBoolean::new(
+                    PropertyWindow::IS_DIRTY,
+                    PropertyWindow::IS_DIRTY,
+                    PropertyWindow::IS_DIRTY,
+                    false,
+                    glib::ParamFlags::READWRITE,
+                )]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &ParamSpec) -> glib::Value {
+        match pspec.name() {
+            PropertyWindow::IS_DIRTY => self.instance().is_dirty().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(&self, _obj: &Self::Type, _id: usize, _value: &glib::Value, pspec: &ParamSpec) {
+        match pspec.name() {
+            PropertyWindow::IS_DIRTY => {}
+            _ => unimplemented!("{}", pspec.name()),
+        }
     }
 }
 
@@ -113,6 +151,8 @@ pub struct PropertyWindowBuilder {
 }
 
 impl PropertyWindow {
+    const IS_DIRTY: &str = "is-dirty";
+
     pub fn builder(obj: glib::Object, app: &crate::prelude::Application) -> PropertyWindowBuilder {
         PropertyWindowBuilder::new(obj, app)
     }
@@ -121,23 +161,32 @@ impl PropertyWindow {
         self.imp().widgets.borrow().into()
     }
 
+    pub fn is_dirty(&self) -> bool {
+        self.imp()
+            .initial_values
+            .borrow()
+            .values()
+            .any(|(d, _)| d.get())
+    }
+
     fn object_to_property_grid(&self, obj: glib::Object, create: bool) {
+        self.style_context().add_class("property-window");
         self.imp().grid.set_expand(true);
         self.imp().grid.set_visible(true);
         self.imp().grid.set_can_focus(true);
         self.imp().grid.set_column_spacing(5);
         self.imp().grid.set_margin(10);
         self.imp().grid.set_row_spacing(5);
-        self.imp().title.set_label(&if create {
+        self.imp().title_label.set_label(&if create {
             format!("<big>New <i>{}</i></big>", obj.type_().name())
         } else {
             format!("<big>Options for <i>{}</i></big>", obj.type_().name())
         });
-        self.imp().title.set_use_markup(true);
-        self.imp().title.set_margin_top(5);
-        self.imp().title.set_halign(gtk::Align::Start);
-        self.imp().title.set_visible(true);
-        self.imp().grid.attach(&self.imp().title, 0, 0, 1, 1);
+        self.imp().title_label.set_use_markup(true);
+        self.imp().title_label.set_margin_top(5);
+        self.imp().title_label.set_halign(gtk::Align::Start);
+        self.imp().title_label.set_visible(true);
+        self.imp().grid.attach(&self.imp().title_label, 0, 0, 1, 1);
         self.imp().grid.attach(
             &gtk::Separator::builder()
                 .expand(true)
@@ -178,7 +227,7 @@ impl PropertyWindow {
     }
 
     pub fn add_separator(&self) {
-        let row = self.imp().rows.get();
+        let row = self.imp().rows.get() + 1;
         self.imp().grid.attach(
             &gtk::Separator::builder()
                 .expand(true)
@@ -187,7 +236,7 @@ impl PropertyWindow {
                 .valign(gtk::Align::Start)
                 .build(),
             0,
-            row + 1,
+            row,
             2,
             1,
         );
@@ -199,7 +248,7 @@ impl PropertyWindow {
         self.imp()
             .initial_values
             .borrow_mut()
-            .insert(property.name().to_string(), val.clone());
+            .insert(property.name().to_string(), (false.into(), val.clone()));
         let readwrite = property.flags().contains(glib::ParamFlags::READWRITE)
             && !(property.flags().contains(UI_READABLE));
         let flags = if readwrite {
@@ -207,6 +256,24 @@ impl PropertyWindow {
         } else {
             glib::BindingFlags::SYNC_CREATE
         };
+        macro_rules! check_dirty_on_change {
+            ($ty:ty) => {
+                if readwrite {
+                    obj.connect_notify_local(
+                        Some(property.name()),
+                        clone!(@weak self as win => move |obj, pspec| {
+                            let Ok(init_values) = win.imp().initial_values.try_borrow() else { return; };
+                            let Some(init_val) = init_values.get(pspec.name()) else { return; };
+                            init_val.0.set(
+                                init_val.1.get::<$ty>().ok()
+                                    != Some(obj.property::<$ty>(pspec.name()))
+                            );
+                            win.notify(PropertyWindow::IS_DIRTY);
+                        }),
+                    );
+                }
+            };
+        }
         let widget: gtk::Widget = match val.type_().name() {
             "gboolean" => {
                 let val = val.get::<bool>().unwrap();
@@ -219,6 +286,7 @@ impl PropertyWindow {
                 obj.bind_property(property.name(), &entry, "active")
                     .flags(flags)
                     .build();
+                check_dirty_on_change!(bool);
 
                 entry.upcast()
             }
@@ -235,6 +303,7 @@ impl PropertyWindow {
                     obj.bind_property(property.name(), &entry.buffer(), "text")
                         .flags(flags)
                         .build();
+                    check_dirty_on_change!(Option<String>);
 
                     entry.upcast()
                 } else {
@@ -290,6 +359,7 @@ impl PropertyWindow {
                 }
             }
             "gint64" => {
+                check_dirty_on_change!(i64);
                 let val = val.get::<i64>().unwrap();
                 let (min, max) = if let Some(spec) = property.downcast_ref::<glib::ParamSpecInt64>()
                 {
@@ -323,6 +393,7 @@ impl PropertyWindow {
                 entry.upcast()
             }
             "guint64" => {
+                check_dirty_on_change!(u64);
                 let val = val.get::<u64>().unwrap();
                 let (min, max) =
                     if let Some(spec) = property.downcast_ref::<glib::ParamSpecUInt64>() {
@@ -361,6 +432,7 @@ impl PropertyWindow {
                 entry.upcast()
             }
             "gdouble" => {
+                check_dirty_on_change!(f64);
                 let val = val.get::<f64>().unwrap();
                 let (min, max) =
                     if let Some(spec) = property.downcast_ref::<glib::ParamSpecDouble>() {
@@ -384,6 +456,7 @@ impl PropertyWindow {
                 entry.upcast()
             }
             "Color" => {
+                check_dirty_on_change!(Color);
                 let val = val.get::<Color>().unwrap();
                 let entry = gtk::ColorButton::builder()
                     .rgba(&val.into())
@@ -401,6 +474,7 @@ impl PropertyWindow {
                 entry.upcast()
             }
             "DrawOptions" => {
+                check_dirty_on_change!(DrawOptions);
                 let opts = val.get::<DrawOptions>().unwrap();
                 let grid = gtk::Grid::builder()
                     .expand(true)
@@ -642,7 +716,6 @@ impl PropertyWindowBuilder {
         ret.set_transient_for(Some(&self.app.window));
         ret.set_attached_to(Some(&self.app.window));
         ret.set_application(Some(&self.app));
-        ret.set_title(&self.title);
         ret.imp()
             .buttons
             .set(match self.type_ {
@@ -662,8 +735,10 @@ impl PropertyWindowBuilder {
                         .build();
                     reset.connect_clicked(clone!(@weak ret => move |_| {
                         let Some(obj) = ret.imp().obj.get() else { return; } ;
-                        for (prop, val) in ret.imp().initial_values.borrow().iter() {
-                            _= obj.try_set_property_from_value(prop.as_str(), val);
+                        for (prop, (is_dirty, val)) in ret.imp().initial_values.borrow().iter() {
+                            is_dirty.set(false);
+                            ret.notify(PropertyWindow::IS_DIRTY);
+                            _ = obj.try_set_property_from_value(prop.as_str(), val);
                         }
                     }));
                     let close = gtk::Button::builder()
@@ -717,6 +792,25 @@ impl PropertyWindowBuilder {
 
         scrolled_window.set_child(Some(&b));
         ret.set_child(Some(&scrolled_window));
+        ret.set_title(&self.title);
+        *ret.imp().title.borrow_mut() = self.title;
+        ret.bind_property(PropertyWindow::IS_DIRTY, &ret, "title")
+            .transform_to(|binding, is_dirty_val| {
+                let window = binding.source()?.downcast::<PropertyWindow>().ok()?;
+                let title = window.imp().title.borrow();
+                if is_dirty_val.get::<bool>().ok()? {
+                    Some(format!("{}*", &title).to_value())
+                } else {
+                    Some(title.to_value())
+                }
+            })
+            .flags(glib::BindingFlags::SYNC_CREATE)
+            .build();
+        if matches!(self.type_, PropertyWindowType::Create) {
+            if let Some((_, first_widget)) = ret.imp().widgets.borrow().get_index(0) {
+                first_widget.set_has_focus(true);
+            }
+        }
 
         ret
     }
