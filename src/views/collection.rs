@@ -181,10 +181,19 @@ impl ObjectImpl for CollectionInner {
                     let name = metadata.name().to_string();
                     let glyph = Rc::new(RefCell::new(metadata.clone().into()));
                     metadata.glyph_ref.set(glyph.clone()).unwrap();
-                    // [ref:FIXME]: show err msg
-                    project.new_glyph(name, glyph, None).unwrap();
-                    obj.emit_by_name::<()>(Collection::NEW_GLYPH, &[&metadata]);
-                    w.close();
+                    if let Err(err) = project.new_glyph(name, glyph, None) {
+                        let dialog = crate::utils::widgets::new_simple_error_dialog(
+                            Some("Error: Could not create glyph."),
+                            &err.to_string(),
+                            None,
+                            obj.app().window.upcast_ref()
+                        );
+                        dialog.run();
+                        dialog.emit_close();
+                    } else {
+                        obj.emit_by_name::<()>(Collection::NEW_GLYPH, &[&metadata]);
+                        w.close();
+                    }
                 }));
             }
             w.present();

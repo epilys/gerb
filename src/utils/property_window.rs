@@ -347,18 +347,25 @@ impl PropertyWindow {
                             .relief(gtk::ReliefStyle::None)
                             .visible(true)
                             .sensitive(true)
-                            .tooltip_text("Open file location.")
+                            .tooltip_text("Open file location")
                             .build();
-                        btn.connect_clicked(clone!(@weak obj, @strong property => move |_self| {
-                        // [ref:FIXME]: show error to user, if any.
+                        btn.connect_clicked(clone!(@weak obj, @strong property, @weak self as pwindow => move |_self| {
                         let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
                         let Ok(prefix) = std::env::current_dir() else { return; };
                         let mut abs_path = prefix.join(path);
                         if abs_path.is_file() {
                             abs_path.pop();
                         }
-                        let Ok(uri) = glib::filename_to_uri(&abs_path, None) else { return ; };
-                        gtk::gio::AppInfo::launch_default_for_uri(&uri, gtk::gio::AppLaunchContext::NONE).unwrap();
+                        if let Err(err) = glib::filename_to_uri(&abs_path, None).and_then(|uri| gtk::gio::AppInfo::launch_default_for_uri(&uri, gtk::gio::AppLaunchContext::NONE)) {
+                            let dialog = crate::utils::widgets::new_simple_error_dialog(
+                                Some("Error: Could not open location."),
+                                &err.to_string(),
+                                None,
+                                pwindow.imp().app.get().unwrap().window.upcast_ref(),
+                            );
+                            dialog.run();
+                            dialog.emit_close();
+                        };
                     }));
                         b.pack_end(&btn, false, false, 15);
                         b.upcast()
