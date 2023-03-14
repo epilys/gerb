@@ -684,54 +684,73 @@ impl LayerContents {
         vec: Vec<(String, String)>,
         root_path: Option<&Path>,
         default_layer: objects::Layer,
-        create_missing_directories: bool,
+        create: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         if vec.is_empty() {
-            return Err("Input contains no layers: a valid UFOv3 project requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.".into());
+            return Err("UFOv3 spec requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.".into());
         }
         if &vec[0].1 != "glyphs" {
-            return Err("Input contains an invalid default layer: a valid UFOv3 project requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`.".into());
+            return Err("UFOv3 spec requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`.".into());
         }
         let vec_len = vec.len();
         let layers: IndexMap<String, String> = vec.into_iter().collect();
         if layers.len() != vec_len {
             return Err("Input contains duplicate layer names.".into());
         }
-        let mut directories = layers
+        let directories = layers
             .values()
             .skip(1)
             .collect::<indexmap::IndexSet<&String>>();
         if directories.len() != vec_len - 1 {
             return Err("Input contains duplicate layer directory values.".into());
         }
-        directories.retain(|d| !d.starts_with("glyphs."));
-        if !directories.is_empty() {
-            return Err(format!(
-                "Input contains layer directory values that don't start with `glyphs.`: {:?}.",
-                &directories
-            )
-            .into());
-        }
 
         let mut ret = Self {
             objects: IndexMap::with_capacity(layers.len()),
             layers,
         };
+        fn validate_fn(
+            ret: &LayerContents,
+            name: &str,
+            dir_name: &str,
+        ) -> Result<(), Box<dyn std::error::Error>> {
+            if name == "public.default" && dir_name != "glyphs" {
+                return Err("layer `public.default` must point to the `glyphs` directory as per the UFO standard.".into());
+            }
+            if name != "public.default" && dir_name == "glyphs" {
+                return Err(format!("layer `{name}` points to the `glyphs` directory but only the `public.default` layer can as per the UFO standard.").into());
+            }
+            if name.starts_with("public.")
+                && !["public.default", "public.background"].contains(&name)
+            {
+                return Err(format!("layer `{name}` starts with the 'public.' prefix which is reserved for use in standardized layer names as per the UFO standard.").into());
+            }
+            if let Some(l) = ret
+                .objects
+                .values()
+                .find(|l| l.dir_name.borrow().as_str() == name)
+            {
+                return Err(format!("layer `{name}` points to directory {dir_name} but layer {} points to {dir_name} as well. Layer directories must be unique.", l.dir_name.borrow()).into());
+            }
+
+            Ok(())
+        }
         if let Some(root_path) = root_path {
             let mut path = root_path.to_path_buf();
             for ((layer_name, dir_name), new_layer) in ret.layers.iter().zip(
                 std::iter::once(default_layer).chain(std::iter::repeat_with(objects::Layer::new)),
             ) {
                 path.push(dir_name);
+                validate_fn(&ret, layer_name, dir_name)?;
                 if !path.exists() {
-                    if create_missing_directories {
+                    if create {
                         std::fs::create_dir(&path)?;
                     } else {
                         return Err(format!(
-                "layercontents.plist entry: {layer_name}: {dir_name} doesn't exist at expected location `{}`",
-                path.display()
-            )
-            .into());
+                            "{layer_name}: {dir_name} doesn't exist at expected location `{}`",
+                            path.display()
+                        )
+                        .into());
                     }
                 }
                 path.pop();
@@ -750,17 +769,22 @@ impl LayerContents {
     pub fn from_path(
         path: &Path,
         default_layer: objects::Layer,
-        create_missing_directories: bool,
+        create: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        if !path.exists() {
+        if create {
+            std::fs::create_dir_all(path)?;
+            let vec = vec![("public.default".to_string(), "glyphs".to_string())];
+            let mut path = path.to_path_buf();
+            path.pop();
+            return Self::inner_from_vec(vec, Some(&path), default_layer, create);
+        } else if !path.exists() {
             // This file is not optional.
-            return Err(format!("Path {} does not exist: a valid UFOv3 project requires the presence of a layercontents.plist file.", path.display()).into());
+            return Err(format!("Path <tt>{}</tt> does not exist: a valid UFOv3 project requires the presence of a layercontents.plist file.", path.display()).into());
         }
-        let vec =
-            plist::from_file(path).map_err(|err| format!("Path {}: {err}", path.display()))?;
+        let vec = plist::from_file(path)?;
         let mut path = path.to_path_buf();
         path.pop();
-        Self::inner_from_vec(vec, Some(&path), default_layer, create_missing_directories)
+        Self::inner_from_vec(vec, Some(&path), default_layer, create)
     }
 
     pub fn new_from_str(
@@ -811,8 +835,7 @@ impl Lib {
             // This file is is optional. If it is not defined in the UFO, there is no lib data.
             return Ok(Self::default());
         }
-        let retval: Self =
-            plist::from_file(path).map_err(|err| format!("Path {}: {err}", path.display()))?;
+        let retval: Self = plist::from_file(path)?;
         Ok(retval)
     }
 

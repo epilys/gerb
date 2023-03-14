@@ -71,7 +71,6 @@ pub struct ProjectInner {
     pub layercontents: RefCell<ufo::LayerContents>,
     pub default_layer: ufo::objects::Layer,
     pub background_layer: RefCell<Option<ufo::objects::Layer>>,
-    // [ref:FIXME]: check for reserved names when adding to all_layers
     pub all_layers: RefCell<Vec<ufo::objects::Layer>>,
     #[cfg(feature = "git")]
     pub repository: RefCell<Result<Option<git::Repository>, Box<dyn std::error::Error>>>,
@@ -330,13 +329,23 @@ impl Project {
         path.push("fontinfo.plist");
         let ret: Self = Self::new();
 
-        let fontinfo = ufo::objects::FontInfo::from_path(path.clone())
-            .map_err(|err| format!("couldn't read fontinfo.plist {}: {}", path.display(), err))?;
+        let fontinfo = ufo::objects::FontInfo::from_path(path.clone()).map_err(|err| {
+            format!(
+                "couldn't read fontinfo.plist {}:\n\n{}",
+                path.display(),
+                err
+            )
+        })?;
         path.pop();
         path.push("metainfo.plist");
         let metainfo_exists = path.exists();
-        let metainfo = ufo::MetaInfo::from_path(&path)
-            .map_err(|err| format!("couldn't read metainfo.plist {}: {}", path.display(), err))?;
+        let metainfo = ufo::MetaInfo::from_path(&path).map_err(|err| {
+            format!(
+                "couldn't read metainfo.plist {}:\n\n{}",
+                path.display(),
+                err
+            )
+        })?;
         if !metainfo_exists {
             metainfo.save(&path)?;
         }
@@ -344,13 +353,7 @@ impl Project {
         path.pop();
         path.push("layercontents.plist");
         let layercontents = ufo::LayerContents::from_path(&path, ret.default_layer.clone(), false)
-            .map_err(|err| {
-                format!(
-                    "couldn't read layercontents.plist {}: {}",
-                    path.display(),
-                    err
-                )
-            })?;
+            .map_err(|err| format!("couldn't read layercontents.plist:\n\n{}", err))?;
         if let Some(background_layer) = layercontents.objects.get("public.background") {
             *ret.background_layer.borrow_mut() = Some(background_layer.clone());
         }
@@ -499,39 +502,39 @@ impl Project {
 
     pub fn create(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
         let mut path: PathBuf = std::fs::canonicalize(Path::new(path))
-            .map_err(|err| format!("Path looks invalid: {err}"))?;
+            .map_err(|err| format!("Path looks invalid:\n\n{err}"))?;
         if !path.exists() {
             std::fs::create_dir_all(&path)
-                .map_err(|err| format!("Could not create project: {err}"))?;
+                .map_err(|err| format!("Could not create project:\n\n{err}"))?;
         }
         path.push("fontinfo.plist");
         let fontinfo_plist = ufo::FontInfo::default();
         fontinfo_plist
             .save(&path)
-            .map_err(|err| format!("Could not create fontinfo.plist: {err}"))?;
+            .map_err(|err| format!("Could not create fontinfo.plist:\n\n{err}"))?;
         path.pop();
         path.push("layercontents.plist");
         let layercontents_plist = ufo::LayerContents::default();
         layercontents_plist
             .save(&path)
-            .map_err(|err| format!("Could not create layercontents.plist: {err}"))?;
+            .map_err(|err| format!("Could not create layercontents.plist:\n\n{err}"))?;
         path.pop();
         path.push("metainfo.plist");
         let metainfo = ufo::MetaInfo::default();
         metainfo
             .save(&path)
-            .map_err(|err| format!("Could not create metainfo.plist: {err}"))?;
+            .map_err(|err| format!("Could not create metainfo.plist:\n\n{err}"))?;
         path.pop();
 
         path.push("glyphs");
         if !path.exists() {
             std::fs::create_dir_all(&path)
-                .map_err(|err| format!("Could not create glyphs/ folder: {err}"))?;
+                .map_err(|err| format!("Could not create glyphs/ folder:\n\n{err}"))?;
         }
         path.push("contents.plist");
         ufo::Contents::default()
             .save(Some(&path), true)
-            .map_err(|err| format!("Could not create glyphs/contents.plist: {err}"))?;
+            .map_err(|err| format!("Could not create glyphs/contents.plist:\n\n{err}"))?;
         path.pop();
         path.pop();
         Self::from_path(path)
