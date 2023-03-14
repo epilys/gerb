@@ -144,9 +144,9 @@ pub mod ufo_compile {
         if let Some(f) = filename_stem.as_ref() {
             filechooser.set_filename(&format!("{f}.otf"));
         }
-        if matches!(filechooser.run(), gtk::ResponseType::Cancel) {
-            return;
-        }
+
+        return_if_not_ok_or_accept!(filechooser.run());
+
         let Some(f) = filechooser.filename() else { return; };
         let Some(output_dir) = f.to_str() else { return; };
         let (output_path, format) = if let Some(path) = filechooser.filename() {

@@ -173,8 +173,10 @@ pub mod glyphsapp {
             None,
             None,
         );
-        let _response = dialog.run();
+
+        return_if_not_ok_or_accept!(dialog.run());
         dialog.hide();
+
         let Some(f) = dialog.filename() else { return; };
         let Some(path) = f.to_str() else { return; };
         match import(Glyphs2UFOOptions::new(path.into()).output_dir(None)) {
@@ -332,10 +334,11 @@ pub mod ufo2 {
             None,
             None,
         );
-        let _response = dialog.run();
+        return_if_not_ok_or_accept!(dialog.run());
         dialog.hide();
         let Some(f) = dialog.filename() else { return; };
         let Some(input_dir) = f.to_str() else { return; };
+        drop(dialog);
         let dialog2 = gtk::FileChooserNative::new(
             Some("Select UFOv3 output path"),
             Some(&window),
@@ -343,10 +346,13 @@ pub mod ufo2 {
             None,
             None,
         );
-        let _response = dialog2.run();
+
+        return_if_not_ok_or_accept!(dialog2.run());
         dialog2.hide();
+
         let Some(f) = dialog2.filename() else { return; };
         let Some(output_dir) = f.to_str() else { return; };
+        drop(dialog2);
         match import(UFO2ToUFO3Options::new(input_dir.into(), output_dir.into())) {
             Ok(instance) => {
                 ApplicationInner::show_notification(

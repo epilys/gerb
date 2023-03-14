@@ -270,11 +270,12 @@ impl ApplicationInner {
                 None,
                 None
             );
-            let _response = dialog.run();
-            dialog.hide();
+            crate::return_if_not_ok_or_accept!(dialog.run());
+
             let Some(f) = dialog.filename() else { return; };
             let Some(path) = f.to_str() else { return; };
             window.emit_by_name::<()>("open-project", &[&path]);
+            dialog.hide();
         }));
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
@@ -288,9 +289,9 @@ impl ApplicationInner {
                     .transient_for(&window)
                     .build();
                 filechooser.set_filename("new_project.ufo");
-                if matches!(filechooser.run(), gtk::ResponseType::Cancel) {
-                    return;
-                }
+
+                crate::return_if_not_ok_or_accept!(filechooser.run());
+
                 let Some(f) = filechooser.filename() else { return; };
                 filechooser.hide();
                 window.imp().welcome_banner.set_visible(false);
