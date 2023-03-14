@@ -559,6 +559,7 @@ mod layer {
                 )
                 .into());
             }
+            *glyph.borrow().metadata.layer.borrow_mut() = Some(self.clone());
             self.set_property(Self::MODIFIED, true);
             contents.insert(name.clone(), glyph.borrow().metadata.filename().to_string());
             self.glyphs.borrow_mut().insert(name, glyph);

@@ -26,6 +26,7 @@ pub struct GlyphMetadataInner {
     modified: Cell<bool>,
     pub mark_color: Cell<Color>,
     pub relative_path: RefCell<PathBuf>,
+    pub layer: RefCell<Option<ufo::objects::Layer>>,
     pub image: RefCell<Option<ImageRef>>,
     pub advance: Cell<Option<Advance>>,
     pub unicode: RefCell<Vec<Unicode>>,
