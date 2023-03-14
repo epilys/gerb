@@ -680,6 +680,51 @@ where
 }
 
 impl LayerContents {
+    const ERROR_NO_LAYERS: &str = "UFOv3 spec requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.";
+    const ERROR_DEFAULT_DIR_NOT_GLYPHS: &str = "UFOv3 spec requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`.";
+    const ERROR_HAS_DUPLICATE_LAYER_NAMES: &str =
+        "UFOv3 spec requires that layer names are unique.";
+    const ERROR_HAS_DUPLICATE_LAYER_DIR_NAMES: &str =
+        "Input contains duplicate layer directory values.";
+
+    #[inline(always)]
+    fn new_duplicate_names_err(name: &str) -> String {
+        format!("Input contains duplicate layer names: {name}.",)
+    }
+
+    #[inline(always)]
+    fn new_duplicate_dir_names_err(name: &str, dir_name: &str, other: &objects::Layer) -> String {
+        format!("layer `{name}` points to directory {dir_name} but layer {} points to {dir_name} as well. Layer directories must be unique.", other.dir_name.borrow())
+    }
+
+    #[inline(always)]
+    fn new_points_to_glyphs_err(name: &str) -> String {
+        format!("layer `{name}` points to the `glyphs` directory but only the `public.default` layer can as per the UFO standard.")
+    }
+
+    #[inline(always)]
+    fn new_starts_with_public(name: &str) -> String {
+        format!("layer `{name}` starts with the 'public.' prefix which is reserved for use in standardized layer names as per the UFO standard.")
+    }
+
+    #[inline(always)]
+    fn new_dir_doesnt_start_with_glyphs(name: &str, dir_name: &str) -> String {
+        format!("layer `{name}` directory is {dir_name} but should start with `glyphs`.")
+    }
+
+    #[inline(always)]
+    fn new_dir_doesnt_exist_err(name: &str, dir_name: &str, path: &Path) -> String {
+        format!(
+            "{name}: {dir_name} doesn't exist at expected location `{}`",
+            path.display()
+        )
+    }
+
+    #[inline(always)]
+    fn new_is_required_err(path: &Path) -> String {
+        format!("Path <tt>{}</tt> does not exist: a valid UFOv3 project requires the presence of a layercontents.plist file.", path.display())
+    }
+
     fn inner_from_vec(
         vec: Vec<(String, String)>,
         root_path: Option<&Path>,
@@ -687,22 +732,22 @@ impl LayerContents {
         create: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         if vec.is_empty() {
-            return Err("UFOv3 spec requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.".into());
+            return Err(Self::ERROR_NO_LAYERS.into());
         }
-        if &vec[0].1 != "glyphs" {
-            return Err("UFOv3 spec requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`.".into());
+        let mut vec_len = vec.len();
+        if !vec.iter().any(|(n, _)| n == "public.default") {
+            vec_len += 1;
         }
-        let vec_len = vec.len();
         let layers: IndexMap<String, String> = vec.into_iter().collect();
         if layers.len() != vec_len {
-            return Err("Input contains duplicate layer names.".into());
+            return Err(Self::ERROR_HAS_DUPLICATE_LAYER_NAMES.into());
         }
         let directories = layers
             .values()
             .skip(1)
             .collect::<indexmap::IndexSet<&String>>();
         if directories.len() != vec_len - 1 {
-            return Err("Input contains duplicate layer directory values.".into());
+            return Err(Self::ERROR_HAS_DUPLICATE_LAYER_DIR_NAMES.into());
         }
 
         let mut ret = Self {
@@ -715,42 +760,48 @@ impl LayerContents {
             dir_name: &str,
         ) -> Result<(), Box<dyn std::error::Error>> {
             if name == "public.default" && dir_name != "glyphs" {
-                return Err("layer `public.default` must point to the `glyphs` directory as per the UFO standard.".into());
+                return Err(LayerContents::ERROR_DEFAULT_DIR_NOT_GLYPHS.into());
             }
             if name != "public.default" && dir_name == "glyphs" {
-                return Err(format!("layer `{name}` points to the `glyphs` directory but only the `public.default` layer can as per the UFO standard.").into());
+                return Err(LayerContents::new_points_to_glyphs_err(name).into());
             }
             if name.starts_with("public.")
                 && !["public.default", "public.background"].contains(&name)
             {
-                return Err(format!("layer `{name}` starts with the 'public.' prefix which is reserved for use in standardized layer names as per the UFO standard.").into());
+                return Err(LayerContents::new_starts_with_public(name).into());
+            }
+            if !dir_name.starts_with("glyphs.") && "public.default" != name {
+                return Err(LayerContents::new_dir_doesnt_start_with_glyphs(name, dir_name).into());
             }
             if let Some(l) = ret
                 .objects
                 .values()
                 .find(|l| l.dir_name.borrow().as_str() == name)
             {
-                return Err(format!("layer `{name}` points to directory {dir_name} but layer {} points to {dir_name} as well. Layer directories must be unique.", l.dir_name.borrow()).into());
+                return Err(LayerContents::new_duplicate_dir_names_err(name, dir_name, l).into());
             }
 
             Ok(())
         }
-        if let Some(root_path) = root_path {
-            let mut path = root_path.to_path_buf();
-            for ((layer_name, dir_name), new_layer) in ret.layers.iter().zip(
-                std::iter::once(default_layer).chain(std::iter::repeat_with(objects::Layer::new)),
-            ) {
+        let mut path = root_path.map(Path::to_path_buf);
+        for ((layer_name, dir_name), new_layer) in ret
+            .layers
+            .iter()
+            .zip(std::iter::once(default_layer).chain(std::iter::repeat_with(objects::Layer::new)))
+        {
+            if ret.objects.contains_key(layer_name) {
+                return Err(LayerContents::new_duplicate_names_err(layer_name).into());
+            }
+            validate_fn(&ret, layer_name, dir_name)?;
+            if let Some(path) = path.as_mut() {
                 path.push(dir_name);
-                validate_fn(&ret, layer_name, dir_name)?;
                 if !path.exists() {
                     if create {
                         std::fs::create_dir(&path)?;
                     } else {
-                        return Err(format!(
-                            "{layer_name}: {dir_name} doesn't exist at expected location `{}`",
-                            path.display()
-                        )
-                        .into());
+                        return Err(
+                            Self::new_dir_doesnt_exist_err(layer_name, dir_name, path).into()
+                        );
                     }
                 }
                 path.pop();
@@ -760,8 +811,8 @@ impl LayerContents {
                     path.clone(),
                     false,
                 )?;
-                ret.objects.insert(layer_name.clone(), new_layer);
             }
+            ret.objects.insert(layer_name.clone(), new_layer);
         }
         Ok(ret)
     }
@@ -779,7 +830,7 @@ impl LayerContents {
             return Self::inner_from_vec(vec, Some(&path), default_layer, create);
         } else if !path.exists() {
             // This file is not optional.
-            return Err(format!("Path <tt>{}</tt> does not exist: a valid UFOv3 project requires the presence of a layercontents.plist file.", path.display()).into());
+            return Err(Self::new_is_required_err(path).into());
         }
         let vec = plist::from_file(path)?;
         let mut path = path.to_path_buf();
@@ -981,7 +1032,8 @@ fn test_layercontents_plist_parse() {
         .into()
     );
     for (input, err_msg) in [
-        (r#"<?xml version="1.0" encoding="UTF-8"?>
+        (
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -992,16 +1044,22 @@ fn test_layercontents_plist_parse() {
   </array>
 </array>
 </plist>
-"#,"Input contains an invalid default layer: a valid UFOv3 project requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`."),
-(r#"<?xml version="1.0" encoding="UTF-8"?>
+"#,
+            LayerContents::ERROR_DEFAULT_DIR_NOT_GLYPHS,
+        ),
+        (
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <array>
 </array>
 </plist>
-"#,"Input contains no layers: a valid UFOv3 project requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`."),
-(r#"<?xml version="1.0" encoding="UTF-8"?>
+"#,
+            LayerContents::ERROR_NO_LAYERS,
+        ),
+        (
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1016,8 +1074,11 @@ fn test_layercontents_plist_parse() {
   </array>
 </array>
 </plist>
-"#,"Input contains duplicate layer names."),
-(r#"<?xml version="1.0" encoding="UTF-8"?>
+"#,
+            LayerContents::ERROR_HAS_DUPLICATE_LAYER_NAMES,
+        ),
+        (
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1036,8 +1097,11 @@ fn test_layercontents_plist_parse() {
   </array>
 </array>
 </plist>
-"#,"Input contains duplicate layer directory values."),
-(r#"<?xml version="1.0" encoding="UTF-8"?>
+"#,
+            LayerContents::ERROR_HAS_DUPLICATE_LAYER_DIR_NAMES,
+        ),
+        (
+            r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -1052,10 +1116,36 @@ fn test_layercontents_plist_parse() {
   </array>
 </array>
 </plist>
-"#,"Input contains layer directory values that don't start with `glyphs.`: {\"2glyphs\"}."),
-] {
-    assert_eq!(&LayerContents::new_from_str(input, Default::default()).unwrap_err().to_string(), err_msg);
-        }
+"#,
+            &LayerContents::new_starts_with_public("public.default.2"),
+        ),
+        (
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<array>
+  <array>
+    <string>public.default</string>
+    <string>glyphs</string>
+  </array>
+  <array>
+    <string>_public.default.2</string>
+    <string>2glyphs</string>
+  </array>
+</array>
+</plist>
+"#,
+            &LayerContents::new_dir_doesnt_start_with_glyphs("_public.default.2", "2glyphs"),
+        ),
+    ] {
+        assert_eq!(
+            &LayerContents::new_from_str(input, Default::default())
+                .unwrap_err()
+                .to_string(),
+            err_msg
+        );
+    }
 }
 
 #[test]
