@@ -71,6 +71,7 @@ pub struct ProjectInner {
     pub layercontents: RefCell<ufo::LayerContents>,
     pub default_layer: ufo::objects::Layer,
     pub background_layer: RefCell<Option<ufo::objects::Layer>>,
+    // [ref:FIXME]: check for reserved names when adding to all_layers
     pub all_layers: RefCell<Vec<ufo::objects::Layer>>,
     #[cfg(feature = "git")]
     pub repository: RefCell<Result<Option<git::Repository>, Box<dyn std::error::Error>>>,

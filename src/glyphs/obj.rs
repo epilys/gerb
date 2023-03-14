@@ -20,13 +20,13 @@
  */
 
 use super::*;
+use ufo::objects::Layer;
 
 #[derive(Debug, Default)]
 pub struct GlyphMetadataInner {
     modified: Cell<bool>,
     pub mark_color: Cell<Color>,
-    pub relative_path: RefCell<PathBuf>,
-    pub layer: RefCell<Option<ufo::objects::Layer>>,
+    layer: RefCell<Option<Layer>>,
     pub image: RefCell<Option<ImageRef>>,
     pub advance: Cell<Option<Advance>>,
     pub unicode: RefCell<Vec<Unicode>>,
@@ -83,13 +83,20 @@ impl ObjectImpl for GlyphMetadataInner {
                         GlyphMetadata::RELATIVE_PATH,
                         "Filesystem path.",
                         None,
-                        glib::ParamFlags::READWRITE | UI_READABLE | UI_PATH,
+                        glib::ParamFlags::READABLE | UI_READABLE | UI_PATH,
                     ),
                     glib::ParamSpecString::new(
                         GlyphMetadata::FILENAME,
                         GlyphMetadata::FILENAME,
                         "Filename.",
                         None,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecObject::new(
+                        GlyphMetadata::LAYER,
+                        GlyphMetadata::LAYER,
+                        GlyphMetadata::LAYER,
+                        Layer::static_type(),
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                 ]
@@ -103,9 +110,19 @@ impl ObjectImpl for GlyphMetadataInner {
             GlyphMetadata::MARK_COLOR => self.mark_color.get().to_value(),
             GlyphMetadata::MODIFIED => self.modified.get().to_value(),
             GlyphMetadata::RELATIVE_PATH => {
-                self.relative_path.borrow().display().to_string().to_value()
+                if let Some(layer) = self.layer.borrow().as_ref() {
+                    Some(format!(
+                        "{}/{}",
+                        layer.property::<String>(Layer::DIR_NAME),
+                        self.filename.borrow()
+                    ))
+                    .to_value()
+                } else {
+                    Some(format!("glyphs/{}", self.filename.borrow())).to_value()
+                }
             }
             GlyphMetadata::FILENAME => Some(self.filename.borrow().to_string()).to_value(),
+            GlyphMetadata::LAYER => self.layer.borrow().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -125,18 +142,23 @@ impl ObjectImpl for GlyphMetadataInner {
             GlyphMetadata::MODIFIED => {
                 self.modified.set(value.get().unwrap());
             }
-            GlyphMetadata::RELATIVE_PATH => {
-                if let Ok(Some(relative_path)) = value.get::<Option<String>>() {
-                    *self.relative_path.borrow_mut() = relative_path.into();
-                } else {
-                    *self.relative_path.borrow_mut() = PathBuf::new();
-                }
-            }
             GlyphMetadata::FILENAME => {
                 if let Ok(Some(filename)) = value.get::<Option<String>>() {
                     *self.filename.borrow_mut() = filename;
                 } else {
                     *self.filename.borrow_mut() = String::new();
+                }
+                self.instance().notify(GlyphMetadata::RELATIVE_PATH);
+            }
+            GlyphMetadata::LAYER => {
+                if let Some(layer) = value
+                    .get::<Option<Layer>>()
+                    .ok()
+                    .flatten()
+                    .or_else(|| value.get::<Layer>().ok())
+                {
+                    *self.layer.borrow_mut() = Some(layer);
+                    self.instance().notify(GlyphMetadata::RELATIVE_PATH);
                 }
             }
             _ => unimplemented!("{}", pspec.name()),
@@ -162,6 +184,7 @@ impl GlyphMetadata {
     pub const RELATIVE_PATH: &str = "relative-path";
     pub const FILENAME: &str = "filename";
     pub const NAME: &str = "name";
+    pub const LAYER: &str = "layer";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -187,6 +210,10 @@ impl GlyphMetadata {
     #[inline(always)]
     pub fn modified(&self) -> bool {
         self.imp().modified.get()
+    }
+
+    pub fn layer(&self) -> FieldRef<'_, Option<Layer>> {
+        self.layer.borrow().into()
     }
 }
 
@@ -230,19 +257,14 @@ impl CreatePropertyWindow for GlyphMetadata {
                 let filename = &widgets[Self::FILENAME];
                 let name = &widgets[Self::NAME];
                 filename.set_sensitive(false);
+                filename.style_read_only(false);
+                filename.style_monospace();
                 name.bind_property("text", self, Self::FILENAME)
                     .transform_to(|_, val| {
                         let Some(n) = val.get::<Option<String>>().ok()?.filter(|n| !n.is_empty()) else {
                             return Some("glyph_name.glif".to_value());
                         };
                         Some(format!("{n}.glif").to_value())
-                    })
-                    .build();
-                filename
-                    .bind_property("text", self, Self::RELATIVE_PATH)
-                    .transform_to(|_, val| {
-                        let n = val.get::<Option<String>>().ok()??;
-                        Some(format!("glyphs/{n}").to_value())
                     })
                     .build();
             }
@@ -344,13 +366,15 @@ impl CreatePropertyWindow for GlyphMetadata {
             );
             let kind_box = gtk::Box::builder()
                 .orientation(gtk::Orientation::Vertical)
-                .spacing(5)
-                .expand(true)
+                .spacing(15)
+                .expand(false)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Start)
                 .visible(true)
                 .can_focus(true)
                 .build();
-            kind_box.pack_start(&codepoint, false, false, 5);
-            kind_box.pack_start(&component, false, false, 5);
+            kind_box.pack_start(&codepoint, false, false, 0);
+            kind_box.pack_start(&component, false, false, 0);
             kind_box.show_all();
             let kind = self.kinds.borrow().0.clone();
             match kind {

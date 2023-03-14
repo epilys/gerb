@@ -262,3 +262,28 @@ macro_rules! impl_property_window {
         impl $crate::utils::property_window::CreatePropertyWindow for $ty {}
     };
 }
+
+/// Helper trait to set CSS styling for read only entry fields.
+pub trait StyleReadOnly: gtk::traits::WidgetExt + glib::Cast + glib::IsA<gtk::Widget> {
+    fn style_read_only(&self, is_sensitive: bool) {
+        use gtk::prelude::{StyleContextExt, WidgetExt};
+
+        let w: &gtk::Widget = self.upcast_ref();
+        if is_sensitive {
+            w.style_context().remove_class("read-only");
+            w.set_tooltip_text(None);
+        } else {
+            w.style_context().add_class("read-only");
+            w.set_tooltip_text(Some("read only"));
+        }
+    }
+
+    fn style_monospace(&self) {
+        use gtk::prelude::{StyleContextExt, WidgetExt};
+
+        let w: &gtk::Widget = self.upcast_ref();
+        w.style_context().add_class("monospace");
+    }
+}
+
+impl<W: gtk::traits::WidgetExt + glib::Cast + glib::IsA<gtk::Widget>> StyleReadOnly for W {}

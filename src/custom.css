@@ -20,7 +20,6 @@ menubar {
 headerbar {
   border-radius: 0;
   border: 1px solid grey;
-  min-height: 35px;
   background-color: white;
   background-image: none;
   min-height: 0;
@@ -338,4 +337,42 @@ entry.invalid {
 
 window.property-window separator {
   margin: .5rem 0px;
+}
+
+.combo {
+  padding: 3px;
+  min-height: 0;
+  min-width: 0;
+  border-radius: 2px;
+}
+
+.read-only {
+  padding: 6px;
+  min-height: 0;
+  min-width: 0;
+  /* unset all borders first */
+  border: none;
+  border-bottom: 1px inset steelblue;
+  color: slategray;
+  background: ghostwhite;
+  border-radius: 2px;
+}
+
+entry {
+  padding: 6px;
+  min-height: 0;
+  min-width: 0;
+  border: 1px inset steelblue;
+  border-radius: 2px;
+  border-bottom-style: inset;
+}
+
+.monospace {
+  font-family: monospace;
+}
+
+entry.read-only {
+  padding-left: 9px;
+  padding-right: 5px;
+  border-width: 1px;
 }

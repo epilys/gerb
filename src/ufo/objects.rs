@@ -486,21 +486,24 @@ mod layer {
             name: String,
             dir_name: String,
             mut root_path: PathBuf,
+            create: bool,
         ) -> Result<(), Box<dyn std::error::Error>> {
             root_path.push(&dir_name);
             let mut path = root_path;
-            if !path.exists() {
-                return Err(format!("Path <i>{}</i> does not exist.", path.display()).into());
-            }
-            if !path.is_dir() {
-                return Err(format!("Path {} is not a directory.", path.display()).into());
+            if !create {
+                if !path.exists() {
+                    return Err(format!("Path <i>{}</i> does not exist.", path.display()).into());
+                }
+                if !path.is_dir() {
+                    return Err(format!("Path {} is not a directory.", path.display()).into());
+                }
             }
             self.modified.set(false);
             *self.last_saved.borrow_mut() = None;
             *self.dir_name.borrow_mut() = dir_name;
             *self.name.borrow_mut() = name;
             path.push("contents.plist");
-            let contents = ufo::Contents::from_path(&path).map_err(|err| {
+            let contents = ufo::Contents::from_path(&path, create).map_err(|err| {
                 format!("couldn't read contents.plist {}: {}", path.display(), err)
             })?;
             path.pop();
@@ -559,7 +562,10 @@ mod layer {
                 )
                 .into());
             }
-            *glyph.borrow().metadata.layer.borrow_mut() = Some(self.clone());
+            glyph
+                .borrow()
+                .metadata
+                .set_property(GlyphMetadata::LAYER, Some(self.clone()));
             self.set_property(Self::MODIFIED, true);
             contents.insert(name.clone(), glyph.borrow().metadata.filename().to_string());
             self.glyphs.borrow_mut().insert(name, glyph);

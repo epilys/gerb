@@ -515,12 +515,16 @@ pub struct Contents {
 }
 
 impl Contents {
-    pub fn from_path(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
-        if !path.exists() {
+    pub fn from_path(path: &Path, create: bool) -> Result<Self, Box<dyn std::error::Error>> {
+        if !create && !path.exists() {
             // This file is not optional.
             return Err(format!("Path {} does not exist: a valid UFOv3 project requires the presence of a contents.plist file.", path.display()).into());
         }
-        let mut retval: Self = plist::from_file(path)?;
+        let mut retval: Self = if create {
+            Self::default()
+        } else {
+            plist::from_file(path)?
+        };
         retval.absolute_path = path.to_path_buf();
         retval.modified = false;
         Ok(retval)
@@ -731,7 +735,12 @@ impl LayerContents {
                     }
                 }
                 path.pop();
-                new_layer.init_from_path(layer_name.clone(), dir_name.clone(), path.clone())?;
+                new_layer.init_from_path(
+                    layer_name.clone(),
+                    dir_name.clone(),
+                    path.clone(),
+                    false,
+                )?;
                 ret.objects.insert(layer_name.clone(), new_layer);
             }
         }

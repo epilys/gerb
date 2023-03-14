@@ -109,8 +109,12 @@ pub mod prelude {
     pub use utils::property_window::*;
     pub use utils::range_query::Coordinate;
     pub use utils::shortcuts::{Shortcut, ShortcutAction};
+    // cairo context API wrapper:
     pub use utils::{ContextExt, ContextRef};
-    pub use utils::{Either, FieldRef, Modified, UI_EDITABLE, UI_PATH, UI_READABLE};
+    // utility types:
+    pub use utils::{Either, FieldRef, UI_EDITABLE, UI_PATH, UI_READABLE};
+    // utility traits:
+    pub use utils::{Modified, StyleReadOnly};
     pub use views::{canvas, Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint};
     pub use window::Workspace;
 
