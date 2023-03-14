@@ -338,7 +338,6 @@ impl Project {
         })?;
         path.pop();
         path.push("metainfo.plist");
-        let metainfo_exists = path.exists();
         let metainfo = ufo::MetaInfo::from_path(&path).map_err(|err| {
             format!(
                 "couldn't read metainfo.plist {}:\n\n{}",
@@ -346,9 +345,6 @@ impl Project {
                 err
             )
         })?;
-        if !metainfo_exists {
-            metainfo.save(&path)?;
-        }
 
         path.pop();
         path.push("layercontents.plist");

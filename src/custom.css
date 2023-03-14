@@ -1,7 +1,7 @@
 * {
   font-family: "Inter", "Sans", sans;
 }
-window, menubar, button{
+window, menubar, button {
   background-color: white;
   background-image: none;
 }
@@ -43,7 +43,7 @@ dialog {
   margin: 0px;
 }
 
-.text-button label {
+.text-button label, .text-button.suggested-action label {
   border: 1px solid black;
   padding: 4px;
   border-radius: 4px;
@@ -56,19 +56,11 @@ dialog {
   background: black;
 }
 
-headerbar .text-button label {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: white;
-}
-
 .sidebar-label {
   color: black;
   box-shadow:none;
   outline:none;
-  text-shadow:1px 1px darkgrey;
-  font-weight:bold;
+  text-shadow:none;
 }
 
 
@@ -375,4 +367,36 @@ entry.read-only {
   padding-left: 9px;
   padding-right: 5px;
   border-width: 1px;
+}
+
+filechooser button {
+  min-width: 0;
+  padding: 0px;
+  min-height: 0;
+}
+
+filechooser button label {
+  min-width: 0;
+  padding: .5em;
+  min-height: 0;
+}
+
+.path-bar > button.toggle {
+  margin-right: .2rem;
+}
+
+
+.suggested-action {
+  color: black;
+  text-shadow: none;
+  font-weight: bold;
+}
+
+.slider-button {
+  color: black;
+  border: 1px solid black;
+  padding: 4px;
+  border-radius: 4px;
+  box-shadow: -1px 1px black;
+  background: white;
 }
