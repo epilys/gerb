@@ -83,11 +83,12 @@ toolpalette  {
 .glyph-edit-toolbox, .glyph-edit-toolbox toolbar {
   background: none;
   border: none;
+  border-radius: 2px;
   box-shadow: none;
 }
 
-toolbar > * > * {
-  margin-left: 2px;
+.glyphs_area_toolbar > *:not(:first-child) > * {
+  margin-left: 1em;
 }
 
 toolitem box button {
@@ -399,4 +400,21 @@ filechooser button label {
   border-radius: 4px;
   box-shadow: -1px 1px black;
   background: white;
+}
+
+button.image-button.more-actions-button {
+  border-left: none;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 3px;
+}
+
+button:active label, button.image-button.more-actions-button:active {
+  background: #5094FF;
+}
+
+.has-more-actions label  {
+  border-right: none;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
 }

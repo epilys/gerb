@@ -336,7 +336,7 @@ impl PropertyWindow {
                             .valign(gtk::Align::Start)
                             .orientation(gtk::Orientation::Horizontal)
                             .build();
-                        b.pack_start(&l, true, true, 15);
+                        b.pack_start(&l, true, true, 0);
                         let image = gtk::Image::builder()
                             .icon_name("folder-open")
                             .visible(true)

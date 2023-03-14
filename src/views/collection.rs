@@ -167,6 +167,9 @@ impl ObjectImpl for CollectionInner {
             .halign(gtk::Align::Start)
             .visible(true)
             .build();
+        add_glyph_button
+            .style_context()
+            .add_class("has-more-actions");
 
         add_glyph_button.connect_clicked(clone!(@weak obj => move |_| {
             let metadata = GlyphMetadata::new();
@@ -218,6 +221,9 @@ impl ObjectImpl for CollectionInner {
                     .build(),
             )
             .build();
+        add_glyph_more
+            .style_context()
+            .add_class("more-actions-button");
 
         add_glyph_more.connect_clicked(clone!(@weak obj => move |_btn| {
             let context_menu = crate::utils::menu::Menu::new().add_button_cb(
