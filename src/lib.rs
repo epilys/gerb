@@ -202,15 +202,16 @@ pub mod prelude {
         #[macro_export]
         macro_rules! return_if_not_ok_or_accept {
             ($response:expr) => {{
+                let response = $response; // evaluate
                 if matches!(
-                    $response,
+                    response,
                     gtk::ResponseType::Cancel
                         | gtk::ResponseType::DeleteEvent
                         | gtk::ResponseType::Close
                 ) {
                     return;
                 }
-                $response
+                response
             }};
         }
     }
