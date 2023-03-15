@@ -111,6 +111,7 @@ jobs:
           cat << EOF
           personal_ws-1.1 en 0
           gerb
+          gerb's
           gtk
           proto
           indo
@@ -150,6 +151,13 @@ jobs:
           cli
           svg
           github's
+          FOSS
+          FontForge
+          runebender
+          MFEK
+          UI
+          toolkit
+          toolkit's
           EOF
           ) list < $m
           done

@@ -31,6 +31,42 @@ and export:[^1]
 | :information_source: Interested in contributing? Consult [`CONTRIBUTING.md`](./CONTRIBUTING.md).|
 | ---                                                                                             |
 
+## Features
+
+- import from other font source formats
+- export to `.otf` and `.ttf`
+- configurable shortcuts system
+- unlimited undos
+- embedded python shell and API for scripting and plugins (work in progress)
+- git integration (work in progress)
+- themeable (work in progress)
+
+### Future features
+
+- [ ] work with designspaces ([tracking issue #22](https://github.com/epilys/gerb/issues/22))
+
+## Screenshots [^2]
+
+[^2]: The screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).
+
+<p align="center" width="100%">
+<a href="./screenshot.png?raw=true"><img width="49%" src="./screenshot.png?raw=true"></a>
+<a href="./screenshot2.png?raw=true"><img width="49%" src="./screenshot2.png?raw=true"></a>
+</p>
+
+## Alternative software
+
+The indisputable FOSS font editor is [FontForge](https://fontforge.org).
+Realistically this is the only choice one has for making a professional quality typeface with free software.
+
+Some other projects in development are:
+
+- [runebender](https://github.com/linebender/runebender): development seems to have slowed down (as of Wed 15 Mar 2023).
+  Unfortunately, the project —while excellent— looks like it is encumbered by its UI toolkit's development.
+  In contrast, **gerb uses the standard FOSS UI toolkit, `gtk`**.
+- [MFEK](https://github.com/MFEK): it's focused on splitting every functionality into micro-libraries.
+  **gerb's technical goal is shipping a font editor**.
+
 ## Build & Run
 
 To build, you will need Rust's `cargo` tool.
@@ -58,29 +94,6 @@ cargo run --release -- -u /path/to/font.ufo
 Configuration of various settings is stored at the `$XDG_CONFIG_HOME/gerb` directory in a TOML file.
 The usual location would be `$HOME/.config/gerb/config.toml`.
 [**dconf**](https://en.wikipedia.org/wiki/Dconf) is not used but PRs that add dconf support are welcome.
-
-## Features
-
-- import from other font source formats
-- export to `.otf` and `.ttf`
-- configurable shortcuts system
-- unlimited undos
-- embedded python shell and API for scripting and plugins (work in progress)
-- git integration (work in progress)
-- themeable (work in progress)
-
-### Future features
-
-- [ ] work with designspaces ([tracking issue #22](https://github.com/epilys/gerb/issues/22))
-
-## Screenshots [^2]
-
-[^2]: The screenshot typeface is [Sporting Grotesque](https://www.velvetyne.fr/fonts/sporting-grotesque/).
-
-<p align="center" width="100%">
-<a href="./screenshot.png?raw=true"><img width="49%" src="./screenshot.png?raw=true"></a>
-<a href="./screenshot2.png?raw=true"><img width="49%" src="./screenshot2.png?raw=true"></a>
-</p>
 
 ### Dependencies
 
