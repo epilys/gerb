@@ -333,6 +333,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         let btn_container = gtk::Box::builder()
             .orientation(gtk::Orientation::Horizontal)
             .margin(0)
+            .spacing(5)
             .visible(true)
             .halign(gtk::Align::Fill)
             .valign(gtk::Align::Start)

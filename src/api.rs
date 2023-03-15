@@ -28,8 +28,12 @@
 //! [`crate::api::shell`] and [`Gerb`] for more details.
 //!
 //! The exposed types are in [`crate::api::types`].
-use crate::prelude::*;
+
+use crate::prelude::Application;
 use glib::{Continue, MainContext, PRIORITY_DEFAULT};
+use gtk::gdk;
+use gtk::prelude::*;
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
 use pyo3::exceptions::*;
@@ -37,6 +41,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyString};
 use pyo3::PyCell;
 
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::sync::mpsc;
 
 pub mod shell;
@@ -101,29 +107,28 @@ impl Gerb {
             .borrow()
             .0
             .as_ref()
-            .ok_or_else(|| PyRuntimeError::new_err(""))?
+            .ok_or_else(|| PyRuntimeError::new_err("Could not communicate with main process"))?
             .send(request)
             .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
 
         // [ref:python_api_response_channel]
-        match serde_json::from_str(
-            &self
-                .__rcv
-                .as_ref(py)
-                .borrow()
-                .0
-                .as_ref()
-                .ok_or_else(|| PyRuntimeError::new_err(""))?
-                .recv()
-                .map_err(|err| PyRuntimeError::new_err(err.to_string()))?,
-        )
-        .map_err(|err| PyRuntimeError::new_err(err.to_string()))?
+        let response_json = self
+            .__rcv
+            .as_ref(py)
+            .borrow()
+            .0
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("Could not communicate with main process"))?
+            .recv()
+            .map_err(|err| PyRuntimeError::new_err(err.to_string()))?;
+        match serde_json::from_str(&response_json)
+            .map_err(|err| PyRuntimeError::new_err(format!("Could not deserialize json response from main process: {err}\n\nResponse text was: {response_json}")))?
         {
-            Response::Error { message } => Err(PyException::new_err(message)),
-            Response::Unit => Ok(py.None()),
-            Response::List { value: _ } => Ok(py.None()),
-            Response::Dict { value: _ } => Ok(py.None()),
-            Response::Object { py_type, value } => Ok(py_type.into_any(value, py)),
+            Some(Response::Error { message }) => Err(PyException::new_err(message)),
+            Some(Response::List { value: _ }) => Ok(py.None()),
+            Some(Response::Dict { value: _ }) => Ok(py.None()),
+            Some(Response::Object { py_type, value }) => Ok(py_type.into_any(value, py)),
+            None => Ok(py.None()),
         }
     }
 }
@@ -148,8 +153,37 @@ fn process_api_request(app: &Application, msg: String) -> Result<String, String>
             })
             .unwrap(),
         }),
-        Request::ObjectProperty { type_name: _, kind } => {
-            unimplemented!("Python {kind:?} functionality has not been implemented.")
+        Request::ObjectProperty {
+            type_name,
+            kind: Property::Set { property, value },
+        } => Ok(match type_name.as_str() {
+            "Project" => {
+                let project = crate::prelude::Project::obj_ref(None, app);
+                match serde_json::from_str(&value)
+                    .map_err(|err| err.to_string())
+                    .and_then(|val| project.set(&property, val).map_err(|err| err.to_string()))
+                {
+                    Err(err) => serde_json::to_string(&Response::Error { message: err }).unwrap(),
+                    Ok(_val) => serde_json::to_string(&serde_json::json! { null }).unwrap(),
+                }
+            }
+            _ => serde_json::to_string(&Response::Error {
+                message: "Invalid object.".to_string(),
+            })
+            .unwrap(),
+        }),
+        Request::ObjectProperty {
+            type_name: _,
+            kind: Property::GetMany { properties: _ },
+        } => todo!(),
+        Request::ObjectProperty {
+            type_name: _,
+            kind: Property::SetMany { properties: _ },
+        } => todo!(),
+        Request::Action { name } => {
+            app.upcast_ref::<gtk::gio::Application>()
+                .activate_action(&name, None);
+            Ok(serde_json::to_string(&serde_json::json! { null }).unwrap())
         }
     }
 }
@@ -167,6 +201,7 @@ pub enum Property {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
     ObjectProperty { type_name: String, kind: Property },
+    Action { name: String },
 }
 
 /// Response object from main thread to python thread that is serialized to JSON.
@@ -175,8 +210,6 @@ pub enum Response {
     Error {
         message: String,
     },
-    /// `()`
-    Unit,
     List {
         value: Vec<String>,
     },
@@ -252,5 +285,182 @@ impl PyType {
             String => PyString::new(py, value.as_str().unwrap()).into(),
             None => py.None(),
         }
+    }
+}
+
+pub trait AttributeGetSet<'app, 'ident>: glib::ObjectExt {
+    fn obj_ref(identifier: Option<&'ident str>, app: &'app Application) -> Self;
+    fn get(&self, name: &str) -> serde_json::Value {
+        self.property::<String>(name).into()
+    }
+    fn set(
+        &self,
+        name: &str,
+        value: serde_json::Value,
+    ) -> Result<&Self, Box<dyn std::error::Error>> {
+        match value {
+            serde_json::Value::Null => {
+                todo!();
+            }
+            serde_json::Value::Bool(val) => {
+                self.try_set_property::<bool>(name, val)?;
+            }
+            serde_json::Value::Number(val) => {
+                macro_rules! try_into {
+                    ($prop_ty: ty, $best_ty:ty, $best_fn:ident, $sec_ty:ty, $sec_fn:ident,) => {
+                        val.$best_fn()
+                            .and_then(|val| {
+                                self.try_set_property::<$prop_ty>(name, val.try_into().ok()?)
+                                    .ok()
+                            })
+                            .or_else(|| {
+                                val.$sec_fn().and_then(|val| {
+                                    self.try_set_property::<$prop_ty>(name, val.try_into().ok()?)
+                                        .ok()
+                                })
+                            })
+                            .or_else(|| {
+                                val.as_f64().and_then(|val| {
+                                    self.try_set_property::<$prop_ty>(name, val as $prop_ty)
+                                        .ok()
+                                })
+                            })
+                            .ok_or_else(|| {
+                                concat!("Cannot fit value to type ", stringify!($prop_ty))
+                            })?
+                    };
+                    ($prop_ty: ty, $best_ty:ty, $best_fn:ident, $sec_ty:ty, $sec_fn:ident,) => {
+                        if let Some(val) = val.$best_fn() {
+                            self.try_set_property::<$prop_ty>(name, val.try_into()?)?;
+                        } else if let Some(val) = val.$sec_fn() {
+                            self.try_set_property::<$prop_ty>(name, val.try_into()?)?;
+                        } else if let Some(val) = val.as_f64() {
+                            self.try_set_property::<$prop_ty>(name, val as $prop_ty)?;
+                        } else {
+                            unreachable!("fixme?");
+                        }
+                    };
+                    (float, $prop_ty: ty, $best_ty:ty, $best_fn:ident, $sec_ty:ty, $sec_fn:ident, $third_ty:ty, $third_fn:ident,) => {
+                        if let Some(val) = val.$best_fn() {
+                            self.try_set_property::<$prop_ty>(name, val as $prop_ty)?;
+                        } else if let Some(val) = val.$sec_fn() {
+                            self.try_set_property::<$prop_ty>(name, val as $prop_ty)?;
+                        } else if let Some(val) = val.$third_fn() {
+                            self.try_set_property::<$prop_ty>(name, val as $prop_ty)?;
+                        } else {
+                            unreachable!("fixme?");
+                        }
+                    };
+                }
+                match self
+                    .find_property(name)
+                    .expect("TODO return Err(_)")
+                    .value_type()
+                {
+                    glib::types::Type::I8 => {
+                        try_into! {
+                            i8,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::U8 => {
+                        try_into! {
+                            u8,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::I32 => {
+                        try_into! {
+                            i32,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::U32 => {
+                        try_into! {
+                            u32,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::I_LONG => {
+                        try_into! {
+                            std::os::raw::c_long,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::U_LONG => {
+                        try_into! {
+                            std::os::raw::c_ulong,
+                            u64, as_u64,
+                            i64, as_i64,
+                        }
+                    }
+                    glib::types::Type::I64 => {
+                        try_into! {
+                            i64,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::U64 => {
+                        try_into! {
+                            u64,
+                            u64, as_u64,
+                            i64, as_i64,
+                        }
+                    }
+                    glib::types::Type::F32 => {
+                        try_into! {
+                            float,
+                            f32,
+                            f64, as_f64,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    glib::types::Type::F64 => {
+                        try_into! {
+                            float,
+                            f64,
+                            f64, as_f64,
+                            i64, as_i64,
+                            u64, as_u64,
+                        }
+                    }
+                    other => return Err(format!("Attribute {name} is of type {other}").into()),
+                }
+            }
+            serde_json::Value::String(val) => {
+                self.try_set_property::<String>(name, val)?;
+            }
+            serde_json::Value::Array(_) => {
+                todo!();
+            }
+            serde_json::Value::Object(_) => {
+                todo!();
+            }
+        }
+        Ok(self)
+    }
+}
+
+impl<'app, 'ident> AttributeGetSet<'app, 'ident> for crate::prelude::Project {
+    fn obj_ref(_: Option<&'ident str>, app: &'app Application) -> Self {
+        app.window.project().clone()
+    }
+}
+
+impl<'app, 'ident> AttributeGetSet<'app, 'ident> for crate::prelude::Settings {
+    fn obj_ref(_: Option<&'ident str>, app: &'app Application) -> Self {
+        app.settings.borrow().clone()
+    }
+}
+impl<'app, 'ident> AttributeGetSet<'app, 'ident> for crate::ufo::objects::FontInfo {
+    fn obj_ref(_: Option<&'ident str>, app: &'app Application) -> Self {
+        app.window.project().fontinfo.borrow().clone()
     }
 }
