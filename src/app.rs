@@ -452,32 +452,10 @@ impl ApplicationInner {
             menu_bar.append_submenu(Some("Gerb"), &meta_menu);
         }
 
-        //application.set_app_menu(Some(&menu));
         application.set_menubar(Some(&menu_bar));
     }
 
     pub fn statusbar(&self) -> gtk::Statusbar {
         self.window.statusbar.clone()
-    }
-
-    #[cfg(not(feature = "notifications"))]
-    pub fn show_notification(_: &str, _: &str) {}
-
-    #[cfg(feature = "notifications")]
-    pub fn show_notification(summary: &str, body: &str) {
-        use notify_rust::Notification;
-
-        let mut n = Notification::new();
-        n.appname(crate::APPLICATION_NAME)
-            .summary(summary)
-            .body(body)
-            .urgency(notify_rust::Urgency::Normal);
-        #[cfg(all(unix, not(target_os = "macos"), not(target_os = "windows")))]
-        {
-            n.image_data(crate::resources::G_GLYPH.to_rust_image().unwrap());
-        }
-        if let Err(err) = n.show() {
-            eprintln!("Could not display desktop notification: {err}");
-        }
     }
 }

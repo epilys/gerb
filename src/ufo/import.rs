@@ -355,10 +355,12 @@ pub mod ufo2 {
         drop(dialog2);
         match import(UFO2ToUFO3Options::new(input_dir.into(), output_dir.into())) {
             Ok(instance) => {
+                /*
                 ApplicationInner::show_notification(
                     &format!("Succesfully converted {} to UFOv3.", &instance.family_name),
                     &format!("Project saved at {}", instance.full_path.display()),
                 );
+                */
                 window.emit_by_name::<()>(
                     "open-project",
                     &[&instance.full_path.display().to_string()],

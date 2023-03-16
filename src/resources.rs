@@ -85,19 +85,6 @@ impl UIIcon {
             }
         }
     }
-
-    #[cfg(all(
-        feature = "notifications",
-        unix,
-        not(target_os = "macos"),
-        not(target_os = "windows")
-    ))]
-    pub fn to_rust_image(&self) -> Option<notify_rust::Image> {
-        use notify_rust::Image;
-        let dec = image::codecs::png::PngDecoder::new(self.png).ok()?;
-        let img = image::DynamicImage::from_decoder(dec).ok()?;
-        Image::try_from(img).ok()
-    }
 }
 
 pub mod icons {
