@@ -26,3 +26,6 @@ feature-check: check
 	# `python`
 	@sh -c 'cargo check --bin gerb --no-default-features --features python || (export EXIT="$$?"; /usr/bin/printf "--features python fails cargo check.\n" && exit $$EXIT)'
 	@cargo clippy --bin gerb --no-default-features --features python
+	# all features
+	@sh -c 'cargo check --bin gerb --all-features || (export EXIT="$$?"; /usr/bin/printf "--all-features fails cargo check.\n" && exit $$EXIT)'
+	@cargo clippy --bin gerb --all-features
