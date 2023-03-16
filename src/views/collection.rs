@@ -68,6 +68,7 @@ impl ObjectImpl for CollectionInner {
         self.flow_box.set_can_focus(true);
         self.flow_box.set_column_spacing(0);
         self.flow_box.set_row_spacing(0);
+        self.flow_box.set_valign(gtk::Align::Start);
 
         let overlay = gtk::Overlay::builder()
             .expand(true)
@@ -93,7 +94,7 @@ impl ObjectImpl for CollectionInner {
             .visible(true)
             .can_focus(true)
             .build();
-        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.1, 2.0, 0.1);
+        let zoom_scale = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.1, 2.0, 0.0000001);
         zoom_scale.set_visible(true);
         zoom_scale.set_value(1.0);
         zoom_scale.connect_value_changed(clone!(@weak obj => move |_self| {
