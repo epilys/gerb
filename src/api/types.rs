@@ -143,6 +143,9 @@ macro_rules! generate_py_class {
                 $field:ident: $field_ty:ty,
             )*
         },
+        $(
+            export $wrapper_ty:tt as $attr_name:ident,
+        )*
     ) => {
         pub struct $struct {
             pub(in crate::api) __gerb: Py<Gerb>,
@@ -254,7 +257,7 @@ macro_rules! generate_py_class {
                         .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
                         .downcast::<_pyo3::PyCell<$struct>>()?;
                     let _ref = _cell.try_borrow()?;
-                    let _slf: &Project = &*_ref;
+                    let _slf: &$struct = &*_ref;
                     let item = ::std::clone::Clone::clone(&(_slf.__gerb));
                     let item: _pyo3::Py<_pyo3::PyAny> = _pyo3::IntoPy::into_py(item, _py);
                     ::std::result::Result::Ok(_pyo3::conversion::IntoPyPointer::into_ptr(item))
@@ -270,7 +273,8 @@ macro_rules! generate_py_class {
                         _pyo3::impl_::pyclass::PyClassItems {
                             methods: &[
                                 $(generate_getter_method_def!($struct, $field, $docstr, $field_ty),)*
-                                $(generate_setter_method_def!($struct, $field, $docstr, $field_ty)),*
+                                $(generate_setter_method_def!($struct, $field, $docstr, $field_ty),)*
+                                $(generate_getter_method_def!($struct, $attr_name, " ", $wrapper_ty),)*
                             ],
                             slots: &[{
                                 unsafe extern "C" fn trampoline(
@@ -397,6 +401,33 @@ macro_rules! generate_py_class {
                 }
             )*
 
+            $(
+                #[doc(hidden)]
+                mod $attr_name {
+                    use super::*;
+                    use ::pyo3 as _pyo3;
+
+                    pub(super) unsafe fn get_tramp (
+                        _py: _pyo3::Python<'_>,
+                        _slf: *mut _pyo3::ffi::PyObject,
+                    ) -> _pyo3::PyResult<*mut _pyo3::ffi::PyObject> {
+                        let _cell = _py
+                            .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
+                            .downcast::<_pyo3::PyCell<$struct>>()?;
+                        let _ref = _cell.try_borrow()?;
+                        let _slf: &$struct = &*_ref;
+                        let item = self::getter(_slf, _py);
+                        _pyo3::callback::convert(_py, item)
+                    }
+
+                    fn getter(self_: &$struct, _: Python<'_>) -> $wrapper_ty {
+                        $wrapper_ty {
+                            __gerb: self_.__gerb.clone(),
+                        }
+                    }
+                }
+            )*
+
             #[doc(hidden)]
             #[allow(non_snake_case)]
             impl $struct {
@@ -482,5 +513,82 @@ generate_py_class!(
         #[property_name=ITALIC_ANGLE]
         #[docstring = " "]
         italic_angle: f64,
+    },
+    export FontInfo as font_info,
+);
+
+generate_py_class!(
+    #[docstring = "Global settings."]
+    struct Settings {
+        type PARENT_TYPE = crate::app::Settings;
+
+        #[property_name=HANDLE_SIZE]
+        #[docstring = " "]
+        handle_size: f64,
+        #[property_name=LINE_WIDTH]
+        #[docstring = " "]
+        line_width: f64,
+        #[property_name=GUIDELINE_WIDTH]
+        #[docstring = " "]
+        guideline_width: f64,
+        #[property_name=WARP_CURSOR]
+        #[docstring = " "]
+        warp_cursor: bool,
+    },
+);
+
+generate_py_class!(
+    #[docstring = "Font info"]
+    struct FontInfo {
+        type PARENT_TYPE = crate::ufo::objects::FontInfo;
+
+        #[property_name=FAMILY_NAME]
+        #[docstring = " "]
+        family_name: String,
+        #[property_name=STYLE_NAME]
+        #[docstring = " "]
+        style_name: String,
+        #[property_name=STYLE_MAP_FAMILY_NAME]
+        #[docstring = " "]
+        style_map_family_name: String,
+        #[property_name=STYLE_MAP_STYLE_NAME]
+        #[docstring = " "]
+        style_map_style_name: String,
+        #[property_name=COPYRIGHT]
+        #[docstring = " "]
+        copyright: String,
+        #[property_name=TRADEMARK]
+        #[docstring = " "]
+        trademark: String,
+        #[property_name=NOTE]
+        #[docstring = " "]
+        note: String,
+        #[property_name=UNITS_PER_EM]
+        #[docstring = " "]
+        units_per_em: f64,
+        #[property_name=X_HEIGHT]
+        #[docstring = " "]
+        x_height: f64,
+        #[property_name=ASCENDER]
+        #[docstring = " "]
+        ascender: f64,
+        #[property_name=DESCENDER]
+        #[docstring = " "]
+        descender: f64,
+        #[property_name=CAP_HEIGHT]
+        #[docstring = " "]
+        cap_height: f64,
+        #[property_name=ITALIC_ANGLE]
+        #[docstring = " "]
+        italic_angle: f64,
+        #[property_name=YEAR]
+        #[docstring = " "]
+        year: u64,
+        #[property_name=VERSION_MAJOR]
+        #[docstring = " "]
+        version_major: i64,
+        #[property_name=VERSION_MINOR]
+        #[docstring = " "]
+        version_minor: u64,
     },
 );

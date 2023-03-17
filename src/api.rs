@@ -99,6 +99,14 @@ impl Gerb {
         }
     }
 
+    /// Return the global settings
+    #[getter(settings)]
+    fn settings(self_: PyRef<Self>) -> types::Settings {
+        types::Settings {
+            __gerb: self_.into(),
+        }
+    }
+
     /// Process API request.
     fn __send_rcv(&self, request: String, py: Python<'_>) -> PyResult<Py<PyAny>> {
         // [ref:python_api_main_loop_channel]
@@ -140,38 +148,51 @@ fn process_api_request(app: &Application, msg: String) -> Result<String, String>
         Request::ObjectProperty {
             type_name,
             kind: Property::Get { property },
-        } => Ok(match type_name.as_str() {
-            "Project" => match app.window.project().try_property_value(&property) {
+        } => {
+            let obj: glib::Object = match type_name.as_str() {
+                "Project" => app.window.project().clone().upcast(),
+                "Settings" => crate::app::Settings::obj_ref(None, app).upcast(),
+                "FontInfo" => crate::ufo::objects::FontInfo::obj_ref(None, app).upcast(),
+                _ => {
+                    return Ok(serde_json::to_string(&Response::Error {
+                        message: "Invalid object.".to_string(),
+                    })
+                    .unwrap())
+                }
+            };
+            Ok(match obj.try_property_value(&property) {
                 Err(err) => serde_json::to_string(&Response::Error {
                     message: err.to_string(),
                 })
                 .unwrap(),
                 Ok(val) => serde_json::to_string(&Response::from(val)).unwrap(),
-            },
-            _ => serde_json::to_string(&Response::Error {
-                message: "Invalid object.".to_string(),
             })
-            .unwrap(),
-        }),
+        }
         Request::ObjectProperty {
             type_name,
             kind: Property::Set { property, value },
-        } => Ok(match type_name.as_str() {
-            "Project" => {
-                let project = crate::prelude::Project::obj_ref(None, app);
+        } => {
+            let obj: glib::Object = match type_name.as_str() {
+                "Project" => app.window.project().clone().upcast(),
+                "Settings" => crate::app::Settings::obj_ref(None, app).upcast(),
+                "FontInfo" => crate::ufo::objects::FontInfo::obj_ref(None, app).upcast(),
+                _ => {
+                    return Ok(serde_json::to_string(&Response::Error {
+                        message: "Invalid object.".to_string(),
+                    })
+                    .unwrap())
+                }
+            };
+            Ok(
                 match serde_json::from_str(&value)
                     .map_err(|err| err.to_string())
-                    .and_then(|val| project.set(&property, val).map_err(|err| err.to_string()))
+                    .and_then(|val| obj.set(&property, val).map_err(|err| err.to_string()))
                 {
                     Err(err) => serde_json::to_string(&Response::Error { message: err }).unwrap(),
                     Ok(_val) => serde_json::to_string(&serde_json::json! { null }).unwrap(),
-                }
-            }
-            _ => serde_json::to_string(&Response::Error {
-                message: "Invalid object.".to_string(),
-            })
-            .unwrap(),
-        }),
+                },
+            )
+        }
         Request::ObjectProperty {
             type_name: _,
             kind: Property::GetMany { properties: _ },
@@ -288,8 +309,11 @@ impl PyType {
     }
 }
 
-pub trait AttributeGetSet<'app, 'ident>: glib::ObjectExt {
+pub trait ObjRef<'app, 'ident>: glib::ObjectExt {
     fn obj_ref(identifier: Option<&'ident str>, app: &'app Application) -> Self;
+}
+
+pub trait AttributeGetSet<'app, 'ident>: glib::ObjectExt {
     fn get(&self, name: &str) -> serde_json::Value {
         self.property::<String>(name).into()
     }
@@ -448,19 +472,22 @@ pub trait AttributeGetSet<'app, 'ident>: glib::ObjectExt {
     }
 }
 
-impl<'app, 'ident> AttributeGetSet<'app, 'ident> for crate::prelude::Project {
+impl<'app, 'ident> ObjRef<'app, 'ident> for crate::prelude::Project {
     fn obj_ref(_: Option<&'ident str>, app: &'app Application) -> Self {
         app.window.project().clone()
     }
 }
 
-impl<'app, 'ident> AttributeGetSet<'app, 'ident> for crate::prelude::Settings {
+impl<'app, 'ident> ObjRef<'app, 'ident> for crate::app::Settings {
     fn obj_ref(_: Option<&'ident str>, app: &'app Application) -> Self {
         app.settings.borrow().clone()
     }
 }
-impl<'app, 'ident> AttributeGetSet<'app, 'ident> for crate::ufo::objects::FontInfo {
+
+impl<'app, 'ident> ObjRef<'app, 'ident> for crate::ufo::objects::FontInfo {
     fn obj_ref(_: Option<&'ident str>, app: &'app Application) -> Self {
         app.window.project().fontinfo.borrow().clone()
     }
 }
+
+impl<'app, 'ident> AttributeGetSet<'app, 'ident> for glib::Object {}
