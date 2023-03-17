@@ -191,34 +191,10 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     let entry = gtk::Entry::new();
     entry.style_context().add_class("terminal-entry");
     entry.set_visible(true);
-    let locals_dict: Py<PyDict> = Python::with_gil(|py| {
-        let dict: Py<PyDict> = PyDict::new(py).into();
-        dict
-    });
-    let app_id = app.register_obj(app.upcast_ref());
-    let globals_dict: Py<PyDict> =
-        Python::with_gil(|py| setup_globals(py, app_id, &locals_dict).unwrap());
-
-    let hist = Rc::new(RefCell::new(ShellHistory {
-        cursor: Cell::new(0),
-        history: vec![],
-    }));
-
-    // shell stdout channel
-    let (tx, rx) = MainContext::channel::<(LinePrefix, String)>(PRIORITY_DEFAULT);
-    // shell stdin channel
-    let (tx_shell, rx_shell) = std::sync::mpsc::channel::<String>();
-    // shell -> app channel
-    // [ref:python_api_main_loop_channel]
-    let (tx_py, rx_py) = MainContext::channel(PRIORITY_DEFAULT);
-    // app -> shell channel
-    // [ref:python_api_response_channel]
-    let (tx_py2, rx_py2) = std::sync::mpsc::channel::<String>();
-
-    rx_py.attach(
-        None,
+    let shell = ShellInstance::new(
+        app.clone(),
         // [ref:python_api_main_loop_channel]
-        clone!(@weak app => @default-return Continue(false), move |msg: String| {
+        clone!(@weak app => @default-return Continue(false), move |tx: &mpsc::Sender<String>, msg: String| {
             let response = process_api_request(&app, msg);
             if let Err(ref err) = response {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
@@ -232,13 +208,10 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             }
             let (Err(json) | Ok(json)) = response;
             // [ref:python_api_response_channel]
-            tx_py2.send(json.to_string()).unwrap();
+            tx.send(json.to_string()).unwrap();
             Continue(true)
         }),
-    );
-    rx.attach(
-        None,
-        clone!(@weak app, @weak list, @weak adj, @strong hist => @default-return Continue(false), move |(prefix, mut msg)| {
+        clone!(@weak app, @weak list, @weak adj => @default-return Continue(false), move |hist, (prefix, mut msg)| {
             if !msg.is_empty() {
                 while msg.ends_with('\n') {
                     msg.pop();
@@ -260,20 +233,17 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             Continue(true)
         }),
     );
+    let hist = shell.hist.clone();
 
     list.connect_size_allocate(clone!(@weak adj => move |_, _| {
         adj.set_value(adj.upper());
     }));
 
-    std::thread::spawn(move || {
-        shell_thread(tx, globals_dict, locals_dict, tx_py, rx_py2, rx_shell).unwrap()
-    });
-
     entry.connect_activate(clone!(@weak app, @weak list, @weak adj => move |entry| {
         let buffer = entry.buffer();
         let text = buffer.text();
         buffer.set_text("");
-        if let Err(err) = tx_shell.send(if text.is_empty() { "\n".to_string() } else { text }) {
+        if let Err(err) = shell.shell_stdin.send(if text.is_empty() { "\n".to_string() } else { text }) {
             eprintln!("Internal error: {err}");
         }
     }));
@@ -589,4 +559,60 @@ fn shell_thread(
         }));
     }
     Ok(())
+}
+
+pub struct ShellInstance {
+    pub hist: Rc<RefCell<ShellHistory>>,
+    /// shell stdin channel
+    pub shell_stdin: mpsc::Sender<String>,
+}
+
+impl ShellInstance {
+    pub fn new(
+        app: Application,
+        mut main_loop_rx: impl FnMut(&mpsc::Sender<String>, String) -> Continue + 'static,
+        mut stdout_rx: impl FnMut(&Rc<RefCell<ShellHistory>>, (LinePrefix, String)) -> Continue
+            + 'static,
+    ) -> Self {
+        let locals_dict: Py<PyDict> = Python::with_gil(|py| {
+            let dict: Py<PyDict> = PyDict::new(py).into();
+            dict
+        });
+        let app_id = app.register_obj(app.upcast_ref());
+        let globals_dict: Py<PyDict> =
+            Python::with_gil(|py| setup_globals(py, app_id, &locals_dict).unwrap());
+
+        let hist = Rc::new(RefCell::new(ShellHistory {
+            cursor: Cell::new(0),
+            history: vec![],
+        }));
+
+        // shell stdout channel
+        let (tx, rx) = MainContext::channel::<(LinePrefix, String)>(PRIORITY_DEFAULT);
+        // shell stdin channel
+        let (tx_shell, rx_shell) = std::sync::mpsc::channel::<String>();
+        // shell -> app channel
+        // [ref:python_api_main_loop_channel]
+        let (tx_py, rx_py) = MainContext::channel(PRIORITY_DEFAULT);
+        // app -> shell channel
+        // [ref:python_api_response_channel]
+        let (tx_py2, rx_py2) = std::sync::mpsc::channel::<String>();
+
+        rx_py.attach(
+            None,
+            // [ref:python_api_main_loop_channel]
+            move |msg| main_loop_rx(&tx_py2, msg),
+        );
+        let hist_ref = hist.clone();
+        rx.attach(None, move |line| stdout_rx(&hist_ref, line));
+
+        std::thread::spawn(move || {
+            shell_thread(tx, globals_dict, locals_dict, tx_py, rx_py2, rx_shell).unwrap()
+        });
+
+        Self {
+            hist,
+            shell_stdin: tx_shell,
+        }
+    }
 }

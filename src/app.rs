@@ -133,7 +133,7 @@ impl ApplicationImpl for ApplicationInner {
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
         self.window.show_all();
-        if let Some(path) = self.env_args.get().unwrap().clone().pop() {
+        if let Some(path) = self.env_args.get().and_then(|args| args.clone().pop()) {
             self.window.emit_by_name::<()>("open-project", &[&path]);
             self.window.welcome_banner.set_visible(false);
             self.window.notebook.set_visible(true);
