@@ -144,10 +144,11 @@ macro_rules! generate_py_class {
             )*
         },
         $(
-            export $wrapper_ty:tt as $attr_name:ident,
+            export $attr_name:ident as $wrapper_ty:tt,
         )*
     ) => {
         pub struct $struct {
+            pub(in crate::api) __id: Uuid,
             pub(in crate::api) __gerb: Py<Gerb>,
         }
 
@@ -368,9 +369,9 @@ macro_rules! generate_py_class {
                                 serde_json::to_string(&{
                                     Request::ObjectProperty {
                                         type_name: <$parent_type>::static_type().name().to_string(),
-                                        kind: Property::Get {
-                                            property: <$parent_type>::$property.to_string(),
-                                        },
+                                        id: self_.__id,
+                                        property: <$parent_type>::$property.to_string(),
+                                        action: Action::Get,
                                     }
                                 })
                                 .unwrap(),
@@ -387,8 +388,9 @@ macro_rules! generate_py_class {
                                 serde_json::json!{
                                     Request::ObjectProperty {
                                         type_name: <$parent_type>::static_type().name().to_string(),
-                                        kind: Property::Set {
-                                            property: <$parent_type>::$property.to_string(),
+                                        id: self_.__id,
+                                        property: <$parent_type>::$property.to_string(),
+                                        action: Action::Set {
                                             value: serde_json::to_string(&serde_json::json! { value }).unwrap(),
                                         },
                                     }
@@ -420,10 +422,18 @@ macro_rules! generate_py_class {
                         _pyo3::callback::convert(_py, item)
                     }
 
-                    fn getter(self_: &$struct, _: Python<'_>) -> $wrapper_ty {
-                        $wrapper_ty {
+                    fn getter(self_: &$struct, py: Python<'_>) -> PyResult<$wrapper_ty> {
+                        let __id: Uuid = Gerb::get_field_id(
+                            &self_.__gerb.as_ref(py).borrow(),
+                            self_.__id,
+                             <$parent_type>::static_type().name(),
+                            stringify!($attr_name),
+                            py,
+                        )?;
+                        Ok($wrapper_ty {
+                            __id,
                             __gerb: self_.__gerb.clone(),
-                        }
+                        })
                     }
                 }
             )*
@@ -448,7 +458,7 @@ macro_rules! generate_py_class {
 
         impl $struct {
             fn __repr__(&self) -> PyResult<String> {
-                Ok(stringify!($struct).to_string())
+                Ok(format!("<{} instance, id: {}>", stringify!($struct), self.__id))
             }
         }
     };
@@ -457,70 +467,23 @@ macro_rules! generate_py_class {
 generate_py_class!(
     #[docstring = "The currently loaded project."]
     struct Project {
-        type PARENT_TYPE = crate::prelude::Project;
+        type PARENT_TYPE = ProjectParent;
 
         #[property_name=NAME]
         #[docstring = " "]
         name: String,
-        #[property_name=FAMILY_NAME]
-        #[docstring = " "]
-        family_name: String,
-        #[property_name=STYLE_NAME]
-        #[docstring = " "]
-        style_name: String,
-        #[property_name=STYLE_MAP_FAMILY_NAME]
-        #[docstring = " "]
-        style_map_family_name: String,
-        #[property_name=STYLE_MAP_STYLE_NAME]
-        #[docstring = " "]
-        style_map_style_name: String,
-        #[property_name=COPYRIGHT]
-        #[docstring = " "]
-        copyright: String,
-        #[property_name=TRADEMARK]
-        #[docstring = " "]
-        trademark: String,
-        #[property_name=NOTE]
-        #[docstring = " "]
-        note: String,
-        #[property_name=YEAR]
-        #[docstring = " "]
-        year: u64,
         #[property_name=MODIFIED]
         #[docstring = " "]
         modified: bool,
-        #[property_name=VERSION_MAJOR]
-        #[docstring = " "]
-        version_major: i64,
-        #[property_name=VERSION_MINOR]
-        #[docstring = " "]
-        version_minor: u64,
-        #[property_name=UNITS_PER_EM]
-        #[docstring = " "]
-        units_per_em: f64,
-        #[property_name=X_HEIGHT]
-        #[docstring = " "]
-        x_height: f64,
-        #[property_name=ASCENDER]
-        #[docstring = " "]
-        ascender: f64,
-        #[property_name=DESCENDER]
-        #[docstring = " "]
-        descender: f64,
-        #[property_name=CAP_HEIGHT]
-        #[docstring = " "]
-        cap_height: f64,
-        #[property_name=ITALIC_ANGLE]
-        #[docstring = " "]
-        italic_angle: f64,
     },
-    export FontInfo as font_info,
+    export font_info as FontInfo,
+    export default_layer as Layer,
 );
 
 generate_py_class!(
     #[docstring = "Global settings."]
     struct Settings {
-        type PARENT_TYPE = crate::app::Settings;
+        type PARENT_TYPE = SettingsParent;
 
         #[property_name=HANDLE_SIZE]
         #[docstring = " "]
@@ -540,7 +503,7 @@ generate_py_class!(
 generate_py_class!(
     #[docstring = "Font info"]
     struct FontInfo {
-        type PARENT_TYPE = crate::ufo::objects::FontInfo;
+        type PARENT_TYPE = FontInfoParent;
 
         #[property_name=FAMILY_NAME]
         #[docstring = " "]
@@ -590,5 +553,19 @@ generate_py_class!(
         #[property_name=VERSION_MINOR]
         #[docstring = " "]
         version_minor: u64,
+    },
+);
+
+generate_py_class!(
+    #[docstring = "Layers. <https://unifiedfontobject.org/versions/ufo3/layercontents.plist/>"]
+    struct Layer {
+        type PARENT_TYPE = LayerParent;
+
+        #[property_name=NAME]
+        #[docstring = " "]
+        name: String,
+        #[property_name=DIR_NAME]
+        #[docstring = " "]
+        dir_name: String,
     },
 );

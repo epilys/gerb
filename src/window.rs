@@ -131,6 +131,8 @@ impl ObjectImpl for WindowInner {
         obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
             match v[1].get::<String>().map_err(|err| err.into()).and_then(Project::from_path) {
                 Ok(project) => {
+                    #[cfg(feature = "python")]
+                    obj.imp().application().register_obj(project.upcast_ref());
                     obj.load_project(project);
                     obj.queue_draw();
                 }
@@ -148,7 +150,6 @@ impl ObjectImpl for WindowInner {
 
             None
         }));
-        *self.project.borrow_mut() = Project::new();
     }
 
     fn signals() -> &'static [Signal] {

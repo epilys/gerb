@@ -93,7 +93,7 @@ fn main() {
             .lookup_value("info", Some(glib::VariantTy::BOOLEAN))
             .is_some()
         {
-            println!("{}", crate::INFO);
+            println!("{}", crate::CLI_INFO);
             // Exit with success code.
             return 0;
         }

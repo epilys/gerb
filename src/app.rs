@@ -19,15 +19,18 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use gio::ApplicationFlags;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
+use gtk::{gio, glib};
 use once_cell::unsync::OnceCell;
+
+#[cfg(feature = "python")]
+use uuid::Uuid;
 
 use crate::utils::property_window::CreatePropertyWindow;
 use crate::window::Window;
 
-use gio::ApplicationFlags;
-use gtk::{gio, glib};
 use std::cell::RefCell;
 
 mod undo;
@@ -72,6 +75,8 @@ pub struct ApplicationInner {
     pub settings: RefCell<Settings>,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
+    #[cfg(feature = "python")]
+    pub api_registry: RefCell<crate::api::ObjectRegistry>,
 }
 
 #[glib::object_subclass]
@@ -108,6 +113,11 @@ impl ApplicationImpl for ApplicationInner {
     /// here. Widgets can't be created before `startup` has been called.
     fn startup(&self, app: &Self::Type) {
         self.parent_startup(app);
+        #[cfg(feature = "python")]
+        {
+            self.register_obj(app.upcast_ref());
+            self.register_obj(self.settings.borrow().upcast_ref());
+        }
         self.window.set_application(Some(app));
         self.add_actions(app);
         self.window.setup_actions();
@@ -457,5 +467,17 @@ impl ApplicationInner {
 
     pub fn statusbar(&self) -> gtk::Statusbar {
         self.window.statusbar.clone()
+    }
+
+    #[cfg(feature = "python")]
+    pub fn register_obj(&self, obj: &glib::Object) -> Uuid {
+        let mut registry = self.api_registry.borrow_mut();
+        registry.add(obj)
+    }
+
+    #[cfg(feature = "python")]
+    pub fn get_obj(&self, id: Uuid) -> Option<glib::Object> {
+        let registry = self.api_registry.borrow();
+        registry.get(id)
     }
 }

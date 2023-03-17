@@ -132,6 +132,7 @@ impl Default for ToggleButton {
 impl ToggleButton {
     pub const ACTIVE: &str = "active";
 
+    #[must_use]
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create ToggleButton");
         ret
@@ -142,6 +143,24 @@ impl ToggleButton {
     }
 }
 
+/// Error dialog util
+///
+/// ## Usage:
+/// ```no_run
+/// # use gtk::prelude::*;
+/// # use gerb::utils::widgets::new_simple_error_dialog;
+/// fn doctest(window: &gtk::Window) {
+///     let dialog = new_simple_error_dialog(
+///         None,
+///         "Oops",
+///         None,
+///         &window,
+///     );
+///     dialog.run();
+///     dialog.emit_close();
+/// }
+/// ```
+#[must_use]
 pub fn new_simple_error_dialog(
     title: Option<&str>,
     text: &str,
@@ -162,6 +181,24 @@ pub fn new_simple_error_dialog(
     dialog
 }
 
+/// Info dialog util
+///
+/// ## Usage:
+/// ```no_run
+/// # use gtk::prelude::*;
+/// # use gerb::utils::widgets::new_simple_info_dialog;
+/// fn doctest(window: &gtk::Window) {
+///     let dialog = new_simple_info_dialog(
+///         None,
+///         "Id",
+///         None,
+///         &window,
+///     );
+///     dialog.run();
+///     dialog.emit_close();
+/// }
+/// ```
+#[must_use]
 pub fn new_simple_info_dialog(
     title: Option<&str>,
     text: &str,

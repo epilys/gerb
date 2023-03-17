@@ -41,13 +41,9 @@ const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more inform
 
 // [ref:needs_user_doc]
 // [ref:needs_dev_doc]
-// [ref:FIXME]: show errors in UI instead of unwrapping
 
 // [ref:FIXME]: Ctrl-C not working when issuing `help(gerb)`?
-
-// [ref:TODO]: Serialize messages and exceptions in JSON.
-//
-// [ref:TODO]: Typing hints?
+// [ref:TODO]: How do we export typing hints?
 
 #[derive(Clone, Copy)]
 #[repr(u8)]
@@ -199,7 +195,9 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         let dict: Py<PyDict> = PyDict::new(py).into();
         dict
     });
-    let globals_dict: Py<PyDict> = Python::with_gil(|py| setup_globals(py, &locals_dict).unwrap());
+    let app_id = app.register_obj(app.upcast_ref());
+    let globals_dict: Py<PyDict> =
+        Python::with_gil(|py| setup_globals(py, app_id, &locals_dict).unwrap());
 
     let hist = Rc::new(RefCell::new(ShellHistory {
         cursor: Cell::new(0),
@@ -216,13 +214,25 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     // app -> shell channel
     // [ref:python_api_response_channel]
     let (tx_py2, rx_py2) = std::sync::mpsc::channel::<String>();
+
     rx_py.attach(
         None,
         // [ref:python_api_main_loop_channel]
-        clone!(@weak app, @weak list, @weak adj => @default-return Continue(false), move |msg: String| {
-            let (Err(response) | Ok(response)) = process_api_request(&app, msg);
+        clone!(@weak app => @default-return Continue(false), move |msg: String| {
+            let response = process_api_request(&app, msg);
+            if let Err(ref err) = response {
+                let dialog = crate::utils::widgets::new_simple_error_dialog(
+                    None,
+                    &err.to_string(),
+                    None,
+                    app.window.upcast_ref(),
+                );
+                dialog.run();
+                dialog.emit_close();
+            }
+            let (Err(json) | Ok(json)) = response;
             // [ref:python_api_response_channel]
-            tx_py2.send(response).unwrap();
+            tx_py2.send(json.to_string()).unwrap();
             Continue(true)
         }),
     );
@@ -246,11 +256,15 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
                 label.set_valign(gtk::Align::End);
                 list.add(&label);
                 list.queue_draw();
-                adj.set_value(adj.upper());
             }
             Continue(true)
         }),
     );
+
+    list.connect_size_allocate(clone!(@weak adj => move |_, _| {
+        adj.set_value(adj.upper());
+    }));
+
     std::thread::spawn(move || {
         shell_thread(tx, globals_dict, locals_dict, tx_py, rx_py2, rx_shell).unwrap()
     });
@@ -275,8 +289,10 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             } else if event.keyval() == gdk::keys::constants::Down {
                 if let Some(next) = hist.borrow().next() {
                     entry.buffer().set_text(next);
-                    entry.set_position(-1);
+                } else {
+                    entry.buffer().set_text("");
                 }
+                entry.set_position(-1);
                 Inhibit(true)
             } else {
                 Inhibit(false)
@@ -459,12 +475,13 @@ fn handle_input(
 /// Helper function to setup python globals.
 fn setup_globals<'py>(
     py: Python<'py>,
+    __id: Uuid,
     locals_dict: &Py<PyDict>,
 ) -> Result<Py<PyDict>, Box<dyn std::error::Error + 'py>> {
     let globals = PyDict::new(py);
     // Import and get sys.modules
     let sys = PyModule::import(py, "sys")?;
-    let py_modules: &PyDict = sys.getattr("modules").unwrap().downcast()?;
+    let py_modules: &PyDict = sys.getattr("modules")?.downcast()?;
 
     let io = PyModule::import(py, "io")?;
     let code = PyModule::import(py, "code")?;
@@ -472,6 +489,7 @@ fn setup_globals<'py>(
     py.import("io")?;
     py.import("sys")?;
     let gerb = Gerb {
+        __id,
         __stdout: io.getattr("StringIO")?.call0()?.into(),
         __shell: code
             .getattr("InteractiveConsole")?
