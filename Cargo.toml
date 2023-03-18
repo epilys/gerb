@@ -11,6 +11,11 @@ homepage = "https://github.com/epilys/gerb"
 repository = "https://github.com/epilys/gerb"
 keywords = ["font", "fonts", "editor", "ufo", "typography"]
 categories = ["graphics"]
+default-run = "gerb"
+
+[[bin]]
+name = "gerb"
+path = "src/main.rs"
 
 [[bin]]
 name = "repl"
