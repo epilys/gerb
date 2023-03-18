@@ -45,7 +45,7 @@ pub const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more in
 // [ref:FIXME]: Ctrl-C not working when issuing `help(gerb)`?
 // [ref:TODO]: How do we export typing hints?
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Copy)]
 #[repr(u8)]
 pub enum LinePrefix {
     Output,
@@ -71,6 +71,10 @@ pub struct ShellHistory {
 }
 
 impl ShellHistory {
+    pub fn history(&self) -> &[(LinePrefix, String)] {
+        &self.history
+    }
+
     pub fn prev(&self) -> Option<&str> {
         let cursor = self.cursor.get();
         if cursor == 0 {
