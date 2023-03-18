@@ -13,7 +13,7 @@ keywords = ["font", "fonts", "editor", "ufo", "typography"]
 categories = ["graphics"]
 
 [dependencies]
-build-info = { version = "0.0.29", default-features = false }
+build-info = { version = "0.0.29", default-features = false, optional = true }
 chrono = { version = "0.4", default-features = false }
 futures = "0.3"
 futures-util = "0.3"
@@ -57,10 +57,11 @@ features = [
 ]
 
 [build-dependencies]
-build-info-build = { version = "0.0.29" }
+build-info-build = { version = "0.0.29", optional = true }
 
 [features]
-default = ["python", "git"]
+default = ["python", "git", "build-info"]
+build-info = ["dep:build-info", "dep:build-info-build"]
 python = ["pyo3"]
 git = ["git2"]
 
