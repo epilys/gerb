@@ -206,6 +206,32 @@ impl Gerb {
     }
 }
 
+#[derive(Copy, Serialize, Deserialize, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct PyUuid(pub Uuid);
+
+impl pyo3::IntoPy<pyo3::PyObject> for PyUuid {
+    fn into_py(self, py: Python<'_>) -> pyo3::PyObject {
+        PyBytes::new(py, self.0.as_bytes()).into()
+    }
+}
+
+impl<'source> pyo3::FromPyObject<'source> for PyUuid {
+    fn extract(obj: &'source PyAny) -> PyResult<Self> {
+        Ok(PyUuid(
+            obj.extract::<Vec<u8>>()
+                .map_err(|err| err.to_string())
+                .and_then(|vec| Uuid::from_slice(&vec).map_err(|err| err.to_string()))
+                .map_err(|err| {
+                    PyException::new_err(format!(
+                        "expected a Uuid byte slice but got {obj:?}: {err}"
+                    ))
+                })?,
+        ))
+    }
+}
+
 pub fn process_api_request(
     app: &Application,
     msg: String,
@@ -216,6 +242,7 @@ pub fn process_api_request(
         FontInfoParent::static_type().name(),
         LayerParent::static_type().name(),
         Application::static_type().name(),
+        crate::prelude::GlyphMetadata::static_type().name(),
     ];
     let request: Request = serde_json::from_str(&msg).map_err(|err| {
         serde_json::json!(Response::Error {
@@ -248,6 +275,33 @@ pub fn process_api_request(
                     })
                     .or_else(|| {
                         Application::expose_field(
+                            type_name.as_str(),
+                            &obj,
+                            Some(id),
+                            &property,
+                            app,
+                        )
+                    })
+                    .or_else(|| {
+                        crate::ufo::objects::FontInfo::expose_field(
+                            type_name.as_str(),
+                            &obj,
+                            Some(id),
+                            &property,
+                            app,
+                        )
+                    })
+                    .or_else(|| {
+                        crate::ufo::objects::Layer::expose_field(
+                            type_name.as_str(),
+                            &obj,
+                            Some(id),
+                            &property,
+                            app,
+                        )
+                    })
+                    .or_else(|| {
+                        crate::prelude::GlyphMetadata::expose_field(
                             type_name.as_str(),
                             &obj,
                             Some(id),

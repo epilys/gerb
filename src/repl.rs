@@ -31,7 +31,6 @@ fn main() {
     use gerb::api::shell::*;
     use gerb::api::*;
     use gerb::prelude::*;
-    use gtk::glib::{OptionArg, OptionFlags};
 
     use std::io::Write;
     use std::os::fd::AsRawFd;
@@ -40,78 +39,15 @@ fn main() {
     gtk::init().expect("Failed to initialize gtk");
 
     let app = Application::new();
-    app.add_main_option(
-        "ufo",
-        glib::Char('u' as i8),
-        OptionFlags::IN_MAIN,
-        OptionArg::Filename,
-        "UFO project path to load on launch",
-        Some("Specify a UFO directory in your filesystem to load on launch"),
-    );
-    app.add_main_option(
-        "version",
-        glib::Char('v' as i8),
-        OptionFlags::IN_MAIN,
-        OptionArg::None,
-        "show version",
-        None,
-    );
-    app.add_main_option(
-        "info",
-        glib::Char(0),
-        OptionFlags::IN_MAIN,
-        OptionArg::None,
-        "show program and build info",
-        None,
-    );
-
-    app.connect_handle_local_options(|_self, dict| {
-        if let Some(mut ufo_path) = dict
-            .lookup_value("ufo", None)
-            .and_then(|var| var.get::<Vec<u8>>())
-        {
-            while ufo_path.ends_with(b"\0") {
-                ufo_path.pop();
-            }
-            if let Ok(s) = String::from_utf8(ufo_path) {
-                _self
-                    .imp()
-                    .env_args
-                    .set(vec![s])
-                    .expect("Failed to initialize gtk");
-            } else {
-                _self
-                    .imp()
-                    .env_args
-                    .set(vec![])
-                    .expect("Failed to initialize gtk");
-            }
-        } else {
-            _self
-                .imp()
-                .env_args
-                .set(vec![])
-                .expect("Failed to initialize gtk");
-        }
-        if dict
-            .lookup_value("version", Some(glib::VariantTy::BOOLEAN))
-            .is_some()
-        {
-            println!("{}", gerb::VERSION_INFO);
-            // Exit with success code.
-            return 0;
-        }
-        if dict
-            .lookup_value("info", Some(glib::VariantTy::BOOLEAN))
-            .is_some()
-        {
-            println!("{}", gerb::CLI_INFO);
-            // Exit with success code.
-            return 0;
-        }
-
-        -1
-    });
+    /*
+    app.register(gio::Cancellable::NONE);
+    app.imp().startup(&app);
+    if let Some(ufo_dir) = std::env::args().next() {
+        app.window
+            .emit_by_name::<()>("open-project", &[&ufo_dir.display().to_string()]);
+        println!("Loaded {}.", ufo_dir.display());
+    }
+    */
 
     let shell = ShellInstance::new(
         app.clone(),

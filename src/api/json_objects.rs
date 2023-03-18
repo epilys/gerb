@@ -172,7 +172,16 @@ impl PyType {
                 &serde_json::value::from_value::<Vec<u8>>(value).unwrap(),
             )
             .into(),
-            Dict => unimplemented!("Python dict() objects have not been implemented."),
+            Dict => {
+                let ret = PyDict::new(py);
+                let map: IndexMap<std::string::String, Uuid> =
+                    serde_json::value::from_value(value).unwrap();
+                for (k, v) in map {
+                    ret.set_item(k, PyBytes::new(py, v.as_bytes())).unwrap();
+                }
+
+                ret.into()
+            }
             List => unimplemented!("Python list() objects have not been implemented."),
             Float => PyFloat::new(py, value.as_f64().unwrap()).into(),
             UInt => value.as_u64().unwrap().into_py(py),

@@ -19,6 +19,13 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* [ref:TODO] Unsolved problems in API types:
+ *
+ * - declare custom __repr__ and __str__ in macro decl
+ * - declare methods
+ * - declare class methods
+ */
+
 //! Wrapper types to expose to Python.
 //!
 //! Since pyo3 is not send safe, we cannot pass `GObjects` through channels. An
@@ -174,6 +181,43 @@ macro_rules! generate_field_tramp {
                     py,
                 )?;
                 val.extract(py)
+            }
+        }
+    };
+    ($struct:tt, wrap_dict $attr_name:ident, $parent_type:ty, { $($wrapper_ty:tt)+ }) => {
+        #[doc(hidden)]
+        mod $attr_name {
+            use super::*;
+            use ::pyo3 as _pyo3;
+            use ::glib::StaticType;
+
+            pub(super) unsafe fn get_tramp(
+                _py: _pyo3::Python<'_>,
+                _slf: *mut _pyo3::ffi::PyObject,
+            ) -> _pyo3::PyResult<*mut _pyo3::ffi::PyObject> {
+                let _cell = _py
+                    .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
+                    .downcast::<_pyo3::PyCell<$struct>>()?;
+                let _ref = _cell.try_borrow()?;
+                let _slf: &$struct = &*_ref;
+                let item = self::getter(_slf, _py)?;
+                _pyo3::callback::convert(_py, item)
+            }
+
+            fn getter(self_: &$struct, py: _pyo3::Python<'_>) -> _pyo3::PyResult<::indexmap::IndexMap<::std::string::String, $($wrapper_ty)*>> {
+                let val: _pyo3::Py<_pyo3::PyAny> = $crate::api::Gerb::get_field_value(
+                    &self_.__gerb.as_ref(py).borrow(),
+                    self_.__id,
+                    <$parent_type>::static_type().name(),
+                    stringify!($attr_name),
+                    py,
+                )?;
+                let extracted: ::indexmap::IndexMap<::std::string::String, $crate::api::PyUuid> =  val.extract(py)?;
+                Ok(extracted.into_iter().map(
+                    |(k, v)| (k, $($wrapper_ty)* {
+                        __id: v.0,
+                        __gerb: self_.__gerb.clone(),
+                    })).collect())
             }
         }
     };
@@ -651,7 +695,7 @@ generate_py_class!(
         #[docstring = " "]
         warp_cursor: bool,
     },
-    // [tag:settings_path()_sync_return_value]
+    // [ref:settings_path()_sync_return_value]
     export { path: Option<PathBuf> },
 );
 
@@ -709,6 +753,8 @@ generate_py_class!(
         #[docstring = " "]
         version_minor: u64,
     },
+    export { path: PathBuf },
+    export { modified: bool },
 );
 
 generate_py_class!(
@@ -723,4 +769,29 @@ generate_py_class!(
         #[docstring = " "]
         dir_name: String,
     },
+    export { path: PathBuf },
+    export { modified: bool },
+    wrap_dict { glyphs: Glyph },
+);
+
+generate_py_class!(
+    #[docstring = ""]
+    struct Glyph {
+        type PARENT_TYPE = crate::prelude::GlyphMetadata;
+
+        #[property_name=WIDTH]
+        #[docstring = " "]
+        width: f64,
+        #[property_name=NAME]
+        #[docstring = " "]
+        name: String,
+        #[property_name=RELATIVE_PATH]
+        #[docstring = " "]
+        relative_path: Option<PathBuf>,
+        #[property_name=FILENAME]
+        #[docstring = " "]
+        filename: Option<PathBuf>,
+    },
+    export { modified: bool },
+    //export { unicode: Vec<String> },
 );

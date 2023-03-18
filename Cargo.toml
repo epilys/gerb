@@ -55,7 +55,7 @@ default-features = false
 [dependencies.pyo3]
 version = "0.18"
 optional = true
-features = ["auto-initialize"]
+features = ["auto-initialize", "indexmap"]
 
 [dependencies.uuid]
 version = "1.2.1"

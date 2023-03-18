@@ -351,6 +351,14 @@ impl FontInfo {
         self.set_property(Self::MODIFIED, false);
         Ok(())
     }
+
+    pub fn path(&self) -> &Path {
+        self.path.get().unwrap()
+    }
+
+    pub fn modified(&self) -> bool {
+        self.modified.get()
+    }
 }
 
 impl Default for FontInfo {

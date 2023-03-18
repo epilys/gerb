@@ -92,6 +92,7 @@ impl ObjectImpl for GlyphMetadataInner {
                         None,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
+                    def_param!(f64 GlyphMetadata::WIDTH, std::f64::MIN, 0.0),
                     glib::ParamSpecObject::new(
                         GlyphMetadata::LAYER,
                         GlyphMetadata::LAYER,
@@ -122,6 +123,7 @@ impl ObjectImpl for GlyphMetadataInner {
                 }
             }
             GlyphMetadata::FILENAME => Some(self.filename.borrow().to_string()).to_value(),
+            GlyphMetadata::WIDTH => self.width.get().unwrap_or_default().to_value(),
             GlyphMetadata::LAYER => self.layer.borrow().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -161,6 +163,12 @@ impl ObjectImpl for GlyphMetadataInner {
                     self.instance().notify(GlyphMetadata::RELATIVE_PATH);
                 }
             }
+            GlyphMetadata::WIDTH => {
+                let val: f64 = value.get().unwrap();
+                if val.is_normal() {
+                    self.width.set(if val < 0.0 { None } else { Some(val) })
+                }
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -185,6 +193,7 @@ impl GlyphMetadata {
     pub const FILENAME: &str = "filename";
     pub const NAME: &str = "name";
     pub const LAYER: &str = "layer";
+    pub const WIDTH: &str = "width";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -201,6 +210,10 @@ impl GlyphMetadata {
 
     pub fn kinds(&self) -> FieldRef<'_, (GlyphKind, Vec<GlyphKind>)> {
         self.kinds.borrow().into()
+    }
+
+    pub fn unicode(&self) -> FieldRef<'_, Vec<Unicode>> {
+        self.unicode.borrow().into()
     }
 
     pub fn width(&self) -> Option<f64> {

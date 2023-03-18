@@ -291,7 +291,7 @@ impl<'app> ObjRef<'app> for ProjectParent {
                     .unwrap()
                     .path
                     .borrow()
-                    .clone()),
+                    .to_path_buf()),
             })),
             _ => None,
         }
@@ -327,6 +327,120 @@ impl<'app> ObjRef<'app> for crate::app::Settings {
 impl<'app> ObjRef<'app> for crate::ufo::objects::FontInfo {
     fn obj_ref(_: Option<Uuid>, app: &'app Application) -> Self {
         app.window.project().fontinfo.borrow().clone()
+    }
+
+    fn expose_field(
+        type_name: &str,
+        obj: &glib::Object,
+        id: Option<Uuid>,
+        field_name: &str,
+        app: &'app Application,
+    ) -> Option<Either<Uuid, ObjectValue>> {
+        if type_name != Self::static_type().name() {
+            return None;
+        }
+        match field_name {
+            "path" => Some(Either::B(ObjectValue {
+                py_type: PyType::String,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .path()
+                    .to_path_buf()),
+            })),
+            "modified" => Some(Either::B(ObjectValue {
+                py_type: PyType::Bool,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .modified()),
+            })),
+            _ => None,
+        }
+    }
+}
+
+impl<'app> ObjRef<'app> for crate::ufo::objects::Layer {
+    fn obj_ref(id: Option<Uuid>, app: &'app Application) -> Self {
+        // [ref:TODO] return Option
+        app.get_obj(id.unwrap()).unwrap().downcast().unwrap()
+    }
+
+    fn expose_field(
+        type_name: &str,
+        obj: &glib::Object,
+        id: Option<Uuid>,
+        field_name: &str,
+        app: &'app Application,
+    ) -> Option<Either<Uuid, ObjectValue>> {
+        if type_name != Self::static_type().name() {
+            return None;
+        }
+        match field_name {
+            "path" => Some(Either::B(ObjectValue {
+                py_type: PyType::String,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .path()
+                    .to_path_buf()),
+            })),
+            "modified" => Some(Either::B(ObjectValue {
+                py_type: PyType::Bool,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .modified()),
+            })),
+            "glyphs" => Some(Either::B(ObjectValue {
+                py_type: PyType::Dict,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .glyphs()
+                    .iter()
+                    .map(|(k, v)| {
+                        (
+                            k.clone(),
+                            PyUuid(app.register_obj(v.borrow().metadata.upcast_ref())),
+                        )
+                    })
+                    .collect::<IndexMap<String, PyUuid>>()),
+            })),
+            _ => None,
+        }
+    }
+}
+
+impl<'app> ObjRef<'app> for crate::prelude::GlyphMetadata {
+    fn obj_ref(id: Option<Uuid>, app: &'app Application) -> Self {
+        // [ref:TODO] return Option
+        app.get_obj(id.unwrap()).unwrap().downcast().unwrap()
+    }
+
+    fn expose_field(
+        type_name: &str,
+        obj: &glib::Object,
+        id: Option<Uuid>,
+        field_name: &str,
+        app: &'app Application,
+    ) -> Option<Either<Uuid, ObjectValue>> {
+        if type_name != Self::static_type().name() {
+            return None;
+        }
+        match field_name {
+            "modified" => Some(Either::B(ObjectValue {
+                py_type: PyType::Bool,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .modified()),
+            })),
+            /*"unicode" => Some(Either::B(ObjectValue {
+                py_type: PyType::List,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .unicode()
+                    .iter()
+                    .map(|u| { u.hex().to_string() })
+                    .collect::<Vec<String>>()),
+            })),*/
+            _ => None,
+        }
     }
 }
 
