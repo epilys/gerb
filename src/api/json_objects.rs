@@ -58,7 +58,7 @@ impl Request {
                     Action::Set {
                         value,
                     }
-                }else {
+                } else {
                     Action::Get
                 }
             }
@@ -121,6 +121,12 @@ impl From<glib::Value> for Response {
     }
 }
 
+impl From<ObjectValue> for Response {
+    fn from(value: ObjectValue) -> Self {
+        Self::Object(value)
+    }
+}
+
 impl From<Uuid> for Response {
     fn from(value: Uuid) -> Self {
         use serde_json::json;
@@ -128,6 +134,15 @@ impl From<Uuid> for Response {
             py_type: PyType::Bytes,
             value: json!(value.as_bytes()),
         })
+    }
+}
+
+impl From<Either<Uuid, ObjectValue>> for Response {
+    fn from(value: Either<Uuid, ObjectValue>) -> Self {
+        match value {
+            Either::A(uuid) => uuid.into(),
+            Either::B(val) => val.into(),
+        }
     }
 }
 

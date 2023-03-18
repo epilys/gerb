@@ -57,6 +57,8 @@
 #[macro_use]
 extern crate glib;
 
+pub use serde_json;
+
 #[cfg(feature = "python")]
 pub mod api;
 pub mod app;

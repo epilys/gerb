@@ -29,7 +29,7 @@
 //!
 //! The exposed types are in [`crate::api::types`].
 
-use crate::prelude::{Application, Error};
+use crate::prelude::{Application, Either, Error};
 use glib::{Continue, MainContext, PRIORITY_DEFAULT};
 use gtk::gdk;
 use gtk::prelude::*;
@@ -51,10 +51,8 @@ pub mod registry;
 pub mod shell;
 pub mod types;
 
-use json_objects::*;
-use registry::*;
-
-pub use registry::ObjectRegistry;
+pub use json_objects::*;
+pub use registry::*;
 
 // Define some type aliases to prevent ambiguating them with their API wrapper types:
 
@@ -114,24 +112,37 @@ impl Gerb {
             .map_err(|err| PyException::new_err(Error::suggest_bug_report(&format!("expected a Uuid byte slice response ([u8; 16]) from the API but got {resp:?}: {err}"))))?;
         Ok(__id)
     }
+
+    pub fn get_field_value(
+        self_: &PyRef<Self>,
+        id: Uuid,
+        type_name: &str,
+        field_name: &str,
+        py: Python<'_>,
+    ) -> PyResult<Py<PyAny>> {
+        self_.__send_rcv(
+            Request::new_property(type_name.into(), id, field_name.into(), None),
+            py,
+        ).map_err(|err| PyException::new_err(Error::suggest_bug_report(&format!("expected a value for field {field_name} of {type_name} with id {id} but got {err}"))))
+    }
 }
 
 #[pymethods]
 impl Gerb {
-    fn __repr__(&self) -> PyResult<String> {
+    pub fn __repr__(&self) -> PyResult<String> {
         Ok(format!(
             "<Gerb global instance object {}>",
             crate::VERSION_INFO
         ))
     }
 
-    fn __annotations__<'p>(&'p self, py: Python<'p>) -> &'p PyDict {
+    pub fn __annotations__<'p>(&'p self, py: Python<'p>) -> &'p PyDict {
         self.__types_dict.as_ref(py)
     }
 
     /// Return the currently loaded project.
     #[getter(project)]
-    fn project(self_: PyRef<Self>, py: Python<'_>) -> PyResult<types::Project> {
+    pub fn project(self_: PyRef<Self>, py: Python<'_>) -> PyResult<types::Project> {
         let __id: Uuid = Self::get_field_id(
             &self_,
             self_.__id,
@@ -147,7 +158,7 @@ impl Gerb {
 
     /// Return the global settings
     #[getter(settings)]
-    fn settings(self_: PyRef<Self>, py: Python<'_>) -> PyResult<types::Settings> {
+    pub fn settings(self_: PyRef<Self>, py: Python<'_>) -> PyResult<types::Settings> {
         let __id: Uuid = Self::get_field_id(
             &self_,
             self_.__id,
@@ -162,7 +173,7 @@ impl Gerb {
     }
 
     /// Process API request.
-    fn __send_rcv(&self, request: String, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    pub fn __send_rcv(&self, request: String, py: Python<'_>) -> PyResult<Py<PyAny>> {
         // [ref:python_api_main_loop_channel]
         self.__send
             .as_ref(py)
@@ -226,6 +237,15 @@ pub fn process_api_request(
             let obj = app.get_obj(id).unwrap();
             if let Some(field) =
                 ProjectParent::expose_field(type_name.as_str(), &obj, Some(id), &property, app)
+                    .or_else(|| {
+                        SettingsParent::expose_field(
+                            type_name.as_str(),
+                            &obj,
+                            Some(id),
+                            &property,
+                            app,
+                        )
+                    })
                     .or_else(|| {
                         Application::expose_field(
                             type_name.as_str(),

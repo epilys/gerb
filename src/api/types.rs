@@ -70,10 +70,12 @@
 //! generates all methods for any given number of fields.
 
 use super::*;
+use std::path::PathBuf;
 
+/// Generate a getter method definiton that returns the method's get trampoline (defined elsewhere)
+#[macro_export]
 macro_rules! generate_getter_method_def {
     ($struct:tt, $($field:ident, $docstr:literal, $ty:ty),*) => {
-
         $(
             _pyo3::class::PyMethodDefType::Getter({
                 _pyo3::class::PyGetterDef::new(
@@ -100,6 +102,10 @@ macro_rules! generate_getter_method_def {
     }
  }
 
+/// Generate a setter method definiton that returns the method's set trampoline (defined elsewhere)
+///
+/// Only wrapped types (class objects that correspond to GObjects) can have setter methods.
+#[macro_export]
 macro_rules! generate_setter_method_def {
     ($struct:tt, $($field:ident, $docstr:literal, $ty:ty),*) => {
 
@@ -131,6 +137,159 @@ macro_rules! generate_setter_method_def {
     }
  }
 
+/// Generate method trampolines. The alternative cases are:
+///
+/// - `export` returns a read-only value to python.
+/// - `wrap` returns a python class object that contains a unique Uuid corresponding
+///   to a GObject
+#[macro_export]
+macro_rules! generate_field_tramp {
+    ($struct:tt, export $attr_name:ident, $parent_type:ty, { $($wrapper_ty:tt)+ }) => {
+        #[doc(hidden)]
+        mod $attr_name {
+            use super::*;
+            use ::pyo3 as _pyo3;
+            use ::glib::StaticType;
+
+            pub(super) unsafe fn get_tramp(
+                _py: _pyo3::Python<'_>,
+                _slf: *mut _pyo3::ffi::PyObject,
+            ) -> _pyo3::PyResult<*mut _pyo3::ffi::PyObject> {
+                let _cell = _py
+                    .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
+                    .downcast::<_pyo3::PyCell<$struct>>()?;
+                let _ref = _cell.try_borrow()?;
+                let _slf: &$struct = &*_ref;
+                let item = self::getter(_slf, _py);
+                _pyo3::callback::convert(_py, item)
+            }
+
+            fn getter(self_: &$struct, py: _pyo3::Python<'_>) -> _pyo3::PyResult<$($wrapper_ty)*>
+            {
+                let val: _pyo3::Py<_pyo3::PyAny> = $crate::api::Gerb::get_field_value(
+                    &self_.__gerb.as_ref(py).borrow(),
+                    self_.__id,
+                    <$parent_type>::static_type().name(),
+                    stringify!($attr_name),
+                    py,
+                )?;
+                val.extract(py)
+            }
+        }
+    };
+    ($struct:tt, wrap $attr_name:ident, $parent_type:ty, { $($wrapper_ty:tt)+ }) => {
+        #[doc(hidden)]
+        mod $attr_name {
+            use super::*;
+            use ::pyo3 as _pyo3;
+            use ::glib::StaticType;
+
+            pub(super) unsafe fn get_tramp(
+                _py: _pyo3::Python<'_>,
+                _slf: *mut _pyo3::ffi::PyObject,
+            ) -> _pyo3::PyResult<*mut _pyo3::ffi::PyObject> {
+                let _cell = _py
+                    .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
+                    .downcast::<_pyo3::PyCell<$struct>>()?;
+                let _ref = _cell.try_borrow()?;
+                let _slf: &$struct = &*_ref;
+                let item = self::getter(_slf, _py);
+                _pyo3::callback::convert(_py, item)
+            }
+
+            fn getter(self_: &$struct, py: _pyo3::Python<'_>) -> _pyo3::PyResult<$($wrapper_ty)*> {
+                let __id: $crate::prelude::Uuid = $crate::api::Gerb::get_field_id(
+                    &self_.__gerb.as_ref(py).borrow(),
+                    self_.__id,
+                    <$parent_type>::static_type().name(),
+                    stringify!($attr_name),
+                    py,
+                )?;
+                Ok($($wrapper_ty)* {
+                    __id,
+                    __gerb: self_.__gerb.clone(),
+                })
+            }
+        }
+    };
+}
+
+/// Expand a wrapper type definition to its full implementation.
+///
+/// # Examples
+///
+/// ```rust
+/// # #[macro_use] extern crate gerb;
+/// mod example {
+/// # use gerb::generate_py_class;
+/// # use gerb::prelude::*;
+/// generate_py_class!(
+///     #[docstring = "String returned by help()"]
+///     struct PythonTypeName {
+///         type PARENT_TYPE = gerb::prelude::Project;
+///
+///         #[property_name=NAME] // Gobject's property name
+///         #[docstring = ""]
+///         title: String, // field name exposed to python and the type
+///                        // returned by the glib property
+///         #[property_name=MODIFIED]
+///         #[docstring = ""]
+///         flag: bool,
+///     },
+/// );
+/// }
+/// ```
+///
+/// ## Exposing objects wrapped in a python class:
+///
+/// ```rust
+/// # #[macro_use] extern crate gerb;
+/// mod example {
+/// # use gerb::prelude::*;
+/// # generate_py_class!(
+/// #     #[docstring = " "]
+/// #     struct FieldPythonTypeName {
+/// #         type PARENT_TYPE = gerb::prelude::Project;
+/// #     },
+/// # );
+/// generate_py_class!(
+///     #[docstring = "String returned by help()"]
+///     struct PythonTypeName {
+///         type PARENT_TYPE = gerb::prelude::Project;
+///
+///         #[property_name=NAME] // Gobject's property name
+///         #[docstring = " "]
+///         title: String,
+///     },
+///     // FieldPythonTypeName must be a struct that is generated by
+///     // generate_py_class!
+///     wrap { field_name_python_sees: FieldPythonTypeName },
+/// );
+/// }
+/// ```
+///
+/// ## Exporting read-only data as native python types
+///
+/// ```rust
+/// #[macro_use] extern crate gerb;
+/// mod example {
+/// use gerb::prelude::*;
+/// use std::path::PathBuf;
+/// generate_py_class!(
+///     #[docstring = "String returned by help()"]
+///     struct PythonTypeName {
+///         type PARENT_TYPE = gerb::prelude::Project;
+///
+///         #[property_name=NAME] // Gobject's property name
+///         #[docstring = " "]
+///         title: String,
+///     },
+///     // Option<_> means that it can be None in Python
+///      export { path: Option<PathBuf> },
+/// );
+/// }
+/// ```
+#[macro_export]
 macro_rules! generate_py_class {
     (
         #[docstring=$classdocstr:literal]
@@ -143,17 +302,38 @@ macro_rules! generate_py_class {
                 $field:ident: $field_ty:ty,
             )*
         },
+        // wrapper_ty must be a rust type, but the :ty fragment specifier cannot be used as a
+        // struct constructor. For example, if the type name is Example, this won't work:
+        // ```
+        // macro_rules! ___ {
+        // ($type_name:ty) => {
+        //  struct $type_name {
+        //    ...
+        //  }
+        //
+        //  const _ = $type_name {
+        //
+        //  };
+        // ```
+        //
+        // So instead we match token trees (:tt) and allow more than one because generics
+        // like `Option<T>` are multiple tokens: [Option, <, T, >] and matching them with a
+        // single :tt will fail.
         $(
-            export $attr_name:ident as $wrapper_ty:tt,
+            $verb:tt { $attr_name:ident: $($wrapper_ty:tt)+ },
         )*
     ) => {
         pub struct $struct {
-            pub(in crate::api) __id: Uuid,
-            pub(in crate::api) __gerb: Py<Gerb>,
+            pub __id: $crate::prelude::Uuid,
+            pub __gerb: ::pyo3::Py<$crate::api::Gerb>,
         }
 
+        // pyo3 boilerplate taken from pyo3's own pyclass macro.
+        //
+        // You can ignore this if you are not interested in the implementation details.
         const _: () = {
             use ::pyo3 as _pyo3;
+
             unsafe impl _pyo3::type_object::PyTypeInfo for $struct {
                 type AsRefTarget = _pyo3::PyCell<Self>;
                 const NAME: &'static str = stringify!($struct);
@@ -266,8 +446,10 @@ macro_rules! generate_py_class {
             }
         };
 
+        // Here we define the methods, the getter/setters and the corresponding trampolines
         const _: () = {
             use ::pyo3 as _pyo3;
+
             impl _pyo3::impl_::pyclass::PyMethods<$struct> for _pyo3::impl_::pyclass::PyClassImplCollector<$struct> {
                 fn py_methods(self) -> &'static _pyo3::impl_::pyclass::PyClassItems {
                     static ITEMS: _pyo3::impl_::pyclass::PyClassItems =
@@ -275,7 +457,7 @@ macro_rules! generate_py_class {
                             methods: &[
                                 $(generate_getter_method_def!($struct, $field, $docstr, $field_ty),)*
                                 $(generate_setter_method_def!($struct, $field, $docstr, $field_ty),)*
-                                $(generate_getter_method_def!($struct, $attr_name, " ", $wrapper_ty),)*
+                                $(generate_getter_method_def!($struct, $attr_name, " ", $($wrapper_ty)*),)*
                             ],
                             slots: &[{
                                 unsafe extern "C" fn trampoline(
@@ -308,14 +490,14 @@ macro_rules! generate_py_class {
                  * }
                  * ```
                  *
-                 * But we need a trampoline function *and* a get/set function for every field,
+                 * But we need a trampoline function *and* a {get,set} function for every field,
                  * so their names must be unique.
                  *
                  * There are two options:
                  *
                  * - pass those unique names in the macro invocation, e.g.
                  *   generate_those_funcs!(my_name, get_my_name, get_my_name_trampoline)
-                 * - or just use an identifier you already know is unique for each field: it's
+                 * - or just use an identifier you already know is unique for each field: its
                  *   own identity.
                  *
                  * Since $field is an :ident fragment specifier it can be used to identify
@@ -326,6 +508,7 @@ macro_rules! generate_py_class {
                 mod $field {
                     use super::*;
                     use ::pyo3 as _pyo3;
+                    use ::glib::StaticType;
 
                     pub(super) unsafe fn get_tramp (
                         _py: _pyo3::Python<'_>,
@@ -361,17 +544,17 @@ macro_rules! generate_py_class {
                         _pyo3::callback::convert(_py, item)
                     }
 
-                    fn getter(self_: &$struct, py: Python<'_>) -> PyResult<$field_ty> {
+                    fn getter(self_: &$struct, py: _pyo3::Python<'_>) -> _pyo3::PyResult<$field_ty> {
                         self_.__gerb
                             .as_ref(py)
                             .borrow()
                             .__send_rcv(
                                 serde_json::to_string(&{
-                                    Request::ObjectProperty {
+                                    $crate::api::Request::ObjectProperty {
                                         type_name: <$parent_type>::static_type().name().to_string(),
                                         id: self_.__id,
                                         property: <$parent_type>::$property.to_string(),
-                                        action: Action::Get,
+                                        action: $crate::api::Action::Get,
                                     }
                                 })
                                 .unwrap(),
@@ -380,18 +563,18 @@ macro_rules! generate_py_class {
                             .extract(py)
                     }
 
-                    fn setter(self_: &mut $struct, value: $field_ty, py: Python<'_>) -> PyResult<()> {
+                    fn setter(self_: &mut $struct, value: $field_ty, py: _pyo3::Python<'_>) -> _pyo3::PyResult<()> {
                         self_.__gerb
                             .as_ref(py)
                             .borrow()
                             .__send_rcv(
                                 serde_json::json!{
-                                    Request::ObjectProperty {
+                                    $crate::api::Request::ObjectProperty {
                                         type_name: <$parent_type>::static_type().name().to_string(),
                                         id: self_.__id,
                                         property: <$parent_type>::$property.to_string(),
-                                        action: Action::Set {
-                                            value: serde_json::to_string(&serde_json::json! { value }).unwrap(),
+                                        action: $crate::api::Action::Set {
+                                            value: $crate::serde_json::to_string(&$crate::serde_json::json! { value }).unwrap(),
                                         },
                                     }
                                 }.to_string()
@@ -404,38 +587,7 @@ macro_rules! generate_py_class {
             )*
 
             $(
-                #[doc(hidden)]
-                mod $attr_name {
-                    use super::*;
-                    use ::pyo3 as _pyo3;
-
-                    pub(super) unsafe fn get_tramp (
-                        _py: _pyo3::Python<'_>,
-                        _slf: *mut _pyo3::ffi::PyObject,
-                    ) -> _pyo3::PyResult<*mut _pyo3::ffi::PyObject> {
-                        let _cell = _py
-                            .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
-                            .downcast::<_pyo3::PyCell<$struct>>()?;
-                        let _ref = _cell.try_borrow()?;
-                        let _slf: &$struct = &*_ref;
-                        let item = self::getter(_slf, _py);
-                        _pyo3::callback::convert(_py, item)
-                    }
-
-                    fn getter(self_: &$struct, py: Python<'_>) -> PyResult<$wrapper_ty> {
-                        let __id: Uuid = Gerb::get_field_id(
-                            &self_.__gerb.as_ref(py).borrow(),
-                            self_.__id,
-                             <$parent_type>::static_type().name(),
-                            stringify!($attr_name),
-                            py,
-                        )?;
-                        Ok($wrapper_ty {
-                            __id,
-                            __gerb: self_.__gerb.clone(),
-                        })
-                    }
-                }
+                generate_field_tramp!($struct, $verb $attr_name, $parent_type, { $($wrapper_ty)* });
             )*
 
             #[doc(hidden)]
@@ -457,7 +609,7 @@ macro_rules! generate_py_class {
         };
 
         impl $struct {
-            fn __repr__(&self) -> PyResult<String> {
+            fn __repr__(&self) -> ::pyo3::PyResult<String> {
                 Ok(format!("<{} instance, id: {}>", stringify!($struct), self.__id))
             }
         }
@@ -476,8 +628,9 @@ generate_py_class!(
         #[docstring = " "]
         modified: bool,
     },
-    export font_info as FontInfo,
-    export default_layer as Layer,
+    wrap { font_info:  FontInfo },
+    wrap { default_layer: Layer },
+    export { path: PathBuf },
 );
 
 generate_py_class!(
@@ -498,6 +651,8 @@ generate_py_class!(
         #[docstring = " "]
         warp_cursor: bool,
     },
+    // [tag:settings_path()_sync_return_value]
+    export { path: Option<PathBuf> },
 );
 
 generate_py_class!(

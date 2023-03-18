@@ -360,6 +360,11 @@ impl SettingsInner {
         entry.retain(|e| e.upgrade().is_some());
         entry.push(obj.downgrade());
     }
+
+    // [tag:settings_path()_sync_return_value]
+    pub fn path(&self) -> Option<PathBuf> {
+        self.file.borrow().as_ref().map(|(p, _)| p.to_path_buf())
+    }
 }
 
 #[glib::object_subclass]

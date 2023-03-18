@@ -21,6 +21,18 @@
 
 use super::*;
 
+#[inline(always)]
+fn downcast<'a, T: glib::ObjectType + glib::IsA<glib::Object>>(
+    _app: &Application,
+    type_name: &str,
+    obj: &'a glib::Object,
+    _id: Option<Uuid>,
+) -> Result<&'a T, Box<dyn std::error::Error>> {
+    debug_assert_eq!(_app.register_obj(obj), ObjectRegistry::opt_id(obj).unwrap());
+
+    obj.downcast_ref::<T>().ok_or_else(|| format!("Fatal API error: requested object of type {type_name:?} from Application registry but got something else instead: {}", obj.type_().name()).into())
+}
+
 pub trait ObjRef<'app>: glib::ObjectExt {
     fn obj_ref(identifier: Option<Uuid>, app: &'app Application) -> Self;
 
@@ -30,7 +42,7 @@ pub trait ObjRef<'app>: glib::ObjectExt {
         _identifier: Option<Uuid>,
         _field_name: &str,
         _app: &'app Application,
-    ) -> Option<Uuid> {
+    ) -> Option<Either<Uuid, ObjectValue>> {
         None
     }
 }
@@ -207,16 +219,34 @@ impl<'app> ObjRef<'app> for crate::prelude::Application {
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        _: Option<Uuid>,
+        id: Option<Uuid>,
         field_name: &str,
         app: &'app Application,
-    ) -> Option<Uuid> {
+    ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
+
         match field_name {
-            "project" => Some(app.register_obj(obj.downcast_ref::<Self>().expect("Fatal API error: requested field {field_name:?}, an object of type {type_name:?} from Application registry but got something else instead.").window.project.borrow().upcast_ref())),
-            "settings" => Some(app.register_obj(obj.downcast_ref::<Self>().expect("Fatal API error: requested field {field_name:?}, an object of type {type_name:?} from Application registry but got something else instead.").settings.borrow().upcast_ref())),
+            "project" => Some(Either::A(
+                app.register_obj(
+                    downcast::<Self>(app, type_name, obj, id)
+                        .unwrap()
+                        .window
+                        .project
+                        .borrow()
+                        .upcast_ref(),
+                ),
+            )),
+            "settings" => Some(Either::A(
+                app.register_obj(
+                    downcast::<Self>(app, type_name, obj, id)
+                        .unwrap()
+                        .settings
+                        .borrow()
+                        .upcast_ref(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -230,16 +260,39 @@ impl<'app> ObjRef<'app> for ProjectParent {
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        _: Option<Uuid>,
+        id: Option<Uuid>,
         field_name: &str,
         app: &'app Application,
-    ) -> Option<Uuid> {
+    ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
         match field_name {
-            "font_info" => Some(app.register_obj(obj.downcast_ref::<Self>().expect("Fatal API error: requested object of type {type_name:?} from Application registry but got something else instead.").fontinfo.borrow().upcast_ref())),
-            "default_layer" => Some(app.register_obj(obj.downcast_ref::<Self>().expect("Fatal API error: requested object of type {type_name:?} from Application registry but got something else instead.").default_layer.upcast_ref())),
+            "font_info" => Some(Either::A(
+                app.register_obj(
+                    downcast::<Self>(app, type_name, obj, id)
+                        .unwrap()
+                        .fontinfo
+                        .borrow()
+                        .upcast_ref(),
+                ),
+            )),
+            "default_layer" => Some(Either::A(
+                app.register_obj(
+                    downcast::<Self>(app, type_name, obj, id)
+                        .unwrap()
+                        .default_layer
+                        .upcast_ref(),
+                ),
+            )),
+            "path" => Some(Either::B(ObjectValue {
+                py_type: PyType::String,
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                    .unwrap()
+                    .path
+                    .borrow()
+                    .clone()),
+            })),
             _ => None,
         }
     }
@@ -248,6 +301,26 @@ impl<'app> ObjRef<'app> for ProjectParent {
 impl<'app> ObjRef<'app> for crate::app::Settings {
     fn obj_ref(_: Option<Uuid>, app: &'app Application) -> Self {
         app.settings.borrow().clone()
+    }
+
+    fn expose_field(
+        type_name: &str,
+        obj: &glib::Object,
+        id: Option<Uuid>,
+        field_name: &str,
+        app: &'app Application,
+    ) -> Option<Either<Uuid, ObjectValue>> {
+        if type_name != Self::static_type().name() {
+            return None;
+        }
+        match field_name {
+            "path" => Some(Either::B(ObjectValue {
+                py_type: PyType::String,
+                // [ref:settings_path()_sync_return_value]
+                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id).unwrap().path()),
+            })),
+            _ => None,
+        }
     }
 }
 
@@ -268,17 +341,20 @@ impl ObjectRegistry {
     const QUARK_KEY: &str = "api-uuid";
 
     pub fn add(&mut self, obj: &glib::Object) -> Uuid {
-        if let Some(id) = unsafe { obj.qdata(glib::Quark::from_str(Self::QUARK_KEY)) } {
-            Uuid::from_u128(unsafe { *id.as_ptr() })
-        } else {
+        Self::opt_id(obj).unwrap_or_else(|| {
             let id = Uuid::new_v4();
             self.index.insert(id, obj.downgrade());
             unsafe { obj.set_qdata(glib::Quark::from_str(Self::QUARK_KEY), id.as_u128()) };
             id
-        }
+        })
     }
 
     pub fn get(&self, id: Uuid) -> Option<glib::Object> {
         self.index.get(&id).and_then(glib::object::WeakRef::upgrade)
+    }
+
+    pub fn opt_id(obj: &glib::Object) -> Option<Uuid> {
+        let id = unsafe { obj.qdata(glib::Quark::from_str(Self::QUARK_KEY)) }?;
+        Some(Uuid::from_u128(unsafe { *id.as_ptr() }))
     }
 }
