@@ -12,6 +12,11 @@ repository = "https://github.com/epilys/gerb"
 keywords = ["font", "fonts", "editor", "ufo", "typography"]
 categories = ["graphics"]
 
+[[bin]]
+name = "repl"
+path = "src/repl.rs"
+required-features = ["python"]
+
 [dependencies]
 build-info = { version = "0.0.29", default-features = false, optional = true }
 chrono = { version = "0.4", default-features = false }

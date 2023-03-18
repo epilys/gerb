@@ -35,9 +35,9 @@
 
 use super::*;
 
-const SYS_PS1: &str = ">>> ";
-const SYS_PS2: &str = "... ";
-const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more information.";
+pub const SYS_PS1: &str = ">>> ";
+pub const SYS_PS2: &str = "... ";
+pub const BANNER: &str = "Exported objects: 'gerb'. Use 'help(gerb)' for more information.";
 
 // [ref:needs_user_doc]
 // [ref:needs_dev_doc]
@@ -51,6 +51,17 @@ pub enum LinePrefix {
     Output,
     Ps1,
     Ps2,
+}
+
+impl LinePrefix {
+    #[inline]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            LinePrefix::Output => "",
+            LinePrefix::Ps1 => SYS_PS1,
+            LinePrefix::Ps2 => SYS_PS2,
+        }
+    }
 }
 
 /// Python shell history

@@ -195,7 +195,7 @@ impl Gerb {
     }
 }
 
-fn process_api_request(
+pub fn process_api_request(
     app: &Application,
     msg: String,
 ) -> Result<serde_json::Value, serde_json::Value> {
