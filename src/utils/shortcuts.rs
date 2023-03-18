@@ -35,7 +35,7 @@ pub type ShortcutCb = dyn Fn(&gtk::gio::SimpleActionGroup) -> bool;
 // [ref:needs_user_doc]
 // [ref:needs_dev_doc]
 pub struct Shortcut {
-    keys: SmallVec<[u32; 8]>,
+    pub keys: SmallVec<[u32; 8]>,
 }
 
 impl std::fmt::Debug for Shortcut {
@@ -207,46 +207,47 @@ impl ShortcutAction {
     }
 }
 
+/// Helper macro to declare const shortcuts
 #[macro_export]
-macro_rules! decl {
+macro_rules! decl_shortcut {
     ($a:expr, $b:expr, $c:expr,$d:expr,$e:expr,$f:expr,$g:expr,$_8:expr) => {
-        Shortcut {
-            keys: SmallVec::from_const([
+        $crate::utils::shortcuts::Shortcut {
+            keys: ::smallvec::SmallVec::from_const([
                 $a as u32, $b as u32, $c as u32, $d as u32, $e as u32, $f as u32, $g as u32,
                 $_8 as u32,
             ]),
         }
     };
     ($a:expr, $b:expr, $c:expr,$d:expr,$e:expr,$f:expr,$g:expr) => {
-        $crate::decl!($a, $b, $c, $d, $e, $f, $g, VOID)
+        $crate::decl_shortcut!($a, $b, $c, $d, $e, $f, $g, VOID)
     };
     ($a:expr, $b:expr, $c:expr,$d:expr,$e:expr,$f:expr) => {
-        $crate::decl!($a, $b, $c, $d, $e, $f, VOID)
+        $crate::decl_shortcut!($a, $b, $c, $d, $e, $f, VOID)
     };
     ($a:expr, $b:expr, $c:expr,$d:expr,$e:expr) => {
-        $crate::decl!($a, $b, $c, $d, $e, VOID)
+        $crate::decl_shortcut!($a, $b, $c, $d, $e, VOID)
     };
     ($a:expr, $b:expr, $c:expr,$d:expr) => {
-        $crate::decl!($a, $b, $c, $d, VOID)
+        $crate::decl_shortcut!($a, $b, $c, $d, VOID)
     };
     ($a:expr, $b:expr, $c:expr) => {
-        $crate::decl!($a, $b, $c, VOID)
+        $crate::decl_shortcut!($a, $b, $c, VOID)
     };
     ($a:expr, $b:expr) => {
-        $crate::decl!($a, $b, VOID)
+        $crate::decl_shortcut!($a, $b, VOID)
     };
     ($a:expr) => {
-        $crate::decl!($a, VOID)
+        $crate::decl_shortcut!($a, VOID)
     };
 }
 
-pub const GRAVE: Shortcut = decl!(GDK_KEY_grave);
-pub const MINISCULE_X: Shortcut = decl!(GDK_KEY_x);
-pub const MINISCULE_Y: Shortcut = decl!(GDK_KEY_y);
-pub const A: Shortcut = decl!(GDK_KEY_A);
-pub const G: Shortcut = decl!(GDK_KEY_G);
-pub const L: Shortcut = decl!(GDK_KEY_L);
-pub const M: Shortcut = decl!(GDK_KEY_M);
+pub const GRAVE: Shortcut = decl_shortcut!(GDK_KEY_grave);
+pub const MINISCULE_X: Shortcut = decl_shortcut!(GDK_KEY_x);
+pub const MINISCULE_Y: Shortcut = decl_shortcut!(GDK_KEY_y);
+pub const A: Shortcut = decl_shortcut!(GDK_KEY_A);
+pub const G: Shortcut = decl_shortcut!(GDK_KEY_G);
+pub const L: Shortcut = decl_shortcut!(GDK_KEY_L);
+pub const M: Shortcut = decl_shortcut!(GDK_KEY_M);
 
 impl std::fmt::Display for Shortcut {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -296,7 +297,7 @@ impl Shortcut {
     }
 
     pub const fn empty() -> Self {
-        decl!(VOID)
+        decl_shortcut!(VOID)
     }
 
     pub fn char(mut self, c: char) -> Self {

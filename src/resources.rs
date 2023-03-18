@@ -19,6 +19,8 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+//! Static icons, images, etc.
+
 use gtk::prelude::WidgetExt;
 
 #[derive(Copy, Clone)]

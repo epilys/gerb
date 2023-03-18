@@ -43,6 +43,8 @@
     clippy::cast_lossless,
     clippy::cast_ptr_alignment,
     clippy::naive_bytecount,
+    rustdoc::broken_intra_doc_links,
+
 )]
 // known problems/false negative
 #![allow(
@@ -153,6 +155,7 @@ pub mod prelude {
     pub use uuid::Uuid;
 
     mod macros {
+        /// Helper macro to define user editable GObject properties.
         #[macro_export]
         macro_rules! def_param {
             (str $name:expr) => {
@@ -205,6 +208,8 @@ pub mod prelude {
             };
         }
 
+        /// Helper macro to easily "inherit" property names from another type.
+        /// The convention is that property names are stored as type constant string slices.
         #[macro_export]
         macro_rules! inherit_property {
             ($t:ty, $($prop:ident),*) => {
@@ -214,6 +219,7 @@ pub mod prelude {
             }
         }
 
+        /// Helper macro to call return; if a gtk dialog response calls for it
         #[macro_export]
         macro_rules! return_if_not_ok_or_accept {
             ($response:expr) => {{

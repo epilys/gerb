@@ -26,7 +26,7 @@ use std::hash::{Hash, Hasher};
 use std::ops::{Add, Div, Mul, Sub};
 
 /// This type does not implement copy and is not meant to be modified by anyone except for its
-/// container struct (usually a [`Bezier`]).
+/// container struct (usually a [`crate::utils::curves::Bezier`]).
 #[derive(Clone, Debug, glib::Boxed)]
 #[boxed_type(name = "CurvePoint", nullable)]
 pub struct CurvePoint {

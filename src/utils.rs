@@ -209,7 +209,7 @@ pub enum Either<A, B> {
 /// Helper trait that propagates true modified property values to a parent object. This is so that
 /// when a modified child sets its value to false, the parent value doesn't become false as well.
 ///
-/// It is mainly used for objects owned by [`Project`], to keep track of what is modified and use
+/// It is mainly used for objects owned by [`crate::prelude::Project`], to keep track of what is modified and use
 /// it for saving modifications to disk.
 pub trait Modified: glib::ObjectExt {
     const PROPERTY_NAME: &'static str;
