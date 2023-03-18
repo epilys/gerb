@@ -53,6 +53,7 @@ pub struct SettingsInner {
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
     pub ui_font: Rc<RefCell<gtk::pango::FontDescription>>,
+    pub show_prerelease_warning: Cell<bool>,
 }
 
 impl SettingsInner {
@@ -138,6 +139,8 @@ impl SettingsInner {
             document[Settings::GUIDELINE_WIDTH] = toml_value(self.guideline_width.get());
             document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
             document[Settings::MARK_COLOR] = toml_value(self.mark_color.get().name());
+            document[Settings::SHOW_PRERELEASE_WARNING] =
+                toml_value(self.show_prerelease_warning.get());
             file.rewind()?;
             file.get_mut().set_len(0)?;
             file.write_all(document.to_string().as_bytes())?;
@@ -268,7 +271,13 @@ impl SettingsInner {
             }
         }
         /* bools */
-        for (prop, field) in [(Settings::WARP_CURSOR, &self.warp_cursor)] {
+        for (prop, field) in [
+            (Settings::WARP_CURSOR, &self.warp_cursor),
+            (
+                Settings::SHOW_PRERELEASE_WARNING,
+                &self.show_prerelease_warning,
+            ),
+        ] {
             if let Some(v) = document.get(prop).and_then(TomlItem::as_bool) {
                 field.set(v);
             } else {
@@ -382,6 +391,7 @@ impl ObjectImpl for SettingsInner {
         self.line_width.set(Self::LINE_WIDTH_INIT_VAL);
         self.guideline_width.set(Self::GUIDELINE_WIDTH_INIT_VAL);
         self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
+        self.show_prerelease_warning.set(true);
 
         self.init_file().unwrap();
         self.load_settings().unwrap();
@@ -425,6 +435,13 @@ impl ObjectImpl for SettingsInner {
                         SettingsInner::WARP_CURSOR_INIT_VAL,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
+                    glib::ParamSpecBoolean::new(
+                        Settings::SHOW_PRERELEASE_WARNING,
+                        Settings::SHOW_PRERELEASE_WARNING,
+                        Settings::SHOW_PRERELEASE_WARNING,
+                        true,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
                     glib::ParamSpecEnum::new(
                         Settings::MARK_COLOR,
                         Settings::MARK_COLOR,
@@ -451,6 +468,7 @@ impl ObjectImpl for SettingsInner {
             Settings::LINE_WIDTH => self.line_width.get().to_value(),
             Settings::GUIDELINE_WIDTH => self.guideline_width.get().to_value(),
             Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
+            Settings::SHOW_PRERELEASE_WARNING => self.show_prerelease_warning.get().to_value(),
             Settings::MARK_COLOR => self.mark_color.get().to_value(),
             Settings::UI_FONT => self.ui_font.borrow().to_value(),
             _ => unimplemented!("{}", pspec.name()),
@@ -481,6 +499,10 @@ impl ObjectImpl for SettingsInner {
                 self.warp_cursor.set(value.get().unwrap());
                 self.save_settings().unwrap();
             }
+            Settings::SHOW_PRERELEASE_WARNING => {
+                self.show_prerelease_warning.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
             Settings::MARK_COLOR => {
                 self.mark_color.set(value.get().unwrap());
                 self.save_settings().unwrap();
@@ -507,6 +529,7 @@ impl Settings {
     pub const WARP_CURSOR: &str = "warp-cursor";
     pub const MARK_COLOR: &str = "mark-color";
     pub const UI_FONT: &str = "ui-font";
+    pub const SHOW_PRERELEASE_WARNING: &str = "show-prerelease-warning";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()

@@ -134,6 +134,38 @@ impl ObjectImpl for WindowInner {
                     #[cfg(feature = "python")]
                     obj.imp().application().register_obj(project.upcast_ref());
                     obj.load_project(project);
+                    let app = obj.imp().application();
+                    let settings = app.settings.borrow();
+                    if settings.property::<bool>(Settings::SHOW_PRERELEASE_WARNING) {
+                        let dialog = crate::utils::widgets::new_simple_info_dialog(
+                            Some("Warning: protecting your UFO data"),
+                            "This is a pre-release version. It should not be used for production and/or with important data that are not backed up. Some metadata fields are not saved, and saving a .glif file will regenerate the XML instead of only what changed.",
+                            Some("You can use UFO projects inside git repositories so that you can revert changes or use folder copies you do not want to keep."),
+                            obj.upcast_ref(),
+                        );
+
+                        let area = dialog.message_area();
+                        if let Ok(box_) = area.downcast::<gtk::Box>() {
+                            let btn = crate::utils::widgets::ToggleButton::new();
+                            btn.set_visible(true);
+                            btn.set_active(false);
+                            btn.set_sensitive(true);
+                            btn.style_read_only(true);
+                            btn.set_halign(gtk::Align::Start);
+                            btn.set_valign(gtk::Align::Start);
+                            btn.set_label("Show this warning every time a project is loaded (lest you forget)");
+                            settings.bind_property(
+                                Settings::SHOW_PRERELEASE_WARNING,
+                                &btn,
+                                "active"
+                            )
+                            .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
+                            .build();
+                            box_.add(&btn);
+                        }
+                        dialog.run();
+                        dialog.emit_close();
+                    }
                     obj.queue_draw();
                 }
                 Err(err) => {
