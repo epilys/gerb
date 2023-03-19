@@ -1,6 +1,6 @@
 [package]
 name = "gerb"
-version = "0.0.1-alpha+2023-03-19"
+version = "0.0.1-alpha+2023-03-19.1"
 edition = "2021"
 resolver = "2"
 authors = ["Manos Pitsidianakis <manos@pitsidianak.is>"]
@@ -70,7 +70,7 @@ features = [
 build-info-build = { version = "0.0.29", optional = true }
 
 [features]
-default = ["python", "git", "build-info"]
+default = ["python", "git"]
 build-info = ["dep:build-info", "dep:build-info-build"]
 python = ["pyo3"]
 git = ["git2"]
