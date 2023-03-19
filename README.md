@@ -1,4 +1,11 @@
-# gerb
+# gerb &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] ![Top Language] ![License]
+
+[Build Status]: https://img.shields.io/github/actions/workflow/status/epilys/gerb/builds.yaml?branch=main
+[actions]: https://github.com/epilys/gerb/actions?query=branch%3Amain
+[Latest Version]: https://img.shields.io/crates/v/gerb.svg?color=white
+[crates.io]: https://crates.io/crates/gerb
+[Top Language]: https://img.shields.io/github/languages/top/epilys/gerb?color=white&logo=rust&logoColor=black
+[License]: https://img.shields.io/github/license/epilys/gerb?color=white
 
 1. _*gerb ʰ-_: [reconstructed Proto-Indo-European root](https://en.wiktionary.org/wiki/Reconstruction:Proto-Indo-European/gerb%CA%B0-), meaning _to carve_
 2. `gerb`: a font editor in gtk3 and Rust
