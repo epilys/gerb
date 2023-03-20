@@ -929,7 +929,7 @@ impl From<glif::Glif> for Glyph {
                     let last_point = points.back().unwrap();
                     prev_point = (last_point.x, last_point.y);
                 }
-                if points.front().unwrap().is_line() {
+                if points.front().map(|p| p.is_line()).unwrap_or(false) {
                     let p = points.back().unwrap();
                     prev_point = (p.x, p.y);
                 }
