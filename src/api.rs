@@ -29,7 +29,7 @@
 //!
 //! The exposed types are in [`crate::api::types`].
 
-use crate::prelude::{Application, Either, Error};
+use crate::prelude::{Application, Either, Error, Runtime};
 use glib::{Continue, MainContext, PRIORITY_DEFAULT};
 use gtk::gdk;
 use gtk::prelude::*;
@@ -72,7 +72,7 @@ struct Sender(Option<glib::Sender<String>>);
 #[pyclass]
 struct Receiver(Option<mpsc::Receiver<String>>);
 
-/// Application's global instance object.
+/// Runtime's global instance object.
 ///
 /// It is exposed to python in order to allow it to communicate with the main thread and its data.
 #[pyclass]
@@ -146,7 +146,7 @@ impl Gerb {
         let __id: Uuid = Self::get_field_id(
             &self_,
             self_.__id,
-            Application::static_type().name(),
+            Runtime::static_type().name(),
             "project",
             py,
         )?;
@@ -162,7 +162,7 @@ impl Gerb {
         let __id: Uuid = Self::get_field_id(
             &self_,
             self_.__id,
-            Application::static_type().name(),
+            Runtime::static_type().name(),
             "settings",
             py,
         )?;
@@ -233,7 +233,7 @@ impl<'source> pyo3::FromPyObject<'source> for PyUuid {
 }
 
 pub fn process_api_request(
-    app: &Application,
+    runtime: &Runtime,
     msg: String,
 ) -> Result<serde_json::Value, serde_json::Value> {
     let valid_types = [
@@ -241,7 +241,7 @@ pub fn process_api_request(
         SettingsParent::static_type().name(),
         FontInfoParent::static_type().name(),
         LayerParent::static_type().name(),
-        Application::static_type().name(),
+        Runtime::static_type().name(),
         crate::prelude::GlyphMetadata::static_type().name(),
     ];
     let request: Request = serde_json::from_str(&msg).map_err(|err| {
@@ -261,25 +261,25 @@ pub fn process_api_request(
                     message: format!("Invalid object type: {type_name}."),
                 }));
             }
-            let obj = app.get_obj(id).unwrap();
+            let obj = runtime.get_obj(id).unwrap();
             if let Some(field) =
-                ProjectParent::expose_field(type_name.as_str(), &obj, Some(id), &property, app)
+                ProjectParent::expose_field(type_name.as_str(), &obj, Some(id), &property, runtime)
                     .or_else(|| {
                         SettingsParent::expose_field(
                             type_name.as_str(),
                             &obj,
                             Some(id),
                             &property,
-                            app,
+                            runtime,
                         )
                     })
                     .or_else(|| {
-                        Application::expose_field(
+                        Runtime::expose_field(
                             type_name.as_str(),
                             &obj,
                             Some(id),
                             &property,
-                            app,
+                            runtime,
                         )
                     })
                     .or_else(|| {
@@ -288,7 +288,7 @@ pub fn process_api_request(
                             &obj,
                             Some(id),
                             &property,
-                            app,
+                            runtime,
                         )
                     })
                     .or_else(|| {
@@ -297,7 +297,7 @@ pub fn process_api_request(
                             &obj,
                             Some(id),
                             &property,
-                            app,
+                            runtime,
                         )
                     })
                     .or_else(|| {
@@ -306,7 +306,7 @@ pub fn process_api_request(
                             &obj,
                             Some(id),
                             &property,
-                            app,
+                            runtime,
                         )
                     })
             {
@@ -331,7 +331,7 @@ pub fn process_api_request(
                     message: format!("Invalid object type: {type_name}."),
                 }));
             }
-            let obj = app.get_obj(id).unwrap();
+            let obj = runtime.get_obj(id).unwrap();
             Ok(
                 match serde_json::from_str(&value)
                     .map_err(|err| err.to_string())
@@ -341,11 +341,6 @@ pub fn process_api_request(
                     Ok(_val) => serde_json::json! { null },
                 },
             )
-        }
-        Request::Action { name } => {
-            app.upcast_ref::<gtk::gio::Application>()
-                .activate_action(&name, None);
-            Ok(serde_json::json! { null })
         }
     }
 }

@@ -28,8 +28,7 @@ use once_cell::unsync::OnceCell;
 #[cfg(feature = "python")]
 use uuid::Uuid;
 
-use crate::project::Project;
-use crate::utils::property_window::CreatePropertyWindow;
+use crate::prelude::*;
 use crate::window::Window;
 
 use std::cell::RefCell;
@@ -58,6 +57,18 @@ impl ObjectImpl for RuntimeInner {
 impl Runtime {
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()
+    }
+
+    #[cfg(feature = "python")]
+    pub fn register_obj(&self, obj: &glib::Object) -> Uuid {
+        let mut registry = self.api_registry.borrow_mut();
+        registry.add(obj)
+    }
+
+    #[cfg(feature = "python")]
+    pub fn get_obj(&self, id: Uuid) -> Option<glib::Object> {
+        let registry = self.api_registry.borrow();
+        registry.get(id)
     }
 }
 
@@ -94,6 +105,9 @@ impl std::ops::Deref for Application {
 }
 
 impl Application {
+    pub const UI_FONT: &str = "ui-font";
+    pub const THEME: &str = "theme";
+
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         glib::Object::new(&[
@@ -116,6 +130,9 @@ impl Application {
 pub struct ApplicationInner {
     pub window: Window,
     pub runtime: Runtime,
+    pub ui_font: Rc<RefCell<gtk::pango::FontDescription>>,
+    default_provider: gtk::CssProvider,
+    pub theme: Cell<types::Theme>,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
 }
@@ -127,7 +144,65 @@ impl ObjectSubclass for ApplicationInner {
     type ParentType = gtk::Application;
 }
 
-impl ObjectImpl for ApplicationInner {}
+impl ObjectImpl for ApplicationInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.default_provider
+            .load_from_data(types::Theme::PAPERWHITE_CSS)
+            .unwrap();
+        self.reload_theme();
+    }
+
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    glib::ParamSpecEnum::new(
+                        Application::THEME,
+                        Application::THEME,
+                        "UI theme.",
+                        types::Theme::static_type(),
+                        types::Theme::Paperwhite as i32,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoxed::new(
+                        Application::UI_FONT,
+                        Application::UI_FONT,
+                        Application::UI_FONT,
+                        gtk::pango::FontDescription::static_type(),
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
+    }
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        match pspec.name() {
+            Application::THEME => self.theme.get().to_value(),
+            Application::UI_FONT => self.ui_font.borrow().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        match pspec.name() {
+            Application::THEME => {
+                self.theme.set(value.get().unwrap());
+                self.reload_theme();
+            }
+            Application::UI_FONT => {
+                *self.ui_font.borrow_mut() = value.get().unwrap();
+            }
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+}
 
 /// When our application starts, the `startup` signal will be fired.
 /// This gives us a chance to perform initialisation tasks that are not directly
@@ -154,6 +229,9 @@ impl ApplicationImpl for ApplicationInner {
     /// here. Widgets can't be created before `startup` has been called.
     fn startup(&self, app: &Self::Type) {
         self.parent_startup(app);
+        self.runtime
+            .settings
+            .register_obj(app.upcast_ref::<glib::Object>().clone());
         #[cfg(feature = "python")]
         {
             self.register_obj(app.upcast_ref());
@@ -260,6 +338,7 @@ impl ApplicationInner {
         settings.connect_activate(
             glib::clone!(@strong self.runtime.settings as settings, @weak obj as app => move |_, _| {
                 let w = settings.new_property_window(&app, false);
+                w.add_extra_obj(app.upcast_ref::<glib::Object>().clone());
                 w.present();
             }),
         );
@@ -374,33 +453,33 @@ impl ApplicationInner {
         }
 
         let project_properties = gtk::gio::SimpleAction::new("project.properties", None);
-        project_properties.connect_activate(
+        project_properties.connect_activate(glib::clone!(@weak obj as app => move |_, _| {
+            let w = app.runtime.project.borrow().new_property_window(&app, false);
+            w.present();
+        }));
+        let project_save = gtk::gio::SimpleAction::new("project.save", None);
+        project_save.connect_activate(
             glib::clone!(@weak self.window as window, @weak obj as app => move |_, _| {
-                let w = window.project.borrow().new_property_window(&app, false);
-                w.present();
+                if let Err(err) = app.runtime.project.borrow().save() {
+                    let dialog = crate::utils::widgets::new_simple_error_dialog(
+                        Some("Error: could not perform conversion to UFOv3 with glyphsLib"),
+                        &err.to_string(),
+                        None,
+                        window.upcast_ref(),
+                    );
+                    dialog.run();
+                    dialog.emit_close();
+                };
             }),
         );
-        let project_save = gtk::gio::SimpleAction::new("project.save", None);
-        project_save.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
-            if let Err(err) = window.project.borrow().save() {
-                let dialog = crate::utils::widgets::new_simple_error_dialog(
-                    Some("Error: could not perform conversion to UFOv3 with glyphsLib"),
-                    &err.to_string(),
-                    None,
-                    window.upcast_ref(),
-                );
-                dialog.run();
-                dialog.emit_close();
-            };
-        }));
         let project_export = gtk::gio::SimpleAction::new("project.export", None);
         project_export
-            .connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
+            .connect_activate(glib::clone!(@weak self.window as window, @weak obj as app => move |_, _| {
             #[cfg(feature = "python")]
             {
                 crate::ufo::export::ufo_compile::export_action_cb(
-                    window.clone().upcast(),
-                    window.project().clone(),
+                    window.upcast(),
+                    app.runtime.project.borrow().clone(),
                 );
             }
             #[cfg(not(feature = "python"))]
@@ -511,5 +590,23 @@ impl ApplicationInner {
     pub fn get_obj(&self, id: Uuid) -> Option<glib::Object> {
         let registry = self.runtime.api_registry.borrow();
         registry.get(id)
+    }
+
+    fn reload_theme(&self) {
+        match self.theme.get() {
+            types::Theme::SystemDefault => {
+                gtk::StyleContext::remove_provider_for_screen(
+                    &gtk::gdk::Screen::default().unwrap(),
+                    &self.default_provider,
+                );
+            }
+            types::Theme::Paperwhite => {
+                gtk::StyleContext::add_provider_for_screen(
+                    &gtk::gdk::Screen::default().unwrap(),
+                    &self.default_provider,
+                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+            }
+        }
     }
 }

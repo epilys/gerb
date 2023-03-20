@@ -135,7 +135,7 @@ impl State {
                         .y(y)
                         .identifier(Some(identifier.clone()))
                         .build();
-                    app.window.project.borrow().link(&guideline);
+                    app.runtime.project.borrow().link(&guideline);
                     glyph.borrow_mut().add_guideline(guideline);
                     viewport.queue_draw();
                 }),

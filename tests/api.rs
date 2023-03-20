@@ -25,25 +25,24 @@ mod utils;
 use utils::*;
 
 #[test]
-#[ignore]
 #[cfg(feature = "python")]
 fn test_api_works() {
     use gerb::api::shell::*;
     use gerb::api::*;
     use gerb::prelude::*;
 
-    gtk_test_wrapper(|| {
-        let app = Application::new();
+    glib_test_wrapper(|| {
+        let runtime = Runtime::new();
 
         let shell = ShellInstance::new(
-            app.clone(),
-            glib::clone!(@weak app => @default-return Continue(false), move |tx: &std::sync::mpsc::Sender<String>, msg: String| {
-                let response = process_api_request(&app, msg);
+            runtime.clone(),
+            glib::clone!(@weak runtime => @default-return Continue(false), move |tx: &std::sync::mpsc::Sender<String>, msg: String| {
+                let response = process_api_request(&runtime, msg);
                 let json = response.unwrap();
                 tx.send(json.to_string()).unwrap();
                 Continue(true)
             }),
-            glib::clone!(@weak app => @default-return Continue(false), move |hist, (prefix, mut msg)| {
+            glib::clone!(@weak runtime => @default-return Continue(false), move |hist, (prefix, mut msg)| {
                 if !msg.is_empty() {
                     while msg.ends_with('\n') {
                         msg.pop();

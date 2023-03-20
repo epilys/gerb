@@ -36,38 +36,33 @@ fn main() {
     use std::os::fd::AsRawFd;
     use std::sync::mpsc::Sender;
 
-    gtk::init().expect("Failed to initialize gtk");
-
-    let app = Application::new();
-    /*
-    app.register(gio::Cancellable::NONE);
-    app.imp().startup(&app);
-    if let Some(ufo_dir) = std::env::args().next() {
-        app.window
-            .emit_by_name::<()>("open-project", &[&ufo_dir.display().to_string()]);
-        println!("Loaded {}.", ufo_dir.display());
+    let runtime = Runtime::new();
+    match std::env::args()
+        .nth(1)
+        .map(|d| (d.clone(), Project::from_path(&d)))
+    {
+        Some((ufo_dir, Ok(project))) => {
+            #[cfg(feature = "python")]
+            runtime.register_obj(project.upcast_ref());
+            *runtime.project.borrow_mut() = project;
+            println!("Loaded {}.", ufo_dir);
+        }
+        Some((ufo_dir, Err(err))) => {
+            eprintln!("Could not load {ufo_dir}: {err}");
+            return;
+        }
+        None => {}
     }
-    */
 
     let shell = ShellInstance::new(
-        app.clone(),
-        glib::clone!(@weak app => @default-return Continue(false), move |tx: &std::sync::mpsc::Sender<String>, msg: String| {
-            let response = process_api_request(&app, msg);
-            if let Err(ref err) = response {
-                let dialog = gerb::utils::widgets::new_simple_error_dialog(
-                    None,
-                    &err.to_string(),
-                    None,
-                    app.window.upcast_ref(),
-                );
-                dialog.run();
-                dialog.emit_close();
-            }
+        runtime.clone(),
+        glib::clone!(@weak runtime => @default-return Continue(false), move |tx: &std::sync::mpsc::Sender<String>, msg: String| {
+            let response = process_api_request(&runtime, msg);
             let (Err(json) | Ok(json)) = response;
             tx.send(json.to_string()).unwrap();
             Continue(true)
         }),
-        glib::clone!(@weak app => @default-return Continue(false), move |hist, (prefix, mut msg)| {
+        glib::clone!(@weak runtime => @default-return Continue(false), move |hist, (prefix, mut msg)| {
             if !msg.is_empty() {
                 while msg.ends_with('\n') {
                     msg.pop();

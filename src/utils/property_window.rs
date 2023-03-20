@@ -58,10 +58,12 @@ impl Default for PropertyWindowButtons {
 #[derive(Default, Debug)]
 pub struct PropertyWindowInner {
     pub obj: OnceCell<glib::Object>,
+    pub extra_objs: RefCell<Vec<glib::Object>>,
     pub app: OnceCell<crate::prelude::Application>,
     grid: gtk::Grid,
     rows: Cell<i32>,
     pub buttons: OnceCell<PropertyWindowButtons>,
+    type_: OnceCell<PropertyWindowType>,
     widgets: RefCell<IndexMap<String, gtk::Widget>>,
     initial_values: RefCell<IndexMap<String, (Cell<bool>, glib::Value)>>,
     title_label: gtk::Label,
@@ -169,7 +171,7 @@ impl PropertyWindow {
             .any(|(d, _)| d.get())
     }
 
-    fn object_to_property_grid(&self, obj: glib::Object, create: bool) {
+    fn object_to_property_grid(&mut self, obj: glib::Object, create: bool) {
         self.style_context().add_class("property-window");
         self.imp().grid.set_expand(false);
         self.imp().grid.set_visible(true);
@@ -186,21 +188,18 @@ impl PropertyWindow {
         self.imp().title_label.set_margin_top(5);
         self.imp().title_label.set_halign(gtk::Align::Start);
         self.imp().title_label.set_visible(true);
-        self.imp().grid.attach(&self.imp().title_label, 0, 0, 1, 1);
-        self.imp().grid.attach(
-            &gtk::Separator::builder()
-                .expand(true)
-                .visible(true)
-                .vexpand(false)
-                .margin_bottom(10)
-                .valign(gtk::Align::Start)
-                .build(),
-            0,
-            1,
-            2,
-            1,
-        );
-        self.imp().rows.set(2);
+        self.add_subsection(&self.imp().title_label);
+        self.add_obj_properties(obj, create);
+    }
+
+    pub fn add_subsection(&self, label: &gtk::Label) {
+        let row = self.imp().rows.get();
+        self.imp().grid.attach(label, 0, row, 1, 1);
+        self.imp().rows.set(row + 1);
+        self.add_separator();
+    }
+
+    fn add_obj_properties(&self, obj: glib::Object, create: bool) {
         for prop in obj.list_properties().as_slice().iter().filter(|p| {
             (p.flags()
                 .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
@@ -688,7 +687,7 @@ impl PropertyWindow {
                 check_dirty_on_change!(Option<Layer>);
                 let val = val.get::<Option<Layer>>().unwrap();
                 let app = self.imp().app.get().unwrap();
-                let project = app.window.project();
+                let project = app.runtime.project.borrow().clone();
 
                 let entry = gtk::ComboBoxText::builder()
                     .sensitive(readwrite)
@@ -803,6 +802,24 @@ impl PropertyWindow {
         let label = get_label_for_property(property);
         self.add(property.name(), label, widget);
     }
+
+    pub fn add_extra_obj(&self, obj: glib::Object) {
+        self.add_separator();
+        self.add_subsection(
+            &gtk::Label::builder()
+                .label(&format!("<big><i>{}</i></big>", obj.type_().name()))
+                .use_markup(true)
+                .margin_top(5)
+                .halign(gtk::Align::Start)
+                .visible(true)
+                .build(),
+        );
+        self.add_obj_properties(
+            obj.clone(),
+            matches!(self.imp().type_.get().unwrap(), PropertyWindowType::Create),
+        );
+        self.imp().extra_objs.borrow_mut().push(obj);
+    }
 }
 
 impl PropertyWindowBuilder {
@@ -840,7 +857,7 @@ impl PropertyWindowBuilder {
             .visible(true)
             .halign(gtk::Align::Center)
             .build();
-        let ret: PropertyWindow = glib::Object::new(&[]).unwrap();
+        let mut ret: PropertyWindow = glib::Object::new(&[]).unwrap();
         ret.imp().app.set(self.app.clone()).unwrap();
         ret.object_to_property_grid(
             self.obj.clone(),
@@ -876,7 +893,11 @@ impl PropertyWindowBuilder {
                         for (prop, (is_dirty, val)) in ret.imp().initial_values.borrow().iter() {
                             is_dirty.set(false);
                             ret.notify(PropertyWindow::IS_DIRTY);
-                            _ = obj.try_set_property_from_value(prop.as_str(), val);
+                            for obj in std::iter::once(obj).chain(ret.imp().extra_objs.borrow().iter()) {
+                                if obj.try_set_property_from_value(prop.as_str(), val).is_ok() {
+                                    break;
+                                }
+                            }
                         }
                     }));
                     let close = gtk::Button::builder()
@@ -952,6 +973,7 @@ impl PropertyWindowBuilder {
                 first_widget.set_has_focus(true);
             }
         }
+        ret.imp().type_.set(self.type_).unwrap();
 
         ret
     }

@@ -23,31 +23,34 @@ use super::*;
 
 #[inline(always)]
 fn downcast<'a, T: glib::ObjectType + glib::IsA<glib::Object>>(
-    _app: &Application,
+    _runtime: &Runtime,
     type_name: &str,
     obj: &'a glib::Object,
     _id: Option<Uuid>,
 ) -> Result<&'a T, Box<dyn std::error::Error>> {
-    debug_assert_eq!(_app.register_obj(obj), ObjectRegistry::opt_id(obj).unwrap());
+    debug_assert_eq!(
+        _runtime.register_obj(obj),
+        ObjectRegistry::opt_id(obj).unwrap()
+    );
 
-    obj.downcast_ref::<T>().ok_or_else(|| format!("Fatal API error: requested object of type {type_name:?} from Application registry but got something else instead: {}", obj.type_().name()).into())
+    obj.downcast_ref::<T>().ok_or_else(|| format!("Fatal API error: requested object of type {type_name:?} from Runtime registry but got something else instead: {}", obj.type_().name()).into())
 }
 
-pub trait ObjRef<'app>: glib::ObjectExt {
-    fn obj_ref(identifier: Option<Uuid>, app: &'app Application) -> Self;
+pub trait ObjRef<'runtime>: glib::ObjectExt {
+    fn obj_ref(identifier: Option<Uuid>, runtime: &'runtime Runtime) -> Self;
 
     fn expose_field(
         _type_name: &str,
         _obj: &glib::Object,
         _identifier: Option<Uuid>,
         _field_name: &str,
-        _app: &'app Application,
+        _runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         None
     }
 }
 
-pub trait AttributeGetSet<'app>: glib::ObjectExt {
+pub trait AttributeGetSet<'runtime>: glib::ObjectExt {
     fn get(&self, name: &str) -> serde_json::Value {
         self.property::<String>(name).into()
     }
@@ -206,14 +209,14 @@ pub trait AttributeGetSet<'app>: glib::ObjectExt {
     }
 }
 
-impl<'app> ObjRef<'app> for crate::prelude::Application {
-    fn obj_ref(_id: Option<Uuid>, app: &'app Application) -> Self {
+impl<'runtime> ObjRef<'runtime> for crate::prelude::Runtime {
+    fn obj_ref(_id: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
         #[cfg(debug_assertions)]
         if let Some(id) = _id {
-            assert_eq!(id, app.register_obj(app.upcast_ref()));
+            assert_eq!(id, runtime.register_obj(runtime.upcast_ref()));
         }
 
-        app.clone()
+        runtime.clone()
     }
 
     fn expose_field(
@@ -221,7 +224,7 @@ impl<'app> ObjRef<'app> for crate::prelude::Application {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        app: &'app Application,
+        runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -229,20 +232,18 @@ impl<'app> ObjRef<'app> for crate::prelude::Application {
 
         match field_name {
             "project" => Some(Either::A(
-                app.register_obj(
-                    downcast::<Self>(app, type_name, obj, id)
+                runtime.register_obj(
+                    downcast::<Self>(runtime, type_name, obj, id)
                         .unwrap()
-                        .window
                         .project
                         .borrow()
                         .upcast_ref(),
                 ),
             )),
             "settings" => Some(Either::A(
-                app.register_obj(
-                    downcast::<Self>(app, type_name, obj, id)
+                runtime.register_obj(
+                    downcast::<Self>(runtime, type_name, obj, id)
                         .unwrap()
-                        .runtime
                         .settings
                         .upcast_ref(),
                 ),
@@ -252,9 +253,9 @@ impl<'app> ObjRef<'app> for crate::prelude::Application {
     }
 }
 
-impl<'app> ObjRef<'app> for ProjectParent {
-    fn obj_ref(_: Option<Uuid>, app: &'app Application) -> Self {
-        app.window.project().clone()
+impl<'runtime> ObjRef<'runtime> for ProjectParent {
+    fn obj_ref(_: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+        runtime.project.borrow().clone()
     }
 
     fn expose_field(
@@ -262,15 +263,15 @@ impl<'app> ObjRef<'app> for ProjectParent {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        app: &'app Application,
+        runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
         match field_name {
             "font_info" => Some(Either::A(
-                app.register_obj(
-                    downcast::<Self>(app, type_name, obj, id)
+                runtime.register_obj(
+                    downcast::<Self>(runtime, type_name, obj, id)
                         .unwrap()
                         .fontinfo
                         .borrow()
@@ -278,8 +279,8 @@ impl<'app> ObjRef<'app> for ProjectParent {
                 ),
             )),
             "default_layer" => Some(Either::A(
-                app.register_obj(
-                    downcast::<Self>(app, type_name, obj, id)
+                runtime.register_obj(
+                    downcast::<Self>(runtime, type_name, obj, id)
                         .unwrap()
                         .default_layer
                         .upcast_ref(),
@@ -287,7 +288,7 @@ impl<'app> ObjRef<'app> for ProjectParent {
             )),
             "path" => Some(Either::B(ObjectValue {
                 py_type: PyType::String,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .path
                     .borrow()
@@ -298,9 +299,9 @@ impl<'app> ObjRef<'app> for ProjectParent {
     }
 }
 
-impl<'app> ObjRef<'app> for crate::app::Settings {
-    fn obj_ref(_: Option<Uuid>, app: &'app Application) -> Self {
-        app.runtime.settings.clone()
+impl<'runtime> ObjRef<'runtime> for crate::app::Settings {
+    fn obj_ref(_: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+        runtime.settings.clone()
     }
 
     fn expose_field(
@@ -308,7 +309,7 @@ impl<'app> ObjRef<'app> for crate::app::Settings {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        app: &'app Application,
+        runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -317,16 +318,18 @@ impl<'app> ObjRef<'app> for crate::app::Settings {
             "path" => Some(Either::B(ObjectValue {
                 py_type: PyType::String,
                 // [ref:settings_path()_sync_return_value]
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id).unwrap().path()),
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
+                    .unwrap()
+                    .path()),
             })),
             _ => None,
         }
     }
 }
 
-impl<'app> ObjRef<'app> for crate::ufo::objects::FontInfo {
-    fn obj_ref(_: Option<Uuid>, app: &'app Application) -> Self {
-        app.window.project().fontinfo.borrow().clone()
+impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::FontInfo {
+    fn obj_ref(_: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+        runtime.project.borrow().fontinfo.borrow().clone()
     }
 
     fn expose_field(
@@ -334,7 +337,7 @@ impl<'app> ObjRef<'app> for crate::ufo::objects::FontInfo {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        app: &'app Application,
+        runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -342,14 +345,14 @@ impl<'app> ObjRef<'app> for crate::ufo::objects::FontInfo {
         match field_name {
             "path" => Some(Either::B(ObjectValue {
                 py_type: PyType::String,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .path()
                     .to_path_buf()),
             })),
             "modified" => Some(Either::B(ObjectValue {
                 py_type: PyType::Bool,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .modified()),
             })),
@@ -358,10 +361,10 @@ impl<'app> ObjRef<'app> for crate::ufo::objects::FontInfo {
     }
 }
 
-impl<'app> ObjRef<'app> for crate::ufo::objects::Layer {
-    fn obj_ref(id: Option<Uuid>, app: &'app Application) -> Self {
+impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::Layer {
+    fn obj_ref(id: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
         // [ref:TODO] return Option
-        app.get_obj(id.unwrap()).unwrap().downcast().unwrap()
+        runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
     }
 
     fn expose_field(
@@ -369,7 +372,7 @@ impl<'app> ObjRef<'app> for crate::ufo::objects::Layer {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        app: &'app Application,
+        runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -377,27 +380,27 @@ impl<'app> ObjRef<'app> for crate::ufo::objects::Layer {
         match field_name {
             "path" => Some(Either::B(ObjectValue {
                 py_type: PyType::String,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .path()
                     .to_path_buf()),
             })),
             "modified" => Some(Either::B(ObjectValue {
                 py_type: PyType::Bool,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .modified()),
             })),
             "glyphs" => Some(Either::B(ObjectValue {
                 py_type: PyType::Dict,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .glyphs()
                     .iter()
                     .map(|(k, v)| {
                         (
                             k.clone(),
-                            PyUuid(app.register_obj(v.borrow().metadata.upcast_ref())),
+                            PyUuid(runtime.register_obj(v.borrow().metadata.upcast_ref())),
                         )
                     })
                     .collect::<IndexMap<String, PyUuid>>()),
@@ -407,10 +410,10 @@ impl<'app> ObjRef<'app> for crate::ufo::objects::Layer {
     }
 }
 
-impl<'app> ObjRef<'app> for crate::prelude::GlyphMetadata {
-    fn obj_ref(id: Option<Uuid>, app: &'app Application) -> Self {
+impl<'runtime> ObjRef<'runtime> for crate::prelude::GlyphMetadata {
+    fn obj_ref(id: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
         // [ref:TODO] return Option
-        app.get_obj(id.unwrap()).unwrap().downcast().unwrap()
+        runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
     }
 
     fn expose_field(
@@ -418,7 +421,7 @@ impl<'app> ObjRef<'app> for crate::prelude::GlyphMetadata {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        app: &'app Application,
+        runtime: &'runtime Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -426,13 +429,13 @@ impl<'app> ObjRef<'app> for crate::prelude::GlyphMetadata {
         match field_name {
             "modified" => Some(Either::B(ObjectValue {
                 py_type: PyType::Bool,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .modified()),
             })),
             /*"unicode" => Some(Either::B(ObjectValue {
                 py_type: PyType::List,
-                value: serde_json::json!(downcast::<Self>(app, type_name, obj, id)
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .unicode()
                     .iter()
@@ -444,7 +447,7 @@ impl<'app> ObjRef<'app> for crate::prelude::GlyphMetadata {
     }
 }
 
-impl<'app> AttributeGetSet<'app> for glib::Object {}
+impl<'runtime> AttributeGetSet<'runtime> for glib::Object {}
 
 #[derive(Debug, Default)]
 pub struct ObjectRegistry {

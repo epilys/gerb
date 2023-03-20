@@ -570,10 +570,11 @@ impl Editor {
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
 
-    pub fn new(app: Application, project: Project, glyph: Rc<RefCell<Glyph>>) -> Self {
+    pub fn new(app: Application, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
         ret.glyph.set(glyph.clone()).unwrap();
         ret.app.set(app.clone()).unwrap();
+        let project = app.runtime.project.borrow().clone();
         ret.connect_map(|self_| {
             let status = self_.app().statusbar().message_area().unwrap();
             status.pack_end(&self_.shortcut_status, false, false, 1);

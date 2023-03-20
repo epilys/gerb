@@ -37,9 +37,6 @@ pub enum Request {
         property: String,
         action: Action,
     },
-    Action {
-        name: String,
-    },
 }
 
 impl Request {

@@ -29,7 +29,7 @@
 //!
 //! User input is sent to the python thread via a regular [`std::sync::mpsc::channel`] channel.
 //!
-//! The python thread sends API requests to a [`glib::MainContext`] channel. The [`Application`]
+//! The python thread sends API requests to a [`glib::MainContext`] channel. The [`Runtime`]
 //! object handles it, and replies to the python thread through another
 //! [`std::sync::mpsc::channel`].
 
@@ -207,10 +207,10 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     entry.style_context().add_class("terminal-entry");
     entry.set_visible(true);
     let shell = ShellInstance::new(
-        app.clone(),
+        app.runtime.clone(),
         // [ref:python_api_main_loop_channel]
         clone!(@weak app => @default-return Continue(false), move |tx: &mpsc::Sender<String>, msg: String| {
-            let response = process_api_request(&app, msg);
+            let response = process_api_request(&app.runtime, msg);
             if let Err(ref err) = response {
                 let dialog = crate::utils::widgets::new_simple_error_dialog(
                     None,
@@ -226,7 +226,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             tx.send(json.to_string()).unwrap();
             Continue(true)
         }),
-        clone!(@weak app, @weak list, @weak adj => @default-return Continue(false), move |hist, (prefix, mut msg)| {
+        clone!(@weak list => @default-return Continue(false), move |hist, (prefix, mut msg)| {
             if !msg.is_empty() {
                 while msg.ends_with('\n') {
                     msg.pop();
@@ -254,7 +254,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         adj.set_value(adj.upper());
     }));
 
-    entry.connect_activate(clone!(@weak app, @weak list, @weak adj => move |entry| {
+    entry.connect_activate(clone!(@weak adj => move |entry| {
         let buffer = entry.buffer();
         let text = buffer.text();
         buffer.set_text("");
@@ -264,7 +264,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     }));
     entry.set_events(gdk::EventMask::KEY_PRESS_MASK);
     entry.connect_key_press_event(
-        clone!(@weak app, @weak list, @weak adj, @weak hist => @default-return Inhibit(false), move |entry, event| {
+        clone!(@weak hist => @default-return Inhibit(false), move |entry, event| {
             if event.keyval() == gdk::keys::constants::Up {
                 if let Some(prev) = hist.borrow().prev() {
                     entry.buffer().set_text(prev);
@@ -584,7 +584,7 @@ pub struct ShellInstance {
 
 impl ShellInstance {
     pub fn new(
-        app: Application,
+        runtime: Runtime,
         mut main_loop_rx: impl FnMut(&mpsc::Sender<String>, String) -> Continue + 'static,
         mut stdout_rx: impl FnMut(&Rc<RefCell<ShellHistory>>, (LinePrefix, String)) -> Continue
             + 'static,
@@ -593,9 +593,9 @@ impl ShellInstance {
             let dict: Py<PyDict> = PyDict::new(py).into();
             dict
         });
-        let app_id = app.register_obj(app.upcast_ref());
+        let runtime_id = runtime.register_obj(runtime.upcast_ref());
         let globals_dict: Py<PyDict> =
-            Python::with_gil(|py| setup_globals(py, app_id, &locals_dict).unwrap());
+            Python::with_gil(|py| setup_globals(py, runtime_id, &locals_dict).unwrap());
 
         let hist = Rc::new(RefCell::new(ShellHistory {
             cursor: Cell::new(0),
@@ -606,10 +606,10 @@ impl ShellInstance {
         let (tx, rx) = MainContext::channel::<(LinePrefix, String)>(PRIORITY_DEFAULT);
         // shell stdin channel
         let (tx_shell, rx_shell) = std::sync::mpsc::channel::<String>();
-        // shell -> app channel
+        // shell -> runtime channel
         // [ref:python_api_main_loop_channel]
         let (tx_py, rx_py) = MainContext::channel(PRIORITY_DEFAULT);
-        // app -> shell channel
+        // runtime -> shell channel
         // [ref:python_api_response_channel]
         let (tx_py2, rx_py2) = std::sync::mpsc::channel::<String>();
 

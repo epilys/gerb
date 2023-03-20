@@ -31,7 +31,6 @@ use gtk::glib::subclass::Signal;
 pub struct WindowInner {
     pub root_box: gtk::Box,
     pub welcome_banner: gtk::Box,
-    pub project: RefCell<Project>,
     pub headerbar: gtk::HeaderBar,
     pub statusbar: gtk::Statusbar,
     pub notebook: gtk::Notebook,
@@ -64,7 +63,7 @@ impl ObjectImpl for WindowInner {
         self.root_box.set_orientation(gtk::Orientation::Vertical);
 
         let welcome_label = gtk::Label::builder().label(
-            "This is an empty project. You can edit it, open another project or import from a compatible format."
+            "You can create a new UFO project, open an existing one or import from a compatible format."
         ).visible(true).wrap(true).halign(gtk::Align::Center).build();
         self.welcome_banner.set_visible(true);
         self.welcome_banner.set_expand(true);
@@ -323,25 +322,8 @@ impl WindowInner {
                 project.property::<String>("name").as_str()
             ),
         );
-        /*
-        let item_groups = widgets.tool_palette.children();
-        if item_groups
-            .iter()
-            .any(|g| g == widgets.create_item_group.upcast_ref::<gtk::Widget>())
         {
-            widgets.tool_palette.remove(&widgets.create_item_group);
-        }
-        if !item_groups
-            .iter()
-            .any(|g| g == widgets.project_item_group.upcast_ref::<gtk::Widget>())
-        {
-            widgets.tool_palette.add(&widgets.project_item_group);
-            widgets.project_item_group.set_visible(true);
-        }
-        */
-        //widgets.sidebar.load_project(&project);
-        {
-            *self.project.borrow_mut() = project.clone();
+            *self.application().runtime.project.borrow_mut() = project.clone();
         }
         self.notebook.foreach(|tab| {
             self.notebook.remove(tab);
@@ -359,11 +341,7 @@ impl WindowInner {
     }
 
     pub fn edit_glyph(&self, glyph: &Rc<RefCell<crate::glyphs::Glyph>>) {
-        let edit_view = Editor::new(
-            self.application(),
-            self.project.borrow().clone(),
-            glyph.clone(),
-        );
+        let edit_view = Editor::new(self.application(), glyph.clone());
         add_tab(
             &self.notebook,
             Workspace::new(edit_view.upcast_ref::<gtk::Widget>()).upcast_ref::<gtk::Widget>(),
@@ -374,24 +352,8 @@ impl WindowInner {
 
     pub fn unload_project(&self) {
         self.headerbar.set_subtitle(None);
-        /*
-        let item_groups = widgets.tool_palette.children();
-        if item_groups
-            .iter()
-            .any(|g| g == widgets.project_item_group.upcast_ref::<gtk::Widget>())
-        {
-            widgets.tool_palette.remove(&widgets.project_item_group);
-        }
-        if !item_groups
-            .iter()
-            .any(|g| g == widgets.create_item_group.upcast_ref::<gtk::Widget>())
-        {
-            widgets.tool_palette.add(&widgets.create_item_group);
-        }
-        widgets.tool_palette.queue_draw();
-        */
         self.notebook.queue_draw();
-        *self.project.borrow_mut() = Project::new();
+        *self.application().runtime.project.borrow_mut() = Project::new();
     }
 
     pub fn application(&self) -> Application {
@@ -429,9 +391,5 @@ impl Default for Window {
 impl Window {
     pub fn new() -> Self {
         glib::Object::new(&[]).expect("Failed to create Main Window")
-    }
-
-    pub fn project(&self) -> FieldRef<'_, Project> {
-        self.project.borrow().into()
     }
 }
