@@ -118,8 +118,6 @@ pub struct ApplicationInner {
     pub runtime: Runtime,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
-    #[cfg(feature = "python")]
-    pub api_registry: RefCell<crate::api::ObjectRegistry>,
 }
 
 #[glib::object_subclass]
@@ -505,13 +503,13 @@ impl ApplicationInner {
 
     #[cfg(feature = "python")]
     pub fn register_obj(&self, obj: &glib::Object) -> Uuid {
-        let mut registry = self.api_registry.borrow_mut();
+        let mut registry = self.runtime.api_registry.borrow_mut();
         registry.add(obj)
     }
 
     #[cfg(feature = "python")]
     pub fn get_obj(&self, id: Uuid) -> Option<glib::Object> {
-        let registry = self.api_registry.borrow();
+        let registry = self.runtime.api_registry.borrow();
         registry.get(id)
     }
 }
