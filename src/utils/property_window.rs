@@ -756,6 +756,39 @@ impl PropertyWindow {
                 layer_box.add(&l);
                 layer_box.upcast()
             }
+            "Theme" => {
+                check_dirty_on_change!(Theme);
+                let val = val.get::<Theme>().unwrap();
+
+                let entry = gtk::ComboBoxText::builder()
+                    .sensitive(readwrite)
+                    .visible(true)
+                    .halign(gtk::Align::Start)
+                    .valign(gtk::Align::Start)
+                    .build();
+                obj.bind_property(property.name(), &entry, "active-id")
+                    .transform_to(|_, val| {
+                        let theme = val.get::<Theme>().ok()?;
+                        Some(theme.name().to_value())
+                    })
+                    .flags(glib::BindingFlags::SYNC_CREATE)
+                    .build();
+                if !readwrite {
+                    entry.style_read_only(readwrite);
+                } else {
+                    entry.connect_changed(clone!(@weak obj, @strong property => move |entry| {
+                        let Some(active_id) = entry.active_id() else { return; };
+                        let Some(val)= Theme::kebab_str_deserialize(&active_id) else { return; };
+                        obj.set_property(property.name(), val);
+                    }));
+                }
+                let active_id: Cow<'static, str> = val.name().into();
+                for v in Theme::kebab_case_variants() {
+                    entry.append(Some(v), v);
+                }
+                entry.set_active_id(Some(active_id.as_ref()));
+                entry.upcast()
+            }
             _other => gtk::Label::builder()
                 .label(&format!("{:?}", val))
                 .visible(true)

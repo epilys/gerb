@@ -28,7 +28,7 @@ pub trait EnumValue: glib::value::ToValue + Sized {
         v.nick().to_string()
     }
 
-    fn deserialize<'de>(item: Option<&toml_edit::Item>) -> Option<Self>
+    fn toml_deserialize<'de>(item: Option<&toml_edit::Item>) -> Option<Self>
     where
         Self: Deserialize<'de>,
     {
@@ -39,6 +39,19 @@ pub trait EnumValue: glib::value::ToValue + Sized {
             .map(toml_edit::Value::into_deserializer)
             .and_then(|p| <Self as Deserialize>::deserialize(p).ok())
     }
+
+    fn kebab_str_deserialize<'de>(s: &str) -> Option<Self>
+    where
+        Self: Deserialize<'de>,
+    {
+        use serde::de::IntoDeserializer;
+        <Self as Deserialize>::deserialize(toml_edit::Value::into_deserializer(
+            toml_edit::value(s).into_value().ok()?,
+        ))
+        .ok()
+    }
+
+    fn kebab_case_variants() -> &'static [&'static str];
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, PartialEq, Eq, glib::Enum)]
@@ -51,7 +64,11 @@ pub enum MarkColor {
     Icon,
 }
 
-impl EnumValue for MarkColor {}
+impl EnumValue for MarkColor {
+    fn kebab_case_variants() -> &'static [&'static str] {
+        &["none", "background", "icon"]
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, PartialEq, Eq, glib::Enum)]
 #[enum_type(name = "ShowMinimap")]
@@ -63,7 +80,30 @@ pub enum ShowMinimap {
     WhenManipulating,
 }
 
-impl EnumValue for ShowMinimap {}
+impl EnumValue for ShowMinimap {
+    fn kebab_case_variants() -> &'static [&'static str] {
+        &["never", "always", "when-manipulating"]
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Copy, Clone, PartialEq, Eq, glib::Enum)]
+#[enum_type(name = "Theme")]
+#[serde(rename_all = "kebab-case")]
+pub enum Theme {
+    SystemDefault,
+    #[default]
+    Paperwhite,
+}
+
+impl EnumValue for Theme {
+    fn kebab_case_variants() -> &'static [&'static str] {
+        &["system-default", "paperwhite"]
+    }
+}
+
+impl Theme {
+    pub const PAPERWHITE_CSS: &[u8] = include_bytes!("../../themes/paperwhite/gtk.css");
+}
 
 #[test]
 fn test_parse_toml() {
@@ -83,11 +123,24 @@ color = "#E6E6E4"
     assert_eq!(doc["line-width"].as_float().unwrap(), 1.0);
     assert!(!doc["warp-cursor"].as_bool().unwrap());
     assert_eq!(
-        <MarkColor as EnumValue>::deserialize(Some(&doc["mark-color"])).unwrap(),
+        <MarkColor as EnumValue>::toml_deserialize(Some(&doc["mark-color"])).unwrap(),
         MarkColor::None
     );
     assert_eq!(
         Color::from_hex(doc["canvas"]["color"].as_str().unwrap()),
         Color::from_hex("#E6E6E4")
+    );
+    let doc = r#"theme = "system-default"
+other-theme = "paperwhite"
+    "#
+    .parse::<Document>()
+    .unwrap();
+    assert_eq!(
+        <Theme as EnumValue>::toml_deserialize(Some(&doc["theme"])).unwrap(),
+        Theme::SystemDefault
+    );
+    assert_eq!(
+        <Theme as EnumValue>::toml_deserialize(Some(&doc["other-theme"])).unwrap(),
+        Theme::Paperwhite
     );
 }

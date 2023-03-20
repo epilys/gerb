@@ -123,15 +123,6 @@ impl ApplicationImpl for ApplicationInner {
         self.window.setup_actions();
         self.build_system_menu(app);
 
-        let css_provider = gtk::CssProvider::new();
-        css_provider
-            .load_from_data(include_bytes!("./custom.css"))
-            .unwrap();
-        gtk::StyleContext::add_provider_for_screen(
-            &gtk::gdk::Screen::default().unwrap(),
-            &css_provider,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
         self.window.show_all();
         if let Some(path) = self.env_args.get().and_then(|args| args.clone().pop()) {
             self.window.emit_by_name::<()>("open-project", &[&path]);

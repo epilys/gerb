@@ -54,6 +54,8 @@ pub struct SettingsInner {
     pub document: Rc<RefCell<Document>>,
     pub ui_font: Rc<RefCell<gtk::pango::FontDescription>>,
     pub show_prerelease_warning: Cell<bool>,
+    pub theme: Cell<types::Theme>,
+    default_provider: OnceCell<gtk::CssProvider>,
 }
 
 impl SettingsInner {
@@ -139,6 +141,7 @@ impl SettingsInner {
             document[Settings::GUIDELINE_WIDTH] = toml_value(self.guideline_width.get());
             document[Settings::WARP_CURSOR] = toml_value(self.warp_cursor.get());
             document[Settings::MARK_COLOR] = toml_value(self.mark_color.get().name());
+            document[Settings::THEME] = toml_value(self.theme.get().name());
             document[Settings::SHOW_PRERELEASE_WARNING] =
                 toml_value(self.show_prerelease_warning.get());
             file.rewind()?;
@@ -257,9 +260,9 @@ impl SettingsInner {
             } else if prop.value_type() == i64::static_type() {
                 set_if_neq!(i64, document[&type_name][prop.name()].as_integer().unwrap());
             } else if prop.value_type() == types::MarkColor::static_type() {
-                set_if_neq!(types::MarkColor, opt types::MarkColor::deserialize(document[&type_name].get(prop.name())));
+                set_if_neq!(types::MarkColor, opt types::MarkColor::toml_deserialize(document[&type_name].get(prop.name())));
             } else if prop.value_type() == types::ShowMinimap::static_type() {
-                set_if_neq!(types::ShowMinimap, opt types::ShowMinimap::deserialize(document[&type_name].get(prop.name())));
+                set_if_neq!(types::ShowMinimap, opt types::ShowMinimap::toml_deserialize(document[&type_name].get(prop.name())));
             }
         }
     }
@@ -297,7 +300,15 @@ impl SettingsInner {
         }
         /* enums */
         for (prop, field) in [(Settings::MARK_COLOR, &self.mark_color)] {
-            if let Some(v) = types::MarkColor::deserialize(document.get(prop)) {
+            if let Some(v) = types::MarkColor::toml_deserialize(document.get(prop)) {
+                field.set(v);
+            } else {
+                document[prop] = toml_value(field.get().name());
+                save = true;
+            }
+        }
+        for (prop, field) in [(Settings::THEME, &self.theme)] {
+            if let Some(v) = types::Theme::toml_deserialize(document.get(prop)) {
                 field.set(v);
             } else {
                 document[prop] = toml_value(field.get().name());
@@ -308,6 +319,7 @@ impl SettingsInner {
         if save {
             self.save_settings()?;
         }
+        self.reload_theme();
         Ok(())
     }
 
@@ -346,15 +358,15 @@ impl SettingsInner {
                             document[&type_name][prop.name()].as_integer().unwrap(),
                         );
                     } else if prop.value_type() == types::MarkColor::static_type() {
-                        if let Some(v) =
-                            types::MarkColor::deserialize(document[&type_name].get(prop.name()))
-                        {
+                        if let Some(v) = types::MarkColor::toml_deserialize(
+                            document[&type_name].get(prop.name()),
+                        ) {
                             obj.set_property(prop.name(), v);
                         }
                     } else if prop.value_type() == types::ShowMinimap::static_type() {
-                        if let Some(v) =
-                            types::ShowMinimap::deserialize(document[&type_name].get(prop.name()))
-                        {
+                        if let Some(v) = types::ShowMinimap::toml_deserialize(
+                            document[&type_name].get(prop.name()),
+                        ) {
                             obj.set_property(prop.name(), v);
                         }
                     }
@@ -384,6 +396,24 @@ impl SettingsInner {
     pub fn path(&self) -> Option<PathBuf> {
         self.file.borrow().as_ref().map(|(p, _)| p.to_path_buf())
     }
+
+    fn reload_theme(&self) {
+        match self.theme.get() {
+            types::Theme::SystemDefault => {
+                gtk::StyleContext::remove_provider_for_screen(
+                    &gtk::gdk::Screen::default().unwrap(),
+                    self.default_provider.get().unwrap(),
+                );
+            }
+            types::Theme::Paperwhite => {
+                gtk::StyleContext::add_provider_for_screen(
+                    &gtk::gdk::Screen::default().unwrap(),
+                    self.default_provider.get().unwrap(),
+                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+            }
+        }
+    }
 }
 
 #[glib::object_subclass]
@@ -402,6 +432,11 @@ impl ObjectImpl for SettingsInner {
         self.guideline_width.set(Self::GUIDELINE_WIDTH_INIT_VAL);
         self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
         self.show_prerelease_warning.set(true);
+        let css_provider = gtk::CssProvider::new();
+        css_provider
+            .load_from_data(types::Theme::PAPERWHITE_CSS)
+            .unwrap();
+        self.default_provider.set(css_provider).unwrap();
 
         self.init_file().unwrap();
         self.load_settings().unwrap();
@@ -460,6 +495,14 @@ impl ObjectImpl for SettingsInner {
                         types::MarkColor::None as i32,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
+                    glib::ParamSpecEnum::new(
+                        Settings::THEME,
+                        Settings::THEME,
+                        "UI theme.",
+                        types::Theme::static_type(),
+                        types::Theme::Paperwhite as i32,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
                     glib::ParamSpecBoxed::new(
                         Settings::UI_FONT,
                         Settings::UI_FONT,
@@ -480,6 +523,7 @@ impl ObjectImpl for SettingsInner {
             Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
             Settings::SHOW_PRERELEASE_WARNING => self.show_prerelease_warning.get().to_value(),
             Settings::MARK_COLOR => self.mark_color.get().to_value(),
+            Settings::THEME => self.theme.get().to_value(),
             Settings::UI_FONT => self.ui_font.borrow().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -517,6 +561,11 @@ impl ObjectImpl for SettingsInner {
                 self.mark_color.set(value.get().unwrap());
                 self.save_settings().unwrap();
             }
+            Settings::THEME => {
+                self.theme.set(value.get().unwrap());
+                self.reload_theme();
+                self.save_settings().unwrap();
+            }
             Settings::UI_FONT => {
                 *self.ui_font.borrow_mut() = value.get().unwrap();
                 self.save_settings().unwrap();
@@ -540,6 +589,7 @@ impl Settings {
     pub const MARK_COLOR: &str = "mark-color";
     pub const UI_FONT: &str = "ui-font";
     pub const SHOW_PRERELEASE_WARNING: &str = "show-prerelease-warning";
+    pub const THEME: &str = "theme";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()

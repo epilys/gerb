@@ -1,31 +1,46 @@
+.POSIX:
+.SUFFIXES:
+CARGOBIN	= cargo
+TAGREFBIN = tagref
+BLACKBIN = black
+SASSCBIN = sassc
+SASSCOPTS = -a -M -t compact
+PRINTF = /usr/bin/printf
+
 fmt: pyfmt
-	cargo fmt
-	cargo sort
-	cargo clippy --bin gerb
+	$(CARGOBIN) fmt
+	$(CARGOBIN) sort
+	$(CARGOBIN) clippy --bin gerb
 
 .PHONY: check
 check: tags
-	cargo check --bin gerb
+	$(CARGOBIN) check --bin gerb
 
 .PHONY: tags
 tags:
-	@which tagref > /dev/null && tagref || (printf "Warning: tagref binary not in PATH.\n" 1>&2)
+	@which $(TAGREFBIN) > /dev/null && $(TAGREFBIN) || ($(PRINTF) "Warning: tagref binary not in PATH.\n" 1>&2)
 
 .PHONY: pyfmt
 pyfmt:
-	@which black > /dev/null && (find src -name "*.py" | xargs black) || (printf "Warning: black binary not in PATH.\n" 1>&2)
+	@which $(BLACKBIN) > /dev/null && (find src -name "*.py" | xargs $(BLACKBIN)) || ($(PRINTF) "Warning: black binary not in PATH.\n" 1>&2)
 
 .PHONY: feature-check
 feature-check: check
 	# No features
-	@sh -c 'cargo check --bin gerb --no-default-features || (export EXIT="$$?"; /usr/bin/printf "--no-default-features fails cargo check.\n" && exit $$EXIT)'
-	@cargo clippy --bin gerb --no-default-features
+	@sh -c '$(CARGOBIN) check --bin gerb --no-default-features || (export EXIT="$$?"; $(PRINTF) "--no-default-features fails cargo check.\n" && exit $$EXIT)'
+	@$(CARGOBIN) clippy --bin gerb --no-default-features
 	# `git`
-	@sh -c 'cargo check --bin gerb --no-default-features --features git || (export EXIT="$$?"; /usr/bin/printf "--features git fails cargo check.\n" && exit $$EXIT)'
-	@cargo clippy --bin gerb --no-default-features --features git
+	@sh -c '$(CARGOBIN) check --bin gerb --no-default-features --features git || (export EXIT="$$?"; $(PRINTF) "--features git fails cargo check.\n" && exit $$EXIT)'
+	@$(CARGOBIN) clippy --bin gerb --no-default-features --features git
 	# `python`
-	@sh -c 'cargo check --bin gerb --no-default-features --features python || (export EXIT="$$?"; /usr/bin/printf "--features python fails cargo check.\n" && exit $$EXIT)'
-	@cargo clippy --bin gerb --no-default-features --features python
+	@sh -c '$(CARGOBIN) check --bin gerb --no-default-features --features python || (export EXIT="$$?"; $(PRINTF) "--features python fails cargo check.\n" && exit $$EXIT)'
+	@$(CARGOBIN) clippy --bin gerb --no-default-features --features python
 	# all features
-	@sh -c 'cargo check --bin gerb --all-features || (export EXIT="$$?"; /usr/bin/printf "--all-features fails cargo check.\n" && exit $$EXIT)'
-	@cargo clippy --bin gerb --all-features
+	@sh -c '$(CARGOBIN) check --bin gerb --all-features || (export EXIT="$$?"; $(PRINTF) "--all-features fails cargo check.\n" && exit $$EXIT)'
+	@$(CARGOBIN) clippy --bin gerb --all-features
+
+src/themes/paperwhite/gtk.css: src/themes/paperwhite/*.scss
+	$(SASSCBIN) $(SASSCOPTS) "src/themes/paperwhite/gtk.scss" "src/themes/paperwhite/gtk.css"
+
+.PHONY:
+themes: src/themes/paperwhite/gtk.css
