@@ -868,7 +868,7 @@ impl ObjectImpl for GlyphBoxInner {
             if mark_color.is_visible() {
                 use crate::app::settings::types::MarkColor;
                 let app = obj.imp().app.get().unwrap();
-                let settings = &app.settings.borrow();
+                let settings = &app.runtime.settings;
                 match settings.property::<MarkColor>(Settings::MARK_COLOR) {
                     MarkColor::None => {},
                     MarkColor::Background => {

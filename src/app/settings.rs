@@ -55,7 +55,161 @@ pub struct SettingsInner {
     pub ui_font: Rc<RefCell<gtk::pango::FontDescription>>,
     pub show_prerelease_warning: Cell<bool>,
     pub theme: Cell<types::Theme>,
-    default_provider: OnceCell<gtk::CssProvider>,
+    default_provider: gtk::CssProvider,
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for SettingsInner {
+    const NAME: &'static str = "Settings";
+    type Type = Settings;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+impl ObjectImpl for SettingsInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.handle_size.set(Self::HANDLE_SIZE_INIT_VAL);
+        self.line_width.set(Self::LINE_WIDTH_INIT_VAL);
+        self.guideline_width.set(Self::GUIDELINE_WIDTH_INIT_VAL);
+        self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
+        self.show_prerelease_warning.set(true);
+        self.default_provider
+            .load_from_data(types::Theme::PAPERWHITE_CSS)
+            .unwrap();
+    }
+
+    fn properties() -> &'static [glib::ParamSpec] {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
+                vec![
+                    glib::ParamSpecDouble::new(
+                        Settings::HANDLE_SIZE,
+                        Settings::HANDLE_SIZE,
+                        Settings::HANDLE_SIZE,
+                        0.0001,
+                        10.0,
+                        SettingsInner::HANDLE_SIZE_INIT_VAL,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecDouble::new(
+                        Settings::LINE_WIDTH,
+                        Settings::LINE_WIDTH,
+                        Settings::LINE_WIDTH,
+                        0.0001,
+                        10.0,
+                        SettingsInner::LINE_WIDTH_INIT_VAL,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecDouble::new(
+                        Settings::GUIDELINE_WIDTH,
+                        Settings::GUIDELINE_WIDTH,
+                        Settings::GUIDELINE_WIDTH,
+                        0.0001,
+                        10.0,
+                        SettingsInner::GUIDELINE_WIDTH_INIT_VAL,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        Settings::WARP_CURSOR,
+                        Settings::WARP_CURSOR,
+                        Settings::WARP_CURSOR,
+                        SettingsInner::WARP_CURSOR_INIT_VAL,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        Settings::SHOW_PRERELEASE_WARNING,
+                        Settings::SHOW_PRERELEASE_WARNING,
+                        Settings::SHOW_PRERELEASE_WARNING,
+                        true,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecEnum::new(
+                        Settings::MARK_COLOR,
+                        Settings::MARK_COLOR,
+                        "Show glyph mark colors in UI.",
+                        types::MarkColor::static_type(),
+                        types::MarkColor::None as i32,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecEnum::new(
+                        Settings::THEME,
+                        Settings::THEME,
+                        "UI theme.",
+                        types::Theme::static_type(),
+                        types::Theme::Paperwhite as i32,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoxed::new(
+                        Settings::UI_FONT,
+                        Settings::UI_FONT,
+                        Settings::UI_FONT,
+                        gtk::pango::FontDescription::static_type(),
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                ]
+            });
+        PROPERTIES.as_ref()
+    }
+
+    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
+        match pspec.name() {
+            Settings::HANDLE_SIZE => self.handle_size.get().to_value(),
+            Settings::LINE_WIDTH => self.line_width.get().to_value(),
+            Settings::GUIDELINE_WIDTH => self.guideline_width.get().to_value(),
+            Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
+            Settings::SHOW_PRERELEASE_WARNING => self.show_prerelease_warning.get().to_value(),
+            Settings::MARK_COLOR => self.mark_color.get().to_value(),
+            Settings::THEME => self.theme.get().to_value(),
+            Settings::UI_FONT => self.ui_font.borrow().to_value(),
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
+
+    fn set_property(
+        &self,
+        _obj: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        match pspec.name() {
+            Settings::HANDLE_SIZE => {
+                self.handle_size.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::LINE_WIDTH => {
+                self.line_width.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::GUIDELINE_WIDTH => {
+                self.guideline_width.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::WARP_CURSOR => {
+                self.warp_cursor.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::SHOW_PRERELEASE_WARNING => {
+                self.show_prerelease_warning.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::MARK_COLOR => {
+                self.mark_color.set(value.get().unwrap());
+                self.save_settings().unwrap();
+            }
+            Settings::THEME => {
+                self.theme.set(value.get().unwrap());
+                self.reload_theme();
+                self.save_settings().unwrap();
+            }
+            Settings::UI_FONT => {
+                *self.ui_font.borrow_mut() = value.get().unwrap();
+                self.save_settings().unwrap();
+            }
+            _ => unimplemented!("{}", pspec.name()),
+        }
+    }
 }
 
 impl SettingsInner {
@@ -402,175 +556,16 @@ impl SettingsInner {
             types::Theme::SystemDefault => {
                 gtk::StyleContext::remove_provider_for_screen(
                     &gtk::gdk::Screen::default().unwrap(),
-                    self.default_provider.get().unwrap(),
+                    &self.default_provider,
                 );
             }
             types::Theme::Paperwhite => {
                 gtk::StyleContext::add_provider_for_screen(
                     &gtk::gdk::Screen::default().unwrap(),
-                    self.default_provider.get().unwrap(),
+                    &self.default_provider,
                     gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
                 );
             }
-        }
-    }
-}
-
-#[glib::object_subclass]
-impl ObjectSubclass for SettingsInner {
-    const NAME: &'static str = "Settings";
-    type Type = Settings;
-    type ParentType = glib::Object;
-    type Interfaces = ();
-}
-
-impl ObjectImpl for SettingsInner {
-    fn constructed(&self, obj: &Self::Type) {
-        self.parent_constructed(obj);
-        self.handle_size.set(Self::HANDLE_SIZE_INIT_VAL);
-        self.line_width.set(Self::LINE_WIDTH_INIT_VAL);
-        self.guideline_width.set(Self::GUIDELINE_WIDTH_INIT_VAL);
-        self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
-        self.show_prerelease_warning.set(true);
-        let css_provider = gtk::CssProvider::new();
-        css_provider
-            .load_from_data(types::Theme::PAPERWHITE_CSS)
-            .unwrap();
-        self.default_provider.set(css_provider).unwrap();
-
-        self.init_file().unwrap();
-        self.load_settings().unwrap();
-    }
-
-    fn properties() -> &'static [glib::ParamSpec] {
-        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
-            once_cell::sync::Lazy::new(|| {
-                vec![
-                    glib::ParamSpecDouble::new(
-                        Settings::HANDLE_SIZE,
-                        Settings::HANDLE_SIZE,
-                        Settings::HANDLE_SIZE,
-                        0.0001,
-                        10.0,
-                        SettingsInner::HANDLE_SIZE_INIT_VAL,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecDouble::new(
-                        Settings::LINE_WIDTH,
-                        Settings::LINE_WIDTH,
-                        Settings::LINE_WIDTH,
-                        0.0001,
-                        10.0,
-                        SettingsInner::LINE_WIDTH_INIT_VAL,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecDouble::new(
-                        Settings::GUIDELINE_WIDTH,
-                        Settings::GUIDELINE_WIDTH,
-                        Settings::GUIDELINE_WIDTH,
-                        0.0001,
-                        10.0,
-                        SettingsInner::GUIDELINE_WIDTH_INIT_VAL,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecBoolean::new(
-                        Settings::WARP_CURSOR,
-                        Settings::WARP_CURSOR,
-                        Settings::WARP_CURSOR,
-                        SettingsInner::WARP_CURSOR_INIT_VAL,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecBoolean::new(
-                        Settings::SHOW_PRERELEASE_WARNING,
-                        Settings::SHOW_PRERELEASE_WARNING,
-                        Settings::SHOW_PRERELEASE_WARNING,
-                        true,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecEnum::new(
-                        Settings::MARK_COLOR,
-                        Settings::MARK_COLOR,
-                        "Show glyph mark colors in UI.",
-                        types::MarkColor::static_type(),
-                        types::MarkColor::None as i32,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecEnum::new(
-                        Settings::THEME,
-                        Settings::THEME,
-                        "UI theme.",
-                        types::Theme::static_type(),
-                        types::Theme::Paperwhite as i32,
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                    glib::ParamSpecBoxed::new(
-                        Settings::UI_FONT,
-                        Settings::UI_FONT,
-                        Settings::UI_FONT,
-                        gtk::pango::FontDescription::static_type(),
-                        glib::ParamFlags::READWRITE | UI_EDITABLE,
-                    ),
-                ]
-            });
-        PROPERTIES.as_ref()
-    }
-
-    fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
-        match pspec.name() {
-            Settings::HANDLE_SIZE => self.handle_size.get().to_value(),
-            Settings::LINE_WIDTH => self.line_width.get().to_value(),
-            Settings::GUIDELINE_WIDTH => self.guideline_width.get().to_value(),
-            Settings::WARP_CURSOR => self.warp_cursor.get().to_value(),
-            Settings::SHOW_PRERELEASE_WARNING => self.show_prerelease_warning.get().to_value(),
-            Settings::MARK_COLOR => self.mark_color.get().to_value(),
-            Settings::THEME => self.theme.get().to_value(),
-            Settings::UI_FONT => self.ui_font.borrow().to_value(),
-            _ => unimplemented!("{}", pspec.name()),
-        }
-    }
-
-    fn set_property(
-        &self,
-        _obj: &Self::Type,
-        _id: usize,
-        value: &glib::Value,
-        pspec: &glib::ParamSpec,
-    ) {
-        match pspec.name() {
-            Settings::HANDLE_SIZE => {
-                self.handle_size.set(value.get().unwrap());
-                self.save_settings().unwrap();
-            }
-            Settings::LINE_WIDTH => {
-                self.line_width.set(value.get().unwrap());
-                self.save_settings().unwrap();
-            }
-            Settings::GUIDELINE_WIDTH => {
-                self.guideline_width.set(value.get().unwrap());
-                self.save_settings().unwrap();
-            }
-            Settings::WARP_CURSOR => {
-                self.warp_cursor.set(value.get().unwrap());
-                self.save_settings().unwrap();
-            }
-            Settings::SHOW_PRERELEASE_WARNING => {
-                self.show_prerelease_warning.set(value.get().unwrap());
-                self.save_settings().unwrap();
-            }
-            Settings::MARK_COLOR => {
-                self.mark_color.set(value.get().unwrap());
-                self.save_settings().unwrap();
-            }
-            Settings::THEME => {
-                self.theme.set(value.get().unwrap());
-                self.reload_theme();
-                self.save_settings().unwrap();
-            }
-            Settings::UI_FONT => {
-                *self.ui_font.borrow_mut() = value.get().unwrap();
-                self.save_settings().unwrap();
-            }
-            _ => unimplemented!("{}", pspec.name()),
         }
     }
 }

@@ -135,7 +135,7 @@ impl ObjectImpl for WindowInner {
                     obj.imp().application().register_obj(project.upcast_ref());
                     obj.load_project(project);
                     let app = obj.imp().application();
-                    let settings = app.settings.borrow();
+                    let settings = &app.runtime.settings;
                     if settings.property::<bool>(Settings::SHOW_PRERELEASE_WARNING) {
                         let dialog = crate::utils::widgets::new_simple_info_dialog(
                             Some("Warning: protecting your UFO data"),

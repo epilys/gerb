@@ -242,8 +242,8 @@ impl<'app> ObjRef<'app> for crate::prelude::Application {
                 app.register_obj(
                     downcast::<Self>(app, type_name, obj, id)
                         .unwrap()
+                        .runtime
                         .settings
-                        .borrow()
                         .upcast_ref(),
                 ),
             )),
@@ -300,7 +300,7 @@ impl<'app> ObjRef<'app> for ProjectParent {
 
 impl<'app> ObjRef<'app> for crate::app::Settings {
     fn obj_ref(_: Option<Uuid>, app: &'app Application) -> Self {
-        app.settings.borrow().clone()
+        app.runtime.settings.clone()
     }
 
     fn expose_field(

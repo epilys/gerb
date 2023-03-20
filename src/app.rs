@@ -28,6 +28,7 @@ use once_cell::unsync::OnceCell;
 #[cfg(feature = "python")]
 use uuid::Uuid;
 
+use crate::project::Project;
 use crate::utils::property_window::CreatePropertyWindow;
 use crate::window::Window;
 
@@ -37,6 +38,48 @@ mod undo;
 pub use undo::*;
 pub mod settings;
 pub use settings::*;
+
+#[derive(Debug, Default)]
+pub struct RuntimeInner {
+    pub settings: Settings,
+    #[cfg(feature = "python")]
+    pub api_registry: RefCell<crate::api::ObjectRegistry>,
+    pub project: RefCell<Project>,
+}
+
+impl ObjectImpl for RuntimeInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.settings.init_file().unwrap();
+        self.settings.load_settings().unwrap();
+    }
+}
+
+impl Runtime {
+    pub fn new() -> Self {
+        glib::Object::new::<Self>(&[]).unwrap()
+    }
+}
+
+crate::impl_deref!(Runtime, RuntimeInner);
+
+impl Default for Runtime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for RuntimeInner {
+    const NAME: &'static str = "Runtime";
+    type Type = Runtime;
+    type ParentType = glib::Object;
+    type Interfaces = ();
+}
+
+glib::wrapper! {
+    pub struct Runtime(ObjectSubclass<RuntimeInner>);
+}
 
 glib::wrapper! {
     pub struct Application(ObjectSubclass<ApplicationInner>)
@@ -72,7 +115,7 @@ impl Application {
 #[derive(Debug, Default)]
 pub struct ApplicationInner {
     pub window: Window,
-    pub settings: RefCell<Settings>,
+    pub runtime: Runtime,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
     #[cfg(feature = "python")]
@@ -116,7 +159,7 @@ impl ApplicationImpl for ApplicationInner {
         #[cfg(feature = "python")]
         {
             self.register_obj(app.upcast_ref());
-            self.register_obj(self.settings.borrow().upcast_ref());
+            self.register_obj(self.runtime.settings.upcast_ref());
         }
         self.window.set_application(Some(app));
         self.add_actions(app);
@@ -217,8 +260,8 @@ impl ApplicationInner {
 
         let settings = gtk::gio::SimpleAction::new("settings", None);
         settings.connect_activate(
-            glib::clone!(@strong self.settings as settings, @weak obj as app => move |_, _| {
-                let w = settings.borrow().new_property_window(&app, false);
+            glib::clone!(@strong self.runtime.settings as settings, @weak obj as app => move |_, _| {
+                let w = settings.new_property_window(&app, false);
                 w.present();
             }),
         );

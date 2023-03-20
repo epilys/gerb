@@ -607,7 +607,7 @@ impl Editor {
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
         }
-        let settings = app.settings.borrow().clone();
+        let settings = app.runtime.settings.clone();
         settings.register_obj(ret.viewport.clone().upcast());
         settings.register_obj(ret.clone().upcast());
         settings
