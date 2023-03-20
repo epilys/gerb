@@ -212,6 +212,10 @@ impl SettingsInner {
         };
         document[&type_name][prop.name()] = new_val;
 
+        /* Update other objects of the same type
+         * Do not call set_property without dropping `document` first since it's borrowed mutably. */
+        drop(document);
+
         for e in self
             .entries
             .borrow()
@@ -222,14 +226,20 @@ impl SettingsInner {
             .filter(|wref| wref.upgrade().as_ref() != Some(obj))
         {
             let Some(obj) = e.upgrade() else { continue; };
+            let document = self.document.borrow();
             macro_rules! set_if_neq {
                 ($ty:ty, $val:expr) => {{
-                    if obj.property::<$ty>(prop.name()) != $val {
-                        obj.set_property(prop.name(), $val);
+                    let val = { $val };
+                    // set_property might notify recursively read_settings which will ask to borrow
+                    // document mutably, so drop this here.
+                    drop(document);
+                    if obj.property::<$ty>(prop.name()) != val {
+                        obj.set_property(prop.name(), val);
                     }
                 }};
                 ($ty:ty, opt $val:expr) => {{
-                    if let Some(val) = $val {
+                    let val = { $val };
+                    if let Some(val) = val {
                         set_if_neq!($ty, val);
                     }
                 }};
