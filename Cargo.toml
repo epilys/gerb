@@ -17,7 +17,7 @@ default-run = "gerb"
 name = "gerb"
 path = "src/main.rs"
 
-[[bin]]
+[[example]]
 name = "repl"
 path = "src/repl.rs"
 required-features = ["python"]
