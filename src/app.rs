@@ -342,10 +342,21 @@ impl ApplicationInner {
         }));
         #[cfg(feature = "python")]
         {
+            use std::sync::atomic::{AtomicBool, Ordering};
+
+            let state = Rc::new(AtomicBool::new(false));
             let shell = gtk::gio::SimpleAction::new("shell", None);
             shell.connect_activate(glib::clone!(@weak obj => move |_, _| {
-                // [ref:FIXME]: prevent more than one window from launching.
-                crate::api::shell::new_shell_window(obj).present();
+                if state.load(Ordering::SeqCst) {
+                    return;
+                }
+                state.store(true, Ordering::SeqCst);
+                let window = crate::api::shell::new_shell_window(obj);
+                let state_destroy = state.clone();
+                window.connect_destroy(move |_| {
+                    state_destroy.store(false, Ordering::SeqCst);
+                });
+                window.present();
             }));
             application.add_action(&shell);
         }
