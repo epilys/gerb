@@ -1,4 +1,4 @@
-# gerb &emsp; [![Build Status]][actions] [![Latest Version]][crates.io] ![Top Language] ![License]
+# gerb &emsp; [![Build Status]][actions]&nbsp;[![Latest Version]][crates.io]&nbsp;![Top Language]&nbsp;![License]
 
 [Build Status]: https://img.shields.io/github/actions/workflow/status/epilys/gerb/builds.yaml?branch=main
 [actions]: https://github.com/epilys/gerb/actions?query=branch%3Amain
@@ -35,8 +35,8 @@ and export:[^1]
 [^0]: Import is performed with [`fontTools`](https://github.com/fonttools/fonttools) and [`glyphsLib`](https://github.com/googlefonts/glyphsLib).
 [^1]: Export is performed with [`ufo2ft`](https://github.com/googlefonts/ufo2ft).
 
-| :information_source: Interested in contributing? Consult [`CONTRIBUTING.md`](./CONTRIBUTING.md).|
-| ---                                                                                             |
+| ℹ️  Interested in contributing? Consult [`CONTRIBUTING.md`](./CONTRIBUTING.md). |
+| ---                                                                            |
 
 ## Features
 
@@ -74,6 +74,18 @@ Some other projects in development are:
 - [MFEK](https://github.com/MFEK): it's focused on splitting every functionality into micro-libraries.
   **gerb's technical goal is shipping a font editor**.
 
+## Install
+
+### [crates.io](https://crates.io):
+
+```shell
+cargo install gerb
+```
+
+### Prebuilt GNU/Linux & macos amd64 binaries
+
+See ['Releases'](https://github.com/epilys/gerb/releases) for binaries of tagged releases built in the CI.
+
 ## Build & Run
 
 To build, you will need Rust's `cargo` tool.
@@ -105,6 +117,7 @@ The usual location would be `$HOME/.config/gerb/config.toml`.
 ### Dependencies
 
 Needs `gtk-3`.
+For the `python` feature you'll need `libpython3.9` or greater.
 
 On Debian and relatives:
 
