@@ -85,8 +85,10 @@ impl ObjectImpl for PropertyWindowInner {
         obj.set_focus_on_map(true);
         obj.set_resizable(true);
         obj.set_visible(true);
-        obj.set_expand(true);
-        obj.set_type_hint(gtk::gdk::WindowTypeHint::Utility);
+        obj.set_expand(false);
+        obj.set_halign(gtk::Align::Fill);
+        obj.set_valign(gtk::Align::Fill);
+        obj.set_type_hint(gtk::gdk::WindowTypeHint::Dialog);
         obj.set_window_position(gtk::WindowPosition::Center);
         obj.connect_key_press_event(move |window, event| {
             if event.keyval() == gdk::keys::constants::Escape && !window.is_dirty() {
@@ -179,10 +181,15 @@ impl PropertyWindow {
         self.imp().grid.set_column_spacing(5);
         self.imp().grid.set_margin(10);
         self.imp().grid.set_row_spacing(5);
+        self.imp()
+            .grid
+            .set_orientation(gtk::Orientation::Horizontal);
+        self.imp().grid.set_halign(gtk::Align::Fill);
+        self.imp().grid.set_valign(gtk::Align::Fill);
         self.imp().title_label.set_label(&if create {
             format!("<big>New <i>{}</i></big>", obj.type_().name())
         } else {
-            format!("<big>Options for <i>{}</i></big>", obj.type_().name())
+            format!("<big><i>{}</i></big>", obj.type_().name())
         });
         self.imp().title_label.set_use_markup(true);
         self.imp().title_label.set_margin_top(5);
@@ -281,7 +288,8 @@ impl PropertyWindow {
                 entry.set_active(val);
                 entry.set_sensitive(readwrite);
                 entry.style_read_only(readwrite);
-                entry.set_halign(gtk::Align::Start);
+                entry.set_expand(false);
+                entry.set_halign(gtk::Align::Fill);
                 entry.set_valign(gtk::Align::Start);
                 obj.bind_property(property.name(), &entry, "active")
                     .flags(flags)
@@ -296,7 +304,8 @@ impl PropertyWindow {
                     let entry = gtk::Entry::builder()
                         .visible(true)
                         .sensitive(readwrite)
-                        .halign(gtk::Align::Start)
+                        .expand(false)
+                        .halign(gtk::Align::Fill)
                         .valign(gtk::Align::Start)
                         .build();
                     entry.buffer().set_text(&val);
@@ -309,13 +318,13 @@ impl PropertyWindow {
                 } else {
                     let l = gtk::Label::builder()
                         .label(&val)
-                        .expand(false)
                         .visible(true)
                         .selectable(true)
                         .wrap(true)
                         .wrap_mode(gtk::pango::WrapMode::Char)
                         .ellipsize(gtk::pango::EllipsizeMode::None)
-                        .halign(gtk::Align::Start)
+                        .expand(false)
+                        .halign(gtk::Align::Fill)
                         .valign(gtk::Align::Start)
                         .build();
                     l.style_read_only(false);
@@ -329,9 +338,9 @@ impl PropertyWindow {
                     if property.flags().contains(UI_PATH) && !create {
                         let b = gtk::Box::builder()
                             .visible(true)
-                            .expand(false)
                             .sensitive(true)
-                            .halign(gtk::Align::Start)
+                            .expand(false)
+                            .halign(gtk::Align::Fill)
                             .valign(gtk::Align::Start)
                             .orientation(gtk::Orientation::Horizontal)
                             .build();
@@ -389,7 +398,8 @@ impl PropertyWindow {
                     1.0,
                     0,
                 );
-                entry.set_halign(gtk::Align::Start);
+                entry.set_expand(false);
+                entry.set_halign(gtk::Align::Fill);
                 entry.set_valign(gtk::Align::Start);
                 entry.set_input_purpose(gtk::InputPurpose::Digits);
                 entry.set_sensitive(readwrite);
@@ -431,7 +441,8 @@ impl PropertyWindow {
                     1.0,
                     0,
                 );
-                entry.set_halign(gtk::Align::Start);
+                entry.set_expand(false);
+                entry.set_halign(gtk::Align::Fill);
                 entry.set_valign(gtk::Align::Start);
                 entry.set_input_purpose(gtk::InputPurpose::Digits);
                 entry.set_sensitive(readwrite);
@@ -466,7 +477,8 @@ impl PropertyWindow {
                     1.0,
                     2,
                 );
-                entry.set_halign(gtk::Align::Start);
+                entry.set_expand(false);
+                entry.set_halign(gtk::Align::Fill);
                 entry.set_valign(gtk::Align::Start);
                 entry.set_input_purpose(gtk::InputPurpose::Number);
                 entry.set_sensitive(readwrite);
@@ -486,7 +498,8 @@ impl PropertyWindow {
                     .rgba(&val.into())
                     .sensitive(readwrite)
                     .visible(true)
-                    .halign(gtk::Align::Start)
+                    .expand(false)
+                    .halign(gtk::Align::Fill)
                     .valign(gtk::Align::Start)
                     .use_alpha(true)
                     .show_editor(true)
@@ -692,7 +705,8 @@ impl PropertyWindow {
                 let entry = gtk::ComboBoxText::builder()
                     .sensitive(readwrite)
                     .visible(true)
-                    .halign(gtk::Align::Start)
+                    .expand(false)
+                    .halign(gtk::Align::Fill)
                     .valign(gtk::Align::Start)
                     .build();
                 obj.bind_property(property.name(), &entry, "active-id")
@@ -726,17 +740,18 @@ impl PropertyWindow {
                 entry.set_active_id(Some(active_id.as_ref()));
                 let layer_box = gtk::Box::builder()
                     .visible(true)
-                    .expand(false)
                     .sensitive(readwrite)
                     .spacing(5)
-                    .halign(gtk::Align::Start)
+                    .expand(false)
+                    .halign(gtk::Align::Fill)
                     .valign(gtk::Align::Start)
                     .orientation(gtk::Orientation::Vertical)
                     .build();
                 layer_box.add(&entry);
                 let l = gtk::Label::builder()
                     .visible(true)
-                    .halign(gtk::Align::Start)
+                    .expand(false)
+                    .halign(gtk::Align::Fill)
                     .valign(gtk::Align::Start)
                     .wrap(true)
                     .wrap_mode(gtk::pango::WrapMode::Char)
@@ -762,7 +777,8 @@ impl PropertyWindow {
                 let entry = gtk::ComboBoxText::builder()
                     .sensitive(readwrite)
                     .visible(true)
-                    .halign(gtk::Align::Start)
+                    .expand(false)
+                    .halign(gtk::Align::Fill)
                     .valign(gtk::Align::Start)
                     .build();
                 obj.bind_property(property.name(), &entry, "active-id")
@@ -791,7 +807,8 @@ impl PropertyWindow {
             _other => gtk::Label::builder()
                 .label(&format!("{:?}", val))
                 .visible(true)
-                .halign(gtk::Align::Start)
+                .expand(false)
+                .halign(gtk::Align::Fill)
                 .valign(gtk::Align::Start)
                 .wrap(true)
                 .wrap_mode(gtk::pango::WrapMode::Char)
@@ -852,11 +869,19 @@ impl PropertyWindowBuilder {
             .build();
         let b = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
+            .border_width(2)
             .margin(5)
             .margin_bottom(10)
             .visible(true)
-            .halign(gtk::Align::Center)
+            .halign(gtk::Align::Fill)
+            .valign(gtk::Align::Fill)
+            .expand(false)
             .build();
+        {
+            let sc = b.style_context();
+            sc.add_class("vertical");
+            sc.add_class("dialog-vbox");
+        }
         let mut ret: PropertyWindow = glib::Object::new(&[]).unwrap();
         ret.imp().app.set(self.app.clone()).unwrap();
         ret.object_to_property_grid(
@@ -864,6 +889,7 @@ impl PropertyWindowBuilder {
             matches!(self.type_, PropertyWindowType::Create),
         );
         b.pack_start(&ret.imp().grid, true, true, 0);
+        ret.imp().grid.style_context().add_class("horizontal");
 
         ret.set_transient_for(Some(&self.app.window));
         ret.set_attached_to(Some(&self.app.window));
