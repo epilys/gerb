@@ -456,7 +456,7 @@ fn make_circle_bezier_curves(curves: &mut [Bezier; 4], (center, radius): (Point,
     curves[2].modify_point(0, |cp| {
         cp.position = last_point;
     });
-    last_point = curves[3].points()[3].position;
+    last_point = curves[2].points()[3].position;
 
     curves[3].modify_point(0, |cp| {
         cp.position = last_point;
