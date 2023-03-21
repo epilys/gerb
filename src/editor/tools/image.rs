@@ -194,13 +194,14 @@ glib::wrapper! {
 
 impl ImageTool {
     pub const ACTIVE: &str = "active";
-    pub const ASCENDER: &str = Project::ASCENDER;
-    pub const DESCENDER: &str = Project::DESCENDER;
+    pub const ASCENDER: &str = FontInfo::ASCENDER;
+    pub const DESCENDER: &str = FontInfo::DESCENDER;
 
     pub fn new(glyph: Rc<RefCell<Glyph>>, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
         for property in [Self::ASCENDER, Self::DESCENDER] {
             project
+                .fontinfo()
                 .bind_property(property, &ret, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();

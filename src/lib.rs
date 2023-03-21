@@ -121,6 +121,8 @@ pub mod prelude {
     pub use indexmap::{IndexMap, IndexSet};
     pub use project::Project;
     pub use ufo;
+    pub use ufo::objects::FontInfo;
+    pub use ufo::{LayerContents, MetaInfo};
     pub use utils::colors::*;
     pub use utils::points::*;
     pub use utils::property_window::*;
@@ -155,6 +157,59 @@ pub mod prelude {
     pub use uuid::Uuid;
 
     mod macros {
+        #[macro_export]
+        macro_rules! impl_modified {
+            ($ty:ty) => {
+                $crate::impl_modified!($ty, MODIFIED);
+            };
+            ($ty:ty, $property_name:ident) => {
+                impl $crate::utils::Modified for $ty {
+                    const PROPERTY_NAME: &'static str = Self::$property_name;
+                }
+            };
+        }
+
+        #[macro_export]
+        macro_rules! impl_deref {
+            ($ty:ty, $inner:ty) => {
+                impl std::ops::Deref for $ty {
+                    type Target = $inner;
+
+                    fn deref(&self) -> &Self::Target {
+                        self.imp()
+                    }
+                }
+            };
+        }
+
+        #[macro_export]
+        macro_rules! impl_property_window {
+            ($ty:ty$(,)? $({ $friendly_name:expr })?) => {
+                impl $crate::utils::property_window::CreatePropertyWindow for $ty {
+                    $(
+                        fn friendly_name(&self) -> Cow<'static, str> {
+                            $friendly_name
+                        }
+                    )*
+                }
+            };
+            (delegate $ty:ty => { $($access:tt)+ }, $($field:tt)+) => {
+                impl $crate::utils::property_window::CreatePropertyWindow for $ty {
+                    fn new_property_window(
+                        &self,
+                        app: &$crate::prelude::Application,
+                        create: bool,
+                    ) -> $crate::prelude::PropertyWindow
+                    where
+                        Self: glib::IsA<glib::Object>,
+                    {
+                        let inner=self.$($field)*.$($access)*;
+                        inner.new_property_window(app, create)
+                    }
+                }
+            };
+        }
+
         /// Helper macro to define user editable GObject properties.
         #[macro_export]
         macro_rules! def_param {

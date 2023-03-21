@@ -554,7 +554,7 @@ impl Editor {
     pub const MENUBAR: &str = Workspace::MENUBAR;
     pub const PREVIEW: &str = "preview";
     inherit_property!(
-        Project,
+        FontInfo,
         ASCENDER,
         CAP_HEIGHT,
         DESCENDER,
@@ -604,6 +604,7 @@ impl Editor {
             Self::X_HEIGHT,
         ] {
             project
+                .fontinfo()
                 .bind_property(property, &ret, property)
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();

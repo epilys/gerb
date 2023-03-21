@@ -68,6 +68,7 @@ pub struct PropertyWindowInner {
     initial_values: RefCell<IndexMap<String, (Cell<bool>, glib::Value)>>,
     title_label: gtk::Label,
     title: RefCell<Cow<'static, str>>,
+    friendly_name: RefCell<Cow<'static, str>>,
 }
 
 #[glib::object_subclass]
@@ -151,6 +152,7 @@ pub struct PropertyWindowBuilder {
     obj: glib::Object,
     app: crate::prelude::Application,
     title: Cow<'static, str>,
+    friendly_name: Cow<'static, str>,
     type_: PropertyWindowType,
 }
 
@@ -173,7 +175,12 @@ impl PropertyWindow {
             .any(|(d, _)| d.get())
     }
 
-    fn object_to_property_grid(&mut self, obj: glib::Object, create: bool) {
+    fn object_to_property_grid(
+        &mut self,
+        obj: glib::Object,
+        friendly_name: Option<Cow<'static, str>>,
+        create: bool,
+    ) {
         self.style_context().add_class("property-window");
         self.imp().grid.set_expand(false);
         self.imp().grid.set_visible(true);
@@ -186,11 +193,15 @@ impl PropertyWindow {
             .set_orientation(gtk::Orientation::Horizontal);
         self.imp().grid.set_halign(gtk::Align::Fill);
         self.imp().grid.set_valign(gtk::Align::Fill);
-        self.imp().title_label.set_label(&if create {
-            format!("<big>New <i>{}</i></big>", obj.type_().name())
-        } else {
-            format!("<big><i>{}</i></big>", obj.type_().name())
-        });
+        self.imp()
+            .title_label
+            .set_label(&if let Some(n) = friendly_name {
+                format!("<big><i>{}</i></big>", n)
+            } else if create {
+                format!("<big>New <i>{}</i></big>", obj.type_().name())
+            } else {
+                format!("<big><i>{}</i></big>", obj.type_().name())
+            });
         self.imp().title_label.set_use_markup(true);
         self.imp().title_label.set_margin_top(5);
         self.imp().title_label.set_halign(gtk::Align::Start);
@@ -820,11 +831,16 @@ impl PropertyWindow {
         self.add(property.name(), label, widget);
     }
 
-    pub fn add_extra_obj(&self, obj: glib::Object) {
+    pub fn add_extra_obj(&self, obj: glib::Object, friendly_name: Option<Cow<'static, str>>) {
         self.add_separator();
         self.add_subsection(
             &gtk::Label::builder()
-                .label(&format!("<big><i>{}</i></big>", obj.type_().name()))
+                .label(&format!(
+                    "<big><i>{}</i></big>",
+                    friendly_name
+                        .as_deref()
+                        .unwrap_or_else(|| obj.type_().name())
+                ))
                 .use_markup(true)
                 .margin_top(5)
                 .halign(gtk::Align::Start)
@@ -845,12 +861,18 @@ impl PropertyWindowBuilder {
             obj,
             app: app.clone(),
             title: "".into(),
+            friendly_name: "".into(),
             type_: PropertyWindowType::default(),
         }
     }
 
     pub fn title(mut self, title: Cow<'static, str>) -> Self {
         self.title = title;
+        self
+    }
+
+    pub fn friendly_name(mut self, friendly_name: Cow<'static, str>) -> Self {
+        self.friendly_name = friendly_name;
         self
     }
 
@@ -886,6 +908,11 @@ impl PropertyWindowBuilder {
         ret.imp().app.set(self.app.clone()).unwrap();
         ret.object_to_property_grid(
             self.obj.clone(),
+            if self.friendly_name.is_empty() {
+                None
+            } else {
+                Some(self.friendly_name.clone())
+            },
             matches!(self.type_, PropertyWindowType::Create),
         );
         b.pack_start(&ret.imp().grid, true, true, 0);
@@ -982,6 +1009,9 @@ impl PropertyWindowBuilder {
         ret.set_child(Some(&scrolled_window));
         ret.set_title(&self.title);
         *ret.imp().title.borrow_mut() = self.title;
+        if !self.friendly_name.is_empty() {
+            *ret.imp().friendly_name.borrow_mut() = self.friendly_name
+        };
         ret.bind_property(PropertyWindow::IS_DIRTY, &ret, "title")
             .transform_to(|binding, is_dirty_val| {
                 let window = binding.source()?.downcast::<PropertyWindow>().ok()?;
@@ -1131,8 +1161,13 @@ pub trait CreatePropertyWindow: glib::object::ObjectExt {
             self.downgrade().upgrade().unwrap().upcast::<glib::Object>(),
             app,
         )
-        .title(self.type_().name().into())
+        .title(self.friendly_name())
+        .friendly_name(self.friendly_name())
         .type_(PropertyWindowType::Modify)
         .build()
+    }
+
+    fn friendly_name(&self) -> Cow<'static, str> {
+        self.type_().name().into()
     }
 }

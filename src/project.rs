@@ -38,37 +38,11 @@ pub struct ProjectInner {
     modified: Cell<bool>,
     pub last_saved: RefCell<Option<u64>>,
     pub path: RefCell<PathBuf>,
-    pub family_name: RefCell<String>,
-    pub style_name: RefCell<String>,
-    style_map_family_name: RefCell<String>,
-    style_map_style_name: RefCell<String>,
-    version_major: Cell<i64>,
-    version_minor: Cell<u64>,
-    year: Cell<u64>,
-    /// Copyright statement.
-    copyright: RefCell<String>,
-    /// Trademark statement.
-    trademark: RefCell<String>,
-    /// Units per em.
-    units_per_em: Cell<f64>,
-    /// Descender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
-    descender: Cell<f64>,
-    /// x-height value.
-    x_height: Cell<f64>,
-    /// Cap height value.
-    cap_height: Cell<f64>,
-    /// Ascender value. Note: The specification is agnostic about the relationship to the more specific vertical metric values.
-    ascender: Cell<f64>,
-    /// Italic angle. This must be an angle in counter-clockwise degrees from the vertical.
-    italic_angle: Cell<f64>,
-    /// Arbitrary note about the font.
-    pub note: RefCell<String>,
-    /// A list of guideline definitions that apply to all glyphs in all layers in the font. This attribute is optional.
     pub guidelines: RefCell<Vec<Guideline>>,
     pub metric_guidelines: RefCell<Vec<Guideline>>,
-    pub fontinfo: RefCell<ufo::objects::FontInfo>,
-    pub metainfo: RefCell<ufo::MetaInfo>,
-    pub layercontents: RefCell<ufo::LayerContents>,
+    pub fontinfo: RefCell<FontInfo>,
+    pub metainfo: RefCell<MetaInfo>,
+    pub layercontents: RefCell<LayerContents>,
     pub default_layer: ufo::objects::Layer,
     pub background_layer: RefCell<Option<ufo::objects::Layer>>,
     pub all_layers: RefCell<Vec<ufo::objects::Layer>>,
@@ -83,27 +57,11 @@ impl Default for ProjectInner {
             modified: Cell::new(false),
             last_saved: RefCell::new(None),
             path: RefCell::new(std::env::current_dir().unwrap_or_default()),
-            family_name: RefCell::new("New project".to_string()),
-            style_name: RefCell::new("New project".to_string()),
-            style_map_family_name: RefCell::new(String::new()),
-            style_map_style_name: RefCell::new(String::new()),
-            year: Cell::new(1970),
-            version_major: Cell::new(ufo::constants::VERSION_MAJOR),
-            version_minor: Cell::new(ufo::constants::VERSION_MINOR),
-            copyright: RefCell::new(String::new()),
-            trademark: RefCell::new(String::new()),
-            units_per_em: Cell::new(ufo::constants::UNITS_PER_EM),
-            descender: Cell::new(ufo::constants::DESCENDER),
-            x_height: Cell::new(ufo::constants::X_HEIGHT),
-            cap_height: Cell::new(ufo::constants::CAP_HEIGHT),
-            ascender: Cell::new(ufo::constants::ASCENDER),
-            italic_angle: Cell::new(ufo::constants::ITALIC_ANGLE),
-            note: RefCell::new(String::new()),
             guidelines: RefCell::new(vec![]),
             metric_guidelines: RefCell::new(vec![]),
-            fontinfo: RefCell::new(ufo::objects::FontInfo::new()),
-            metainfo: RefCell::new(ufo::MetaInfo::default()),
-            layercontents: RefCell::new(ufo::LayerContents::default()),
+            fontinfo: RefCell::new(FontInfo::new()),
+            metainfo: RefCell::new(MetaInfo::default()),
+            layercontents: RefCell::new(LayerContents::default()),
             default_layer: ufo::objects::Layer::new(),
             background_layer: RefCell::new(None),
             all_layers: RefCell::new(vec![]),
@@ -125,8 +83,8 @@ impl ObjectSubclass for ProjectInner {
 // Trait shared by all GObjects
 impl ObjectImpl for ProjectInner {
     fn properties() -> &'static [glib::ParamSpec] {
-        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> = once_cell::sync::Lazy::new(
-            || {
+        static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
+            once_cell::sync::Lazy::new(|| {
                 vec![
                     ParamSpecString::new(
                         Project::NAME,
@@ -149,34 +107,19 @@ impl ObjectImpl for ProjectInner {
                         false,
                         glib::ParamFlags::READWRITE,
                     ),
-                    def_param!(str Project::FAMILY_NAME),
-                    def_param!(str Project::STYLE_NAME),
-                    def_param!(str Project::STYLE_MAP_FAMILY_NAME),
-                    def_param!(str Project::STYLE_MAP_STYLE_NAME),
-                    def_param!(str Project::COPYRIGHT),
-                    def_param!(str Project::TRADEMARK),
-                    def_param!(str Project::NOTE),
-                    def_param!(u64 Project::YEAR),
-                    def_param!(i64 Project::VERSION_MAJOR, ufo::constants::VERSION_MAJOR),
-                    def_param!(u64 Project::VERSION_MINOR, ufo::constants::VERSION_MINOR),
-                    def_param!(f64 Project::UNITS_PER_EM, 1.0, ufo::constants::UNITS_PER_EM),
-                    def_param!(f64 Project::X_HEIGHT, 1.0, ufo::constants::X_HEIGHT),
-                    def_param!(f64 Project::ASCENDER, std::f64::MIN, ufo::constants::ASCENDER),
-                    def_param!(f64 Project::DESCENDER, std::f64::MIN, ufo::constants::DESCENDER),
-                    def_param!(f64 Project::CAP_HEIGHT, std::f64::MIN, ufo::constants::CAP_HEIGHT),
-                    def_param!(f64 Project::ITALIC_ANGLE, std::f64::MIN, ufo::constants::ITALIC_ANGLE),
                 ]
-            },
-        );
+            });
         PROPERTIES.as_ref()
     }
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
             Project::NAME => self.name.borrow().to_value(),
+            Project::MODIFIED => self.modified.get().to_value(),
             Project::FILENAME_STEM => {
-                let family_name = self.family_name.borrow();
-                let style_name = self.style_name.borrow();
+                let fontinfo = self.fontinfo.borrow();
+                let family_name = fontinfo.family_name.borrow();
+                let style_name = fontinfo.style_name.borrow();
                 match (family_name.len(), style_name.len()) {
                     (0, 0) => None::<String>.to_value(),
                     (0, 1..) => Some(style_name.to_string()).to_value(),
@@ -184,23 +127,6 @@ impl ObjectImpl for ProjectInner {
                     _ => Some(format!("{family_name}-{style_name}")).to_value(),
                 }
             }
-            Project::FAMILY_NAME => self.family_name.borrow().to_value(),
-            Project::STYLE_NAME => self.style_name.borrow().to_value(),
-            Project::STYLE_MAP_FAMILY_NAME => self.style_map_family_name.borrow().to_value(),
-            Project::STYLE_MAP_STYLE_NAME => self.style_map_style_name.borrow().to_value(),
-            Project::COPYRIGHT => self.copyright.borrow().to_value(),
-            Project::TRADEMARK => self.trademark.borrow().to_value(),
-            Project::NOTE => self.note.borrow().to_value(),
-            Project::YEAR => self.year.get().to_value(),
-            Project::MODIFIED => self.modified.get().to_value(),
-            Project::VERSION_MAJOR => self.version_major.get().to_value(),
-            Project::VERSION_MINOR => self.version_minor.get().to_value(),
-            Project::UNITS_PER_EM => self.units_per_em.get().to_value(),
-            Project::X_HEIGHT => self.x_height.get().to_value(),
-            Project::ASCENDER => self.ascender.get().to_value(),
-            Project::DESCENDER => self.descender.get().to_value(),
-            Project::CAP_HEIGHT => self.cap_height.get().to_value(),
-            Project::ITALIC_ANGLE => self.italic_angle.get().to_value(),
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -216,56 +142,8 @@ impl ObjectImpl for ProjectInner {
             Project::NAME => {
                 *self.name.borrow_mut() = value.get().unwrap();
             }
-            Project::FAMILY_NAME => {
-                *self.family_name.borrow_mut() = value.get().unwrap();
-            }
-            Project::STYLE_NAME => {
-                *self.style_name.borrow_mut() = value.get().unwrap();
-            }
-            Project::STYLE_MAP_FAMILY_NAME => {
-                *self.style_map_family_name.borrow_mut() = value.get().unwrap();
-            }
-            Project::STYLE_MAP_STYLE_NAME => {
-                *self.style_map_style_name.borrow_mut() = value.get().unwrap();
-            }
-            Project::COPYRIGHT => {
-                *self.copyright.borrow_mut() = value.get().unwrap();
-            }
-            Project::TRADEMARK => {
-                *self.trademark.borrow_mut() = value.get().unwrap();
-            }
-            Project::NOTE => {
-                *self.note.borrow_mut() = value.get().unwrap();
-            }
-            Project::YEAR => {
-                self.year.set(value.get().unwrap());
-            }
             Project::MODIFIED => {
                 self.modified.set(value.get().unwrap());
-            }
-            Project::VERSION_MAJOR => {
-                self.version_major.set(value.get().unwrap());
-            }
-            Project::VERSION_MINOR => {
-                self.version_minor.set(value.get().unwrap());
-            }
-            Project::UNITS_PER_EM => {
-                self.units_per_em.set(value.get().unwrap());
-            }
-            Project::X_HEIGHT => {
-                self.x_height.set(value.get().unwrap());
-            }
-            Project::ASCENDER => {
-                self.ascender.set(value.get().unwrap());
-            }
-            Project::DESCENDER => {
-                self.descender.set(value.get().unwrap());
-            }
-            Project::CAP_HEIGHT => {
-                self.cap_height.set(value.get().unwrap());
-            }
-            Project::ITALIC_ANGLE => {
-                self.italic_angle.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -288,25 +166,6 @@ impl Project {
     pub const MODIFIED: &str = "modified";
     pub const NAME: &str = "name";
     pub const FILENAME_STEM: &str = "filename-stem";
-    inherit_property!(
-        ufo::objects::FontInfo,
-        ASCENDER,
-        CAP_HEIGHT,
-        DESCENDER,
-        ITALIC_ANGLE,
-        YEAR,
-        COPYRIGHT,
-        TRADEMARK,
-        FAMILY_NAME,
-        STYLE_MAP_FAMILY_NAME,
-        STYLE_MAP_STYLE_NAME,
-        STYLE_NAME,
-        UNITS_PER_EM,
-        VERSION_MAJOR,
-        VERSION_MINOR,
-        X_HEIGHT,
-        NOTE
-    );
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -329,7 +188,7 @@ impl Project {
         path.push("fontinfo.plist");
         let ret: Self = Self::new();
 
-        let fontinfo = ufo::objects::FontInfo::from_path(path.clone()).map_err(|err| {
+        let fontinfo = FontInfo::from_path(path.clone()).map_err(|err| {
             format!(
                 "couldn't read fontinfo.plist {}:\n\n{}",
                 path.display(),
@@ -397,39 +256,14 @@ impl Project {
                 g
             })
             .collect::<Vec<Guideline>>();
-        for property in [
-            Self::FAMILY_NAME,
-            Self::STYLE_NAME,
-            Self::STYLE_MAP_FAMILY_NAME,
-            Self::STYLE_MAP_STYLE_NAME,
-            Self::YEAR,
-            Self::COPYRIGHT,
-            Self::TRADEMARK,
-            Self::UNITS_PER_EM, // [tag:project_bind_metrics]
-            Self::DESCENDER,
-            Self::X_HEIGHT,
-            Self::CAP_HEIGHT,
-            Self::ASCENDER,
-            Self::ITALIC_ANGLE,
-            Self::NOTE,
-            Self::VERSION_MAJOR,
-            Self::VERSION_MINOR,
-        ] {
-            fontinfo
-                .bind_property(property, &ret, property)
-                .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::BIDIRECTIONAL)
-                .build();
-        }
         ret.link(&fontinfo);
-        *ret.fontinfo.borrow_mut() = fontinfo;
-        *ret.metainfo.borrow_mut() = metainfo;
         {
             let mut metric_guidelines = ret.metric_guidelines.borrow_mut();
             for (name, field) in [
-                (Self::X_HEIGHT, ret.x_height.get()),
-                (Self::ASCENDER, ret.ascender.get()),
-                (Self::DESCENDER, ret.descender.get()),
-                (Self::CAP_HEIGHT, ret.cap_height.get()),
+                (FontInfo::X_HEIGHT, fontinfo.x_height.get()),
+                (FontInfo::ASCENDER, fontinfo.ascender.get()),
+                (FontInfo::DESCENDER, fontinfo.descender.get()),
+                (FontInfo::CAP_HEIGHT, fontinfo.cap_height.get()),
             ] {
                 let g = Guideline::builder()
                     .name(Some(name.to_string()))
@@ -437,13 +271,16 @@ impl Project {
                     .y(Some(field))
                     .color(Some(Color::from_hex("#bbbaae"))) // [ref:hardcoded_color_value]
                     .build();
-                ret.link(&g);
-                ret.bind_property(name, &g, Guideline::Y)
+                fontinfo.link(&g);
+                fontinfo
+                    .bind_property(name, &g, Guideline::Y)
                     .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::BIDIRECTIONAL)
                     .build();
                 metric_guidelines.push(g);
             }
         }
+        *ret.fontinfo.borrow_mut() = fontinfo;
+        *ret.metainfo.borrow_mut() = metainfo;
         Ok(ret)
     }
 
@@ -482,8 +319,6 @@ impl Project {
         for obj in self.all_layers.borrow().iter().filter(|obj| obj.modified()) {
             obj.save(&mut self.layercontents.borrow_mut())?;
         }
-        /* Metric guidelines have their value properties bound with FontInfo via Project
-         * [ref:project_bind_metrics] */
         for g in self
             .metric_guidelines
             .borrow()
@@ -545,6 +380,10 @@ impl Project {
         let layer = layer.unwrap_or(&self.default_layer);
         layer.new_glyph(name, glyph)
     }
+
+    pub fn fontinfo(&self) -> FieldRef<'_, FontInfo> {
+        self.fontinfo.borrow().into()
+    }
 }
 
 impl Default for Project {
@@ -555,4 +394,4 @@ impl Default for Project {
 
 impl_modified!(Project);
 
-impl_property_window!(Project);
+impl_property_window!(delegate Project => { borrow() }, fontinfo);

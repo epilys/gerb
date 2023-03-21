@@ -247,13 +247,8 @@ glib::wrapper! {
     pub struct FontInfo(ObjectSubclass<FontInfoInner>);
 }
 
-impl std::ops::Deref for FontInfo {
-    type Target = FontInfoInner;
-
-    fn deref(&self) -> &Self::Target {
-        self.imp()
-    }
-}
+impl_deref!(FontInfo, FontInfoInner);
+impl_property_window!(FontInfo, { "Font Metadata".into() });
 
 impl FontInfo {
     pub const MODIFIED: &str = "modified";

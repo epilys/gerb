@@ -279,7 +279,7 @@ impl Transformation {
     pub const CAMERA_X: &str = "camera-x";
     pub const CAMERA_Y: &str = "camera-y";
     pub const PIXELS_PER_UNIT: &str = "pixels-per-unit";
-    pub const UNITS_PER_EM: &str = Project::UNITS_PER_EM;
+    pub const UNITS_PER_EM: &str = FontInfo::UNITS_PER_EM;
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Transformation");

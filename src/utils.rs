@@ -231,38 +231,6 @@ pub trait Modified: glib::ObjectExt {
     }
 }
 
-#[macro_export]
-macro_rules! impl_modified {
-    ($ty:ty) => {
-        $crate::impl_modified!($ty, MODIFIED);
-    };
-    ($ty:ty, $property_name:ident) => {
-        impl $crate::utils::Modified for $ty {
-            const PROPERTY_NAME: &'static str = Self::$property_name;
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_deref {
-    ($ty:ty, $inner:ty) => {
-        impl std::ops::Deref for $ty {
-            type Target = $inner;
-
-            fn deref(&self) -> &Self::Target {
-                self.imp()
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! impl_property_window {
-    ($ty:ty) => {
-        impl $crate::utils::property_window::CreatePropertyWindow for $ty {}
-    };
-}
-
 /// Helper trait to set CSS styling for read only entry fields.
 pub trait StyleReadOnly: gtk::traits::WidgetExt + glib::Cast + glib::IsA<gtk::Widget> {
     fn style_read_only(&self, is_sensitive: bool) {

@@ -596,7 +596,8 @@ impl Collection {
     pub fn new(app: Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
         project
-            .bind_property(Project::STYLE_NAME, &ret, Self::TITLE)
+            .fontinfo()
+            .bind_property(FontInfo::STYLE_NAME, &ret, Self::TITLE)
             .flags(glib::BindingFlags::SYNC_CREATE | glib::BindingFlags::DEFAULT)
             .build();
         let flow_box = &ret.imp().flow_box;
@@ -840,7 +841,7 @@ impl ObjectImpl for GlyphBoxInner {
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
-            let units_per_em = obj.imp().project.get().unwrap().property(Project::UNITS_PER_EM);
+            let units_per_em = obj.imp().project.get().unwrap().fontinfo().property(FontInfo::UNITS_PER_EM);
 
             cr.set_source_rgb(1.0, 1.0, 1.0);
             cr.paint().expect("Invalid cairo surface state");

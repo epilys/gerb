@@ -354,7 +354,7 @@ impl ApplicationInner {
         settings.connect_activate(
             glib::clone!(@strong self.runtime.settings as settings, @weak obj as app => move |_, _| {
                 let w = settings.new_property_window(&app, false);
-                w.add_extra_obj(app.upcast_ref::<glib::Object>().clone());
+                w.add_extra_obj(app.upcast_ref::<glib::Object>().clone(), None);
                 w.present();
             }),
         );
