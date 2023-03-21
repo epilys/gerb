@@ -1,0 +1,64 @@
+.glyph-box-child:backdrop {
+ opacity: 0.6;
+}
+
+box.terminal-box,
+box.terminal-box > list,
+box.terminal-box > list > row,
+box.terminal-box > list > row > label {
+  color:white;
+  background: #222;
+}
+
+.terminal-entry {
+  color:white;
+  background: #222;
+}
+
+.glyph-edit-toolbox {
+  padding: 5px;
+  margin-top: 20px;
+}
+
+.glyph-edit-toolbox, .glyphs_area_toolbar {
+  padding: .2rem .5rem;
+}
+
+.glyph-edit-toolbox toolbar {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+.glyphs_area_toolbar > *:not(:first-child) > * {
+  margin-left: 1em;
+}
+
+.glyph-edit-toolbox * {
+  padding: 0px;
+}
+
+.glyph-edit-toolbox {
+  background-image: image(@bg_color), image(white);
+}
+
+.glyph-edit-toolbox {
+border-radius: .3rem;
+border-width: .1rem;
+border-style: solid;
+padding-bottom: 1rem;
+}
+
+.glyph-edit-toolbox button {
+border-color: transparent;
+box-shadow:none;
+}
+
+.glyph-edit-toolbox button:checked {
+border: 0.1rem ridge;
+}
+
+.glyphs_area_toolbar {
+border-radius: 5px;
+border: .05rem ridge;
+}

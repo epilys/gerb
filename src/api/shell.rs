@@ -171,7 +171,6 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         .valign(gtk::Align::Fill)
         .visible(true)
         .build();
-    list.style_context().add_class("terminal-box");
     {
         let label = gtk::Label::new(Some(BANNER));
         label.set_wrap(true);
@@ -182,6 +181,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         list.add(&label);
         list.queue_draw();
     }
+    list.style_context().add_class("monospace");
     {
         let container = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
@@ -205,6 +205,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         .build();
     let entry = gtk::Entry::new();
     entry.style_context().add_class("terminal-entry");
+    entry.style_context().add_class("monospace");
     entry.set_visible(true);
     let shell = ShellInstance::new(
         app.runtime.clone(),

@@ -774,6 +774,7 @@ impl ObjectImpl for GlyphBoxInner {
         obj.set_expand(false);
         obj.set_halign(gtk::Align::Start);
         obj.set_valign(gtk::Align::Start);
+        obj.style_context().add_class("glyph-box-child");
 
         obj.connect_button_press_event(
             clone!(@weak obj => @default-return Inhibit(false), move |_self, event| {

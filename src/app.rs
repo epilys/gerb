@@ -131,7 +131,10 @@ pub struct ApplicationInner {
     pub window: Window,
     pub runtime: Runtime,
     pub ui_font: Rc<RefCell<gtk::pango::FontDescription>>,
-    default_provider: gtk::CssProvider,
+    /// Holds the papertheme provider.
+    paperwhite_provider: gtk::CssProvider,
+    /// Holds custom widget CSS that doesn't set any colors.
+    common_provider: gtk::CssProvider,
     pub theme: Cell<types::Theme>,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
@@ -147,9 +150,22 @@ impl ObjectSubclass for ApplicationInner {
 impl ObjectImpl for ApplicationInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.default_provider
+        self.paperwhite_provider
             .load_from_data(types::Theme::PAPERWHITE_CSS)
             .unwrap();
+        self.common_provider
+            .load_from_data(include_bytes!("./themes/custom-widgets.css"))
+            .unwrap();
+        gtk::StyleContext::add_provider_for_screen(
+            &gtk::gdk::Screen::default().unwrap(),
+            &self.common_provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+        gtk::StyleContext::add_provider_for_screen(
+            &gtk::gdk::Screen::default().unwrap(),
+            &self.paperwhite_provider,
+            gtk::STYLE_PROVIDER_PRIORITY_FALLBACK,
+        );
         self.reload_theme();
     }
 
@@ -597,14 +613,14 @@ impl ApplicationInner {
             types::Theme::SystemDefault => {
                 gtk::StyleContext::remove_provider_for_screen(
                     &gtk::gdk::Screen::default().unwrap(),
-                    &self.default_provider,
+                    &self.paperwhite_provider,
                 );
             }
             types::Theme::Paperwhite => {
                 gtk::StyleContext::add_provider_for_screen(
                     &gtk::gdk::Screen::default().unwrap(),
-                    &self.default_provider,
-                    gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                    &self.paperwhite_provider,
+                    gtk::STYLE_PROVIDER_PRIORITY_SETTINGS,
                 );
             }
         }
