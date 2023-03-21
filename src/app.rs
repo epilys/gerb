@@ -414,6 +414,14 @@ impl ApplicationInner {
             window.emit_by_name::<()>("open-project", &[&path]);
             dialog.hide();
         }));
+        let open_path =
+            gtk::gio::SimpleAction::new("project.open_path", Some(glib::VariantTy::STRING));
+        open_path.connect_activate(glib::clone!(@weak window => move |_, path| {
+            use glib::FromVariant;
+            if let Some(path) = path.map(String::from_variant) {
+                window.emit_by_name::<()>("open-project", &[&path]);
+            }
+        }));
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
             new_project.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
@@ -527,6 +535,7 @@ impl ApplicationInner {
         application.add_action(&settings);
         application.add_action(&about);
         application.add_action(&bug_report);
+        application.add_action(&open_path);
         application.add_action(&open);
         application.add_action(&new_project);
         application.add_action(&undo);
@@ -538,11 +547,37 @@ impl ApplicationInner {
         let application = obj.upcast_ref::<gtk::Application>();
         let menu_bar = gio::Menu::new();
 
+        // [ref:TODO] show recent projects when opened without a project
+        // [ref:TODO] update the menu when we open a new project
+        // Get gtk's default manager or create new
+        let recent_mgr = gtk::RecentManager::default().unwrap_or_default();
+        let mut items = recent_mgr
+            .items()
+            .into_iter()
+            .filter(|i| i.last_application().map(|a| a == "gerb").unwrap_or(false))
+            .collect::<Vec<_>>();
+        items.sort_by_key(|i| -i.modified());
+
         {
             let file_menu = gio::Menu::new();
             let import_menu = gio::Menu::new();
             file_menu.append(Some("_New"), Some("app.project.new"));
             file_menu.append(Some("_Open"), Some("app.project.open"));
+            if !items.is_empty() {
+                let recent_menu = gio::Menu::new();
+                for i in items.into_iter().take(10) {
+                    if let (Some(uri), Some(name)) =
+                        (i.uri_display().map(|uri| uri.to_variant()), i.short_name())
+                    {
+                        let menuitem =
+                            gio::MenuItem::new(Some(&name), Some("app.project.open_path"));
+                        menuitem
+                            .set_action_and_target_value(Some("app.project.open_path"), Some(&uri));
+                        recent_menu.append_item(&menuitem);
+                    }
+                }
+                file_menu.append_submenu(Some("Open Recent"), &recent_menu);
+            }
             file_menu.append(Some("_Save"), Some("app.project.save"));
             import_menu.append(
                 Some("Import Glyphs file"),

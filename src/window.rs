@@ -295,6 +295,26 @@ impl WindowInner {
     }
 
     pub fn load_project(&self, project: Project) {
+        if let Ok(uri) = glib::filename_to_uri(&*project.path.borrow(), None) {
+            /* add directory to user's Recent Files database */
+
+            // Get gtk's default manager or create new
+            let recent_mgr = gtk::RecentManager::default().unwrap_or_default();
+            let recent_data = gtk::RecentData {
+                display_name: None,
+                description: None,
+                mime_type: "inode/directory".to_string(),
+                app_name: crate::APPLICATION_NAME.to_string(),
+                app_exec: std::fs::read_link("/proc/self/exe")
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
+                groups: vec![],
+                is_private: false,
+            };
+            recent_mgr.add_full(&uri, &recent_data);
+        }
+
         project
             .bind_property(Project::MODIFIED, &self.instance(), "title")
             .transform_to(|_b, v| {
