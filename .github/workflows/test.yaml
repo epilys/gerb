@@ -71,13 +71,13 @@ jobs:
         name: Cache cargo configuration and installations
         uses: actions/cache@v3
         with:
-          path: ~/.cargo
+          path: ${{ env.CARGO_HOME }}
           key: cargo-${{ matrix.os }}-${{ matrix.rust }}
       - if: ${{ steps.cache-cargo.outputs.cache-hit != 'true' }} && matrix.target
         name: Setup Rust target
         run: |
-          mkdir -p .cargo
-          cat << EOF > .cargo/config.toml
+          mkdir -p "${{ env.CARGO_HOME }}"
+          cat << EOF > "${{ env.CARGO_HOME }}"/config.toml
           [build]
           target = "${{ matrix.target }}"
           EOF
