@@ -106,7 +106,7 @@
     border-color: $osd_borders_color;
     background-color: transparentize(opacify($osd_borders_color, 1), 0.5);
     background-clip: padding-box;
-    box-shadow: none;
+    //box-shadow: none;
     text-shadow: none;
     -gtk-icon-shadow: none;
   }
@@ -316,12 +316,12 @@
     $_bg: if($c != $bg_color, $c, $backdrop_bg_color);
     $_bc: if($variant == 'light', $c, _border_color($c));
 
-    color: if($tc != $fg_color, mix($tc, $_bg, 80%), $backdrop_fg_color);
-    border-color: if($c != $bg_color, $_bc, $backdrop_borders_color);
-    background-image: image($_bg);
+    //color: if($tc != $fg_color, mix($tc, $_bg, 80%), $backdrop_fg_color);
+    //border-color: if($c != $bg_color, $_bc, $backdrop_borders_color);
+    //background-image: image($_bg);
     text-shadow: none;
     -gtk-icon-shadow: none;
-    @include _shadows(inset 0 1px transparentize(white, 1), $_blank_edge);
+    //@include _shadows(inset 0 1px transparentize(white, 1), $_blank_edge);
   }
 
   @else if $t==backdrop-active {

@@ -16,7 +16,7 @@ $tab_selected_bg_color: #5094FF;
 
 // Optional compact sizes for buttons, headerbar and headerbar widgets
 $_sizevariant: 'default'; //compact otherwise
-$_headerbar_height: if($_sizevariant=='default', 2.5rem,  2rem);
+$_headerbar_height: if($_sizevariant=='default', 1rem,  0.5rem);
 $_entry_height: if($_sizevariant=='default', 1rem, 0.9rem);
 $_btn_pad: if($_sizevariant=='default', 0.4rem, 0.2rem);
 $_hb_btn_pad: if($_sizevariant=='default', 6px, 5px);
@@ -595,7 +595,7 @@ button {
     padding: $_btn_pad;
     border: 1px solid black;
     border-radius: $button_radius;
-    box-shadow: -1px 1px black;
+    box-shadow: -1px 1px;
     transition: $button_transition;
     background: $bg_color;
 
@@ -632,7 +632,7 @@ button {
 
     &:backdrop {
       &.flat, & {
-        @include button(backdrop);
+        //@include button(backdrop);
 
         transition: $backdrop_transition;
         -gtk-icon-effect: none;
@@ -650,10 +650,15 @@ button {
     }
 
     @at-root %button_basic_flat,
-    &.flat { &:backdrop, &:disabled, &:backdrop:disabled { @include button(undecorated); }}
+    &.flat { &:backdrop, &:disabled, &:backdrop:disabled { 
+      color: darkgray;
+      border-color: darkgray;
+      //@include button(undecorated); 
+    }}
 
     &:disabled {
       @include button(insensitive);
+      border-color: darkgray;
 
       &:active,
       &:checked { @include button(insensitive-active); }
@@ -669,7 +674,7 @@ button {
       padding: .4rem;
       border: 1px solid black;
       border-radius: $button_radius;
-      box-shadow: -1px 1px black;
+      box-shadow: -1px 1px;
       background: $bg_color;
     }
 
@@ -1113,11 +1118,10 @@ toolbar.inline-toolbar toolbutton {
 }
 
 %undecorated_button {
-  background-color: transparent;
+  //background-color: transparent;
   background-image: none;
-  border-color: transparent;
-  box-shadow: inset 0 1px transparentize(white, 1),
-              0 1px transparentize(white, 1);
+  border-color: darkgray;
+  color: darkgray;
   text-shadow: none;
   -gtk-icon-shadow: none;
 }
@@ -1581,18 +1585,12 @@ searchbar > revealer > box {
  ***************/
 %titlebar,
 headerbar {
-  padding: 0 6px;
+  padding: 0.5rem 1rem;;
   min-height: $_headerbar_height;
   border-width: 0 0 1px;
   border-style: solid;
   border-color: $alt_borders_color;
   border-radius: 0;
-
-  //border: 1px solid grey;
-  //background-color: white;
-  //background-image: none;
-  //min-height: 0;
-  padding: .2rem;
 
   @include headerbar_fill($headerbar_color);
 
@@ -1710,7 +1708,11 @@ headerbar {
 
       &.suggested-action {
         @include button(normal);
-
+        min-height: 1rem;
+        border: 1px solid black;
+        margin: 0;
+        color:  black;
+        box-shadow: -1px 1px;
         border-color: $suggested_border_color;
 
         &:hover {
@@ -1966,8 +1968,14 @@ filechooser .path-bar.linked > button {
     border: 1px solid black;
     padding: 4px;
     border-radius: 4px;
-    box-shadow: -1px 1px black;
-    background: $fg_color;
+    box-shadow: -1px 1px;
+    background: $bg_color;
+    &:disabled {
+      border-color: darkgray;
+    }
+    &:disabled image {
+      color: darkgray;
+    }
   }
 }
 
@@ -4991,7 +4999,8 @@ button.text-button.shortcuts-more label {
 }
 
 button:hover.text-button.shortcuts-more label {
-  box-shadow: -1px 1px black;
+  color:black;
+  box-shadow: -1px 1px;
 }
 
 #layers {
@@ -5065,11 +5074,6 @@ filechooser button label {
   min-height: 0;
 }
 
-.path-bar > button.toggle {
-  margin-right: .2rem;
-}
-
-
 // other customs
 
 
@@ -5078,15 +5082,34 @@ filechooser button label {
   border: 1px solid black;
   padding: 4px;
   border-radius: 4px;
-  box-shadow: -1px 1px black;
+  box-shadow: -1px 1px;
   background: white;
 }
 
+button.toggle {
+  border: 1px solid black;
+  margin:0;
+  min-height: 1rem;
+  color:  black;
+  box-shadow: -1px 1px;
+}
+
 button.image-button.more-actions-button {
+  min-width:0;
+  border: 1px solid black;
+  color: black;
+  box-shadow: -1px 1px;
+  margin-left: -1px;
+
   border-left: none;
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   padding: 3px;
+
+  &:backdrop {
+    border-color: darkgray;
+    color: darkgray;
+  }
 }
 
 button:active label, button.image-button.more-actions-button:active {
