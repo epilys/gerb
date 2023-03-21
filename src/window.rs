@@ -35,6 +35,7 @@ pub struct WindowInner {
     pub statusbar: gtk::Statusbar,
     pub notebook: gtk::Notebook,
     pub action_group: gtk::gio::SimpleActionGroup,
+    pub subwindows: RefCell<Vec<glib::object::WeakRef<gtk::Window>>>,
 }
 
 #[glib::object_subclass]
@@ -127,7 +128,39 @@ impl ObjectImpl for WindowInner {
             None
         }));
 
-        obj.connect_local("open-project", false, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
+        obj.connect_local("open-project", true, clone!(@weak obj => @default-return Some(false.to_value()), move |v: &[gtk::glib::Value]| {
+            {
+                let mut subwindows = obj.subwindows.borrow_mut();
+                subwindows.retain(|win| win.upgrade().is_some());
+                if !subwindows.is_empty() {
+                    let dialog = gtk::MessageDialog::builder()
+                        .attached_to(&obj)
+                        .border_width(10)
+                        .destroy_with_parent(true)
+                        .modal(true)
+                        .buttons(gtk::ButtonsType::None)
+                        .secondary_text("If you open a new project you will lose any unsaved data and session history from this shell window.")
+                        .title("Warning: any unsaved data and session history will be lost.")
+                        .build();
+                    dialog.add_button("Cancel", gtk::ResponseType::Close);
+                    dialog.add_button("Continue", gtk::ResponseType::Accept);
+                    let retval: bool = dialog.run() == gtk::ResponseType::Accept;
+                    dialog.hide();
+                    dialog.close();
+                    if retval {
+                        for s in subwindows.iter() {
+                            if let Some(w) = s.upgrade() {
+                                w.hide();
+                                w.close();
+                            }
+                        }
+                        subwindows.clear();
+                    } else {
+                        obj.stop_signal_emission_by_name("open-project");
+                        return None;
+                    }
+                }
+            }
             match v[1].get::<String>().map_err(|err| err.into()).and_then(Project::from_path) {
                 Ok(project) => {
                     #[cfg(feature = "python")]

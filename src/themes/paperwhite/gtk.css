@@ -1604,15 +1604,7 @@ calendar:backdrop { color: #323232; border-color: #f1f1f1; }
 calendar:indeterminate { color: alpha(currentColor,0.1); }
 
 /*********** Dialogs * */
-messagedialog .titlebar { min-height: 20px; background-image: none; background-color: white; border: .1rem solid black; border-top-left-radius: 7px; border-top-right-radius: 7px; }
-
-messagedialog.csd.background { border-bottom-left-radius: 1px; border-bottom-right-radius: 1px; }
-
-messagedialog.csd .dialog-action-area button { padding: 10px 14px; border-right-style: none; border-bottom-style: none; border-radius: 0; -gtk-outline-radius: 0; }
-
-messagedialog.csd .dialog-action-area button:first-child { border-left-style: none; border-bottom-left-radius: 2.2rem; -gtk-outline-bottom-left-radius: 2.2rem; }
-
-messagedialog.csd .dialog-action-area button:last-child { border-bottom-right-radius: 2.2rem; -gtk-outline-bottom-right-radius: 2.2rem; }
+messagedialog .titlebar { min-height: 20px; background-image: none; background-color: white; border: .1rem solid black; border-top-left-radius: 0px; border-top-right-radius: 0px; }
 
 filechooser .dialog-action-box { border-top: 1px solid #d1d1d1; }
 

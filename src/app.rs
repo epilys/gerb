@@ -351,7 +351,8 @@ impl ApplicationInner {
                     return;
                 }
                 state.store(true, Ordering::SeqCst);
-                let window = crate::api::shell::new_shell_window(obj);
+                let window = crate::api::shell::new_shell_window(obj.clone());
+                obj.window.subwindows.borrow_mut().push(window.downgrade());
                 let state_destroy = state.clone();
                 window.connect_destroy(move |_| {
                     state_destroy.store(false, Ordering::SeqCst);
