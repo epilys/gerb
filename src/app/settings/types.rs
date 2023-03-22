@@ -90,8 +90,8 @@ impl EnumValue for ShowMinimap {
 #[enum_type(name = "Theme")]
 #[serde(rename_all = "kebab-case")]
 pub enum Theme {
-    SystemDefault,
     #[default]
+    SystemDefault,
     Paperwhite,
 }
 
