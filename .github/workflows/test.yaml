@@ -1,7 +1,8 @@
-name: run tests
+name: Tests
 
 env:
   RUST_BACKTRACE: 1
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 on:
   workflow_dispatch:

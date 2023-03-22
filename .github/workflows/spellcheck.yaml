@@ -1,8 +1,5 @@
 name: Spellcheck Markdown files
 
-env:
-  RUST_BACKTRACE: 1
-
 on:
   workflow_dispatch:
   push:
@@ -22,7 +19,6 @@ jobs:
         include:
           - build: linux-amd64
             os: ubuntu-latest
-            rust: stable
             target: x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v2
