@@ -62,3 +62,7 @@ border: 0.1rem ridge;
 border-radius: 5px;
 border: .05rem ridge;
 }
+
+menu separator {
+  min-height:2rem;
+}

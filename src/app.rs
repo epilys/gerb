@@ -559,14 +559,21 @@ impl ApplicationInner {
         let application = obj.upcast_ref::<gtk::Application>();
         let menu_bar = gio::Menu::new();
 
-        // [ref:TODO] show recent projects when opened without a project
         // [ref:TODO] update the menu when we open a new project
         // Get gtk's default manager or create new
         let recent_mgr = gtk::RecentManager::default().unwrap_or_default();
         let mut items = recent_mgr
             .items()
             .into_iter()
-            .filter(|i| i.last_application().map(|a| a == "gerb").unwrap_or(false))
+            .filter(|i| {
+                i.last_application().map(|a| a == "gerb").unwrap_or(false)
+                    && i.mime_type()
+                        .map(|a| a == "inode/directory")
+                        .unwrap_or(false)
+                    && i.uri_display()
+                        .map(|a| Path::new(&a).exists())
+                        .unwrap_or(false)
+            })
             .collect::<Vec<_>>();
         items.sort_by_key(|i| -i.modified());
 

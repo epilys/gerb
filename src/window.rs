@@ -72,20 +72,72 @@ impl ObjectImpl for WindowInner {
         self.welcome_banner.set_valign(gtk::Align::Center);
         self.welcome_banner
             .set_orientation(gtk::Orientation::Vertical);
-        self.welcome_banner
-            .pack_start(&welcome_label, true, false, 5);
-        let add_glyph_btn = gtk::Button::builder()
+        let new_project_btn = gtk::Button::builder()
             .relief(gtk::ReliefStyle::None)
-            .label("Start…")
+            .label("New")
             .halign(gtk::Align::Center)
             .visible(true)
             .build();
-        add_glyph_btn.set_action_name(Some("app.project.new"));
+        new_project_btn.set_action_name(Some("app.project.new"));
+        let recent_mgr = gtk::RecentManager::default().unwrap_or_default();
+        let mut items = recent_mgr
+            .items()
+            .into_iter()
+            .filter(|i| {
+                i.last_application().map(|a| a == "gerb").unwrap_or(false)
+                    && i.mime_type()
+                        .map(|a| a == "inode/directory")
+                        .unwrap_or(false)
+                    && i.uri_display()
+                        .map(|a| Path::new(&a).exists())
+                        .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        if !items.is_empty() {
+            items.sort_by_key(|i| -i.modified());
+            let recent_box = gtk::ListBox::builder()
+                .expand(false)
+                .visible(true)
+                .can_focus(true)
+                .sensitive(true)
+                .halign(gtk::Align::Center)
+                .selection_mode(gtk::SelectionMode::Browse)
+                .build();
+            for (uri, name) in items
+                .into_iter()
+                .filter_map(|i| Some((i.uri_display()?, i.short_name()?)))
+                .take(10)
+            {
+                let label = gtk::Label::new(Some(&name));
+                label.set_visible(true);
+                label.set_tooltip_text(Some(&uri));
+                label.set_sensitive(true);
+                label.set_halign(gtk::Align::Start);
+                label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+                label.set_single_line_mode(true);
+                let wrapper = gtk::EventBox::new();
+                wrapper.add(&label);
+                wrapper.connect_button_press_event(
+                    clone!(@weak obj => @default-return Inhibit(false), move |_, _| {
+                        obj.emit_by_name::<()>("open-project", &[&uri]);
+                        Inhibit(true)
+                    }),
+                );
+                recent_box.add(&wrapper);
+            }
+            let label = gtk::Label::new(Some("Recently opened:"));
+            label.set_visible(true);
+            label.set_sensitive(false);
+            label.set_halign(gtk::Align::Center);
+            self.welcome_banner.pack_end(&recent_box, false, false, 5);
+            self.welcome_banner.pack_end(&label, false, false, 5);
+        }
         self.welcome_banner
-            .pack_end(&add_glyph_btn, false, false, 5);
-
+            .pack_end(&new_project_btn, false, false, 5);
+        self.welcome_banner.pack_end(&welcome_label, true, false, 5);
         self.root_box
             .pack_start(&self.welcome_banner, false, false, 0);
+
         self.root_box.set_expand(true);
         self.root_box.set_spacing(0);
         self.root_box.set_visible(true);
@@ -110,7 +162,7 @@ impl ObjectImpl for WindowInner {
                     .build();
             }
         }
-        self.root_box.pack_start(&self.statusbar, false, false, 0);
+        self.root_box.pack_end(&self.statusbar, false, false, 0);
 
         obj.set_child(Some(&self.root_box));
         obj.set_titlebar(Some(&self.headerbar));
