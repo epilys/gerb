@@ -89,7 +89,9 @@ version = "0.0.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2915568baa77be2c38f1d7594d1d7ceecc1012ab1ffdf8ddc9d0210596ee23e"
 dependencies = [
+ "build-info-common",
  "build-info-proc",
+ "once_cell",
 ]
 
 [[package]]

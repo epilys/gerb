@@ -29,7 +29,28 @@ fn main() -> std::io::Result<()> {
             }
         }
     }
-    #[cfg(feature = "build-info")]
+    if let Ok(s) = std::fs::read_to_string(".cargo_vcs_info.json") {
+        const KEY: &str = "\"sha1\":";
+
+        fn find_tail<'str>(str: &'str str, tok: &str) -> Option<&'str str> {
+            let i = str.find(tok)?;
+            Some(&str[(i + tok.len())..])
+        }
+
+        if let Some(mut tail) = find_tail(&s, KEY) {
+            while !tail.starts_with('"') && !tail.is_empty() {
+                tail = &tail[1..];
+            }
+            if !tail.is_empty() {
+                // skip "
+                tail = &tail[1..];
+                if let Some(end) = find_tail(tail, "\"") {
+                    let end = tail.len() - end.len();
+                    println!("cargo:rustc-env=GIT_HASH={}", &tail[..end]);
+                }
+            }
+        }
+    }
     build_info_build::build_script();
     Ok(())
 }

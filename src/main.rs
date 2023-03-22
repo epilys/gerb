@@ -85,7 +85,8 @@ fn main() {
             .lookup_value("version", Some(glib::VariantTy::BOOLEAN))
             .is_some()
         {
-            println!("{}", crate::VERSION_INFO);
+            print!("{}", crate::VERSION_INFO);
+            println!(" {}", crate::get_git_sha());
             // Exit with success code.
             return 0;
         }
@@ -94,6 +95,7 @@ fn main() {
             .is_some()
         {
             println!("{}", crate::CLI_INFO);
+            println!("Commit SHA: {}", crate::get_git_sha());
             // Exit with success code.
             return 0;
         }

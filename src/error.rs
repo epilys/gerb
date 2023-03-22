@@ -25,6 +25,6 @@ pub struct Error;
 
 impl Error {
     pub fn suggest_bug_report(err: &str) -> String {
-        format!("Application error: {err}\n\nIf you wish to report this bug to <{}>, you can include the following build info string:\n\n{}", crate::ISSUE_TRACKER, crate::BUILD_INFO)
+        format!("Application error: {err}\n\nIf you wish to report this bug to <{}>, you can include the following build info string:\n\n{} {}", crate::ISSUE_TRACKER, crate::BUILD_INFO, crate::get_git_sha())
     }
 }

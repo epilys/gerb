@@ -24,7 +24,7 @@ path = "src/repl.rs"
 required-features = ["python"]
 
 [dependencies]
-build-info = { version = "0.0.29", default-features = false, optional = true }
+build-info = { version = "0.0.29" }
 generational-arena = "0.2"
 gio = { version = "^0.15", features = [ "v2_56", ] }
 glib = { version = "^0.15" }
@@ -65,11 +65,10 @@ features = [
 ]
 
 [build-dependencies]
-build-info-build = { version = "0.0.29", optional = true }
+build-info-build = { version = "0.0.29" }
 
 [features]
 default = ["python", "git"]
-build-info = ["dep:build-info", "dep:build-info-build"]
 python = ["pyo3"]
 git = ["git2"]
 
