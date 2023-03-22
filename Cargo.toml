@@ -25,9 +25,6 @@ required-features = ["python"]
 
 [dependencies]
 build-info = { version = "0.0.29", default-features = false, optional = true }
-chrono = { version = "0.4", default-features = false }
-futures = "0.3"
-futures-util = "0.3"
 generational-arena = "0.2"
 gio = { version = "^0.15", features = [ "v2_56", ] }
 glib = { version = "^0.15" }
