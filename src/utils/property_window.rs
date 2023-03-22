@@ -1051,7 +1051,7 @@ pub fn get_label_for_property(prop: &glib::ParamSpec) -> gtk::Label {
     let label = if blurb == name {
         format!("Key: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
     } else {
-        format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+        format!("<span insert_hyphens=\"true\" allow_breaks=\"true\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
     };
     gtk::Label::builder()
         .label(&label)
