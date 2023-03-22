@@ -19,7 +19,6 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use super::widgets;
 use crate::prelude::*;
 
 #[derive(Clone, Debug)]
@@ -294,7 +293,7 @@ impl PropertyWindow {
         let widget: gtk::Widget = match val.type_().name() {
             "gboolean" => {
                 let val = val.get::<bool>().unwrap();
-                let entry = widgets::ToggleButton::new();
+                let entry = gtk::CheckButton::new();
                 entry.set_visible(true);
                 entry.set_active(val);
                 entry.set_sensitive(readwrite);
@@ -633,7 +632,7 @@ impl PropertyWindow {
                     if val {
                         size_entry.set_sensitive(false);
                     }
-                    let inherit_entry = widgets::ToggleButton::new();
+                    let inherit_entry = gtk::CheckButton::new();
                     inherit_entry.set_label("Inherit global value");
                     inherit_entry.set_visible(true);
                     inherit_entry.set_active(val);
