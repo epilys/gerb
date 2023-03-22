@@ -228,7 +228,7 @@ impl ObjectImpl for WindowInner {
 
                         let area = dialog.message_area();
                         if let Ok(box_) = area.downcast::<gtk::Box>() {
-                            let btn = crate::utils::widgets::ToggleButton::new();
+                            let btn = gtk::CheckButton::new();
                             btn.set_visible(true);
                             btn.set_active(false);
                             btn.set_sensitive(true);

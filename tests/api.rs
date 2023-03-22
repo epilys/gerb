@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
 #![allow(unused_imports)]
 
@@ -61,38 +61,35 @@ fn test_api_works() {
         let read_line = move |input: String| -> bool {
             if ["quit", "exit"].contains(&input.trim()) {
                 return true;
-            } else {
-                if let Err(err) = shell.shell_stdin.send(if input.trim().is_empty() {
+            } else if let Err(err) = shell.shell_stdin.send({
+                if input.trim().is_empty() {
                     "\n".to_string()
                 } else {
                     format!("{}\n", input)
-                }) {
-                    eprintln!("Internal error: {err}");
                 }
+            }) {
+                eprintln!("Internal error: {err}");
             }
             false
         };
 
-        loop {
-            if read_line("help(gerb)\n".to_string()) {
-                break;
-            }
+        if !read_line("help(gerb)\n".to_string()) {
             while l.iteration(true) {
                 if !hist.borrow().history().is_empty() {
                     let r = hist.borrow();
-                    let slice = r.history();
-                    assert_eq!(slice.len(), 2);
-                    assert_eq!(slice[0], (LinePrefix::Ps1, "help(gerb)".to_string(),));
-                    assert_eq!(slice[1].0, LinePrefix::Output);
+                    let [(prefix1, name1), (prefix2, name2)] = r.history() else {
+                        panic!("History length is not 2");
+                    };
+                    assert_eq!(prefix1, &LinePrefix::Ps1);
+                    assert_eq!(name1, "help(gerb)");
+                    assert_eq!(prefix2, &LinePrefix::Output);
                     assert!(
-                        slice[1].1.starts_with("Help on Gerb"),
-                        "Output should be a docstring but is:\n\n{}",
-                        &slice[1].1
+                        name2.starts_with("Help on Gerb"),
+                        "Output should be a docstring but is:\n\n{name2}"
                     );
                     break;
                 }
             }
-            break;
         }
     });
 }
