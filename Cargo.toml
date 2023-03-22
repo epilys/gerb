@@ -12,6 +12,7 @@ repository = "https://github.com/epilys/gerb"
 keywords = ["font", "fonts", "editor", "ufo", "typography"]
 categories = ["graphics"]
 default-run = "gerb"
+exclude = ["Makefile", "src/unicode/names/unicode.py", "/tests", "/docs", ".*", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "DEVELOPMENT.md", "/*.py", "/*.png", "*.scss", "src/themes/**/README"]
 
 [[bin]]
 name = "gerb"

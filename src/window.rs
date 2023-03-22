@@ -21,8 +21,6 @@
 
 mod workspace;
 pub use workspace::*;
-mod minimap;
-pub use minimap::*;
 
 use crate::prelude::*;
 use gtk::glib::subclass::Signal;
