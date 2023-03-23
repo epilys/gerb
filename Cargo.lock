@@ -508,7 +508,7 @@ dependencies = [
 
 [[package]]
 name = "gerb"
-version = "0.0.1-alpha+2023-03-22.2"
+version = "0.0.1-alpha+2023-03-23"
 dependencies = [
  "build-info",
  "build-info-build",
