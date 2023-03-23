@@ -135,6 +135,7 @@ pub struct ApplicationInner {
     paperwhite_provider: gtk::CssProvider,
     /// Holds custom widget CSS that doesn't set any colors.
     common_provider: gtk::CssProvider,
+    colors: Cell<NamedColors>,
     pub theme: Cell<types::Theme>,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
@@ -676,6 +677,65 @@ impl ApplicationInner {
                     &self.paperwhite_provider,
                     gtk::STYLE_PROVIDER_PRIORITY_SETTINGS,
                 );
+            }
+        }
+        self.colors.set(NamedColors::new());
+    }
+
+    pub fn colors(&self) -> NamedColors {
+        self.colors.get()
+    }
+}
+
+//[ref:TODO] add fallback @defines in case a theme lacks a color
+/// Named colors from GTK3 themes.
+#[derive(Default, Debug, Copy, Clone)]
+pub struct NamedColors {
+    pub theme_bg_color: Color,
+    pub theme_fg_color: Color,
+    pub theme_base_color: Color,
+    pub theme_text_color: Color,
+    pub theme_selected_bg_color: Color,
+    pub theme_selected_fg_color: Color,
+    pub insensitive_bg_color: Color,
+    pub insensitive_fg_color: Color,
+    pub insensitive_base_color: Color,
+    pub theme_unfocused_bg_color: Color,
+    pub theme_unfocused_fg_color: Color,
+    pub theme_unfocused_base_color: Color,
+    pub theme_unfocused_text_color: Color,
+    pub theme_unfocused_selected_bg_color: Color,
+    pub theme_unfocused_selected_fg_color: Color,
+}
+
+impl NamedColors {
+    fn new() -> Self {
+        let ctx = gtk::StyleContext::new();
+        macro_rules! field_def {
+            (Self { $($field:ident,)+ }) => {{
+                Self {
+                    $($field: Color::from(ctx.lookup_color(stringify!($field)).expect(stringify!($field))),)*
+
+                }
+            }}
+        }
+        field_def! {
+            Self {
+                theme_bg_color,
+                theme_fg_color,
+                theme_base_color,
+                theme_text_color,
+                theme_selected_bg_color,
+                theme_selected_fg_color,
+                insensitive_bg_color,
+                insensitive_fg_color,
+                insensitive_base_color,
+                theme_unfocused_bg_color,
+                theme_unfocused_fg_color,
+                theme_unfocused_base_color,
+                theme_unfocused_text_color,
+                theme_unfocused_selected_bg_color,
+                theme_unfocused_selected_fg_color,
             }
         }
     }

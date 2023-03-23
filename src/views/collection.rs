@@ -837,6 +837,8 @@ impl ObjectImpl for GlyphBoxInner {
                 true
             }));
         self.drawing_area.connect_draw(clone!(@weak obj => @default-return Inhibit(false), move |viewport: &gtk::DrawingArea, mut ctx: &Context| {
+            let app = obj.imp().app.get().unwrap();
+            let colors = app.colors();
             let mut cr = ctx.push();
             cr.select_font_face("Sans", FontSlant::Normal, FontWeight::Normal);
             let is_focused: bool = obj.imp().focused.get();
@@ -854,9 +856,9 @@ impl ObjectImpl for GlyphBoxInner {
             let (point, (width, height)) = crate::utils::draw_round_rectangle(cr.push(), (x, y).into(), (zoom_factor * GLYPH_BOX_WIDTH, zoom_factor * GLYPH_BOX_HEIGHT), 1.0, 1.5);
             let glyph_width = glyph.width().unwrap_or(units_per_em) * (width * 0.8) / units_per_em;
             if is_focused {
-                cr.set_source_rgb(1.0, 250.0 / 255.0, 141.0 / 255.0);
+                cr.set_source_color(colors.theme_selected_bg_color);
             } else {
-                cr.set_source_rgb(1.0, 1.0, 1.0);
+                cr.set_source_color(colors.theme_base_color);
             }
             cr.fill_preserve().expect("Invalid cairo surface state");
             cr.set_source_rgba(0.0, 0.0, 0.0, 0.5);
@@ -866,7 +868,6 @@ impl ObjectImpl for GlyphBoxInner {
             let mark_color = obj.imp().mark_color.get();
             if mark_color.is_visible() {
                 use crate::app::settings::types::MarkColor;
-                let app = obj.imp().app.get().unwrap();
                 let settings = &app.runtime.settings;
                 match settings.property::<MarkColor>(Settings::MARK_COLOR) {
                     MarkColor::None => {},
@@ -908,6 +909,7 @@ impl ObjectImpl for GlyphBoxInner {
                 .expect("Invalid cairo surface state");
             if glyph.is_empty() {
                 cr.move_to(point.x + width / 2.0 - sextents.width / 2.0, point.y + (height / 3.0) + 20.0);
+                cr.set_source_color(colors.theme_text_color);
                 cr.show_text(&label).expect("Invalid cairo surface state");
             } else {
                 let mut matrix = gtk::cairo::Matrix::identity();
@@ -915,7 +917,7 @@ impl ObjectImpl for GlyphBoxInner {
                 matrix.scale((width * 0.8) / units_per_em, -(width * 0.8) / units_per_em);
                 let options = GlyphDrawingOptions {
                     outline: (Color::new_alpha(0, 0, 0, 0), 1.5).into(),
-                    inner_fill: Some((Color::new(89, 89, 89), 1.5).into()),
+                    inner_fill: Some((colors.theme_text_color.with_alpha_f64(0.6), 1.5).into()),
                     highlight: None,
                     matrix,
                     units_per_em,
@@ -931,13 +933,15 @@ impl ObjectImpl for GlyphBoxInner {
             cr.move_to(x, 2.0f64.mul_add(height / 3.0, point.y));
             cr.line_to(width.mul_add(1.2, x), 2.0f64.mul_add(height / 3.0, point.y));
             cr.stroke().expect("Invalid cairo surface state");
-            cr.set_source_rgb(196.0 / 255.0, 196.0 / 255.0, 196.0 / 255.0);
+            // [ref:FIXME] this has some transparency to make it blend with the default bg, so any
+            // part of the glyph that is below would be visible. It should be clipped.
+            cr.set_source_color_alpha(colors.theme_fg_color.with_alpha_f64(0.3));
             cr.new_path();
             cr.rectangle(x, 2.0f64.mul_add(height / 3.0, point.y), width * 1.2, 1.2 * height / 3.0);
             cr.fill().expect("Invalid cairo surface state");
             cr.reset_clip();
 
-            cr.set_source_rgb(0.0, 0.0, 0.0);
+            cr.set_source_color(colors.theme_text_color);
             cr.set_font_size(zoom_factor * 12.0);
             let sextents = cr
                 .text_extents(&label)

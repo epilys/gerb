@@ -50,8 +50,13 @@ impl Color {
         Self::new_alpha((self.0).0, (self.0).1, (self.0).2, new_alpha)
     }
 
-    pub const fn new_alpha_f64(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
-        Self((red, green, blue, alpha))
+    pub fn new_f64(red: f64, green: f64, blue: f64, alpha: f64) -> Self {
+        Self((
+            (red * 255.0) as u8,
+            (green * 255.0) as u8,
+            (blue * 255.0) as u8,
+            (alpha * 255.0) as u8,
+        ))
     }
 
     pub fn with_alpha_f64(self, new_alpha: f64) -> Self {
