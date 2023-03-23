@@ -45,8 +45,8 @@ fn main() -> std::io::Result<()> {
                 // skip "
                 tail = &tail[1..];
                 if let Some(end) = find_tail(tail, "\"") {
-                    let end = tail.len() - end.len();
-                    println!("cargo:rustc-env=GIT_HASH={}", &tail[..end]);
+                    let end = tail.len() - end.len() - 1;
+                    println!("cargo:rustc-env=PACKAGE_GIT_SHA={}", &tail[..end]);
                 }
             }
         }
