@@ -285,7 +285,7 @@ impl CreatePropertyWindow for GlyphMetadata {
                     let blurb = "Unicode codepoint e.g. U+67";
                     let name = "unicode";
                     let type_name: &str = "unicode codepoint";
-                    format!("<span insert_hyphens=\"true\" allow_breaks=\"true\" foreground=\"#222222\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
+                    format!("<span insert_hyphens=\"true\" allow_breaks=\"true\">{blurb}</span>\n\nKey: <tt>{name}</tt>\nType: <span background=\"cornflowerblue\" foreground=\"white\"><tt> {type_name} </tt></span>")
                 }).visible(true)
                 .selectable(true)
                 .wrap_mode(gtk::pango::WrapMode::Char)

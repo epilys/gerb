@@ -843,9 +843,6 @@ impl ObjectImpl for GlyphBoxInner {
             let zoom_factor: f64 = obj.imp().zoom_factor.get();
             let units_per_em = obj.imp().project.get().unwrap().fontinfo().property(FontInfo::UNITS_PER_EM);
 
-            cr.set_source_rgb(1.0, 1.0, 1.0);
-            cr.paint().expect("Invalid cairo surface state");
-
             let (x, y) = (0.01, 0.01);
             let glyph = obj.imp().glyph.get().unwrap().borrow();
             let label = match glyph.kinds().0 {

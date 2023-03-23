@@ -39,7 +39,7 @@ box.terminal-box > list > row > label {
 }
 
 .glyph-edit-toolbox {
-  background-image: image(@bg_color), image(white);
+  background-image: image(@theme_bg_color), image(@theme_base_color);
 }
 
 .glyph-edit-toolbox {
@@ -65,4 +65,9 @@ border: .05rem ridge;
 
 menu separator {
   min-height:2rem;
+}
+
+/* Show menu section labels */
+menu separator label, menuitem separator label  {
+  color: @theme_text_color;
 }
