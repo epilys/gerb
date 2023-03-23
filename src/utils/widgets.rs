@@ -19,18 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
-use gtk::gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
-
-thread_local! {
-static ICONS: once_cell::unsync::Lazy<(Option<Pixbuf>, Option<Pixbuf>)> =
-    once_cell::unsync::Lazy::new(|| {
-        (
-            crate::resources::icons::CHECKBOX_ICON.to_pixbuf(),
-            crate::resources::icons::CHECKBOX_CHECKED_ICON.to_pixbuf(),
-        )
-    });
-}
 
 /// Error dialog util
 ///
