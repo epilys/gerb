@@ -1103,6 +1103,13 @@ impl PanningToolInner {
         let rotate_action = gio::SimpleAction::new(PanningTool::ROTATE_ACTION, None);
         rotate_action.connect_activate(|_, _| {});
         view.action_group.add_action(&rotate_action);
+        let pan_action = gio::SimpleAction::new(PanningTool::PAN_ACTION, None);
+        pan_action.connect_activate(glib::clone!(@weak view, @weak obj => move |_, _| {
+            obj.imp().mode.set(Mode::Pan);
+            obj.set_property::<bool>(PanningTool::ACTIVE, true);
+            view.viewport.set_cursor("crosshair");
+        }));
+        view.action_group.add_action(&pan_action);
         let mut sh = view.shortcuts.borrow_mut();
         sh.push(ShortcutAction::new(
             "move".into(),
@@ -1131,6 +1138,15 @@ impl PanningToolInner {
             }),
             None,
         ));
+        sh.push(ShortcutAction::new(
+            "pan".into(),
+            Shortcut::empty().shift().char('P'),
+            Box::new(|group| {
+                group.activate_action(PanningTool::PAN_ACTION, None);
+                true
+            }),
+            None,
+        ));
     }
 }
 
@@ -1150,6 +1166,7 @@ impl PanningTool {
     pub const MOVE_ACTION: &str = "move.selection";
     pub const SCALE_ACTION: &str = "scale.selection";
     pub const ROTATE_ACTION: &str = "rotate.selection";
+    pub const PAN_ACTION: &str = "pan";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
@@ -1411,7 +1428,16 @@ impl PanningTool {
                 m.translate(-step, 0.0);
             }
         }
-        view.state().borrow().transform_selection(m, true);
+        let state = view.state().borrow();
+        if state.get_selection_set().is_empty() {
+            let mut delta: Point = m * Point::from((0.0, 0.0));
+            delta.x *= -1.0;
+            view.viewport
+                .transformation
+                .move_camera_by_delta(ViewPoint(delta));
+        } else {
+            state.transform_selection(m, true);
+        }
         view.queue_draw();
     }
 
