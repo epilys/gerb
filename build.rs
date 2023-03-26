@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 fn main() -> std::io::Result<()> {
     println!("cargo:rerun-if-changed=src/themes");
-    {
+    if Path::new(".git").exists() {
         fn read_fn(p: impl AsRef<Path>) -> Result<VecDeque<PathBuf>, std::io::Error> {
             std::fs::read_dir(p)?
                 .map(|res| res.map(|e| e.path()))
