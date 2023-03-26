@@ -112,7 +112,11 @@ pub mod ufo_compile {
         Ok(res?)
     }
 
-    pub fn export_action_cb(window: gtk::Window, project: crate::prelude::Project) {
+    pub fn export_action_cb(
+        app: &crate::app::Application,
+        window: gtk::Window,
+        project: crate::prelude::Project,
+    ) {
         use crate::prelude::*;
         const OPEN_FOLDER: gtk::ResponseType = gtk::ResponseType::Other(0);
         const OPEN_ARTIFACT: gtk::ResponseType = gtk::ResponseType::Other(1);
@@ -173,15 +177,38 @@ pub mod ufo_compile {
                 .output_path(output_path),
         ) {
             Ok(result_path) => {
-                let dialog = crate::utils::widgets::new_simple_info_dialog(
-                    match format {
-                        OutputFormat::Otf => Some("Exported OTF artifact."),
-                        OutputFormat::Ttf => Some("Exported TTF artifact."),
-                    },
-                    &format!(
+                let title = match format {
+                    OutputFormat::Otf => "Exported OTF artifact.",
+                    OutputFormat::Ttf => "Exported TTF artifact.",
+                };
+                let folder_uri = result_path
+                    .parent()
+                    .and_then(|p| glib::filename_to_uri(p, None).ok())
+                    .as_ref()
+                    .map(glib::GString::to_string);
+                let file_uri = glib::filename_to_uri(&result_path, None)
+                    .ok()
+                    .as_ref()
+                    .map(glib::GString::to_string);
+
+                let body = if let Some(ref folder_uri) = folder_uri {
+                    format!(
+                        "Project was exported successfully to\n<tt><a href=\"{}\">{}</a></tt>",
+                        folder_uri,
+                        result_path.display()
+                    )
+                } else {
+                    format!(
                         "Project was exported successfully to\n<tt>{}</tt>",
                         result_path.display()
-                    ),
+                    )
+                };
+                let notif = gio::Notification::new(title);
+                notif.set_body(Some(&body));
+                app.send_notification(None, &notif);
+                let dialog = crate::utils::widgets::new_simple_info_dialog(
+                    Some(title),
+                    &body,
                     None,
                     &window,
                 );
@@ -196,21 +223,22 @@ pub mod ufo_compile {
                 loop {
                     match dialog.run() {
                         response if matches!(response, OPEN_FOLDER) => {
-                            let uri =
-                                glib::filename_to_uri(result_path.parent().unwrap(), None).unwrap();
-                            gtk::gio::AppInfo::launch_default_for_uri(
-                                &uri,
-                                gtk::gio::AppLaunchContext::NONE,
-                            )
-                            .unwrap();
+                            if let Some(uri) = folder_uri.as_ref() {
+                                gtk::gio::AppInfo::launch_default_for_uri(
+                                    uri,
+                                    gtk::gio::AppLaunchContext::NONE,
+                                )
+                                .unwrap();
+                            }
                         }
                         response if matches!(response, OPEN_ARTIFACT) => {
-                            let uri = glib::filename_to_uri(&result_path, None).unwrap();
-                            gtk::gio::AppInfo::launch_default_for_uri(
-                                &uri,
-                                gtk::gio::AppLaunchContext::NONE,
-                            )
-                            .unwrap();
+                            if let Some(uri) = file_uri.as_ref() {
+                                gtk::gio::AppInfo::launch_default_for_uri(
+                                    uri,
+                                    gtk::gio::AppLaunchContext::NONE,
+                                )
+                                .unwrap();
+                            }
                         }
                         _ => break,
                     }

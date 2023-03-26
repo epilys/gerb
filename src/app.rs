@@ -234,8 +234,6 @@ impl ApplicationImpl for ApplicationInner {
     /// asked to present itself.
     fn activate(&self, app: &Self::Type) {
         self.parent_activate(app);
-        #[cfg(debug_assertions)]
-        gtk::Window::set_interactive_debugging(true);
         //self.window.set_app_paintable(true); // crucial for transparency
         self.window.set_resizable(true);
     }
@@ -292,8 +290,6 @@ impl ApplicationInner {
         application.set_accels_for_action("app.about", &["question", "F1"]);
         application.set_accels_for_action("app.undo", &["<Primary>Z"]);
         application.set_accels_for_action("app.redo", &["<Primary>R"]);
-        #[cfg(debug_assertions)]
-        application.set_accels_for_action("app.snapshot", &["F12"]);
         application.set_accels_for_action("app.project.open", &["<Primary>O"]);
         application.set_accels_for_action("app.project.new", &["<Primary>N"]);
         application.set_accels_for_action("app.project.properties", &["<Primary><Shift>D"]);
@@ -314,16 +310,36 @@ impl ApplicationInner {
         let window = self.window.upcast_ref::<gtk::Window>();
         #[cfg(debug_assertions)]
         {
+            application.set_accels_for_action("app.inspector", &["F11"]);
+            let inspector = gtk::gio::SimpleAction::new("inspector", None);
+            inspector.connect_activate(move |_, _| {
+                gtk::Window::set_interactive_debugging(true);
+            });
+            application.add_action(&inspector);
+
+            application.set_accels_for_action("app.snapshot", &["F12"]);
             let snapshot = gtk::gio::SimpleAction::new("snapshot", None);
-            snapshot.connect_activate(glib::clone!(@weak window, @weak application => move |_, _| {
+            snapshot.connect_activate(glib::clone!(@weak window, @weak application as app => move |_, _| {
                 let path = "/tmp/t.svg";
                 let (w, h) = (window.allocated_width(), window.allocated_height());
-                let svg_surface = cairo::SvgSurface::new(f64::from(w), f64::from(h), Some(path)).unwrap();
-                let ctx = gtk::cairo::Context::new(&svg_surface).unwrap();
-                window.draw(&ctx);
-                svg_surface.flush();
-                svg_surface.finish();
-                eprintln!("saved to path: {path}");
+                let make = || -> Result<_, Box<dyn std::error::Error>> {
+                    let svg_surface = cairo::SvgSurface::new(f64::from(w), f64::from(h), Some(path))?;
+                    let ctx = gtk::cairo::Context::new(&svg_surface)?;
+                    window.draw(&ctx);
+                    svg_surface.flush();
+                    svg_surface.finish();
+                    eprintln!("saved to path: {path}");
+                    Ok(glib::filename_to_uri(path, None)?)
+                };
+                if let Ok(uri) = make() {
+                    let notif = gio::Notification::new("Saved");
+                    notif.set_body(Some(&format!(
+                        "SVG screenshot was saved to\n<tt><a href=\"{}\">{}</a></tt>",
+                        uri,
+                        path,
+                    )));
+                    app.send_notification(None, &notif);
+                }
             }));
             application.add_action(&snapshot);
         }
@@ -456,37 +472,52 @@ impl ApplicationInner {
         }));
         let new_project = gtk::gio::SimpleAction::new("project.new", None);
         {
-            new_project.connect_activate(glib::clone!(@weak self.window as window => move |_, _| {
-                let filechooser = gtk::FileChooserNative::builder()
-                    .accept_label("Select")
-                    .create_folders(true)
-                    .do_overwrite_confirmation(true)
-                    .title("Select UFO project path")
-                    .action(gtk::FileChooserAction::SelectFolder)
-                    .transient_for(&window)
-                    .build();
-                filechooser.set_filename("new_project.ufo");
+            new_project.connect_activate(
+                glib::clone!(@weak self.window as window, @weak obj as app => move |_, _| {
+                    let filechooser = gtk::FileChooserNative::builder()
+                        .accept_label("Select")
+                        .create_folders(true)
+                        .do_overwrite_confirmation(true)
+                        .title("Select UFO project path")
+                        .action(gtk::FileChooserAction::SelectFolder)
+                        .transient_for(&window)
+                        .build();
+                    filechooser.set_filename("new_project.ufo");
 
-                crate::return_if_not_ok_or_accept!(filechooser.run());
+                    crate::return_if_not_ok_or_accept!(filechooser.run());
 
-                let Some(f) = filechooser.filename() else { return; };
-                filechooser.hide();
-                window.imp().welcome_banner.set_visible(false);
-                window.imp().notebook.set_visible(true);
-                match crate::prelude::Project::create(&f) {
-                    Ok(p) => window.load_project(p),
-                    Err(err) => {
-                        let dialog = crate::utils::widgets::new_simple_error_dialog(
-                            Some("Error: Could not create project"),
-                            &err.to_string(),
-                            Some(&format!("Path: {}", f.display())),
-                            window.upcast_ref(),
-                        );
-                        dialog.run();
-                        dialog.emit_close();
-                    },
-                }
-            }));
+                    let Some(f) = filechooser.filename() else { return; };
+                    filechooser.hide();
+                    window.imp().welcome_banner.set_visible(false);
+                    window.imp().notebook.set_visible(true);
+                    match crate::prelude::Project::create(&f) {
+                        Ok(p) => {
+                            {
+                                let path = p.path.borrow();
+                                let notif = gio::Notification::new("Created a UFO directory");
+                                notif.set_body(Some(&format!(
+                                            "Created a UFO directory at <tt><a href=\"{}\">{}</a></tt>",
+                                            glib::filename_to_uri(&*path, None).expect("Could not convert local path {path:?} to URI"),
+                                            path.display(),
+                                )));
+                                app.send_notification(None, &notif);
+                            }
+
+                            window.load_project(p)
+                        },
+                        Err(err) => {
+                            let dialog = crate::utils::widgets::new_simple_error_dialog(
+                                Some("Error: Could not create project"),
+                                &err.to_string(),
+                                Some(&format!("Path: {}", f.display())),
+                                window.upcast_ref(),
+                            );
+                            dialog.run();
+                            dialog.emit_close();
+                        },
+                    }
+                }),
+            );
         }
         let undo = gtk::gio::SimpleAction::new("undo", None);
         undo.set_enabled(false);
@@ -534,6 +565,7 @@ impl ApplicationInner {
             #[cfg(feature = "python")]
             {
                 crate::ufo::export::ufo_compile::export_action_cb(
+                    &app,
                     window.upcast(),
                     app.runtime.project.borrow().clone(),
                 );
@@ -552,12 +584,20 @@ impl ApplicationInner {
             }
         }));
         let bug_report = gtk::gio::SimpleAction::new("bug_report", None);
-        bug_report.connect_activate(|_, _| {
-            gtk::gio::AppInfo::launch_default_for_uri(
+        let app = application.clone();
+        bug_report.connect_activate(move |_, _| {
+            if let Err(err) = gtk::gio::AppInfo::launch_default_for_uri(
                 crate::ISSUE_TRACKER,
                 gtk::gio::AppLaunchContext::NONE,
-            )
-            .unwrap();
+            ) {
+                let notif = gio::Notification::new("Could not open issue tracker website");
+                notif.set_body(Some(&format!(
+                            "Could not find an appropriate application to open the issue tracker URL: <tt><a href=\"{}\">{}</a>\n\nDo you have a default browser set up in your desktop settings?\n\nThe returned error was: {err}",
+                            crate::ISSUE_TRACKER,
+                            crate::ISSUE_TRACKER,
+                )));
+                app.send_notification(None, &notif);
+            }
         });
         application.add_action(&project_properties);
         application.add_action(&project_save);
