@@ -371,6 +371,14 @@ impl ApplicationInner {
                 w.present();
             }),
         );
+        let set_theme =
+            gtk::gio::SimpleAction::new("settings.set_theme", Some(glib::VariantTy::STRING));
+        set_theme.connect_activate(glib::clone!(@weak obj => move |_, name| {
+            use glib::FromVariant;
+            if let Some(v) = name.map(String::from_variant).and_then(|s| Theme::kebab_str_deserialize(&s?)) {
+                obj.set_property(Application::THEME, v);
+            }
+        }));
         let import_glyphs = gtk::gio::SimpleAction::new("project.import.glyphs", None);
 
         import_glyphs.connect_activate(glib::clone!(@weak window => move |_, _| {
@@ -546,6 +554,7 @@ impl ApplicationInner {
         application.add_action(&import_glyphs);
         application.add_action(&import_ufo2);
         application.add_action(&settings);
+        application.add_action(&set_theme);
         application.add_action(&about);
         application.add_action(&bug_report);
         application.add_action(&open_path);
@@ -634,6 +643,21 @@ impl ApplicationInner {
             let win_menu = gio::Menu::new();
             win_menu.append(Some("_Next tab"), Some("win.next_tab"));
             win_menu.append(Some("_Previous tab"), Some("win.prev_tab"));
+            let theme_menu = gio::Menu::new();
+            for (label, theme) in [
+                ("System default", "system-default"),
+                ("Paperwhite", "paperwhite"),
+            ] {
+                // [ref:TODO] use SimpleAction with boolean state to make these menu entries into
+                // checkboxes
+                let themeitem = gio::MenuItem::new(Some(label), Some("app.settings.set_theme"));
+                themeitem.set_action_and_target_value(
+                    Some("app.settings.set_theme"),
+                    Some(&theme.to_variant()),
+                );
+                theme_menu.append_item(&themeitem);
+            }
+            win_menu.append_submenu(Some("_Theme"), &theme_menu);
             menu_bar.append_submenu(Some("_Window"), &win_menu);
         }
 
