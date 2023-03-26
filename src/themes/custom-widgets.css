@@ -71,3 +71,33 @@ menu separator {
 menu separator label, menuitem separator label  {
   color: @theme_text_color;
 }
+
+.recent {
+  border-width: 0.2rem;
+  border-style: ridge;
+  border-color: @borders;
+  padding: .1rem .1rem;
+}
+
+.recent .activatable {
+  border-width: 0.1rem;
+  border-style: ridge;
+  border-color: @borders;
+  padding: .1rem .1rem;
+}
+
+.recent .activatable:hover {
+  background-color: @theme_selected_bg_color;
+}
+
+.title-label {
+  font-family: serif;
+  font-weight: 500;
+  font-size: 32pt;
+}
+
+.subtitle-label {
+  font-weight: 100;
+  font-size: 9pt;
+  font-family: mono;
+}

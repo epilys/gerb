@@ -28,7 +28,7 @@ use gtk::glib::subclass::Signal;
 #[derive(Debug, Default)]
 pub struct WindowInner {
     pub root_box: gtk::Box,
-    pub welcome_banner: gtk::Box,
+    pub welcome_banner: gtk::FlowBox,
     pub headerbar: gtk::HeaderBar,
     pub statusbar: gtk::Statusbar,
     pub notebook: gtk::Notebook,
@@ -60,79 +60,7 @@ impl ObjectImpl for WindowInner {
         self.notebook.set_show_border(true);
 
         self.root_box.set_orientation(gtk::Orientation::Vertical);
-
-        let welcome_label = gtk::Label::builder().label(
-            "You can create a new UFO project, open an existing one or import from a compatible format."
-        ).visible(true).wrap(true).halign(gtk::Align::Center).build();
-        self.welcome_banner.set_visible(true);
-        self.welcome_banner.set_expand(true);
-        self.welcome_banner.set_halign(gtk::Align::Center);
-        self.welcome_banner.set_valign(gtk::Align::Center);
-        self.welcome_banner
-            .set_orientation(gtk::Orientation::Vertical);
-        let new_project_btn = gtk::Button::builder()
-            .relief(gtk::ReliefStyle::None)
-            .label("New")
-            .halign(gtk::Align::Center)
-            .visible(true)
-            .build();
-        new_project_btn.set_action_name(Some("app.project.new"));
-        let recent_mgr = gtk::RecentManager::default().unwrap_or_default();
-        let mut items = recent_mgr
-            .items()
-            .into_iter()
-            .filter(|i| {
-                i.last_application().map(|a| a == "gerb").unwrap_or(false)
-                    && i.mime_type()
-                        .map(|a| a == "inode/directory")
-                        .unwrap_or(false)
-                    && i.uri_display()
-                        .map(|a| Path::new(&a).exists())
-                        .unwrap_or(false)
-            })
-            .collect::<Vec<_>>();
-        if !items.is_empty() {
-            items.sort_by_key(|i| -i.modified());
-            let recent_box = gtk::ListBox::builder()
-                .expand(false)
-                .visible(true)
-                .can_focus(true)
-                .sensitive(true)
-                .halign(gtk::Align::Center)
-                .selection_mode(gtk::SelectionMode::Browse)
-                .build();
-            for (uri, name) in items
-                .into_iter()
-                .filter_map(|i| Some((i.uri_display()?, i.short_name()?)))
-                .take(10)
-            {
-                let label = gtk::Label::new(Some(&name));
-                label.set_visible(true);
-                label.set_tooltip_text(Some(&uri));
-                label.set_sensitive(true);
-                label.set_halign(gtk::Align::Start);
-                label.set_ellipsize(gtk::pango::EllipsizeMode::End);
-                label.set_single_line_mode(true);
-                let wrapper = gtk::EventBox::new();
-                wrapper.add(&label);
-                wrapper.connect_button_press_event(
-                    clone!(@weak obj => @default-return Inhibit(false), move |_, _| {
-                        obj.emit_by_name::<()>("open-project", &[&uri]);
-                        Inhibit(true)
-                    }),
-                );
-                recent_box.add(&wrapper);
-            }
-            let label = gtk::Label::new(Some("Recently opened:"));
-            label.set_visible(true);
-            label.set_sensitive(false);
-            label.set_halign(gtk::Align::Center);
-            self.welcome_banner.pack_end(&recent_box, false, false, 5);
-            self.welcome_banner.pack_end(&label, false, false, 5);
-        }
-        self.welcome_banner
-            .pack_end(&new_project_btn, false, false, 5);
-        self.welcome_banner.pack_end(&welcome_label, true, false, 5);
+        self.setup_welcome_banner(obj);
         self.root_box
             .pack_start(&self.welcome_banner, false, false, 0);
 
@@ -464,6 +392,175 @@ impl WindowInner {
             .application()
             .and_then(|app| app.downcast::<Application>().ok())
             .unwrap()
+    }
+}
+
+impl WindowInner {
+    fn setup_welcome_banner(&self, obj: &Window) {
+        let title_label = gtk::Label::builder()
+            .label(crate::APPLICATION_NAME)
+            .visible(true)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Start)
+            .build();
+        title_label.style_context().add_class("title-label");
+        let subtitle_label = gtk::Label::builder()
+            .label(&format!(
+                "v{} {}",
+                crate::VERSION_INFO,
+                crate::get_git_sha()
+            ))
+            .visible(true)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Start)
+            .build();
+        subtitle_label.style_context().add_class("subtitle-label");
+        let welcome_label = gtk::Label::builder()
+            .label("You can create a new UFO project, open an existing one or import from a compatible format.")
+            .visible(true)
+            .wrap(true)
+            .halign(gtk::Align::Center)
+            .max_width_chars(33)
+            .build();
+        let title_ctr = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(0)
+            .expand(true)
+            .halign(gtk::Align::Fill)
+            .valign(gtk::Align::Fill)
+            .visible(true)
+            .can_focus(true)
+            .build();
+        title_ctr.pack_start(&title_label, false, false, 0);
+        title_ctr.pack_start(&subtitle_label, false, false, 0);
+        self.welcome_banner.set_visible(true);
+        self.welcome_banner.set_expand(true);
+        self.welcome_banner.set_border_width(40);
+        self.welcome_banner.set_row_spacing(15);
+        self.welcome_banner.set_column_spacing(15);
+        self.welcome_banner.set_halign(gtk::Align::Center);
+        self.welcome_banner.set_valign(gtk::Align::Center);
+        self.welcome_banner
+            .set_orientation(gtk::Orientation::Horizontal);
+        self.welcome_banner
+            .set_selection_mode(gtk::SelectionMode::None);
+
+        self.welcome_banner.add(&title_ctr);
+        self.welcome_banner.add(&welcome_label);
+        let options_box: gtk::FlowBox = gtk::FlowBox::builder()
+            .visible(true)
+            .expand(true)
+            .row_spacing(40)
+            .column_spacing(40)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
+            .orientation(gtk::Orientation::Vertical)
+            .selection_mode(gtk::SelectionMode::None)
+            .build();
+        self.welcome_banner.add(&options_box);
+        let recent_mgr = gtk::RecentManager::default().unwrap_or_default();
+        let mut items = recent_mgr
+            .items()
+            .into_iter()
+            .filter(|i| {
+                i.last_application().map(|a| a == "gerb").unwrap_or(false)
+                    && i.mime_type()
+                        .map(|a| a == "inode/directory")
+                        .unwrap_or(false)
+                    && i.uri_display()
+                        .map(|a| Path::new(&a).exists())
+                        .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        if !items.is_empty() {
+            items.sort_by_key(|i| -i.modified());
+            let recent_box = gtk::ListBox::builder()
+                .expand(false)
+                .visible(true)
+                .can_focus(true)
+                .sensitive(true)
+                .halign(gtk::Align::Center)
+                .selection_mode(gtk::SelectionMode::Browse)
+                .build();
+            recent_box.style_context().add_class("recent");
+            for (uri, name) in items
+                .into_iter()
+                .filter_map(|i| Some((i.uri_display()?, i.short_name()?)))
+                .take(10)
+            {
+                let label = gtk::Label::new(Some(&name));
+                label.set_visible(true);
+                label.set_tooltip_text(Some(&uri));
+                label.set_sensitive(true);
+                label.set_halign(gtk::Align::Start);
+                label.set_ellipsize(gtk::pango::EllipsizeMode::End);
+                label.set_single_line_mode(true);
+                let wrapper = gtk::EventBox::new();
+                wrapper.add(&label);
+                wrapper.connect_button_press_event(
+                    clone!(@weak obj => @default-return Inhibit(false), move |_, _| {
+                        obj.emit_by_name::<()>("open-project", &[&uri]);
+                        Inhibit(true)
+                    }),
+                );
+                recent_box.add(&wrapper);
+            }
+            let label = gtk::Label::new(Some("Recently opened:"));
+            label.set_visible(true);
+            label.set_sensitive(false);
+            label.set_halign(gtk::Align::Center);
+            let ctr = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .spacing(10)
+                .expand(true)
+                .halign(gtk::Align::Center)
+                .valign(gtk::Align::End)
+                .visible(true)
+                .can_focus(true)
+                .build();
+            ctr.add(&label);
+            ctr.add(&recent_box);
+            options_box.add(&ctr);
+        }
+        {
+            let btn_ctr = gtk::Box::builder()
+                .orientation(gtk::Orientation::Vertical)
+                .spacing(10)
+                .expand(true)
+                .halign(gtk::Align::Center)
+                .valign(gtk::Align::End)
+                .visible(true)
+                .can_focus(true)
+                .build();
+            let new_project_btn = gtk::Button::builder()
+                .relief(gtk::ReliefStyle::Normal)
+                .label("New")
+                .halign(gtk::Align::Fill)
+                .valign(gtk::Align::Center)
+                .visible(true)
+                .build();
+            new_project_btn.set_action_name(Some("app.project.new"));
+            let open_btn = gtk::Button::builder()
+                .relief(gtk::ReliefStyle::Normal)
+                .label("Open directory")
+                .halign(gtk::Align::Fill)
+                .valign(gtk::Align::Center)
+                .visible(true)
+                .build();
+            open_btn.set_action_name(Some("app.project.open"));
+            let set_btn = gtk::Button::builder()
+                .relief(gtk::ReliefStyle::Normal)
+                .label("Settings")
+                .halign(gtk::Align::Fill)
+                .valign(gtk::Align::Center)
+                .visible(true)
+                .build();
+            set_btn.set_action_name(Some("app.settings"));
+            btn_ctr.add(&open_btn);
+            btn_ctr.add(&new_project_btn);
+            btn_ctr.add(&set_btn);
+            options_box.add(&btn_ctr);
+        }
     }
 }
 

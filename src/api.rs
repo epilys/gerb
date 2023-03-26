@@ -131,7 +131,7 @@ impl Gerb {
 impl Gerb {
     pub fn __repr__(&self) -> PyResult<String> {
         Ok(format!(
-            "<Gerb global instance object {}>",
+            "<Gerb global instance object v{}>",
             crate::VERSION_INFO
         ))
     }

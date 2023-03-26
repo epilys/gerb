@@ -38,14 +38,14 @@ impl Default for PropertyWindowButtons {
         Self::Modify {
             reset: gtk::Button::builder()
                 .label("Reset")
-                .relief(gtk::ReliefStyle::None)
+                .relief(gtk::ReliefStyle::Normal)
                 .visible(true)
                 .halign(gtk::Align::Center)
                 .valign(gtk::Align::Center)
                 .build(),
             close: gtk::Button::builder()
                 .label("Close")
-                .relief(gtk::ReliefStyle::None)
+                .relief(gtk::ReliefStyle::Normal)
                 .visible(true)
                 .halign(gtk::Align::Center)
                 .valign(gtk::Align::Center)
@@ -362,7 +362,7 @@ impl PropertyWindow {
                         let btn = gtk::Button::builder()
                             .image(&image)
                             .always_show_image(true)
-                            .relief(gtk::ReliefStyle::None)
+                            .relief(gtk::ReliefStyle::Normal)
                             .visible(true)
                             .sensitive(true)
                             .tooltip_text("Open file location")
@@ -636,7 +636,7 @@ impl PropertyWindow {
                     inherit_entry.set_label("Inherit global value");
                     inherit_entry.set_visible(true);
                     inherit_entry.set_active(val);
-                    inherit_entry.set_relief(gtk::ReliefStyle::None);
+                    inherit_entry.set_relief(gtk::ReliefStyle::Normal);
                     inherit_entry.set_sensitive(readwrite);
                     inherit_entry.set_halign(gtk::Align::Start);
                     inherit_entry.set_valign(gtk::Align::Start);
@@ -935,7 +935,7 @@ impl PropertyWindowBuilder {
                         .build();
                     let reset = gtk::Button::builder()
                         .label("Reset")
-                        .relief(gtk::ReliefStyle::None)
+                        .relief(gtk::ReliefStyle::Normal)
                         .visible(true)
                         .halign(gtk::Align::Center)
                         .valign(gtk::Align::Center)
@@ -954,7 +954,7 @@ impl PropertyWindowBuilder {
                     }));
                     let close = gtk::Button::builder()
                         .label("Close")
-                        .relief(gtk::ReliefStyle::None)
+                        .relief(gtk::ReliefStyle::Normal)
                         .visible(true)
                         .halign(gtk::Align::Center)
                         .valign(gtk::Align::Center)
@@ -979,7 +979,7 @@ impl PropertyWindowBuilder {
                         .build();
                     let cancel = gtk::Button::builder()
                         .label("Cancel")
-                        .relief(gtk::ReliefStyle::None)
+                        .relief(gtk::ReliefStyle::Normal)
                         .visible(true)
                         .halign(gtk::Align::Center)
                         .valign(gtk::Align::Center)
@@ -989,7 +989,7 @@ impl PropertyWindowBuilder {
                     }));
                     let save = gtk::Button::builder()
                         .label("Save")
-                        .relief(gtk::ReliefStyle::None)
+                        .relief(gtk::ReliefStyle::Normal)
                         .visible(true)
                         .halign(gtk::Align::Center)
                         .valign(gtk::Align::Center)

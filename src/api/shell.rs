@@ -289,7 +289,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
     {
         let clear_btn = gtk::Button::builder()
             .label("Clear")
-            .relief(gtk::ReliefStyle::None)
+            .relief(gtk::ReliefStyle::Normal)
             .visible(true)
             .halign(gtk::Align::End)
             .valign(gtk::Align::Center)
@@ -302,7 +302,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         }));
         let save_history_btn = gtk::Button::builder()
             .label("Save history")
-            .relief(gtk::ReliefStyle::None)
+            .relief(gtk::ReliefStyle::Normal)
             .visible(true)
             .sensitive(false)
             .halign(gtk::Align::End)
@@ -312,7 +312,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         }));
         let copy_history_btn = gtk::Button::builder()
             .label("Copy history")
-            .relief(gtk::ReliefStyle::None)
+            .relief(gtk::ReliefStyle::Normal)
             .visible(true)
             .halign(gtk::Align::End)
             .valign(gtk::Align::Center)
@@ -347,7 +347,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
         btn_container.pack_end(&clear_btn, false, false, 0);
         let close_btn = gtk::Button::builder()
             .label("Close")
-            .relief(gtk::ReliefStyle::None)
+            .relief(gtk::ReliefStyle::Normal)
             .visible(true)
             .halign(gtk::Align::Start)
             .valign(gtk::Align::Center)
@@ -370,7 +370,7 @@ pub fn new_shell_window(app: Application) -> gtk::Window {
             .build();
         let enter_btn = gtk::Button::builder()
             .label("enter")
-            .relief(gtk::ReliefStyle::None)
+            .relief(gtk::ReliefStyle::Normal)
             .visible(true)
             .halign(gtk::Align::Fill)
             .valign(gtk::Align::Fill)
