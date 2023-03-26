@@ -119,6 +119,7 @@ pub const CLI_INFO: &str = build_info::format!("\n                 ,adPPYb,d8  \
  * - [tag:needs_dev_doc]
  * - [tag:FIXME]
  * - [tag:TODO]
+ * - [tag:VERIFY] Verify whether this is the correct way to do something
  */
 
 pub mod prelude {

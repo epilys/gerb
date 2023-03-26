@@ -19,6 +19,7 @@
  * along with gerb. If not, see <http://www.gnu.org/licenses/>.
  */
 
+use gio::prelude::SettingsExt;
 use gio::ApplicationFlags;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -134,11 +135,12 @@ pub struct ApplicationInner {
     /// Holds the papertheme provider.
     paperwhite_provider: gtk::CssProvider,
     /// Holds custom widget CSS that doesn't set any colors.
-    common_provider: gtk::CssProvider,
+    app_provider: gtk::CssProvider,
     colors: Cell<NamedColors>,
     pub theme: Cell<types::Theme>,
     pub undo_db: RefCell<undo::UndoDatabase>,
     pub env_args: OnceCell<Vec<String>>,
+    system_settings: OnceCell<gio::Settings>,
 }
 
 #[glib::object_subclass]
@@ -154,12 +156,12 @@ impl ObjectImpl for ApplicationInner {
         self.paperwhite_provider
             .load_from_data(types::Theme::PAPERWHITE_CSS)
             .unwrap();
-        self.common_provider
+        self.app_provider
             .load_from_data(include_bytes!("./themes/custom-widgets.css"))
             .unwrap();
         gtk::StyleContext::add_provider_for_screen(
             &gtk::gdk::Screen::default().unwrap(),
-            &self.common_provider,
+            &self.app_provider,
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
         gtk::StyleContext::add_provider_for_screen(
@@ -167,6 +169,7 @@ impl ObjectImpl for ApplicationInner {
             &self.paperwhite_provider,
             gtk::STYLE_PROVIDER_PRIORITY_FALLBACK,
         );
+        // [ref:TODO] check gtk::Settings property application-prefer-dark-theme
         self.reload_theme();
     }
 
@@ -268,6 +271,14 @@ impl ApplicationImpl for ApplicationInner {
             self.window.welcome_banner.set_visible(true);
             self.window.notebook.set_visible(false);
         }
+        // [ref:VERIFY]
+        let system_settings = gio::Settings::new("org.gnome.desktop.interface");
+        let app = app.clone();
+        // [ref:TODO] also watch font setting and icon setting.
+        system_settings.connect_changed(Some("gtk-theme"), move |_, _| {
+            app.imp().reload_system_theme();
+        });
+        self.system_settings.set(system_settings).unwrap();
         self.window.present();
     }
 }
@@ -706,12 +717,24 @@ impl ApplicationInner {
         self.colors.set(NamedColors::new());
     }
 
+    fn reload_system_theme(&self) {
+        use gtk::traits::SettingsExt;
+        if let Some(settings) = gtk::gdk::Screen::default()
+            .as_ref()
+            .and_then(gtk::Settings::for_screen)
+        {
+            settings.reset_property("gtk-theme-name");
+        }
+        self.colors.set(NamedColors::new());
+    }
+
     pub fn colors(&self) -> NamedColors {
         self.colors.get()
     }
 }
 
-//[ref:TODO] add fallback @defines in case a theme lacks a color
+// [ref:VERIFY] are apps supposed to have access to preset predefined colors?
+// [ref:TODO] add fallback @defines in case a theme lacks a color
 /// Named colors from GTK3 themes.
 #[derive(Default, Debug, Copy, Clone)]
 pub struct NamedColors {
@@ -738,7 +761,7 @@ impl NamedColors {
         macro_rules! field_def {
             (Self { $($field:ident,)+ }) => {{
                 Self {
-                    $($field: Color::from(ctx.lookup_color(stringify!($field)).expect(stringify!($field))),)*
+                    $($field: Color::from(ctx.lookup_color(stringify!($field)).unwrap_or(Color::TRANSPARENT.into())),)*
 
                 }
             }}
