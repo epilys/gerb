@@ -56,7 +56,7 @@ impl EditorInner {
     pub fn setup_shortcuts(&self, obj: &Editor) {
         {
             use Editor as A;
-            let mut sh = self.shortcuts.borrow_mut();
+            let mut sh = self.shortcuts.entries.borrow_mut();
             sh.push(ShortcutAction::new(
                 "preview".into(),
                 Shortcut::empty().char('`'),
@@ -246,53 +246,13 @@ impl EditorInner {
             self.shortcut_status
                 .set_orientation(gtk::Orientation::Horizontal);
             self.shortcut_status.set_visible(true);
-            let grid = gtk::FlowBox::builder()
-                .expand(false)
-                .visible(true)
-                .sensitive(false)
-                .can_focus(true)
-                .column_spacing(5)
-                .margin(10)
-                .row_spacing(5)
-                .build();
-            let btn = gtk::Button::builder()
-                .label("⏶")
-                .visible(true)
-                .focus_on_click(false)
-                .tooltip_text("shortcuts")
-                .relief(gtk::ReliefStyle::None)
-                .halign(gtk::Align::Center)
-                .valign(gtk::Align::Center)
-                .build();
-            btn.style_context().add_class("shortcuts-more");
-            self.shortcut_status.pack_end(&btn, false, false, 1);
-            for s in sh.iter() {
-                let b = gtk::Box::builder()
-                    .expand(false)
-                    .visible(true)
-                    .sensitive(true)
-                    .build();
-                b.pack_start(s.desc_label(), false, false, 1);
-                b.pack_end(&s.shortcut().label(), false, false, 1);
-                grid.add(&b);
-            }
-            let pop = gtk::Popover::builder()
-                .expand(false)
-                .visible(false)
-                .sensitive(true)
-                .modal(true)
-                .position(gtk::PositionType::Bottom)
-                .child(&grid)
-                .relative_to(&btn)
-                .build();
-            btn.connect_clicked(clone!(@strong pop => move |_| {
-                pop.popup();
-            }));
+            self.shortcut_status
+                .pack_end(&self.shortcuts, false, false, 1);
         }
 
         let ctrl = gtk::EventControllerKey::new(obj);
         ctrl.connect_key_pressed(
-            clone!(@weak self.action_group as group, @weak self.shortcuts as shortcuts => @default-return false, move |_self, keyval, _, modifier_type: gdk::ModifierType| {
+            clone!(@weak self.action_group as group, @weak self.shortcuts.entries as shortcuts => @default-return false, move |_self, keyval, _, modifier_type: gdk::ModifierType| {
                 use gtk::gdk::keys::Key;
 
                 let key = Key::from(keyval);
@@ -304,7 +264,7 @@ impl EditorInner {
             }),
         );
         ctrl.connect_key_released(
-            clone!(@weak self.action_group as group, @weak self.shortcuts as shortcuts  => move |_self, keyval, _,  modifier_type: gdk::ModifierType| {
+            clone!(@weak self.action_group as group, @weak self.shortcuts.entries as shortcuts  => move |_self, keyval, _,  modifier_type: gdk::ModifierType| {
                 use gtk::gdk::keys::Key;
 
                 let key = Key::from(keyval);
@@ -313,5 +273,97 @@ impl EditorInner {
             }),
         );
         self.ctrl.set(ctrl).unwrap();
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct ShortcutsInner {
+    pub list: gtk::FlowBox,
+    pub btn: gtk::Button,
+    pub entries: Rc<RefCell<Vec<ShortcutAction>>>,
+}
+
+impl ShortcutsInner {
+    pub fn rebuild(&self) {
+        for c in self.list.children() {
+            self.list.remove(&c);
+        }
+        for s in self.entries.borrow().iter() {
+            let b = gtk::Box::builder()
+                .expand(false)
+                .visible(true)
+                .sensitive(true)
+                .build();
+            b.pack_start(s.desc_label(), false, false, 1);
+            b.pack_end(&s.shortcut().label(), false, false, 1);
+            b.show_all();
+            self.list.add(&b);
+        }
+    }
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for ShortcutsInner {
+    const NAME: &'static str = "Shortcuts";
+    type Type = Shortcuts;
+    type ParentType = gtk::Bin;
+}
+
+impl ObjectImpl for ShortcutsInner {
+    fn constructed(&self, obj: &Self::Type) {
+        self.parent_constructed(obj);
+        self.btn.set_label("⏶");
+        self.btn.set_visible(true);
+        self.btn.set_focus_on_click(false);
+        self.btn.set_tooltip_text(Some("shortcuts"));
+        self.btn.set_relief(gtk::ReliefStyle::None);
+        self.btn.set_halign(gtk::Align::Center);
+        self.btn.set_valign(gtk::Align::Center);
+        self.btn.style_context().add_class("shortcuts-more");
+        obj.add(&self.btn);
+        self.list.set_expand(false);
+        self.list.set_visible(true);
+        self.list.set_sensitive(false);
+        self.list.set_can_focus(true);
+        self.list.set_margin(10);
+        self.list.set_column_spacing(0);
+        self.list.set_row_spacing(0);
+        self.list.set_max_children_per_line(4);
+        self.list.set_min_children_per_line(2);
+        let pop = gtk::Popover::builder()
+            .expand(false)
+            .visible(false)
+            .sensitive(true)
+            .modal(true)
+            .position(gtk::PositionType::Bottom)
+            .child(&self.list)
+            .relative_to(&self.btn)
+            .build();
+        self.btn.connect_clicked(clone!(@strong pop => move |_| {
+            pop.popup();
+        }));
+        obj.set_visible(true);
+    }
+}
+
+impl WidgetImpl for ShortcutsInner {}
+impl ContainerImpl for ShortcutsInner {}
+impl BinImpl for ShortcutsInner {}
+
+glib::wrapper! {
+    pub struct Shortcuts(ObjectSubclass<ShortcutsInner>)
+        @extends gtk::Widget, gtk::Container, gtk::Bin;
+}
+
+impl std::ops::Deref for Shortcuts {
+    type Target = ShortcutsInner;
+    fn deref(&self) -> &Self::Target {
+        self.imp()
+    }
+}
+
+impl Default for Shortcuts {
+    fn default() -> Self {
+        glib::Object::new(&[]).unwrap()
     }
 }

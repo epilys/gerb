@@ -101,3 +101,33 @@ menu separator label, menuitem separator label  {
   font-size: 9pt;
   font-family: mono;
 }
+
+.welcome-banner {
+  border: 0.1rem ridge @borders;
+  padding: 1rem 2rem;
+}
+
+.shortcut-kbd {
+  background-color: @theme_bg_color;
+  border-radius: 0.3rem;
+  border: 0.1rem solid @borders;
+  border-bottom-width: 0.2rem;
+  box-shadow: 0rem 0.2rem 0.2rem 0rem rgba(0, 0, 0, 0.2), 0rem 0.2rem 0.2rem 0rem rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  padding: 0.2rem 0.4rem;
+  font-family: monospace;
+}
+
+button.text-button.shortcuts-more {
+  min-height: 0;
+  min-width: 0;
+  padding: 0 .5ex;
+}
+
+button.text-button.shortcuts-more {
+  border-color: @borders;
+}
+
+button:hover.text-button.shortcuts-more label {
+  color: @theme_text_color;
+}

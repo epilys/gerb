@@ -73,7 +73,7 @@ pub struct EditorInner {
     lock: Cell<(Option<StatusBarMessage>, tools::constraints::Lock)>,
     snap: Cell<(Option<StatusBarMessage>, tools::constraints::Snap)>,
     precision: Cell<(Option<StatusBarMessage>, tools::constraints::Precision)>,
-    shortcuts: Rc<RefCell<Vec<ShortcutAction>>>,
+    shortcuts: shortcuts::Shortcuts,
     shortcut_status: gtk::Box,
 }
 
@@ -89,6 +89,7 @@ impl ObjectImpl for EditorInner {
         self.parent_constructed(obj);
         self.lock_guidelines.set(false);
         self.setup_shortcuts(obj);
+        self.shortcuts.rebuild();
         self.show_glyph_guidelines.set(true);
         self.show_project_guidelines.set(true);
         self.show_metrics_guidelines.set(true);

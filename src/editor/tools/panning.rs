@@ -1110,43 +1110,46 @@ impl PanningToolInner {
             view.viewport.set_cursor("crosshair");
         }));
         view.action_group.add_action(&pan_action);
-        let mut sh = view.shortcuts.borrow_mut();
-        sh.push(ShortcutAction::new(
-            "move".into(),
-            Shortcut::empty().shift().char('G'),
-            Box::new(|group| {
-                group.activate_action(PanningTool::MOVE_ACTION, None);
-                true
-            }),
-            None,
-        ));
-        sh.push(ShortcutAction::new(
-            "scale".into(),
-            Shortcut::empty().shift().char('S'),
-            Box::new(|group| {
-                group.activate_action(PanningTool::SCALE_ACTION, None);
-                true
-            }),
-            None,
-        ));
-        sh.push(ShortcutAction::new(
-            "rotate".into(),
-            Shortcut::empty().shift().char('R'),
-            Box::new(|group| {
-                group.activate_action(PanningTool::ROTATE_ACTION, None);
-                true
-            }),
-            None,
-        ));
-        sh.push(ShortcutAction::new(
-            "pan".into(),
-            Shortcut::empty().shift().char('P'),
-            Box::new(|group| {
-                group.activate_action(PanningTool::PAN_ACTION, None);
-                true
-            }),
-            None,
-        ));
+        {
+            let mut sh = view.shortcuts.entries.borrow_mut();
+            sh.push(ShortcutAction::new(
+                "move".into(),
+                Shortcut::empty().shift().char('G'),
+                Box::new(|group| {
+                    group.activate_action(PanningTool::MOVE_ACTION, None);
+                    true
+                }),
+                None,
+            ));
+            sh.push(ShortcutAction::new(
+                "scale".into(),
+                Shortcut::empty().shift().char('S'),
+                Box::new(|group| {
+                    group.activate_action(PanningTool::SCALE_ACTION, None);
+                    true
+                }),
+                None,
+            ));
+            sh.push(ShortcutAction::new(
+                "rotate".into(),
+                Shortcut::empty().shift().char('R'),
+                Box::new(|group| {
+                    group.activate_action(PanningTool::ROTATE_ACTION, None);
+                    true
+                }),
+                None,
+            ));
+            sh.push(ShortcutAction::new(
+                "pan".into(),
+                Shortcut::empty().shift().char('P'),
+                Box::new(|group| {
+                    group.activate_action(PanningTool::PAN_ACTION, None);
+                    true
+                }),
+                None,
+            ));
+        }
+        view.shortcuts.rebuild();
     }
 }
 

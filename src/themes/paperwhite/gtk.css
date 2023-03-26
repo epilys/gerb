@@ -1970,13 +1970,11 @@ box.workspace { border: none; margin: 0; }
 
 statusbar { background: #DDDDDD; border-top: 1px solid black; }
 
-.shortcut-kbd { background-color: #fff; border-radius: 3px; border: 1px solid #b4b4b4; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 2px 0 0 rgba(255, 255, 255, 0.7) inset; color: #333; font-size: 0.85em; padding: 2px 4px; font-family: monospace; }
+.shortcut-kbd { background-color: #fff; border-color: #b4b4b4; color: #333; }
 
-button.text-button.shortcuts-more { min-height: 0; min-width: 0; padding: 0 .5ex; }
+button.text-button.shortcuts-more label { border: 0.1rem solid darkgray; color: #555; box-shadow: none; padding: 0; margin: 0; }
 
-button.text-button.shortcuts-more label { border: 1px solid darkgray; color: #555; box-shadow: none; padding: 0; margin: 0; }
-
-button:hover.text-button.shortcuts-more label { color: black; box-shadow: -1px 1px; }
+button:hover.text-button.shortcuts-more label { color: black; }
 
 #layers { background: white; border: 1px solid black; padding: 5px; border-bottom-right-radius: 4px; }
 

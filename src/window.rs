@@ -397,6 +397,9 @@ impl WindowInner {
 
 impl WindowInner {
     fn setup_welcome_banner(&self, obj: &Window) {
+        self.welcome_banner
+            .style_context()
+            .add_class("welcome-banner");
         let title_label = gtk::Label::builder()
             .label(crate::APPLICATION_NAME)
             .visible(true)
