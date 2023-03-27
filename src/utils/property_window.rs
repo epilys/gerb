@@ -368,23 +368,23 @@ impl PropertyWindow {
                             .tooltip_text("Open file location")
                             .build();
                         btn.connect_clicked(clone!(@weak obj, @strong property, @weak self as pwindow => move |_self| {
-                        let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
-                        let Ok(prefix) = std::env::current_dir() else { return; };
-                        let mut abs_path = prefix.join(path);
-                        if abs_path.is_file() {
-                            abs_path.pop();
-                        }
-                        if let Err(err) = glib::filename_to_uri(&abs_path, None).and_then(|uri| gtk::gio::AppInfo::launch_default_for_uri(&uri, gtk::gio::AppLaunchContext::NONE)) {
-                            let dialog = crate::utils::widgets::new_simple_error_dialog(
-                                Some("Error: Could not open location."),
-                                &err.to_string(),
-                                None,
-                                pwindow.imp().app.get().unwrap().window.upcast_ref(),
-                            );
-                            dialog.run();
-                            dialog.emit_close();
-                        };
-                    }));
+                            let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
+                            let Ok(prefix) = std::env::current_dir() else { return; };
+                            let mut abs_path = prefix.join(path);
+                            if abs_path.is_file() {
+                                abs_path.pop();
+                            }
+                            if let Err(err) = glib::filename_to_uri(&abs_path, None).and_then(|uri| gtk::gio::AppInfo::launch_default_for_uri(&uri, gtk::gio::AppLaunchContext::NONE)) {
+                                let dialog = crate::utils::widgets::new_simple_error_dialog(
+                                    Some("Error: Could not open location."),
+                                    &err.to_string(),
+                                    None,
+                                    pwindow.imp().app.get().unwrap().window.upcast_ref(),
+                                );
+                                dialog.run();
+                                dialog.emit_close();
+                            };
+                        }));
                         b.pack_end(&btn, false, false, 15);
                         b.upcast()
                     } else {
@@ -530,7 +530,7 @@ impl PropertyWindow {
                     .column_spacing(5)
                     .margin(10)
                     .row_spacing(5)
-                    .halign(gtk::Align::Start)
+                    .halign(gtk::Align::Fill)
                     .valign(gtk::Align::Start)
                     .build();
                 let has_bg = opts.bg.is_some();
@@ -545,10 +545,10 @@ impl PropertyWindow {
                     .show_editor(true)
                     .build();
                 fg_entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
-                let opts = obj.property::<DrawOptions>(property.name());
-                let new_val = self_.rgba();
-                _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { color: new_val.into(), ..opts });
-            }));
+                    let opts = obj.property::<DrawOptions>(property.name());
+                    let new_val = self_.rgba();
+                    _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { color: new_val.into(), ..opts });
+                }));
                 grid.attach(
                     &gtk::Label::builder()
                         .label(if has_bg { "fg color" } else { "color" })
@@ -572,10 +572,10 @@ impl PropertyWindow {
                         .show_editor(true)
                         .build();
                     bg_entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
-                    let opts = obj.property::<DrawOptions>(property.name());
-                    let new_val = self_.rgba();
-                    _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { bg: Some(new_val.into()), ..opts });
-                }));
+                        let opts = obj.property::<DrawOptions>(property.name());
+                        let new_val = self_.rgba();
+                        _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { bg: Some(new_val.into()), ..opts });
+                    }));
                     grid.attach(
                         &gtk::Label::builder()
                             .label("bg color")
@@ -589,13 +589,6 @@ impl PropertyWindow {
                     );
                     grid.attach(&bg_entry, 1, 1, 1, 1);
                 }
-                let listbox = gtk::ListBox::builder()
-                    .visible(true)
-                    .expand(true)
-                    .sensitive(readwrite)
-                    .halign(gtk::Align::Start)
-                    .valign(gtk::Align::Start)
-                    .build();
                 let size_entry = gtk::SpinButton::new(
                     Some(&gtk::Adjustment::new(
                         opts.size,
@@ -608,7 +601,8 @@ impl PropertyWindow {
                     1.0,
                     2,
                 );
-                size_entry.set_halign(gtk::Align::Start);
+                size_entry.set_expand(true);
+                size_entry.set_halign(gtk::Align::Fill);
                 size_entry.set_valign(gtk::Align::Start);
                 size_entry.set_input_purpose(gtk::InputPurpose::Number);
                 size_entry.set_sensitive(readwrite);
@@ -627,7 +621,18 @@ impl PropertyWindow {
                     })
                     .flags(glib::BindingFlags::SYNC_CREATE)
                     .build();
-                listbox.add(&size_entry);
+                grid.attach(
+                    &gtk::Label::builder()
+                        .label("width/length")
+                        .visible(true)
+                        .sensitive(readwrite)
+                        .build(),
+                    0,
+                    if has_bg { 2 } else { 1 },
+                    1,
+                    1,
+                );
+                grid.attach(&size_entry, 1, if has_bg { 2 } else { 1 }, 1, 1);
                 if let Some((from, val)) = opts.inherit_size {
                     if val {
                         size_entry.set_sensitive(false);
@@ -639,7 +644,7 @@ impl PropertyWindow {
                     inherit_entry.set_relief(gtk::ReliefStyle::Normal);
                     inherit_entry.set_sensitive(readwrite);
                     inherit_entry.set_halign(gtk::Align::Start);
-                    inherit_entry.set_valign(gtk::Align::Start);
+                    inherit_entry.set_valign(gtk::Align::Center);
                     obj.bind_property(property.name(), &inherit_entry, "active")
                         .transform_to(|_, value| {
                             let opts = value.get::<DrawOptions>().ok()?;
@@ -652,56 +657,30 @@ impl PropertyWindow {
                         .visible(val)
                         .width_chars(5)
                         .halign(gtk::Align::Start)
-                        .valign(gtk::Align::Start)
+                        .valign(gtk::Align::Center)
                         .sensitive(false)
                         .wrap(true)
                         .build();
                     inherit_entry.connect_clicked(clone!(@weak obj, @strong property, @weak inherit_value, @weak size_entry => move |_| {
-                    let opts = obj.property::<DrawOptions>(property.name());
-                    if let Some((from, b)) = opts.inherit_size {
-                        inherit_value.set_visible(!b);
-                        size_entry.set_sensitive(b);
-                        obj.set_property(property.name(), DrawOptions { inherit_size: Some((from, !b)), ..opts });
-                    }
-                }));
+                        let opts = obj.property::<DrawOptions>(property.name());
+                        if let Some((from, b)) = opts.inherit_size {
+                            inherit_value.set_visible(!b);
+                            size_entry.set_sensitive(b);
+                            obj.set_property(property.name(), DrawOptions { inherit_size: Some((from, !b)), ..opts });
+                        }
+                    }));
                     let inherit_box = gtk::Box::builder()
                         .visible(true)
                         .expand(true)
                         .sensitive(readwrite)
-                        .halign(gtk::Align::Start)
+                        .halign(gtk::Align::Fill)
                         .valign(gtk::Align::Start)
                         .orientation(gtk::Orientation::Horizontal)
                         .build();
-                    inherit_box.add(
-                        &gtk::ListBoxRow::builder()
-                            .child(&inherit_entry)
-                            .activatable(false)
-                            .selectable(false)
-                            .visible(true)
-                            .build(),
-                    );
-                    inherit_box.add(
-                        &gtk::ListBoxRow::builder()
-                            .child(&inherit_value)
-                            .activatable(false)
-                            .selectable(false)
-                            .visible(true)
-                            .build(),
-                    );
-                    listbox.add(&inherit_box);
+                    inherit_box.pack_start(&inherit_entry, true, true, 0);
+                    inherit_box.pack_start(&inherit_value, true, true, 5);
+                    grid.attach(&inherit_box, 1, if has_bg { 3 } else { 2 }, 1, 1);
                 }
-                listbox.set_selection_mode(gtk::SelectionMode::None);
-                grid.attach(
-                    &gtk::Label::builder()
-                        .label("width/length")
-                        .visible(true)
-                        .build(),
-                    0,
-                    if has_bg { 2 } else { 1 },
-                    1,
-                    1,
-                );
-                grid.attach(&listbox, 1, if has_bg { 2 } else { 1 }, 1, 1);
                 grid.upcast()
             }
             "Layer" if property.value_type() == ufo::objects::Layer::static_type() => {
@@ -914,7 +893,7 @@ impl PropertyWindowBuilder {
             },
             matches!(self.type_, PropertyWindowType::Create),
         );
-        b.pack_start(&ret.imp().grid, true, true, 0);
+        b.pack_start(&ret.imp().grid, false, false, 0);
         ret.imp().grid.style_context().add_class("horizontal");
 
         ret.set_transient_for(Some(&self.app.window));
@@ -1121,10 +1100,10 @@ impl PropertyChoice {
             .visible(true)
             .build();
         btn.set_halign(gtk::Align::End);
-        widget.set_halign(gtk::Align::End);
+        widget.set_halign(gtk::Align::Fill);
         ret.pack_start(&event_box, false, false, 5);
         ret.pack_start(&btn, false, false, 5);
-        ret.pack_start(&widget, false, false, 5);
+        ret.pack_start(&widget, false, false, 0);
         btn.bind_property("active", &widget, "sensitive")
             .transform_to(|b, val| {
                 let val = val.get::<bool>().ok()?;
