@@ -949,7 +949,7 @@ fn test_metainfo_plist_parse() {
 <plist version="1.0">
 <dict>
   <key>creator</key>
-  <string>com.epilys.gerb</string>
+  <string>io.github.epilys.gerb</string>
   <key>formatVersion</key>
   <integer>3</integer>
   <key>formatVersionMinor</key>
@@ -1156,7 +1156,7 @@ fn test_lib_plist_parse() {
 "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>com.epilys.gerb</key>
+  <key>io.github.epilys.gerb</key>
   <string>Hello World.</string>
   <key>public.glyphOrder</key>
   <array>
@@ -1185,14 +1185,14 @@ fn test_lib_plist_parse() {
     assert_eq!(
         &l.values.keys().cloned().collect::<Vec<String>>(),
         &[
-            "com.epilys.gerb",
+            crate::APPLICATION_ID,
             "public.glyphOrder",
             "public.unicodeVariationSequences"
         ]
     );
 
     assert_eq!(
-        &l.values["com.epilys.gerb"],
+        &l.values[crate::APPLICATION_ID],
         &plist::Value::String("Hello World.".to_string())
     );
     assert_eq!(

@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+
+Name=gerb
+GenericName=Font Editor
+GenericName[el_GR]=Πρόγραμμα σχεδίασης γραμματοσειρών
+Categories=Graphics;GTK;
+Keywords=ufo;typography;design
+
+Icon=gerb
+Exec=gerb
+Terminal=false

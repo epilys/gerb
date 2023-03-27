@@ -12,7 +12,7 @@ repository = "https://github.com/epilys/gerb"
 keywords = ["font", "fonts", "editor", "ufo", "typography"]
 categories = ["graphics"]
 default-run = "gerb"
-exclude = ["Makefile", "src/unicode/names/unicode.py", "/tests", "/docs", ".*", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "DEVELOPMENT.md", "/*.py", "/*.png", "*.scss", "src/themes/**/README"]
+exclude = ["Makefile", "src/unicode/names/unicode.py", "/tests", "/docs", "/dist", ".*", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "DEVELOPMENT.md", "/*.py", "/*.png", "*.scss", "src/themes/**/README"]
 
 [[bin]]
 name = "gerb"
@@ -78,3 +78,15 @@ codegen-units = 1
 opt-level = "s"
 debug = false
 strip = true
+
+[package.metadata.deb]
+maintainer = "Manos Pitsidianakis <manos@pitsidianak.is>"
+copyright = "2022, Manos Pitsidianakis <manos@pitsidianak.is>"
+depends = "$auto"
+section = "graphics"
+priority = "optional"
+assets = [
+    ["target/release/gerb", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/gerb/README", "644"],
+    ["dist/io.github.epilys.gerb.desktop", "usr/share/applications/io.github.epilys.gerb.desktop", "644"],
+]

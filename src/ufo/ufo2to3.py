@@ -17,7 +17,7 @@ def ufo2to3(options):
         shutil.copytree(ufo2_path, tmpdirname, dirs_exist_ok=True)
         reader = UFOReader(tmpdirname)
         writer = UFOWriter(
-            ufo3_path, formatVersion=(3, 0), fileCreator="com.epilys.gerb"
+            ufo3_path, formatVersion=(3, 0), fileCreator="io.github.epilys.gerb"
         )
         writer.writeKerning(deepcopy(reader.readKerning()))
         writer.writeGroups(deepcopy(reader.readGroups()))

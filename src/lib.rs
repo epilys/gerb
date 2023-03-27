@@ -102,7 +102,7 @@ pub fn get_git_sha() -> std::borrow::Cow<'static, str> {
 }
 
 pub const APPLICATION_NAME: &str = "gerb";
-pub const APPLICATION_ID: &str = "com.epilys.gerb";
+pub const APPLICATION_ID: &str = "io.github.epilys.gerb";
 pub const ISSUE_TRACKER: &str = "https://github.com/epilys/gerb/issues";
 pub const VERSION_INFO: &str = build_info::format!("{}", $.crate_info.version);
 pub const BUILD_INFO: &str = build_info::format!("{}\t{}\t{}\t{}", $.crate_info.version, $.compiler, $.timestamp, $.crate_info.enabled_features);
