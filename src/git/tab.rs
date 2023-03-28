@@ -151,7 +151,7 @@ impl GitSpace {
             status.remove(&self_.shortcut_status);
         });
         let settings = app.runtime.settings.clone();
-        //settings.register_obj(ret.viewport.clone().upcast());
+        //settings.register_type(ret.viewport.clone().upcast());
         ret.settings.set(settings).unwrap();
         ret.insert_action_group("git", Some(&ret.action_group));
         ret.menubar

@@ -451,12 +451,12 @@ impl SettingsInner {
         Ok(())
     }
 
-    pub fn register_obj(&self, obj: impl FriendlyNameInSettings) {
+    pub fn register_type(&self, obj: impl FriendlyNameInSettings) {
         let name = obj.friendly_name().to_string();
-        self.inner_register_obj(obj.upcast(), name)
+        self.inner_register_type(obj.upcast(), name)
     }
 
-    fn inner_register_obj(&self, obj: glib::Object, friendly_name: String) {
+    fn inner_register_type(&self, obj: glib::Object, friendly_name: String) {
         let kebab_name = friendly_name.replace(' ', "-").to_ascii_lowercase();
         let document = self.document.borrow();
         if document.contains_key(&kebab_name) {
@@ -613,17 +613,17 @@ impl SettingsInner {
         }
     }
 
-    pub fn register_obj_with_singleton(
+    pub fn register_type_with_singleton(
         &self,
         obj: &glib::Object,
         singleton: impl FriendlyNameInSettings,
     ) {
         let name = singleton.friendly_name().to_string();
         self.inner_register_singleton(singleton.upcast(), name.clone());
-        self.inner_register_obj_with_singleton(obj, name)
+        self.inner_register_type_with_singleton(obj, name)
     }
 
-    fn inner_register_obj_with_singleton(&self, obj: &glib::Object, name: String) {
+    fn inner_register_type_with_singleton(&self, obj: &glib::Object, name: String) {
         let global_entries = self.global_entries.borrow();
         let singleton = &global_entries[&name];
         for prop in glib::Object::list_properties(singleton)
