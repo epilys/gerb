@@ -407,7 +407,7 @@ impl CreatePropertyWindow for GlyphMetadata {
                 }
             }
             w.add_separator();
-            w.add("unicode", unicode_label, kind_box.upcast());
+            w.add("unicode", unicode_label.upcast(), kind_box.upcast());
         }
         w
     }

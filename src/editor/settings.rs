@@ -35,6 +35,10 @@ impl std::ops::Deref for EditorSettings {
 #[derive(Debug, Default)]
 pub struct EditorSettingsInner {
     show_minimap: Cell<ShowMinimap>,
+    lock_guidelines: Cell<bool>,
+    show_glyph_guidelines: Cell<bool>,
+    show_project_guidelines: Cell<bool>,
+    show_metrics_guidelines: Cell<bool>,
 }
 
 #[glib::object_subclass]
@@ -53,21 +57,59 @@ impl ObjectImpl for EditorSettingsInner {
     fn properties() -> &'static [glib::ParamSpec] {
         static PROPERTIES: once_cell::sync::Lazy<Vec<glib::ParamSpec>> =
             once_cell::sync::Lazy::new(|| {
-                vec![glib::ParamSpecEnum::new(
-                    Editor::SHOW_MINIMAP,
-                    Editor::SHOW_MINIMAP,
-                    "Show glyph minimap overview during modifications",
-                    ShowMinimap::static_type(),
-                    ShowMinimap::WhenManipulating as i32,
-                    glib::ParamFlags::READWRITE | UI_EDITABLE,
-                )]
+                vec![
+                    glib::ParamSpecEnum::new(
+                        EditorSettings::SHOW_MINIMAP,
+                        EditorSettings::SHOW_MINIMAP,
+                        "Show glyph minimap overview during modifications",
+                        ShowMinimap::static_type(),
+                        ShowMinimap::WhenManipulating as i32,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        EditorSettings::LOCK_GUIDELINES,
+                        EditorSettings::LOCK_GUIDELINES,
+                        EditorSettings::LOCK_GUIDELINES,
+                        false,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        EditorSettings::SHOW_GLYPH_GUIDELINES,
+                        EditorSettings::SHOW_GLYPH_GUIDELINES,
+                        EditorSettings::SHOW_GLYPH_GUIDELINES,
+                        true,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        EditorSettings::SHOW_PROJECT_GUIDELINES,
+                        EditorSettings::SHOW_PROJECT_GUIDELINES,
+                        EditorSettings::SHOW_PROJECT_GUIDELINES,
+                        true,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                    glib::ParamSpecBoolean::new(
+                        EditorSettings::SHOW_METRICS_GUIDELINES,
+                        EditorSettings::SHOW_METRICS_GUIDELINES,
+                        EditorSettings::SHOW_METRICS_GUIDELINES,
+                        true,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
+                    ),
+                ]
             });
         PROPERTIES.as_ref()
     }
 
     fn property(&self, _obj: &Self::Type, _id: usize, pspec: &glib::ParamSpec) -> glib::Value {
         match pspec.name() {
-            Editor::SHOW_MINIMAP => self.show_minimap.get().to_value(),
+            EditorSettings::SHOW_MINIMAP => self.show_minimap.get().to_value(),
+            EditorSettings::LOCK_GUIDELINES => self.lock_guidelines.get().to_value(),
+            EditorSettings::SHOW_GLYPH_GUIDELINES => self.show_glyph_guidelines.get().to_value(),
+            EditorSettings::SHOW_PROJECT_GUIDELINES => {
+                self.show_project_guidelines.get().to_value()
+            }
+            EditorSettings::SHOW_METRICS_GUIDELINES => {
+                self.show_metrics_guidelines.get().to_value()
+            }
             _ => unimplemented!("{}", pspec.name()),
         }
     }
@@ -80,8 +122,20 @@ impl ObjectImpl for EditorSettingsInner {
         pspec: &glib::ParamSpec,
     ) {
         match pspec.name() {
-            Editor::SHOW_MINIMAP => {
+            EditorSettings::SHOW_MINIMAP => {
                 self.show_minimap.set(value.get().unwrap());
+            }
+            EditorSettings::LOCK_GUIDELINES => {
+                self.lock_guidelines.set(value.get().unwrap());
+            }
+            EditorSettings::SHOW_GLYPH_GUIDELINES => {
+                self.show_glyph_guidelines.set(value.get().unwrap());
+            }
+            EditorSettings::SHOW_PROJECT_GUIDELINES => {
+                self.show_project_guidelines.set(value.get().unwrap());
+            }
+            EditorSettings::SHOW_METRICS_GUIDELINES => {
+                self.show_metrics_guidelines.set(value.get().unwrap());
             }
             _ => unimplemented!("{}", pspec.name()),
         }
@@ -96,6 +150,10 @@ impl Default for EditorSettings {
 
 impl EditorSettings {
     pub const SHOW_MINIMAP: &str = "show-minimap";
+    pub const LOCK_GUIDELINES: &str = "lock-guidelines";
+    pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
+    pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";
+    pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()

@@ -186,7 +186,7 @@ impl PropertyWindow {
         }
     }
 
-    pub fn add(&self, name: &str, label: gtk::Label, widget: gtk::Widget) {
+    pub fn add(&self, name: &str, label: gtk::Widget, widget: gtk::Widget) {
         let row = self.imp().rows.get();
         self.imp().grid.attach(&label, 0, row, 1, 1);
         self.imp().grid.attach(&widget, 1, row, 1, 1);
@@ -249,7 +249,26 @@ impl PropertyWindow {
         let widget: gtk::Widget = match val.type_().name() {
             "gboolean" => {
                 check_dirty_on_change!(bool);
-                <bool>::get(app, val, obj, property, create, readwrite, flags)
+                // Special case for bool checkboxes: toggle them by pressing the label as well.
+                let widget = <bool>::get(app, val, obj, property, create, readwrite, flags);
+                let label = get_label_for_property(property);
+                let event_box = gtk::EventBox::builder()
+                    .events(gtk::gdk::EventMask::BUTTON_PRESS_MASK)
+                    .above_child(true)
+                    .child(&label)
+                    .halign(gtk::Align::Start)
+                    .valign(gtk::Align::Start)
+                    .visible(true)
+                    .build();
+                event_box.connect_button_press_event(clone!(@weak widget => @default-return Inhibit(false), move |_, event| {
+                    if event.button() == gtk::gdk::BUTTON_PRIMARY && event.event_type() == gtk::gdk::EventType::ButtonPress {
+                        let prop = widget.property::<bool>("active");
+                        widget.set_property("active", !prop);
+                    }
+                    Inhibit(false)
+                }));
+                self.add(property.name(), event_box.upcast(), widget);
+                return;
             }
             "gchararray" => {
                 if readwrite {
@@ -287,6 +306,14 @@ impl PropertyWindow {
                 check_dirty_on_change!(Theme);
                 <Theme>::get(app, val, obj, property, create, readwrite, flags)
             }
+            "ShowMinimap" => {
+                check_dirty_on_change!(ShowMinimap);
+                <ShowMinimap>::get(app, val, obj, property, create, readwrite, flags)
+            }
+            "MarkColor" => {
+                check_dirty_on_change!(MarkColor);
+                <MarkColor>::get(app, val, obj, property, create, readwrite, flags)
+            }
             _other => gtk::Label::builder()
                 .label(&format!("{:?}", val))
                 .visible(true)
@@ -300,7 +327,7 @@ impl PropertyWindow {
                 .upcast(),
         };
         let label = get_label_for_property(property);
-        self.add(property.name(), label, widget);
+        self.add(property.name(), label.upcast(), widget);
     }
 
     pub fn add_extra_obj(&self, obj: glib::Object, friendly_name: Option<Cow<'static, str>>) {

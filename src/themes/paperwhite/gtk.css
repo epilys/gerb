@@ -1114,6 +1114,8 @@ popover check.left:dir(rtl), popover radio.left:dir(rtl) { margin-left: 0; margi
 
 popover check.right:dir(ltr), popover radio.right:dir(ltr) { margin-left: 12px; margin-right: 0; }
 
+check:checked, radio:checked { -gtk-icon-source: -gtk-icontheme("object-select-symbolic"); }
+
 check, radio { background-clip: padding-box; background-image: linear-gradient(to bottom, white 20%, white 90%); border-color: #c2c2c2; box-shadow: 0 1px rgba(0, 0, 0, 0.05); color: #444; }
 
 check:hover, radio:hover { background-image: image(#f2f2f2); }
@@ -1126,29 +1128,29 @@ check:backdrop, radio:backdrop { background-image: image(white); box-shadow: non
 
 check:backdrop:disabled, radio:backdrop:disabled { box-shadow: none; color: rgba(68, 68, 68, 0.7); }
 
-check:checked, radio:checked { background-clip: border-box; background-image: linear-gradient(to bottom, #6aa4ff 20%, #5094FF 90%); border-color: #5094FF; box-shadow: 0 1px rgba(0, 0, 0, 0.05); color: #ffffff; }
+check:checked, radio:checked { background-clip: border-box; background-image: linear-gradient(to bottom, #6aa4ff 20%, #5094FF 90%); border-color: #5094FF; box-shadow: 0 1px rgba(0, 0, 0, 0.05); color: black; }
 
 check:checked:hover, radio:checked:hover { background-image: linear-gradient(to bottom, #7eb0ff 10%, #64a0ff 90%); }
 
 check:checked:active, radio:checked:active { box-shadow: inset 0 1px 1px 0px rgba(0, 0, 0, 0.2); }
 
-check:checked:disabled, radio:checked:disabled { box-shadow: none; color: rgba(255, 255, 255, 0.7); }
+check:checked:disabled, radio:checked:disabled { box-shadow: none; color: rgba(0, 0, 0, 0.7); }
 
-check:checked:backdrop, radio:checked:backdrop { background-image: image(#5094FF); box-shadow: none; color: #ffffff; }
+check:checked:backdrop, radio:checked:backdrop { background-image: image(#5094FF); box-shadow: none; color: black; }
 
-check:checked:backdrop:disabled, radio:checked:backdrop:disabled { box-shadow: none; color: rgba(255, 255, 255, 0.7); }
+check:checked:backdrop:disabled, radio:checked:backdrop:disabled { box-shadow: none; color: rgba(0, 0, 0, 0.7); }
 
-check:indeterminate, radio:indeterminate { background-clip: border-box; background-image: linear-gradient(to bottom, #6aa4ff 20%, #5094FF 90%); border-color: #5094FF; box-shadow: 0 1px rgba(0, 0, 0, 0.05); color: #ffffff; }
+check:indeterminate, radio:indeterminate { background-clip: border-box; background-image: linear-gradient(to bottom, #6aa4ff 20%, #5094FF 90%); border-color: #5094FF; box-shadow: 0 1px rgba(0, 0, 0, 0.05); color: black; }
 
 check:indeterminate:hover, radio:indeterminate:hover { background-image: linear-gradient(to bottom, #7eb0ff 10%, #64a0ff 90%); }
 
 check:indeterminate:active, radio:indeterminate:active { box-shadow: inset 0 1px 1px 0px rgba(0, 0, 0, 0.2); }
 
-check:indeterminate:disabled, radio:indeterminate:disabled { box-shadow: none; color: rgba(255, 255, 255, 0.7); }
+check:indeterminate:disabled, radio:indeterminate:disabled { box-shadow: none; color: rgba(0, 0, 0, 0.7); }
 
-check:indeterminate:backdrop, radio:indeterminate:backdrop { background-image: image(#5094FF); box-shadow: none; color: #ffffff; }
+check:indeterminate:backdrop, radio:indeterminate:backdrop { background-image: image(#5094FF); box-shadow: none; color: black; }
 
-check:indeterminate:backdrop:disabled, radio:indeterminate:backdrop:disabled { box-shadow: none; color: rgba(255, 255, 255, 0.7); }
+check:indeterminate:backdrop:disabled, radio:indeterminate:backdrop:disabled { box-shadow: none; color: rgba(0, 0, 0, 0.7); }
 
 check:backdrop, radio:backdrop { transition: 200ms ease-out; }
 
@@ -1182,7 +1184,7 @@ radio:checked:not(:backdrop), radio:indeterminate:not(:backdrop), check:checked:
 
 menu menuitem radio:checked:not(:backdrop), menu menuitem radio:indeterminate:not(:backdrop), menu menuitem check:checked:not(:backdrop), menu menuitem check:indeterminate:not(:backdrop) { transition: none; }
 
-treeview.view check:selected:focus, treeview.view check:selected, treeview.view radio:selected:focus, treeview.view radio:selected { color: #ffffff; border-color: #0465ff; }
+treeview.view check:selected:focus, treeview.view check:selected, treeview.view radio:selected:focus, treeview.view radio:selected { color: black; border-color: #0465ff; }
 
 /************ GtkScale * */
 progressbar trough, scale fill, scale trough { border: 1px solid #d1d1d1; border-radius: 3px; background-color: #e8e8e8; }

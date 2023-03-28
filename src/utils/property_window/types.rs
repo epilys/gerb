@@ -922,7 +922,9 @@ mod widgets {
         }
     }
 
-    impl PropertyWidget for Theme {
+    impl<'a, E: EnumValue<'a> + for<'b> glib::value::FromValue<'b> + Copy + 'static> PropertyWidget
+        for E
+    {
         fn get(
             _app: &Application,
             val: glib::Value,
@@ -932,7 +934,7 @@ mod widgets {
             readwrite: bool,
             _flags: glib::BindingFlags,
         ) -> gtk::Widget {
-            let val = val.get::<Theme>().unwrap();
+            let val = val.get::<E>().unwrap();
 
             let entry = gtk::ComboBoxText::builder()
                 .sensitive(readwrite)
@@ -942,9 +944,9 @@ mod widgets {
                 .valign(gtk::Align::Start)
                 .build();
             obj.bind_property(property.name(), &entry, "active-id")
-                .transform_to(|_, val| {
-                    let theme = val.get::<Theme>().ok()?;
-                    Some(theme.name().to_value())
+                .transform_to(|_, val: &glib::Value| {
+                    let val = val.get::<E>().ok()?;
+                    Some(val.name().to_value())
                 })
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
@@ -953,12 +955,12 @@ mod widgets {
             } else {
                 entry.connect_changed(clone!(@weak obj, @strong property => move |entry| {
                     let Some(active_id) = entry.active_id() else { return; };
-                    let Some(val)= Theme::kebab_str_deserialize(&active_id) else { return; };
+                    let Some(val)= E::kebab_str_deserialize(&active_id) else { return; };
                     obj.set_property(property.name(), val);
                 }));
             }
             let active_id: Cow<'static, str> = val.name().into();
-            for v in Theme::kebab_case_variants() {
+            for v in E::kebab_case_variants() {
                 entry.append(Some(v), v);
             }
             entry.set_active_id(Some(active_id.as_ref()));

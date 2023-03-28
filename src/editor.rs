@@ -237,28 +237,28 @@ impl ObjectImpl for EditorInner {
                         Editor::LOCK_GUIDELINES,
                         Editor::LOCK_GUIDELINES,
                         false,
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecBoolean::new(
                         Editor::SHOW_GLYPH_GUIDELINES,
                         Editor::SHOW_GLYPH_GUIDELINES,
                         Editor::SHOW_GLYPH_GUIDELINES,
                         true,
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecBoolean::new(
                         Editor::SHOW_PROJECT_GUIDELINES,
                         Editor::SHOW_PROJECT_GUIDELINES,
                         Editor::SHOW_PROJECT_GUIDELINES,
                         true,
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecBoolean::new(
                         Editor::SHOW_METRICS_GUIDELINES,
                         Editor::SHOW_METRICS_GUIDELINES,
                         Editor::SHOW_METRICS_GUIDELINES,
                         true,
-                        glib::ParamFlags::READWRITE,
+                        glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     glib::ParamSpecBoolean::new(
                         Editor::MODIFYING_IN_PROCESS,
@@ -380,6 +380,7 @@ impl ObjectImpl for EditorInner {
         value: &glib::Value,
         pspec: &glib::ParamSpec,
     ) {
+        self.instance().queue_draw();
         match pspec.name() {
             Editor::UNITS_PER_EM => {
                 self.units_per_em.set(value.get().unwrap());
@@ -560,14 +561,17 @@ impl Editor {
         UNITS_PER_EM,
         X_HEIGHT
     );
-    pub const LOCK_GUIDELINES: &str = "lock-guidelines";
-    pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
-    pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";
-    pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
     pub const MODIFYING_IN_PROCESS: &str = "modifying-in-process";
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
-    inherit_property!(EditorSettings, SHOW_MINIMAP,);
+    inherit_property!(
+        EditorSettings,
+        SHOW_MINIMAP,
+        LOCK_GUIDELINES,
+        SHOW_GLYPH_GUIDELINES,
+        SHOW_PROJECT_GUIDELINES,
+        SHOW_METRICS_GUIDELINES
+    );
 
     pub fn new(app: Application, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();

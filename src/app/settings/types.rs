@@ -21,17 +21,14 @@
 
 use serde::{Deserialize, Serialize};
 
-pub trait EnumValue: glib::value::ToValue + Sized {
+pub trait EnumValue<'de>: glib::value::ToValue + Deserialize<'de> + Copy + Sized {
     fn name(&self) -> String {
         let value = self.to_value();
         let (_, v) = glib::EnumValue::from_value(&value).unwrap();
         v.nick().to_string()
     }
 
-    fn toml_deserialize<'de>(item: Option<&toml_edit::Item>) -> Option<Self>
-    where
-        Self: Deserialize<'de>,
-    {
+    fn toml_deserialize(item: Option<&toml_edit::Item>) -> Option<Self> {
         use serde::de::IntoDeserializer;
         item.cloned()?
             .into_value()
@@ -40,10 +37,7 @@ pub trait EnumValue: glib::value::ToValue + Sized {
             .and_then(|p| <Self as Deserialize>::deserialize(p).ok())
     }
 
-    fn kebab_str_deserialize<'de>(s: &str) -> Option<Self>
-    where
-        Self: Deserialize<'de>,
-    {
+    fn kebab_str_deserialize(s: &str) -> Option<Self> {
         use serde::de::IntoDeserializer;
         <Self as Deserialize>::deserialize(toml_edit::Value::into_deserializer(
             toml_edit::value(s).into_value().ok()?,
@@ -64,7 +58,7 @@ pub enum MarkColor {
     Icon,
 }
 
-impl EnumValue for MarkColor {
+impl EnumValue<'_> for MarkColor {
     fn kebab_case_variants() -> &'static [&'static str] {
         &["none", "background", "icon"]
     }
@@ -80,7 +74,7 @@ pub enum ShowMinimap {
     WhenManipulating,
 }
 
-impl EnumValue for ShowMinimap {
+impl EnumValue<'_> for ShowMinimap {
     fn kebab_case_variants() -> &'static [&'static str] {
         &["never", "always", "when-manipulating"]
     }
@@ -95,7 +89,7 @@ pub enum Theme {
     Paperwhite,
 }
 
-impl EnumValue for Theme {
+impl EnumValue<'_> for Theme {
     fn kebab_case_variants() -> &'static [&'static str] {
         &["system-default", "paperwhite"]
     }

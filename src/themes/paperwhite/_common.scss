@@ -3043,6 +3043,9 @@ radio {
   min-width: 14px;
   border: 1px solid;
   -gtk-icon-source: none;
+  &:checked {
+    -gtk-icon-source: -gtk-icontheme('object-select-symbolic');
+  }
 
   & {
     // for unchecked
