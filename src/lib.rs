@@ -149,13 +149,17 @@ pub mod prelude {
     pub use utils::{Either, FieldRef, UI_EDITABLE, UI_PATH, UI_READABLE};
     // utility traits:
     pub use utils::{Modified, StyleReadOnly};
-    pub use views::{canvas, Canvas, Collection, Overlay, Transformation, UnitPoint, ViewPoint};
+    pub use views::{
+        canvas, canvas::CanvasSettings, Canvas, Collection, Overlay, Transformation, UnitPoint,
+        ViewPoint,
+    };
     pub use window::Workspace;
 
     pub use glib::prelude::*;
     pub use glib::subclass::Signal;
     pub use glib::{
-        ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecDouble, ParamSpecString, Value,
+        ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecBoxed, ParamSpecDouble, ParamSpecObject,
+        ParamSpecString, Value,
     };
     pub use gtk::prelude::ToValue;
     pub use gtk::subclass::prelude::*;
@@ -198,17 +202,37 @@ pub mod prelude {
         }
 
         #[macro_export]
-        macro_rules! impl_property_window {
-            ($ty:ty$(,)? $({ $friendly_name:expr })?) => {
-                impl $crate::utils::property_window::CreatePropertyWindow for $ty {
-                    $(
-                        fn friendly_name(&self) -> Cow<'static, str> {
-                            $friendly_name
-                        }
-                    )*
+        macro_rules! impl_friendly_name {
+            ($ty:ty) => {
+                impl $crate::utils::property_window::FriendlyNameInSettings for $ty {}
+            };
+            ($ty:ty, $friendly_name:expr) => {
+                impl $crate::utils::property_window::FriendlyNameInSettings for $ty {
+                    fn friendly_name(&self) -> Cow<'static, str> {
+                        $friendly_name.into()
+                    }
+
+                    fn static_friendly_name() -> Cow<'static, str> {
+                        $friendly_name.into()
+                    }
                 }
             };
+        }
+
+        #[macro_export]
+        macro_rules! impl_property_window {
+            ($ty:ty) => {
+                impl $crate::utils::property_window::FriendlyNameInSettings for $ty {}
+                impl $crate::utils::property_window::CreatePropertyWindow for $ty {}
+            };
+            ($ty:ty$(,)? $({ $friendly_name:expr })?) => {
+                $(
+                    $crate::impl_friendly_name!($ty, $friendly_name);
+                )*
+                impl $crate::utils::property_window::CreatePropertyWindow for $ty {}
+            };
             (delegate $ty:ty => { $($access:tt)+ }, $($field:tt)+) => {
+                impl $crate::utils::property_window::FriendlyNameInSettings for $ty {}
                 impl $crate::utils::property_window::CreatePropertyWindow for $ty {
                     fn new_property_window(
                         &self,
@@ -282,7 +306,7 @@ pub mod prelude {
         /// The convention is that property names are stored as type constant string slices.
         #[macro_export]
         macro_rules! inherit_property {
-            ($t:ty, $($prop:ident),*) => {
+            ($t:ty, $($prop:ident),+$(,)?) => {
                 $(
                 pub const $prop: &str = <$t>::$prop;
                 )*

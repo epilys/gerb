@@ -541,12 +541,8 @@ glib::wrapper! {
         @extends gtk::Widget, gtk::Container, gtk::Bin;
 }
 
-impl std::ops::Deref for Editor {
-    type Target = EditorInner;
-    fn deref(&self) -> &Self::Target {
-        self.imp()
-    }
-}
+impl_deref!(Editor, EditorInner);
+impl_friendly_name!(Editor);
 
 impl Editor {
     pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
@@ -611,8 +607,8 @@ impl Editor {
                 .build();
         }
         let settings = app.runtime.settings.clone();
-        settings.register_obj(ret.viewport.clone().upcast());
-        settings.register_obj(ret.clone().upcast());
+        settings.register_obj_with_singleton(ret.viewport.upcast_ref(), CanvasSettings::new());
+        settings.register_obj(ret.clone());
         settings
             .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)

@@ -247,9 +247,10 @@ impl ApplicationImpl for ApplicationInner {
     /// here. Widgets can't be created before `startup` has been called.
     fn startup(&self, app: &Self::Type) {
         self.parent_startup(app);
+        self.runtime.settings.register_singleton(app.clone());
         self.runtime
             .settings
-            .register_obj(app.upcast_ref::<glib::Object>().clone());
+            .register_singleton(CanvasSettings::new());
         #[cfg(feature = "python")]
         {
             self.register_obj(app.upcast_ref());
@@ -394,7 +395,6 @@ impl ApplicationInner {
         settings.connect_activate(
             glib::clone!(@strong self.runtime.settings as settings, @weak obj as app => move |_, _| {
                 let w = settings.new_property_window(&app, false);
-                w.add_extra_obj(app.upcast_ref::<glib::Object>().clone(), None);
                 w.present();
             }),
         );
@@ -772,6 +772,8 @@ impl ApplicationInner {
         self.colors.get()
     }
 }
+
+impl_property_window!(Application);
 
 // [ref:VERIFY] are apps supposed to have access to preset predefined colors?
 // [ref:TODO] add fallback @defines in case a theme lacks a color

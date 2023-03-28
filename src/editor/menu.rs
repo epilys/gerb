@@ -61,12 +61,6 @@ impl EditorInner {
                     "Show total area",
                     "glyph.show.total-area",
                 );
-                new_accel_item(
-                    &view_glyph_menu,
-                    app,
-                    "View settings",
-                    "glyph.open.settings",
-                );
                 glyph_menu.append_section(None, &view_glyph_menu);
             }
             menumodel.append_submenu(Some("_Glyph"), &glyph_menu);
@@ -80,14 +74,6 @@ impl EditorInner {
                     gtk::gio::PropertyAction::new(action_name, &obj.imp().viewport, property);
                 action_group.add_action(&prop_action);
             }
-            let settings = gtk::gio::SimpleAction::new("open.settings", None);
-            settings.connect_activate(
-                glib::clone!(@weak self.viewport as viewport, @weak app => move |_, _| {
-                    let w = viewport.new_property_window(&app, false);
-                    w.present();
-                }),
-            );
-            action_group.add_action(&settings);
         }
         {
             let curve_menu = gio::Menu::new();

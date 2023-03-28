@@ -48,7 +48,11 @@ pub struct SettingsInner {
     pub guideline_width: Cell<f64>,
     pub warp_cursor: Cell<bool>,
     pub mark_color: Cell<types::MarkColor>,
+    /// Weak references to objects grouped by type name. Whenever a property changes for one
+    /// object, all of its kin is updated as well.
     pub entries: RefCell<IndexMap<String, Vec<glib::object::WeakRef<glib::Object>>>>,
+    /// Weak references to singleton setting objects
+    pub global_entries: RefCell<IndexMap<String, glib::Object>>,
     #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
@@ -281,16 +285,18 @@ impl SettingsInner {
         {
             return;
         }
+        let friendly_name = self.friendly_name(obj);
+        let kebab_name = friendly_name.replace(' ', "-").to_ascii_lowercase();
         let mut document = self.document.borrow_mut();
-        let type_name = obj.type_().name().to_ascii_lowercase();
+
         document.insert_formatted(
-            &type_name.as_str().into(),
+            &kebab_name.as_str().into(),
             toml_edit::Item::Table(toml_edit::Table::new()),
         );
         macro_rules! get_if_neq {
             ($ty:ty, str) => {{
                 let new_val = obj.property::<$ty>(prop.name()).to_string();
-                if document[&type_name]
+                if document[&kebab_name]
                     .get(prop.name())
                     .and_then(TomlItem::as_str)
                     == Some(&new_val)
@@ -301,7 +307,7 @@ impl SettingsInner {
             }};
             ($ty:ty, enum) => {{
                 let new_val = obj.property::<$ty>(prop.name()).name();
-                if document[&type_name]
+                if document[&kebab_name]
                     .get(prop.name())
                     .and_then(TomlItem::as_str)
                     == Some(&new_val)
@@ -312,7 +318,7 @@ impl SettingsInner {
             }};
             ($ty:ty, $fn:expr) => {{
                 let new_val = obj.property::<$ty>(prop.name());
-                if document[&type_name].get(prop.name()).and_then($fn) == Some(new_val) {
+                if document[&kebab_name].get(prop.name()).and_then($fn) == Some(new_val) {
                     return;
                 }
                 toml_value(new_val)
@@ -336,7 +342,7 @@ impl SettingsInner {
         } else {
             return;
         };
-        document[&type_name][prop.name()] = new_val;
+        document[&kebab_name][prop.name()] = new_val;
 
         /* Update other objects of the same type
          * Do not call set_property without dropping `document` first since it's borrowed mutably. */
@@ -345,7 +351,7 @@ impl SettingsInner {
         for e in self
             .entries
             .borrow()
-            .get(&type_name)
+            .get(&friendly_name)
             .map(|e| e.iter())
             .into_iter()
             .flatten()
@@ -372,24 +378,27 @@ impl SettingsInner {
             }
             /* Avoid setting properties unless the value has changed */
             if prop.value_type() == bool::static_type() {
-                set_if_neq!(bool, document[&type_name][prop.name()].as_bool().unwrap());
+                set_if_neq!(bool, document[&kebab_name][prop.name()].as_bool().unwrap());
             } else if prop.value_type() == f64::static_type() {
-                set_if_neq!(f64, document[&type_name][prop.name()].as_float().unwrap());
+                set_if_neq!(f64, document[&kebab_name][prop.name()].as_float().unwrap());
             } else if prop.value_type() == Color::static_type() {
                 set_if_neq!(
                     Color,
-                    Color::from_hex(document[&type_name][prop.name()].as_str().unwrap())
+                    Color::from_hex(document[&kebab_name][prop.name()].as_str().unwrap())
                 );
             } else if prop.value_type() == i64::static_type() {
-                set_if_neq!(i64, document[&type_name][prop.name()].as_integer().unwrap());
+                set_if_neq!(
+                    i64,
+                    document[&kebab_name][prop.name()].as_integer().unwrap()
+                );
             } else if prop.value_type() == types::MarkColor::static_type() {
-                set_if_neq!(types::MarkColor, opt types::MarkColor::toml_deserialize(document[&type_name].get(prop.name())));
+                set_if_neq!(types::MarkColor, opt types::MarkColor::toml_deserialize(document[&kebab_name].get(prop.name())));
             } else if prop.value_type() == types::ShowMinimap::static_type() {
-                set_if_neq!(types::ShowMinimap, opt types::ShowMinimap::toml_deserialize(document[&type_name].get(prop.name())));
+                set_if_neq!(types::ShowMinimap, opt types::ShowMinimap::toml_deserialize(document[&kebab_name].get(prop.name())));
             } else if prop.value_type() == types::Theme::static_type() {
                 set_if_neq!(
                     types::Theme,
-                    opt types::Theme::toml_deserialize(document[&type_name].get(prop.name()))
+                    opt types::Theme::toml_deserialize(document[&kebab_name].get(prop.name()))
                 );
             }
         }
@@ -442,10 +451,15 @@ impl SettingsInner {
         Ok(())
     }
 
-    pub fn register_obj(&self, obj: glib::Object) {
+    pub fn register_obj(&self, obj: impl FriendlyNameInSettings) {
+        let name = obj.friendly_name().to_string();
+        self.inner_register_obj(obj.upcast(), name)
+    }
+
+    fn inner_register_obj(&self, obj: glib::Object, friendly_name: String) {
+        let kebab_name = friendly_name.replace(' ', "-").to_ascii_lowercase();
         let document = self.document.borrow();
-        let type_name = obj.type_().name().to_ascii_lowercase();
-        if document.contains_key(&type_name) {
+        if document.contains_key(&kebab_name) {
             for prop in glib::Object::list_properties(&obj)
                 .as_slice()
                 .iter()
@@ -455,42 +469,42 @@ impl SettingsInner {
                         && p.owner_type() == obj.type_()
                 })
             {
-                if document[&type_name].get(prop.name()).is_some() {
+                if document[&kebab_name].get(prop.name()).is_some() {
                     if prop.value_type() == bool::static_type() {
                         obj.set_property(
                             prop.name(),
-                            document[&type_name][prop.name()].as_bool().unwrap(),
+                            document[&kebab_name][prop.name()].as_bool().unwrap(),
                         );
                     } else if prop.value_type() == f64::static_type() {
                         obj.set_property(
                             prop.name(),
-                            document[&type_name][prop.name()].as_float().unwrap(),
+                            document[&kebab_name][prop.name()].as_float().unwrap(),
                         );
                     } else if prop.value_type() == Color::static_type() {
                         obj.set_property(
                             prop.name(),
-                            Color::from_hex(document[&type_name][prop.name()].as_str().unwrap()),
+                            Color::from_hex(document[&kebab_name][prop.name()].as_str().unwrap()),
                         );
                     } else if prop.value_type() == i64::static_type() {
                         obj.set_property(
                             prop.name(),
-                            document[&type_name][prop.name()].as_integer().unwrap(),
+                            document[&kebab_name][prop.name()].as_integer().unwrap(),
                         );
                     } else if prop.value_type() == types::MarkColor::static_type() {
                         if let Some(v) = types::MarkColor::toml_deserialize(
-                            document[&type_name].get(prop.name()),
+                            document[&kebab_name].get(prop.name()),
                         ) {
                             obj.set_property(prop.name(), v);
                         }
                     } else if prop.value_type() == types::Theme::static_type() {
                         if let Some(v) =
-                            types::Theme::toml_deserialize(document[&type_name].get(prop.name()))
+                            types::Theme::toml_deserialize(document[&kebab_name].get(prop.name()))
                         {
                             obj.set_property(prop.name(), v);
                         }
                     } else if prop.value_type() == types::ShowMinimap::static_type() {
                         if let Some(v) = types::ShowMinimap::toml_deserialize(
-                            document[&type_name].get(prop.name()),
+                            document[&kebab_name].get(prop.name()),
                         ) {
                             obj.set_property(prop.name(), v);
                         }
@@ -512,14 +526,153 @@ impl SettingsInner {
             }),
         );
         let mut entries = self.entries.borrow_mut();
-        let entry = entries.entry(type_name).or_default();
+        let entry = entries.entry(friendly_name).or_default();
         entry.retain(|e| e.upgrade().is_some());
         entry.push(obj.downgrade());
+    }
+
+    pub fn register_singleton(&self, singleton: impl FriendlyNameInSettings) {
+        let name = singleton.friendly_name().to_string();
+        self.inner_register_singleton(singleton.upcast(), name)
+    }
+
+    fn inner_register_singleton(&self, singleton: glib::Object, friendly_name: String) {
+        let mut global_entries = self.global_entries.borrow_mut();
+        if !global_entries.contains_key(&friendly_name) {
+            let kebab_name = friendly_name.replace(' ', "-").to_ascii_lowercase();
+            let document = self.document.borrow();
+            if document.contains_key(&kebab_name) {
+                for prop in glib::Object::list_properties(&singleton)
+                    .as_slice()
+                    .iter()
+                    .filter(|p| {
+                        p.flags()
+                            .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+                            && p.owner_type() == singleton.type_()
+                    })
+                {
+                    if document[&kebab_name].get(prop.name()).is_some() {
+                        if prop.value_type() == bool::static_type() {
+                            singleton.set_property(
+                                prop.name(),
+                                document[&kebab_name][prop.name()].as_bool().unwrap(),
+                            );
+                        } else if prop.value_type() == f64::static_type() {
+                            singleton.set_property(
+                                prop.name(),
+                                document[&kebab_name][prop.name()].as_float().unwrap(),
+                            );
+                        } else if prop.value_type() == Color::static_type() {
+                            singleton.set_property(
+                                prop.name(),
+                                Color::from_hex(
+                                    document[&kebab_name][prop.name()].as_str().unwrap(),
+                                ),
+                            );
+                        } else if prop.value_type() == i64::static_type() {
+                            singleton.set_property(
+                                prop.name(),
+                                document[&kebab_name][prop.name()].as_integer().unwrap(),
+                            );
+                        } else if prop.value_type() == types::MarkColor::static_type() {
+                            if let Some(v) = types::MarkColor::toml_deserialize(
+                                document[&kebab_name].get(prop.name()),
+                            ) {
+                                singleton.set_property(prop.name(), v);
+                            }
+                        } else if prop.value_type() == types::Theme::static_type() {
+                            if let Some(v) = types::Theme::toml_deserialize(
+                                document[&kebab_name].get(prop.name()),
+                            ) {
+                                singleton.set_property(prop.name(), v);
+                            }
+                        } else if prop.value_type() == types::ShowMinimap::static_type() {
+                            if let Some(v) = types::ShowMinimap::toml_deserialize(
+                                document[&kebab_name].get(prop.name()),
+                            ) {
+                                singleton.set_property(prop.name(), v);
+                            }
+                        }
+                    }
+                }
+            }
+            let instance = self.instance();
+            singleton.connect_notify_local(
+                None,
+                clone!(@strong instance as obj => move |self_, param| {
+                    if param.flags()
+                        .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+                        && param.owner_type() == self_.type_() {
+                            obj.read_new_setting(self_, param);
+                            _ = obj.save_settings();
+
+                    }
+                }),
+            );
+            global_entries.insert(friendly_name, singleton);
+        }
+    }
+
+    pub fn register_obj_with_singleton(
+        &self,
+        obj: &glib::Object,
+        singleton: impl FriendlyNameInSettings,
+    ) {
+        let name = singleton.friendly_name().to_string();
+        self.inner_register_singleton(singleton.upcast(), name.clone());
+        self.inner_register_obj_with_singleton(obj, name)
+    }
+
+    fn inner_register_obj_with_singleton(&self, obj: &glib::Object, name: String) {
+        let global_entries = self.global_entries.borrow();
+        let singleton = &global_entries[&name];
+        for prop in glib::Object::list_properties(singleton)
+            .as_slice()
+            .iter()
+            .filter(|p| {
+                p.flags()
+                    .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
+                    && p.owner_type() == singleton.type_()
+            })
+        {
+            singleton
+                .bind_property(prop.name(), obj, prop.name())
+                .flags(glib::BindingFlags::SYNC_CREATE)
+                .build();
+        }
     }
 
     // [tag:settings_path()_sync_return_value]
     pub fn path(&self) -> Option<PathBuf> {
         self.file.borrow().as_ref().map(|(p, _)| p.to_path_buf())
+    }
+
+    fn friendly_name(&self, obj: &glib::Object) -> String {
+        if let Some(name) = self.entries.borrow().iter().find_map(|(name, weakrefs)| {
+            if let Some(strongref) = weakrefs.iter().find_map(|w| w.upgrade()) {
+                if strongref.type_() == obj.type_() {
+                    return Some(name.to_string());
+                }
+            }
+            None
+        }) {
+            return name;
+        }
+
+        if let Some(name) = self
+            .global_entries
+            .borrow()
+            .iter()
+            .find_map(|(name, strongref)| {
+                if strongref.type_() == obj.type_() {
+                    return Some(name.to_string());
+                }
+                None
+            })
+        {
+            return name;
+        }
+        obj.type_().name().to_ascii_lowercase()
     }
 }
 
@@ -542,4 +695,27 @@ impl Settings {
     }
 }
 
-impl_property_window!(Settings);
+impl_friendly_name!(Settings);
+impl crate::utils::property_window::CreatePropertyWindow for Settings {
+    fn new_property_window(
+        &self,
+        app: &crate::prelude::Application,
+        _create: bool,
+    ) -> crate::prelude::PropertyWindow
+    where
+        Self: glib::IsA<glib::Object>,
+    {
+        let ret = PropertyWindow::builder(
+            self.downgrade().upgrade().unwrap().upcast::<glib::Object>(),
+            app,
+        )
+        .title(self.friendly_name())
+        .friendly_name(self.friendly_name())
+        .type_(PropertyWindowType::Modify)
+        .build();
+        for (name, obj) in self.global_entries.borrow().iter() {
+            ret.add_extra_obj(obj.clone(), Some(name.to_string().into()));
+        }
+        ret
+    }
+}

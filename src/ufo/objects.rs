@@ -248,7 +248,7 @@ glib::wrapper! {
 }
 
 impl_deref!(FontInfo, FontInfoInner);
-impl_property_window!(FontInfo, { "Font Metadata".into() });
+impl_property_window!(FontInfo, { "Font Metadata" });
 
 impl FontInfo {
     pub const MODIFIED: &str = "modified";

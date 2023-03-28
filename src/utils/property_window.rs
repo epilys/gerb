@@ -1130,7 +1130,7 @@ impl PropertyChoice {
 
 impl_deref!(PropertyChoice, PropertyChoiceInner);
 
-pub trait CreatePropertyWindow: glib::object::ObjectExt {
+pub trait CreatePropertyWindow: glib::object::ObjectExt + FriendlyNameInSettings {
     fn new_property_window(&self, app: &Application, _create: bool) -> PropertyWindow
     where
         Self: glib::IsA<glib::Object>,
@@ -1144,8 +1144,14 @@ pub trait CreatePropertyWindow: glib::object::ObjectExt {
         .type_(PropertyWindowType::Modify)
         .build()
     }
+}
 
+pub trait FriendlyNameInSettings: glib::object::ObjectExt + glib::IsA<glib::Object> {
     fn friendly_name(&self) -> Cow<'static, str> {
         self.type_().name().into()
+    }
+
+    fn static_friendly_name() -> Cow<'static, str> {
+        Self::static_type().name().into()
     }
 }

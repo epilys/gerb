@@ -20,15 +20,12 @@
  */
 
 mod layers;
+mod settings;
 mod transformation;
 use crate::prelude::*;
 pub use layers::*;
+pub use settings::*;
 pub use transformation::*;
-
-use glib::{
-    ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecBoxed, ParamSpecDouble, ParamSpecObject,
-    Value,
-};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 #[repr(transparent)]
@@ -74,21 +71,6 @@ pub struct CanvasInner {
 }
 
 impl CanvasInner {
-    pub const HANDLE_SIZE_INIT_VAL: f64 = 5.0;
-    pub const LINE_WIDTH_INIT_VAL: f64 = 0.85;
-    pub const RULER_BREADTH: f64 = 13.0;
-    pub const SHOW_GRID_INIT_VAL: bool = false;
-    pub const SHOW_GUIDELINES_INIT_VAL: bool = true;
-    pub const SHOW_HANDLES_INIT_VAL: bool = true;
-    pub const SHOW_DIRECTION_INIT_VAL: bool = true;
-    pub const INNER_FILL_INIT_VAL: bool = false;
-    pub const SHOW_TOTAL_AREA_INIT_VAL: bool = true;
-    pub const SHOW_RULERS_INIT_VAL: bool = true;
-    pub const WARP_CURSOR_INIT_VAL: bool = false;
-    pub const RULER_FG_COLOR_INIT_VAL: Color = Color::BLACK;
-    pub const RULER_BG_COLOR_INIT_VAL: Color = Color::WHITE;
-    pub const RULER_INDICATOR_COLOR_INIT_VAL: Color = Color::RED;
-
     fn get_opts(&self, retval: DrawOptions) -> DrawOptions {
         if let Some((inherit, true)) = retval.inherit_size {
             DrawOptions {
@@ -111,68 +93,6 @@ impl ObjectSubclass for CanvasInner {
 impl ObjectImpl for CanvasInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
-        self.handle_size.set(Self::HANDLE_SIZE_INIT_VAL);
-        self.line_width.set(Self::LINE_WIDTH_INIT_VAL);
-        self.show_grid.set(Self::SHOW_GRID_INIT_VAL);
-        self.show_guidelines.set(Self::SHOW_GUIDELINES_INIT_VAL);
-        self.show_handles.set(Self::SHOW_HANDLES_INIT_VAL);
-        self.inner_fill.set(Self::INNER_FILL_INIT_VAL);
-        self.show_total_area.set(Self::SHOW_TOTAL_AREA_INIT_VAL);
-        self.show_rulers.set(Self::SHOW_RULERS_INIT_VAL);
-        self.show_direction.set(Self::SHOW_DIRECTION_INIT_VAL);
-        self.direction_options
-            .set((Color::from_hex("#0478A2").with_alpha_f64(0.9), 2.0).into()); // [ref:hardcoded_color_value]
-        self.handle_connection_options.set(DrawOptions::from((
-            // [ref:hardcoded_color_value]
-            Color::BLACK.with_alpha_f64(0.9),
-            1.0,
-            Canvas::LINE_WIDTH,
-        )));
-        self.handle_options.set(
-            DrawOptions::from((
-                // [ref:hardcoded_color_value]
-                Color::from_hex("#333333").with_alpha_f64(0.6),
-                5.0,
-                Canvas::HANDLE_SIZE,
-            ))
-            .with_bg(Color::WHITE),
-        );
-        self.smooth_corner_options.set(
-            (
-                Color::from_hex("#333333").with_alpha_f64(0.6), // [ref:hardcoded_color_value]
-                5.0,
-                Canvas::HANDLE_SIZE,
-            )
-                .into(),
-        );
-        self.corner_options.set(
-            (
-                Color::from_hex("#333333").with_alpha_f64(0.6), // [ref:hardcoded_color_value]
-                5.0,
-                Canvas::HANDLE_SIZE,
-            )
-                .into(),
-        );
-        self.outline_options.set(
-            (
-                Color::from_hex("#333333").with_alpha_f64(0.6), // [ref:hardcoded_color_value]
-                5.0,
-                Canvas::LINE_WIDTH,
-            )
-                .into(),
-        );
-        self.warp_cursor.set(Self::WARP_CURSOR_INIT_VAL);
-        self.bg_color.set(Color::WHITE);
-        self.bg_color.set(Color::from_hex("#EEF8F8")); // [ref:hardcoded_color_value]
-        self.glyph_bbox_bg_color
-            .set(Color::new_alpha(210, 227, 252, 153)); // [ref:hardcoded_color_value]
-        self.glyph_inner_fill_color.set(Color::from_hex("#E6E6E4")); // [ref:hardcoded_color_value]
-        self.ruler_fg_color.set(Self::RULER_FG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
-        self.ruler_bg_color.set(Self::RULER_BG_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
-        self.ruler_indicator_color
-            .set(Self::RULER_INDICATOR_COLOR_INIT_VAL); // [ref:hardcoded_color_value]
-        self.ruler_fg_color.set(Color::from_hex("#8B9494")); // [ref:hardcoded_color_value]
-        self.ruler_bg_color.set(Color::from_hex("#F2F8F8")); // [ref:hardcoded_color_value]
         self.pre_layers.borrow_mut().push(
             LayerBuilder::new()
                 .set_name(Some("grid"))
@@ -224,7 +144,7 @@ impl ObjectImpl for CanvasInner {
                         "Diameter of round control point handle.",
                         0.0001,
                         10.0,
-                        CanvasInner::HANDLE_SIZE_INIT_VAL,
+                        CanvasSettingsInner::HANDLE_SIZE_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
@@ -233,35 +153,35 @@ impl ObjectImpl for CanvasInner {
                         "Width of lines in pixels.",
                         0.0001,
                         10.0,
-                        CanvasInner::LINE_WIDTH_INIT_VAL,
+                        CanvasSettingsInner::LINE_WIDTH_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GRID,
                         Canvas::SHOW_GRID,
                         "Show/hide grid.",
-                        CanvasInner::SHOW_GRID_INIT_VAL,
+                        CanvasSettingsInner::SHOW_GRID_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_GUIDELINES,
                         Canvas::SHOW_GUIDELINES,
                         "Show/hide all guidelines.",
-                        CanvasInner::SHOW_GUIDELINES_INIT_VAL,
+                        CanvasSettingsInner::SHOW_GUIDELINES_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_HANDLES,
                         Canvas::SHOW_HANDLES,
                         "Show/hide handles.",
-                        CanvasInner::SHOW_HANDLES_INIT_VAL,
+                        CanvasSettingsInner::SHOW_HANDLES_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::INNER_FILL,
                         Canvas::INNER_FILL,
                         "Show/hide inner glyph fill.",
-                        CanvasInner::INNER_FILL_INIT_VAL,
+                        CanvasSettingsInner::INNER_FILL_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecObject::new(
@@ -275,28 +195,28 @@ impl ObjectImpl for CanvasInner {
                         Canvas::SHOW_TOTAL_AREA,
                         Canvas::SHOW_TOTAL_AREA,
                         "Show/hide total glyph area.",
-                        CanvasInner::SHOW_TOTAL_AREA_INIT_VAL,
+                        CanvasSettingsInner::SHOW_TOTAL_AREA_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_RULERS,
                         Canvas::SHOW_RULERS,
                         "Show/hide canvas rulers.",
-                        CanvasInner::SHOW_RULERS_INIT_VAL,
+                        CanvasSettingsInner::SHOW_RULERS_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::SHOW_DIRECTION,
                         Canvas::SHOW_DIRECTION,
                         "Show/hide contour direction arrows.",
-                        CanvasInner::SHOW_DIRECTION_INIT_VAL,
+                        CanvasSettingsInner::SHOW_DIRECTION_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecBoolean::new(
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
                         Canvas::WARP_CURSOR,
-                        CanvasInner::WARP_CURSOR_INIT_VAL,
+                        CanvasSettingsInner::WARP_CURSOR_INIT_VAL,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
                     ParamSpecDouble::new(
@@ -443,7 +363,7 @@ impl ObjectImpl for CanvasInner {
             Canvas::BG_COLOR => self.bg_color.get().to_value(),
             Canvas::GLYPH_INNER_FILL_COLOR => self.glyph_inner_fill_color.get().to_value(),
             Canvas::GLYPH_BBOX_BG_COLOR => self.glyph_bbox_bg_color.get().to_value(),
-            Canvas::RULER_BREADTH_PIXELS => Self::RULER_BREADTH.to_value(),
+            Canvas::RULER_BREADTH_PIXELS => CanvasSettingsInner::RULER_BREADTH.to_value(),
             Canvas::RULER_FG_COLOR => self.ruler_fg_color.get().to_value(),
             Canvas::RULER_BG_COLOR => self.ruler_bg_color.get().to_value(),
             Canvas::RULER_INDICATOR_COLOR => self.ruler_indicator_color.get().to_value(),
@@ -569,34 +489,37 @@ impl std::ops::Deref for Canvas {
 }
 
 impl Canvas {
-    pub const HANDLE_SIZE: &str = "handle-size";
-    pub const LINE_WIDTH: &str = "line-width";
-    pub const INNER_FILL: &str = "inner-fill";
-    pub const VIEW_HEIGHT: &str = "view-height";
-    pub const VIEW_WIDTH: &str = "view-width";
-    pub const SHOW_GRID: &str = "show-grid";
-    pub const SHOW_GUIDELINES: &str = "show-guidelines";
-    pub const SHOW_HANDLES: &str = "show-handles";
-    pub const SHOW_DIRECTION: &str = "show-direction";
-    pub const HANDLE_OPTIONS: &str = "handle-options";
-    pub const SMOOTH_CORNER_OPTIONS: &str = "smooth-corner-options";
-    pub const CORNER_OPTIONS: &str = "corner-options";
-    pub const DIRECTION_OPTIONS: &str = "direction-options";
-    pub const HANDLE_CONNECTION_OPTIONS: &str = "handle-connection-options";
-    pub const OUTLINE_OPTIONS: &str = "outline-options";
-    pub const SHOW_TOTAL_AREA: &str = "show-total-area";
-    pub const SHOW_RULERS: &str = "show-rules";
-    pub const TRANSFORMATION: &str = "transformation";
-    pub const WARP_CURSOR: &str = "warp-cursor";
-    pub const MOUSE: &str = "mouse";
-    pub const BG_COLOR: &str = "bg-color";
-    pub const GLYPH_INNER_FILL_COLOR: &str = "glyph-inner-fill-color";
-    pub const GLYPH_BBOX_BG_COLOR: &str = "glyph-bbox-bg-color";
-    pub const RULER_BREADTH_PIXELS: &str = "ruler-breadth-pixels";
-    pub const RULER_FG_COLOR: &str = "ruler-fg-color";
-    pub const RULER_BG_COLOR: &str = "ruler-bg-color";
-    pub const RULER_INDICATOR_COLOR: &str = "ruler-indicator-color";
-    pub const CONTENT_WIDTH: &str = "content-width";
+    inherit_property!(
+        CanvasSettings,
+        HANDLE_SIZE,
+        LINE_WIDTH,
+        INNER_FILL,
+        VIEW_HEIGHT,
+        VIEW_WIDTH,
+        SHOW_GRID,
+        SHOW_GUIDELINES,
+        SHOW_HANDLES,
+        SHOW_DIRECTION,
+        HANDLE_OPTIONS,
+        SMOOTH_CORNER_OPTIONS,
+        CORNER_OPTIONS,
+        DIRECTION_OPTIONS,
+        HANDLE_CONNECTION_OPTIONS,
+        OUTLINE_OPTIONS,
+        SHOW_TOTAL_AREA,
+        SHOW_RULERS,
+        TRANSFORMATION,
+        WARP_CURSOR,
+        MOUSE,
+        BG_COLOR,
+        GLYPH_INNER_FILL_COLOR,
+        GLYPH_BBOX_BG_COLOR,
+        RULER_BREADTH_PIXELS,
+        RULER_FG_COLOR,
+        RULER_BG_COLOR,
+        RULER_INDICATOR_COLOR,
+        CONTENT_WIDTH,
+    );
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Canvas");
@@ -822,5 +745,3 @@ impl Default for Canvas {
         Self::new()
     }
 }
-
-impl_property_window!(Canvas);

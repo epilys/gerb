@@ -247,6 +247,8 @@ impl From<GlyphMetadata> for Glyph {
     }
 }
 
+impl_friendly_name!(GlyphMetadata, "Glyph Metadata");
+
 impl CreatePropertyWindow for GlyphMetadata {
     fn new_property_window(&self, app: &Application, create: bool) -> PropertyWindow {
         if create {
