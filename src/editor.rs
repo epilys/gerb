@@ -609,8 +609,8 @@ impl Editor {
                 .build();
         }
         let settings = app.runtime.settings.clone();
-        settings.register_type_with_singleton(ret.viewport.upcast_ref(), CanvasSettings::new());
-        settings.register_type_with_singleton(ret.upcast_ref(), EditorSettings::new());
+        settings.register_obj(ret.viewport.upcast_ref(), CanvasSettings::new());
+        settings.register_obj(ret.upcast_ref(), EditorSettings::new());
         settings
             .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)

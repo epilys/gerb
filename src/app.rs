@@ -247,13 +247,13 @@ impl ApplicationImpl for ApplicationInner {
     /// here. Widgets can't be created before `startup` has been called.
     fn startup(&self, app: &Self::Type) {
         self.parent_startup(app);
-        self.runtime.settings.register_singleton(app.clone());
+        self.runtime.settings.register_settings_type(app.clone());
         self.runtime
             .settings
-            .register_singleton(CanvasSettings::new());
+            .register_settings_type(CanvasSettings::new());
         self.runtime
             .settings
-            .register_singleton(EditorSettings::new());
+            .register_settings_type(EditorSettings::new());
         #[cfg(feature = "python")]
         {
             self.register_obj(app.upcast_ref());

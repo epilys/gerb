@@ -50,9 +50,9 @@ pub struct SettingsInner {
     pub mark_color: Cell<types::MarkColor>,
     /// Weak references to objects grouped by type name. Whenever a property changes for one
     /// object, all of its kin is updated as well.
-    pub entries: RefCell<IndexMap<String, Vec<glib::object::WeakRef<glib::Object>>>>,
-    /// Weak references to singleton setting objects
-    pub global_entries: RefCell<IndexMap<String, glib::Object>>,
+    pub obj_entries: RefCell<IndexMap<String, Vec<glib::object::WeakRef<glib::Object>>>>,
+    /// Weak references to setting objects
+    pub settings_entries: RefCell<IndexMap<String, glib::Object>>,
     #[allow(clippy::type_complexity)]
     pub file: Rc<RefCell<Option<(PathBuf, BufWriter<File>)>>>,
     pub document: Rc<RefCell<Document>>,
@@ -349,7 +349,7 @@ impl SettingsInner {
         drop(document);
 
         for e in self
-            .entries
+            .obj_entries
             .borrow()
             .get(&friendly_name)
             .map(|e| e.iter())
@@ -451,126 +451,46 @@ impl SettingsInner {
         Ok(())
     }
 
-    pub fn register_type(&self, obj: impl FriendlyNameInSettings) {
-        let name = obj.friendly_name().to_string();
-        self.inner_register_type(obj.upcast(), name)
+    pub fn register_settings_type(&self, settings_type: impl FriendlyNameInSettings) {
+        let name = settings_type.friendly_name().to_string();
+        self.inner_register_settings_type(settings_type.upcast(), name)
     }
 
-    fn inner_register_type(&self, obj: glib::Object, friendly_name: String) {
-        let kebab_name = friendly_name.replace(' ', "-").to_ascii_lowercase();
-        let document = self.document.borrow();
-        if document.contains_key(&kebab_name) {
-            for prop in glib::Object::list_properties(&obj)
-                .as_slice()
-                .iter()
-                .filter(|p| {
-                    p.flags()
-                        .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
-                        && p.owner_type() == obj.type_()
-                })
-            {
-                if document[&kebab_name].get(prop.name()).is_some() {
-                    if prop.value_type() == bool::static_type() {
-                        obj.set_property(
-                            prop.name(),
-                            document[&kebab_name][prop.name()].as_bool().unwrap(),
-                        );
-                    } else if prop.value_type() == f64::static_type() {
-                        obj.set_property(
-                            prop.name(),
-                            document[&kebab_name][prop.name()].as_float().unwrap(),
-                        );
-                    } else if prop.value_type() == Color::static_type() {
-                        obj.set_property(
-                            prop.name(),
-                            Color::from_hex(document[&kebab_name][prop.name()].as_str().unwrap()),
-                        );
-                    } else if prop.value_type() == i64::static_type() {
-                        obj.set_property(
-                            prop.name(),
-                            document[&kebab_name][prop.name()].as_integer().unwrap(),
-                        );
-                    } else if prop.value_type() == types::MarkColor::static_type() {
-                        if let Some(v) = types::MarkColor::toml_deserialize(
-                            document[&kebab_name].get(prop.name()),
-                        ) {
-                            obj.set_property(prop.name(), v);
-                        }
-                    } else if prop.value_type() == types::Theme::static_type() {
-                        if let Some(v) =
-                            types::Theme::toml_deserialize(document[&kebab_name].get(prop.name()))
-                        {
-                            obj.set_property(prop.name(), v);
-                        }
-                    } else if prop.value_type() == types::ShowMinimap::static_type() {
-                        if let Some(v) = types::ShowMinimap::toml_deserialize(
-                            document[&kebab_name].get(prop.name()),
-                        ) {
-                            obj.set_property(prop.name(), v);
-                        }
-                    }
-                }
-            }
-        }
-        let instance = self.instance();
-        obj.connect_notify_local(
-            None,
-            clone!(@strong instance as obj => move |self_, param| {
-                if param.flags()
-                    .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
-                    && param.owner_type() == self_.type_() {
-                        obj.read_new_setting(self_, param);
-                        _ = obj.save_settings();
-
-                }
-            }),
-        );
-        let mut entries = self.entries.borrow_mut();
-        let entry = entries.entry(friendly_name).or_default();
-        entry.retain(|e| e.upgrade().is_some());
-        entry.push(obj.downgrade());
-    }
-
-    pub fn register_singleton(&self, singleton: impl FriendlyNameInSettings) {
-        let name = singleton.friendly_name().to_string();
-        self.inner_register_singleton(singleton.upcast(), name)
-    }
-
-    fn inner_register_singleton(&self, singleton: glib::Object, friendly_name: String) {
-        let mut global_entries = self.global_entries.borrow_mut();
-        if !global_entries.contains_key(&friendly_name) {
+    fn inner_register_settings_type(&self, settings_type: glib::Object, friendly_name: String) {
+        let mut settings_entries = self.settings_entries.borrow_mut();
+        if !settings_entries.contains_key(&friendly_name) {
             let kebab_name = friendly_name.replace(' ', "-").to_ascii_lowercase();
             let document = self.document.borrow();
             if document.contains_key(&kebab_name) {
-                for prop in glib::Object::list_properties(&singleton)
+                for prop in glib::Object::list_properties(&settings_type)
                     .as_slice()
                     .iter()
                     .filter(|p| {
                         p.flags()
                             .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
-                            && p.owner_type() == singleton.type_()
+                            && p.owner_type() == settings_type.type_()
                     })
                 {
                     if document[&kebab_name].get(prop.name()).is_some() {
                         if prop.value_type() == bool::static_type() {
-                            singleton.set_property(
+                            settings_type.set_property(
                                 prop.name(),
                                 document[&kebab_name][prop.name()].as_bool().unwrap(),
                             );
                         } else if prop.value_type() == f64::static_type() {
-                            singleton.set_property(
+                            settings_type.set_property(
                                 prop.name(),
                                 document[&kebab_name][prop.name()].as_float().unwrap(),
                             );
                         } else if prop.value_type() == Color::static_type() {
-                            singleton.set_property(
+                            settings_type.set_property(
                                 prop.name(),
                                 Color::from_hex(
                                     document[&kebab_name][prop.name()].as_str().unwrap(),
                                 ),
                             );
                         } else if prop.value_type() == i64::static_type() {
-                            singleton.set_property(
+                            settings_type.set_property(
                                 prop.name(),
                                 document[&kebab_name][prop.name()].as_integer().unwrap(),
                             );
@@ -578,26 +498,26 @@ impl SettingsInner {
                             if let Some(v) = types::MarkColor::toml_deserialize(
                                 document[&kebab_name].get(prop.name()),
                             ) {
-                                singleton.set_property(prop.name(), v);
+                                settings_type.set_property(prop.name(), v);
                             }
                         } else if prop.value_type() == types::Theme::static_type() {
                             if let Some(v) = types::Theme::toml_deserialize(
                                 document[&kebab_name].get(prop.name()),
                             ) {
-                                singleton.set_property(prop.name(), v);
+                                settings_type.set_property(prop.name(), v);
                             }
                         } else if prop.value_type() == types::ShowMinimap::static_type() {
                             if let Some(v) = types::ShowMinimap::toml_deserialize(
                                 document[&kebab_name].get(prop.name()),
                             ) {
-                                singleton.set_property(prop.name(), v);
+                                settings_type.set_property(prop.name(), v);
                             }
                         }
                     }
                 }
             }
             let instance = self.instance();
-            singleton.connect_notify_local(
+            settings_type.connect_notify_local(
                 None,
                 clone!(@strong instance as obj => move |self_, param| {
                     if param.flags()
@@ -609,33 +529,29 @@ impl SettingsInner {
                     }
                 }),
             );
-            global_entries.insert(friendly_name, singleton);
+            settings_entries.insert(friendly_name, settings_type);
         }
     }
 
-    pub fn register_type_with_singleton(
-        &self,
-        obj: &glib::Object,
-        singleton: impl FriendlyNameInSettings,
-    ) {
-        let name = singleton.friendly_name().to_string();
-        self.inner_register_singleton(singleton.upcast(), name.clone());
-        self.inner_register_type_with_singleton(obj, name)
+    pub fn register_obj(&self, obj: &glib::Object, settings_type: impl FriendlyNameInSettings) {
+        let name = settings_type.friendly_name().to_string();
+        self.inner_register_settings_type(settings_type.upcast(), name.clone());
+        self.inner_register_obj(obj, name)
     }
 
-    fn inner_register_type_with_singleton(&self, obj: &glib::Object, name: String) {
-        let global_entries = self.global_entries.borrow();
-        let singleton = &global_entries[&name];
-        for prop in glib::Object::list_properties(singleton)
+    fn inner_register_obj(&self, obj: &glib::Object, name: String) {
+        let settings_entries = self.settings_entries.borrow();
+        let settings_type = &settings_entries[&name];
+        for prop in glib::Object::list_properties(settings_type)
             .as_slice()
             .iter()
             .filter(|p| {
                 p.flags()
                     .contains(glib::ParamFlags::READWRITE | UI_EDITABLE)
-                    && p.owner_type() == singleton.type_()
+                    && p.owner_type() == settings_type.type_()
             })
         {
-            singleton
+            settings_type
                 .bind_property(prop.name(), obj, prop.name())
                 .flags(glib::BindingFlags::SYNC_CREATE)
                 .build();
@@ -648,19 +564,24 @@ impl SettingsInner {
     }
 
     fn friendly_name(&self, obj: &glib::Object) -> String {
-        if let Some(name) = self.entries.borrow().iter().find_map(|(name, weakrefs)| {
-            if let Some(strongref) = weakrefs.iter().find_map(|w| w.upgrade()) {
-                if strongref.type_() == obj.type_() {
-                    return Some(name.to_string());
+        if let Some(name) = self
+            .obj_entries
+            .borrow()
+            .iter()
+            .find_map(|(name, weakrefs)| {
+                if let Some(strongref) = weakrefs.iter().find_map(|w| w.upgrade()) {
+                    if strongref.type_() == obj.type_() {
+                        return Some(name.to_string());
+                    }
                 }
-            }
-            None
-        }) {
+                None
+            })
+        {
             return name;
         }
 
         if let Some(name) = self
-            .global_entries
+            .settings_entries
             .borrow()
             .iter()
             .find_map(|(name, strongref)| {
@@ -713,7 +634,7 @@ impl crate::utils::property_window::CreatePropertyWindow for Settings {
         .friendly_name(self.friendly_name())
         .type_(PropertyWindowType::Modify)
         .build();
-        for (name, obj) in self.global_entries.borrow().iter() {
+        for (name, obj) in self.settings_entries.borrow().iter() {
             ret.add_extra_obj(obj.clone(), Some(name.to_string().into()));
         }
         ret
