@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        build: [linux-amd64, macos-x86_64] #, linux-aarch64, macos-arm64]
+        build: [linux-amd64, macos-x86_64, macos-aarch64] #, linux-aarch64, macos-arm64]
         include:
           - build: linux-amd64
             os: ubuntu-latest
@@ -39,6 +39,11 @@ jobs:
          #  rust: stable
          #  target: aarch64-apple-darwin
          #  artifact_name: 'gerb-darwin-arm64'
+          - build: macos-aarch64
+            os: ubuntu-latest
+            rust: stable
+            artifact_name: 'gerb-darwin-aarch64'
+            target: aarch64-apple-darwin
     steps:
       - uses: actions/checkout@v2
       - id: cache-rustup
@@ -82,26 +87,26 @@ jobs:
         run: |
           set -ex
           brew install librsvg gtk+3 gnome-icon-theme
-      - name: Install dependencies (macos arm64)
-        if: matrix.os == 'macos-latest' && matrix.target == 'aarch64-apple-darwin'
-        shell: bash
-        run: |
-          set -ex
-          #arch -arm64e bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
-          #arch -arm64e brew install librsvg gtk+3 gnome-icon-theme
-          #brew fetch --force --deps --bottle-tag=arm64_big_sur librsvg gtk+3 gnome-icon-theme | tee brew.out
-          #for t in `grep "Downloaded to" < brew.out | cut -f 3 -d ' '`; do
-          #  brew install "$t"
-          #done
       - name: Install dependencies (linux)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           set -ex
           sudo apt install libgtk-3-dev
           cargo install cargo-deb
       - name: Build binary
+        if: matrix.target != 'aarch64-apple-darwin'
         run: |
           cargo build --release
+          mv target/*/release/gerb target/gerb || true
+          mv target/release/gerb target/gerb || true
+      - name: Build m1 binary
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          sudo apt install python3-pip
+          pip install cargo-zigbuild
+          docker run --rm -v $(pwd):/io -w /io messense/cargo-zigbuild cargo zigbuild --release --target aarch64-apple-darwin
+          ls target/ || true
+          ls target/aa*/ || true
           mv target/*/release/gerb target/gerb || true
           mv target/release/gerb target/gerb || true
       - name: Upload Artifacts
