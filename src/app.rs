@@ -251,6 +251,9 @@ impl ApplicationImpl for ApplicationInner {
         self.runtime
             .settings
             .register_singleton(CanvasSettings::new());
+        self.runtime
+            .settings
+            .register_singleton(EditorSettings::new());
         #[cfg(feature = "python")]
         {
             self.register_obj(app.upcast_ref());

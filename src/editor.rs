@@ -34,9 +34,11 @@ use crate::views::{
 
 mod layers;
 mod menu;
+mod settings;
 mod shortcuts;
 mod state;
 mod tools;
+pub use settings::EditorSettings;
 pub use state::State;
 
 use tools::{PanningTool, SelectionModifier, Tool, ToolImpl};
@@ -562,10 +564,10 @@ impl Editor {
     pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
     pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";
     pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
-    pub const SHOW_MINIMAP: &str = "show-minimap";
     pub const MODIFYING_IN_PROCESS: &str = "modifying-in-process";
     pub const ACTIVE_TOOL: &str = "active-tool";
     pub const PANNING_TOOL: &str = "panning-tool";
+    inherit_property!(EditorSettings, SHOW_MINIMAP,);
 
     pub fn new(app: Application, glyph: Rc<RefCell<Glyph>>) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();
@@ -608,7 +610,7 @@ impl Editor {
         }
         let settings = app.runtime.settings.clone();
         settings.register_type_with_singleton(ret.viewport.upcast_ref(), CanvasSettings::new());
-        settings.register_type(ret.clone());
+        settings.register_type_with_singleton(ret.upcast_ref(), EditorSettings::new());
         settings
             .bind_property(Canvas::WARP_CURSOR, &ret.viewport, Canvas::WARP_CURSOR)
             .flags(glib::BindingFlags::SYNC_CREATE)
