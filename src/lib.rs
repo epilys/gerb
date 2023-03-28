@@ -129,7 +129,7 @@ pub mod prelude {
     pub use app::{types::*, Settings};
     pub use editor::*;
     pub use error::Error;
-    pub use glyphs::obj::GlyphMetadata;
+    pub use glyphs::metadata::GlyphMetadata;
     pub use glyphs::{Continuity, Glyph, GlyphPointIndex, Guideline};
     pub use gtk::prelude::*;
     pub use gtk::subclass::prelude::ObjectSubclassIsExt;

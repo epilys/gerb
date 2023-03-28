@@ -41,8 +41,8 @@ pub use crate::ufo::glif::{self, Advance, Anchor, ImageRef, Unicode};
 mod contours;
 pub use contours::*;
 
-pub mod obj;
-pub use obj::GlyphMetadata;
+pub mod metadata;
+pub use metadata::GlyphMetadata;
 
 #[derive(Debug, Clone)]
 pub struct Component {
