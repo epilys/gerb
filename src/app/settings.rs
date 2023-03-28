@@ -634,6 +634,21 @@ impl crate::utils::property_window::CreatePropertyWindow for Settings {
         .friendly_name(self.friendly_name())
         .type_(PropertyWindowType::Modify)
         .build();
+        if let Some((path, _)) = self.file.borrow().as_ref() {
+            let info = gtk::Label::builder()
+                .label(&format!(
+                    "<a href=\"{}\">{}</a>",
+                    glib::filename_to_uri(path, None).unwrap(),
+                    path.display()
+                ))
+                .use_markup(true)
+                .visible(true)
+                .expand(true)
+                .halign(gtk::Align::Start)
+                .valign(gtk::Align::Center)
+                .build();
+            ret.imp().top_area.pack_start(&info, false, false, 0);
+        }
         for (name, obj) in self.settings_entries.borrow().iter() {
             ret.add_extra_obj(obj.clone(), Some(name.to_string().into()));
         }

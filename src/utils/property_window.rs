@@ -29,7 +29,11 @@ pub struct PropertyWindowInner {
     pub obj: OnceCell<glib::Object>,
     pub extra_objs: RefCell<Vec<glib::Object>>,
     pub app: OnceCell<crate::prelude::Application>,
-    grid: gtk::Grid,
+    pub top_area: gtk::Box,
+    pub top_button_area: gtk::Box,
+    pub bottom_button_area: gtk::Box,
+    pub main_area: gtk::Box,
+    pub grid: gtk::Grid,
     rows: Cell<i32>,
     pub buttons: OnceCell<PropertyWindowButtons>,
     type_: OnceCell<PropertyWindowType>,
@@ -50,6 +54,53 @@ impl ObjectSubclass for PropertyWindowInner {
 impl ObjectImpl for PropertyWindowInner {
     fn constructed(&self, obj: &Self::Type) {
         self.parent_constructed(obj);
+        for area in &[
+            &self.top_area,
+            &self.top_button_area,
+            &self.bottom_button_area,
+        ] {
+            area.set_visible(true);
+            area.set_expand(false);
+        }
+        self.top_area.set_halign(gtk::Align::Start);
+        self.top_area.set_valign(gtk::Align::End);
+        for area in &[&self.top_button_area, &self.bottom_button_area] {
+            area.set_orientation(gtk::Orientation::Horizontal);
+            area.set_halign(gtk::Align::Center);
+            area.set_valign(gtk::Align::Fill);
+            area.set_margin(0);
+            area.set_margin_bottom(10);
+            area.set_spacing(5);
+            area.set_visible(true);
+        }
+        let sc = self.main_area.style_context();
+        sc.add_class("vertical");
+        sc.add_class("dialog-vbox");
+        self.main_area.set_orientation(gtk::Orientation::Vertical);
+        self.main_area.set_border_width(2);
+        self.main_area.set_margin(5);
+        self.main_area.set_margin_bottom(10);
+        self.main_area.set_visible(true);
+        self.main_area.set_halign(gtk::Align::Fill);
+        self.main_area.set_valign(gtk::Align::Fill);
+        self.main_area.set_expand(false);
+        self.main_area
+            .pack_start(&self.top_button_area, false, false, 0);
+        self.main_area
+            .pack_end(&self.bottom_button_area, false, false, 0);
+        obj.style_context().add_class("property-window");
+        self.title_label.set_use_markup(true);
+        self.title_label.set_margin_top(5);
+        self.title_label.set_halign(gtk::Align::Start);
+        self.title_label.set_visible(true);
+        obj.add_subsection(&self.title_label);
+        self.grid.attach_next_to(
+            &self.top_area,
+            Some(&self.title_label),
+            gtk::PositionType::Right,
+            1,
+            1,
+        );
         obj.set_deletable(true);
         obj.set_destroy_with_parent(true);
         obj.set_focus_on_map(true);
@@ -69,6 +120,16 @@ impl ObjectImpl for PropertyWindowInner {
                 Inhibit(false)
             }
         });
+        self.grid.style_context().add_class("horizontal");
+        self.grid.set_expand(false);
+        self.grid.set_visible(true);
+        self.grid.set_can_focus(false);
+        self.grid.set_column_spacing(5);
+        self.grid.set_margin(10);
+        self.grid.set_row_spacing(5);
+        self.grid.set_orientation(gtk::Orientation::Horizontal);
+        self.grid.set_halign(gtk::Align::Fill);
+        self.grid.set_valign(gtk::Align::Fill);
     }
 
     fn properties() -> &'static [glib::ParamSpec] {
@@ -135,18 +196,6 @@ impl PropertyWindow {
         friendly_name: Option<Cow<'static, str>>,
         create: bool,
     ) {
-        self.style_context().add_class("property-window");
-        self.imp().grid.set_expand(false);
-        self.imp().grid.set_visible(true);
-        self.imp().grid.set_can_focus(true);
-        self.imp().grid.set_column_spacing(5);
-        self.imp().grid.set_margin(10);
-        self.imp().grid.set_row_spacing(5);
-        self.imp()
-            .grid
-            .set_orientation(gtk::Orientation::Horizontal);
-        self.imp().grid.set_halign(gtk::Align::Fill);
-        self.imp().grid.set_valign(gtk::Align::Fill);
         self.imp()
             .title_label
             .set_label(&if let Some(n) = friendly_name {
@@ -156,11 +205,6 @@ impl PropertyWindow {
             } else {
                 format!("<big><i>{}</i></big>", obj.type_().name())
             });
-        self.imp().title_label.set_use_markup(true);
-        self.imp().title_label.set_margin_top(5);
-        self.imp().title_label.set_halign(gtk::Align::Start);
-        self.imp().title_label.set_visible(true);
-        self.add_subsection(&self.imp().title_label);
         self.add_obj_properties(obj, create);
     }
 
@@ -351,6 +395,26 @@ impl PropertyWindow {
             matches!(self.imp().type_.get().unwrap(), PropertyWindowType::Create),
         );
         self.imp().extra_objs.borrow_mut().push(obj);
+    }
+
+    pub fn set_buttons(&self, buttons: &[&gtk::Button]) {
+        for b in buttons {
+            let b = *b;
+            let top_btn = gtk::Button::builder()
+                .label(b.label().unwrap().as_str())
+                .relief(gtk::ReliefStyle::Normal)
+                .visible(true)
+                .halign(gtk::Align::Center)
+                .valign(gtk::Align::Center)
+                .build();
+            top_btn.connect_clicked(clone!(@weak  b => move |_| {
+                b.emit_clicked();
+            }));
+            self.imp()
+                .top_button_area
+                .pack_end(&top_btn, false, false, 5);
+            self.imp().bottom_button_area.pack_end(b, false, false, 5);
+        }
     }
 }
 

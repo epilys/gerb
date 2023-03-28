@@ -146,21 +146,6 @@ mod builder {
                 .min_content_height(600)
                 .min_content_width(500)
                 .build();
-            let b = gtk::Box::builder()
-                .orientation(gtk::Orientation::Vertical)
-                .border_width(2)
-                .margin(5)
-                .margin_bottom(10)
-                .visible(true)
-                .halign(gtk::Align::Fill)
-                .valign(gtk::Align::Fill)
-                .expand(false)
-                .build();
-            {
-                let sc = b.style_context();
-                sc.add_class("vertical");
-                sc.add_class("dialog-vbox");
-            }
             let mut ret: PropertyWindow = glib::Object::new(&[]).unwrap();
             ret.imp().app.set(self.app.clone()).unwrap();
             ret.object_to_property_grid(
@@ -172,7 +157,9 @@ mod builder {
                 },
                 matches!(self.type_, PropertyWindowType::Create),
             );
-            b.pack_start(&ret.imp().grid, false, false, 0);
+            ret.imp()
+                .main_area
+                .pack_start(&ret.imp().grid, false, false, 0);
             ret.imp().grid.style_context().add_class("horizontal");
 
             ret.set_transient_for(Some(&self.app.window));
@@ -182,15 +169,6 @@ mod builder {
             .buttons
             .set(match self.type_ {
                 PropertyWindowType::Modify => {
-                    let btns = gtk::Box::builder()
-                        .orientation(gtk::Orientation::Horizontal)
-                        .halign(gtk::Align::Center)
-                        .valign(gtk::Align::Fill)
-                        .margin(0)
-                        .margin_bottom(10)
-                        .spacing(5)
-                        .visible(true)
-                        .build();
                     let reset = gtk::Button::builder()
                         .label("Reset")
                         .relief(gtk::ReliefStyle::Normal)
@@ -217,24 +195,13 @@ mod builder {
                         .halign(gtk::Align::Center)
                         .valign(gtk::Align::Center)
                         .build();
-                    btns.pack_end(&close, false, false, 5);
-                    btns.pack_end(&reset, false, false, 5);
-                    b.pack_end(&btns, true, false, 5);
+                    ret.set_buttons(&[&close, &reset]);
                     close.connect_clicked(clone!(@weak ret => move |_| {
                         ret.close();
                     }));
                     PropertyWindowButtons::Modify { reset, close }
                 }
                 PropertyWindowType::Create => {
-                    let btns = gtk::Box::builder()
-                        .orientation(gtk::Orientation::Horizontal)
-                        .halign(gtk::Align::Center)
-                        .valign(gtk::Align::Fill)
-                        .margin(0)
-                        .margin_bottom(10)
-                        .spacing(5)
-                        .visible(true)
-                        .build();
                     let cancel = gtk::Button::builder()
                         .label("Cancel")
                         .relief(gtk::ReliefStyle::Normal)
@@ -252,9 +219,7 @@ mod builder {
                         .halign(gtk::Align::Center)
                         .valign(gtk::Align::Center)
                         .build();
-                    btns.pack_end(&save, false, false, 5);
-                    btns.pack_end(&cancel, false, false, 5);
-                    b.pack_end(&btns, true, false, 5);
+                    ret.set_buttons(&[&save, &cancel]);
 
                     PropertyWindowButtons::Create { cancel, save }
                 }
@@ -262,7 +227,7 @@ mod builder {
             .unwrap();
             ret.imp().obj.set(self.obj).unwrap();
 
-            scrolled_window.set_child(Some(&b));
+            scrolled_window.set_child(Some(&ret.imp().main_area));
             ret.set_child(Some(&scrolled_window));
             ret.set_title(&self.title);
             *ret.imp().title.borrow_mut() = self.title;
