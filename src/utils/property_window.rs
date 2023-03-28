@@ -215,6 +215,7 @@ impl PropertyWindow {
     }
 
     fn add_property(&self, obj: &glib::Object, property: &glib::ParamSpec, create: bool) {
+        let app = self.imp().app.get().unwrap();
         let val: glib::Value = obj.property(property.name());
         self.imp()
             .initial_values
@@ -247,506 +248,44 @@ impl PropertyWindow {
         }
         let widget: gtk::Widget = match val.type_().name() {
             "gboolean" => {
-                let val = val.get::<bool>().unwrap();
-                let entry = gtk::CheckButton::new();
-                entry.set_visible(true);
-                entry.set_active(val);
-                entry.set_sensitive(readwrite);
-                entry.style_read_only(readwrite);
-                entry.set_expand(false);
-                entry.set_halign(gtk::Align::Fill);
-                entry.set_valign(gtk::Align::Start);
-                obj.bind_property(property.name(), &entry, "active")
-                    .flags(flags)
-                    .build();
                 check_dirty_on_change!(bool);
-
-                entry.upcast()
+                <bool>::get(app, val, obj, property, create, readwrite, flags)
             }
             "gchararray" => {
-                let val = val.get::<Option<String>>().unwrap().unwrap_or_default();
                 if readwrite {
-                    let entry = gtk::Entry::builder()
-                        .visible(true)
-                        .sensitive(readwrite)
-                        .expand(false)
-                        .halign(gtk::Align::Fill)
-                        .valign(gtk::Align::Start)
-                        .build();
-                    entry.buffer().set_text(&val);
-                    obj.bind_property(property.name(), &entry.buffer(), "text")
-                        .flags(flags)
-                        .build();
                     check_dirty_on_change!(Option<String>);
-
-                    entry.upcast()
-                } else {
-                    let l = gtk::Label::builder()
-                        .label(&val)
-                        .visible(true)
-                        .selectable(true)
-                        .wrap(true)
-                        .wrap_mode(gtk::pango::WrapMode::Char)
-                        .ellipsize(gtk::pango::EllipsizeMode::None)
-                        .expand(false)
-                        .halign(gtk::Align::Fill)
-                        .valign(gtk::Align::Start)
-                        .build();
-                    l.style_read_only(false);
-                    if property.flags().contains(UI_PATH) {
-                        l.style_monospace();
-                        l.style_context().add_class("path");
-                    }
-                    obj.bind_property(property.name(), &l, "label")
-                        .flags(flags)
-                        .build();
-                    if property.flags().contains(UI_PATH) && !create {
-                        let b = gtk::Box::builder()
-                            .visible(true)
-                            .sensitive(true)
-                            .expand(false)
-                            .halign(gtk::Align::Fill)
-                            .valign(gtk::Align::Start)
-                            .orientation(gtk::Orientation::Horizontal)
-                            .build();
-                        b.pack_start(&l, true, true, 0);
-                        let image = gtk::Image::builder()
-                            .icon_name("folder-open")
-                            .visible(true)
-                            .build();
-                        let btn = gtk::Button::builder()
-                            .image(&image)
-                            .always_show_image(true)
-                            .relief(gtk::ReliefStyle::Normal)
-                            .visible(true)
-                            .sensitive(true)
-                            .tooltip_text("Open file location")
-                            .build();
-                        btn.connect_clicked(clone!(@weak obj, @strong property, @weak self as pwindow => move |_self| {
-                            let Some(path) = obj.property::<Option<String>>(property.name()) else { return; };
-                            let Ok(prefix) = std::env::current_dir() else { return; };
-                            let mut abs_path = prefix.join(path);
-                            if abs_path.is_file() {
-                                abs_path.pop();
-                            }
-                            if let Err(err) = glib::filename_to_uri(&abs_path, None).and_then(|uri| gtk::gio::AppInfo::launch_default_for_uri(&uri, gtk::gio::AppLaunchContext::NONE)) {
-                                let dialog = crate::utils::widgets::new_simple_error_dialog(
-                                    Some("Error: Could not open location."),
-                                    &err.to_string(),
-                                    None,
-                                    pwindow.imp().app.get().unwrap().window.upcast_ref(),
-                                );
-                                dialog.run();
-                                dialog.emit_close();
-                            };
-                        }));
-                        b.pack_end(&btn, false, false, 15);
-                        b.upcast()
-                    } else {
-                        l.upcast()
-                    }
                 }
+                <Option<String>>::get(app, val, obj, property, create, readwrite, flags)
             }
             "gint64" => {
                 check_dirty_on_change!(i64);
-                let val = val.get::<i64>().unwrap();
-                let (min, max) = if let Some(spec) = property.downcast_ref::<glib::ParamSpecInt64>()
-                {
-                    (spec.minimum(), spec.maximum())
-                } else {
-                    (i64::MIN, i64::MAX)
-                };
-                let entry = gtk::SpinButton::new(
-                    Some(&gtk::Adjustment::new(
-                        val as f64, min as f64, max as f64, 1.00, 1.00, 1.00,
-                    )),
-                    1.0,
-                    0,
-                );
-                entry.set_expand(false);
-                entry.set_halign(gtk::Align::Fill);
-                entry.set_valign(gtk::Align::Start);
-                entry.set_input_purpose(gtk::InputPurpose::Digits);
-                entry.set_sensitive(readwrite);
-                if !readwrite {
-                    entry.style_read_only(readwrite);
-                }
-                entry.set_visible(true);
-                obj.bind_property(property.name(), &entry, "value")
-                    .transform_to(|_, value| {
-                        let val = value.get::<i64>().ok()?;
-                        Some((val as f64).to_value())
-                    })
-                    .transform_from(|_, value| {
-                        let val = value.get::<f64>().ok()?;
-                        Some((val as i64).to_value())
-                    })
-                    .flags(flags)
-                    .build();
-                entry.upcast()
+                <i64>::get(app, val, obj, property, create, readwrite, flags)
             }
             "guint64" => {
                 check_dirty_on_change!(u64);
-                let val = val.get::<u64>().unwrap();
-                let (min, max) =
-                    if let Some(spec) = property.downcast_ref::<glib::ParamSpecUInt64>() {
-                        (0, spec.maximum())
-                    } else {
-                        (0, u64::MAX)
-                    };
-                let entry = gtk::SpinButton::new(
-                    Some(&gtk::Adjustment::new(
-                        val as f64,
-                        f64::from(min),
-                        max as f64,
-                        1.00,
-                        1.00,
-                        1.00,
-                    )),
-                    1.0,
-                    0,
-                );
-                entry.set_expand(false);
-                entry.set_halign(gtk::Align::Fill);
-                entry.set_valign(gtk::Align::Start);
-                entry.set_input_purpose(gtk::InputPurpose::Digits);
-                entry.set_sensitive(readwrite);
-                entry.set_visible(true);
-                if !readwrite {
-                    entry.style_read_only(readwrite);
-                }
-                obj.bind_property(property.name(), &entry, "value")
-                    .transform_to(|_, value| {
-                        let val = value.get::<u64>().ok()?;
-                        Some((val as f64).to_value())
-                    })
-                    .transform_from(|_, value| {
-                        let val = value.get::<f64>().ok()?;
-                        Some((val as u64).to_value())
-                    })
-                    .flags(flags)
-                    .build();
-                entry.upcast()
+                <u64>::get(app, val, obj, property, create, readwrite, flags)
             }
             "gdouble" => {
                 check_dirty_on_change!(f64);
-                let val = val.get::<f64>().unwrap();
-                let (min, max) =
-                    if let Some(spec) = property.downcast_ref::<glib::ParamSpecDouble>() {
-                        (spec.minimum(), spec.maximum())
-                    } else {
-                        (f64::MIN, f64::MAX)
-                    };
-                let entry = gtk::SpinButton::new(
-                    Some(&gtk::Adjustment::new(val, min, max, 0.05, 0.01, 0.01)),
-                    1.0,
-                    2,
-                );
-                entry.set_expand(false);
-                entry.set_halign(gtk::Align::Fill);
-                entry.set_valign(gtk::Align::Start);
-                entry.set_input_purpose(gtk::InputPurpose::Number);
-                entry.set_sensitive(readwrite);
-                if !readwrite {
-                    entry.style_read_only(readwrite);
-                }
-                entry.set_visible(true);
-                obj.bind_property(property.name(), &entry, "value")
-                    .flags(flags)
-                    .build();
-                entry.upcast()
+                <f64>::get(app, val, obj, property, create, readwrite, flags)
             }
             "Color" => {
                 check_dirty_on_change!(Color);
-                let val = val.get::<Color>().unwrap();
-                let entry = gtk::ColorButton::builder()
-                    .rgba(&val.into())
-                    .sensitive(readwrite)
-                    .visible(true)
-                    .expand(false)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .use_alpha(true)
-                    .show_editor(true)
-                    .build();
-                entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
-                    let new_val = self_.rgba();
-                    _ = obj.try_set_property::<Color>(property.name(), new_val.into());
-                }));
-                entry.upcast()
+                <Color>::get(app, val, obj, property, create, readwrite, flags)
             }
             "DrawOptions" => {
                 check_dirty_on_change!(DrawOptions);
-                let opts = val.get::<DrawOptions>().unwrap();
-                let grid = gtk::Grid::builder()
-                    .expand(true)
-                    .visible(true)
-                    .sensitive(readwrite)
-                    .column_spacing(5)
-                    .margin(10)
-                    .row_spacing(5)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .build();
-                let has_bg = opts.bg.is_some();
-
-                let fg_entry = gtk::ColorButton::builder()
-                    .rgba(&opts.color.into())
-                    .sensitive(readwrite)
-                    .visible(true)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .use_alpha(true)
-                    .show_editor(true)
-                    .build();
-                fg_entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
-                    let opts = obj.property::<DrawOptions>(property.name());
-                    let new_val = self_.rgba();
-                    _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { color: new_val.into(), ..opts });
-                }));
-                grid.attach(
-                    &gtk::Label::builder()
-                        .label(if has_bg { "fg color" } else { "color" })
-                        .halign(gtk::Align::End)
-                        .visible(true)
-                        .build(),
-                    0,
-                    0,
-                    1,
-                    1,
-                );
-                grid.attach(&fg_entry, 1, 0, 1, 1);
-                if let Some(bg) = opts.bg {
-                    let bg_entry = gtk::ColorButton::builder()
-                        .rgba(&bg.into())
-                        .sensitive(readwrite)
-                        .visible(true)
-                        .halign(gtk::Align::Fill)
-                        .valign(gtk::Align::Start)
-                        .use_alpha(true)
-                        .show_editor(true)
-                        .build();
-                    bg_entry.connect_color_set(clone!(@weak obj, @strong property => move |self_| {
-                        let opts = obj.property::<DrawOptions>(property.name());
-                        let new_val = self_.rgba();
-                        _ = obj.try_set_property::<DrawOptions>(property.name(), DrawOptions { bg: Some(new_val.into()), ..opts });
-                    }));
-                    grid.attach(
-                        &gtk::Label::builder()
-                            .label("bg color")
-                            .visible(true)
-                            .halign(gtk::Align::End)
-                            .build(),
-                        0,
-                        1,
-                        1,
-                        1,
-                    );
-                    grid.attach(&bg_entry, 1, 1, 1, 1);
-                }
-                let size_entry = gtk::SpinButton::new(
-                    Some(&gtk::Adjustment::new(
-                        opts.size,
-                        0.0,
-                        f64::MAX,
-                        0.05,
-                        0.01,
-                        0.01,
-                    )),
-                    1.0,
-                    2,
-                );
-                size_entry.set_expand(true);
-                size_entry.set_halign(gtk::Align::Fill);
-                size_entry.set_valign(gtk::Align::Start);
-                size_entry.set_input_purpose(gtk::InputPurpose::Number);
-                size_entry.set_sensitive(readwrite);
-                size_entry.set_visible(true);
-                size_entry.connect_value_notify(
-                    clone!(@weak obj, @strong property => move |self_| {
-                        let opts = obj.property::<DrawOptions>(property.name());
-                        let size = self_.value();
-                        obj.set_property(property.name(), DrawOptions { size, ..opts });
-                    }),
-                );
-                obj.bind_property(property.name(), &size_entry, "value")
-                    .transform_to(|_, value| {
-                        let opts = value.get::<DrawOptions>().ok()?;
-                        Some(opts.size.to_value())
-                    })
-                    .flags(glib::BindingFlags::SYNC_CREATE)
-                    .build();
-                grid.attach(
-                    &gtk::Label::builder()
-                        .label("width/length")
-                        .visible(true)
-                        .sensitive(readwrite)
-                        .build(),
-                    0,
-                    if has_bg { 2 } else { 1 },
-                    1,
-                    1,
-                );
-                grid.attach(&size_entry, 1, if has_bg { 2 } else { 1 }, 1, 1);
-                if let Some((from, val)) = opts.inherit_size {
-                    if val {
-                        size_entry.set_sensitive(false);
-                    }
-                    let inherit_entry = gtk::CheckButton::new();
-                    inherit_entry.set_label("Inherit global value");
-                    inherit_entry.set_visible(true);
-                    inherit_entry.set_active(val);
-                    inherit_entry.set_relief(gtk::ReliefStyle::Normal);
-                    inherit_entry.set_sensitive(readwrite);
-                    inherit_entry.set_halign(gtk::Align::Start);
-                    inherit_entry.set_valign(gtk::Align::Center);
-                    obj.bind_property(property.name(), &inherit_entry, "active")
-                        .transform_to(|_, value| {
-                            let opts = value.get::<DrawOptions>().ok()?;
-                            opts.inherit_size.map(|(_, b)| b.to_value())
-                        })
-                        .flags(glib::BindingFlags::SYNC_CREATE)
-                        .build();
-                    let inherit_value = gtk::Label::builder()
-                        .label(&format!("{:.2}", obj.property::<f64>(from)))
-                        .visible(val)
-                        .width_chars(5)
-                        .halign(gtk::Align::Start)
-                        .valign(gtk::Align::Center)
-                        .sensitive(false)
-                        .wrap(true)
-                        .build();
-                    inherit_entry.connect_clicked(clone!(@weak obj, @strong property, @weak inherit_value, @weak size_entry => move |_| {
-                        let opts = obj.property::<DrawOptions>(property.name());
-                        if let Some((from, b)) = opts.inherit_size {
-                            inherit_value.set_visible(!b);
-                            size_entry.set_sensitive(b);
-                            obj.set_property(property.name(), DrawOptions { inherit_size: Some((from, !b)), ..opts });
-                        }
-                    }));
-                    let inherit_box = gtk::Box::builder()
-                        .visible(true)
-                        .expand(true)
-                        .sensitive(readwrite)
-                        .halign(gtk::Align::Fill)
-                        .valign(gtk::Align::Start)
-                        .orientation(gtk::Orientation::Horizontal)
-                        .build();
-                    inherit_box.pack_start(&inherit_entry, true, true, 0);
-                    inherit_box.pack_start(&inherit_value, true, true, 5);
-                    grid.attach(&inherit_box, 1, if has_bg { 3 } else { 2 }, 1, 1);
-                }
-                grid.upcast()
+                <DrawOptions>::get(app, val, obj, property, create, readwrite, flags)
             }
             "Layer" if property.value_type() == ufo::objects::Layer::static_type() => {
                 use ufo::objects::Layer;
 
                 check_dirty_on_change!(Option<Layer>);
-                let val = val.get::<Option<Layer>>().unwrap();
-                let app = self.imp().app.get().unwrap();
-                let project = app.runtime.project.borrow().clone();
-
-                let entry = gtk::ComboBoxText::builder()
-                    .sensitive(readwrite)
-                    .visible(true)
-                    .expand(false)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .build();
-                obj.bind_property(property.name(), &entry, "active-id")
-                    .transform_to(|_, val| {
-                        let layer = val.get::<Option<Layer>>().ok()??;
-                        let ret = Some(layer.name.borrow().to_string().to_value());
-                        ret
-                    })
-                    .flags(glib::BindingFlags::SYNC_CREATE)
-                    .build();
-                if !readwrite {
-                    entry.style_read_only(readwrite);
-                } else {
-                    entry.connect_changed(clone!(@weak obj, @strong project, @strong property => move |entry| {
-                        let active_id = entry.active_id();
-                        obj.set_property(property.name(), active_id.and_then(|n| project.all_layers.borrow().iter().find(|l| l.name.borrow().as_str() == n).map(Layer::clone)));
-                    }));
-                }
-                let mut active_id: Cow<'static, str> = if let Some(l) = val {
-                    l.name.borrow().clone().into()
-                } else {
-                    "public.default".into()
-                };
-                for l in project.all_layers.borrow().iter() {
-                    let name = l.name.borrow();
-                    if name.as_str() == active_id {
-                        active_id = name.clone().into();
-                    }
-                    entry.append(Some(name.as_str()), name.as_str());
-                }
-                entry.set_active_id(Some(active_id.as_ref()));
-                let layer_box = gtk::Box::builder()
-                    .visible(true)
-                    .sensitive(readwrite)
-                    .spacing(5)
-                    .expand(false)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .orientation(gtk::Orientation::Vertical)
-                    .build();
-                layer_box.add(&entry);
-                let l = gtk::Label::builder()
-                    .visible(true)
-                    .expand(false)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .wrap(true)
-                    .wrap_mode(gtk::pango::WrapMode::Char)
-                    .ellipsize(gtk::pango::EllipsizeMode::None)
-                    .use_markup(true)
-                    .build();
-                obj.bind_property(property.name(), &l, "label")
-                    .transform_to(|_, val| {
-                        let Some(l): Option<Layer> = val.get::<Option<Layer>>().ok()? else {
-                            return Some(String::new().to_value());
-                        };
-                        Some(format!("Directory: <tt>{}/</tt>", l.dir_name.borrow()).to_value())
-                    })
-                    .flags(glib::BindingFlags::SYNC_CREATE)
-                    .build();
-                layer_box.add(&l);
-                layer_box.upcast()
+                <Option<Layer>>::get(app, val, obj, property, create, readwrite, flags)
             }
             "Theme" => {
                 check_dirty_on_change!(Theme);
-                let val = val.get::<Theme>().unwrap();
-
-                let entry = gtk::ComboBoxText::builder()
-                    .sensitive(readwrite)
-                    .visible(true)
-                    .expand(false)
-                    .halign(gtk::Align::Fill)
-                    .valign(gtk::Align::Start)
-                    .build();
-                obj.bind_property(property.name(), &entry, "active-id")
-                    .transform_to(|_, val| {
-                        let theme = val.get::<Theme>().ok()?;
-                        Some(theme.name().to_value())
-                    })
-                    .flags(glib::BindingFlags::SYNC_CREATE)
-                    .build();
-                if !readwrite {
-                    entry.style_read_only(readwrite);
-                } else {
-                    entry.connect_changed(clone!(@weak obj, @strong property => move |entry| {
-                        let Some(active_id) = entry.active_id() else { return; };
-                        let Some(val)= Theme::kebab_str_deserialize(&active_id) else { return; };
-                        obj.set_property(property.name(), val);
-                    }));
-                }
-                let active_id: Cow<'static, str> = val.name().into();
-                for v in Theme::kebab_case_variants() {
-                    entry.append(Some(v), v);
-                }
-                entry.set_active_id(Some(active_id.as_ref()));
-                entry.upcast()
+                <Theme>::get(app, val, obj, property, create, readwrite, flags)
             }
             _other => gtk::Label::builder()
                 .label(&format!("{:?}", val))
