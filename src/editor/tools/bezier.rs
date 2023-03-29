@@ -82,6 +82,7 @@ enum InnerState {
     },
 }
 
+#[derive(Clone)]
 struct ContourState {
     first_point: Point,
     contour: Contour,
@@ -570,7 +571,6 @@ impl BezierToolInner {
         if let Some(mut state) = state_opt.as_mut() {
             let add_to_kdtree =
                 |state: &mut ContourState, curve_index: usize, curve_point: CurvePoint| {
-                    let editor_state = view.state().borrow();
                     let contour_index = state.contour_index;
                     let uuid = curve_point.uuid;
                     let idx = GlyphPointIndex {
@@ -578,10 +578,7 @@ impl BezierToolInner {
                         curve_index,
                         uuid,
                     };
-                    let mut kd_tree = editor_state.kd_tree.borrow_mut();
-                    /* update kd_tree */
-                    kd_tree.add(idx, curve_point.position);
-                    editor_state.viewport.queue_draw();
+                    (idx, curve_point.position)
                 };
             match self.inner.get() {
                 InnerState::Empty => {
@@ -592,36 +589,133 @@ impl BezierToolInner {
                     unlinked: _,
                     snap_to_angle: _,
                 } => {
+                    let mut points = vec![];
                     {
                         let curve_point = CurvePoint::new(handle);
-                        state.last_point = curve_point.clone();
-                        state.current_curve.push_point(curve_point);
-                        add_to_kdtree(state, state.curve_index, state.last_point.clone());
+                        points.push((
+                            curve_point,
+                            add_to_kdtree(state, state.curve_index, state.last_point.clone()),
+                        ));
                     }
 
                     // p3 handle
                     let curve_point = CurvePoint::new(point);
-                    state.last_point = curve_point.clone();
-                    state.current_curve.push_point(curve_point);
-                    add_to_kdtree(state, state.curve_index, state.last_point.clone());
+                    points.push((
+                        curve_point,
+                        add_to_kdtree(state, state.curve_index, state.last_point.clone()),
+                    ));
 
                     // p3 oncurve
                     let curve_point = CurvePoint::new(point);
-                    state.last_point = curve_point.clone();
-                    state.current_curve.push_point(curve_point);
-                    add_to_kdtree(state, state.curve_index, state.last_point.clone());
+                    points.push((
+                        curve_point,
+                        add_to_kdtree(state, state.curve_index, state.last_point.clone()),
+                    ));
 
-                    self.inner.set(InnerState::OnCurve);
+                    let app: &Application = view.app();
+                    let undo_db = app.undo_db.borrow();
+                    let mut action = {
+                        let old_state = self.inner.get();
+                        let old_contour_state = state.clone();
+                        let kd_tree = view.state().borrow().kd_tree.clone();
+                        let last_point = state.last_point.clone();
+                        let points2 = points.clone();
+                        let tool = self.instance();
+                        Action {
+                            stamp: EventStamp {
+                                t: std::any::TypeId::of::<Editor>(),
+                                property: Contour::static_type().name(),
+                                id: unsafe {
+                                    std::mem::transmute::<&[usize], &[u8]>(&[state.contour_index])
+                                        .into()
+                                },
+                            },
+                            compress: false,
+                            redo: Box::new(
+                                clone!(@weak kd_tree, @weak view.viewport as viewport, @weak tool => move || {
+                                    let mut kd_tree = kd_tree.borrow_mut();
+                                    let mut state_mut = tool.imp().contour.borrow_mut();
+                                    let mut state = state_mut.as_mut().unwrap();
+                                    for (curve_point, (index, position)) in &points {
+                                        /* update kd_tree */
+                                        kd_tree.add(*index, *position);
+                                        state.last_point = curve_point.clone();
+                                        state.current_curve.push_point(curve_point.clone());
+                                    }
+                                    tool.imp().inner.set(InnerState::OnCurve);
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                            undo: Box::new(
+                                clone!(@weak kd_tree, @weak view.viewport as viewport, @weak tool => move || {
+                                    let mut kd_tree = kd_tree.borrow_mut();
+                                    let mut state = old_contour_state.clone();
+                                    for (_, (index, _)) in &points2 {
+                                        /* update kd_tree */
+                                        kd_tree.remove(*index);
+                                        state.last_point = last_point.clone();
+                                        state.current_curve.pop_point();
+                                    }
+                                    *tool.imp().contour.borrow_mut() = Some(state);
+                                    tool.imp().inner.set(old_state);
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                        }
+                    };
+                    drop(state_opt);
+                    (action.redo)();
+                    undo_db.event(action);
                 }
                 InnerState::OnCurve
                     if distance_between_two_points(point, state.first_point) < 20.0 =>
                 {
-                    state.contour.close();
-                    self.inner.set(InnerState::ClosingHandle {
+                    //state.contour.close();
+                    /*self.inner.set(InnerState::ClosingHandle {
                         handle: state.first_point,
                         unlinked: false,
                         snap_to_angle: false,
-                    });
+                    });*/
+                    let first_point = state.first_point;
+                    let app: &Application = view.app();
+                    let undo_db = app.undo_db.borrow();
+                    let mut action = {
+                        let old_state = self.inner.get();
+                        let contour = state.contour.clone();
+                        let tool = self.instance();
+                        Action {
+                            stamp: EventStamp {
+                                t: std::any::TypeId::of::<Editor>(),
+                                property: Contour::static_type().name(),
+                                id: unsafe {
+                                    std::mem::transmute::<&[usize], &[u8]>(&[state.contour_index])
+                                        .into()
+                                },
+                            },
+                            compress: false,
+                            redo: Box::new(
+                                clone!(@weak view.viewport as viewport, @strong contour, @weak tool => move || {
+                                    tool.imp().inner.set(InnerState::ClosingHandle {
+                                        handle: first_point,
+                                        unlinked: false,
+                                        snap_to_angle: false,
+                                    });
+                                    contour.close();
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                            undo: Box::new(
+                                clone!(@weak view.viewport as viewport, @strong contour, @weak tool => move || {
+                                    contour.imp().open.set(true);
+                                    contour.recalc_continuities();
+                                    tool.imp().inner.set(old_state);
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                        }
+                    };
+                    (action.redo)();
+                    undo_db.event(action);
                 }
                 InnerState::ClosingHandle {
                     handle,
@@ -648,11 +742,41 @@ impl BezierToolInner {
                     self.close(obj, view, state_opt);
                 }
                 InnerState::OnCurve => {
-                    self.inner.set(InnerState::SecondHandle {
-                        handle: point,
-                        unlinked: false,
-                        snap_to_angle: false,
-                    });
+                    let mut action = {
+                        let old_state = self.inner.get();
+                        let tool = self.instance();
+                        Action {
+                            stamp: EventStamp {
+                                t: std::any::TypeId::of::<Editor>(),
+                                property: Contour::static_type().name(),
+                                id: unsafe {
+                                    std::mem::transmute::<&[usize], &[u8]>(&[state.contour_index])
+                                        .into()
+                                },
+                            },
+                            compress: false,
+                            redo: Box::new(
+                                clone!(@weak view.viewport as viewport, @weak tool => move || {
+                                    tool.imp().inner.set(InnerState::SecondHandle {
+                                        handle: point,
+                                        unlinked: false,
+                                        snap_to_angle: false,
+                                    });
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                            undo: Box::new(
+                                clone!(@weak view.viewport as viewport, @weak tool => move || {
+                                    tool.imp().inner.set(old_state);
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                        }
+                    };
+                    (action.redo)();
+                    let app: &Application = view.app();
+                    let undo_db = app.undo_db.borrow();
+                    undo_db.event(action);
                 }
                 InnerState::SecondHandle {
                     handle,
@@ -661,22 +785,81 @@ impl BezierToolInner {
                 } => {
                     let new_bezier = Bezier::new(vec![]);
                     new_bezier.set_property(Bezier::SMOOTH, true);
-                    let h = CurvePoint::new(state.current_curve.points().last().unwrap().position);
-                    state.last_point = h;
+                    let last_point =
+                        CurvePoint::new(state.current_curve.points().last().unwrap().position);
+
+                    let contour = state.contour.clone();
+                    let pop_curve = contour.pop_curve().unwrap();
+                    contour.push_curve(pop_curve.clone());
+                    let contour_index = state.contour_index;
+                    let uuid = last_point.uuid;
+                    let index = GlyphPointIndex {
+                        contour_index,
+                        curve_index: state.curve_index + 1,
+                        uuid,
+                    };
+                    let position = last_point.position;
+                    state.last_point = last_point;
                     new_bezier.push_point(state.last_point.clone());
-                    add_to_kdtree(state, state.curve_index + 1, state.last_point.clone());
+                    let mut action = {
+                        let old_state = self.inner.get();
+                        let kd_tree = view.state().borrow().kd_tree.clone();
+                        let tool = self.instance();
+                        Action {
+                            stamp: EventStamp {
+                                t: std::any::TypeId::of::<Editor>(),
+                                property: Contour::static_type().name(),
+                                id: unsafe {
+                                    std::mem::transmute::<&[usize], &[u8]>(&[state.contour_index])
+                                        .into()
+                                },
+                            },
+                            compress: false,
+                            redo: Box::new(
+                                clone!(@weak kd_tree, @weak view.viewport as viewport, @weak tool, @strong new_bezier, @strong contour => move || {
+                                    let mut state_mut = tool.imp().contour.borrow_mut();
+                                    let mut state = state_mut.as_mut().unwrap();
+                                    {
+                                        let curve = std::mem::replace(&mut state.current_curve, new_bezier.clone());
+                                        contour.pop_curve();
+                                        contour.push_curve(curve);
+                                        contour.push_curve(state.current_curve.clone());
+                                    }
+                                    state.curve_index += 1;
+                                    let mut kd_tree = kd_tree.borrow_mut();
+                                    /* update kd_tree */
+                                    kd_tree.add(index, position);
+                                    tool.imp().inner.set(InnerState::FirstHandle {
+                                        handle,
+                                        unlinked: false,
+                                        snap_to_angle: false,
+                                    });
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                            undo: Box::new(
+                                clone!(@weak kd_tree, @weak view.viewport as viewport, @weak tool, @strong contour, @strong pop_curve, @strong pop_curve => move || {
+                                    tool.imp().inner.set(old_state);
+                                    let mut state_mut = tool.imp().contour.borrow_mut();
+                                    let mut state = state_mut.as_mut().unwrap();
+                                    contour.pop_curve();
+                                    state.current_curve = contour.pop_curve().unwrap();
+                                    contour.push_curve(pop_curve.clone());
+                                    state.curve_index -= 1;
+                                    let mut kd_tree = kd_tree.borrow_mut();
+                                    kd_tree.remove(index);
+                                    viewport.queue_draw();
+                                }),
+                            ),
+                        }
+                    };
+                    drop(state_opt);
+                    (action.redo)();
+                    let state_opt = self.contour.borrow_mut();
+                    let app: &Application = view.app();
+                    let undo_db = app.undo_db.borrow();
+                    undo_db.event(action);
 
-                    let curve = std::mem::replace(&mut state.current_curve, new_bezier);
-
-                    state.contour.pop_curve();
-                    state.contour.push_curve(curve);
-                    state.contour.push_curve(state.current_curve.clone());
-                    state.curve_index += 1;
-                    self.inner.set(InnerState::FirstHandle {
-                        handle,
-                        unlinked: false,
-                        snap_to_angle: false,
-                    });
                     self.insert_point(obj, view, state_opt, handle);
                 }
             }

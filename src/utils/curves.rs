@@ -74,6 +74,16 @@ impl Bezier {
         }
     }
 
+    #[inline(always)]
+    pub fn pop_point(&self) {
+        self.set_modified();
+        self.imp().points.borrow_mut().pop();
+        let new_degree = self.degree();
+        for cp in self.imp().points.borrow_mut().iter_mut() {
+            cp.degree = new_degree;
+        }
+    }
+
     pub fn reverse(&self) {
         self.set_modified();
         self.imp().points.borrow_mut().reverse();

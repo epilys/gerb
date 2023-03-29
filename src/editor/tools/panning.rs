@@ -715,8 +715,6 @@ impl ToolImplImpl for PanningToolInner {
                     let mut m = Matrix::identity();
                     m.translate(delta.x, delta.y);
                     state.transform_guideline(idx, Matrix::identity(), 1.5 * dy);
-                    let mut m = Matrix::identity();
-                    m.translate(-delta.x, -delta.y);
                     return Inhibit(true);
                 };
             }
