@@ -461,7 +461,7 @@ fn handle_input(
 /// Helper function to setup python globals.
 fn setup_globals<'py>(
     py: Python<'py>,
-    __id: Uuid,
+    __id: PyUuid,
     locals_dict: &Py<PyDict>,
 ) -> Result<Py<PyDict>, Box<dyn std::error::Error + 'py>> {
     let globals = PyDict::new(py);

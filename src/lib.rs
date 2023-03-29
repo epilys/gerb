@@ -139,6 +139,7 @@ pub mod prelude {
     pub use ufo::objects::FontInfo;
     pub use ufo::{LayerContents, MetaInfo};
     pub use utils::colors::*;
+    pub use utils::curves::*;
     pub use utils::points::*;
     pub use utils::property_window::*;
     pub use utils::range_query::Coordinate;

@@ -151,7 +151,7 @@ macro_rules! generate_setter_method_def {
 ///   to a GObject
 #[macro_export]
 macro_rules! generate_field_tramp {
-    ($struct:tt, export $attr_name:ident, $parent_type:ty, { $($wrapper_ty:tt)+ }) => {
+    ($struct:tt, export $attr_name:ident, $parent_type_name:expr, { $($wrapper_ty:tt)+ }) => {
         #[doc(hidden)]
         mod $attr_name {
             use super::*;
@@ -176,7 +176,7 @@ macro_rules! generate_field_tramp {
                 let val: _pyo3::Py<_pyo3::PyAny> = $crate::api::Gerb::get_field_value(
                     &self_.__gerb.as_ref(py).borrow(),
                     self_.__id,
-                    <$parent_type>::static_type().name(),
+                    $parent_type_name,
                     stringify!($attr_name),
                     py,
                 )?;
@@ -184,7 +184,7 @@ macro_rules! generate_field_tramp {
             }
         }
     };
-    ($struct:tt, wrap_dict $attr_name:ident, $parent_type:ty, { $($wrapper_ty:tt)+ }) => {
+    ($struct:tt, wrap_dict $attr_name:ident, $parent_type_name:expr, { $($wrapper_ty:tt)+ }) => {
         #[doc(hidden)]
         mod $attr_name {
             use super::*;
@@ -208,20 +208,59 @@ macro_rules! generate_field_tramp {
                 let val: _pyo3::Py<_pyo3::PyAny> = $crate::api::Gerb::get_field_value(
                     &self_.__gerb.as_ref(py).borrow(),
                     self_.__id,
-                    <$parent_type>::static_type().name(),
+                    $parent_type_name,
                     stringify!($attr_name),
                     py,
                 )?;
-                let extracted: ::indexmap::IndexMap<::std::string::String, $crate::api::PyUuid> =  val.extract(py)?;
+                let extracted: ::indexmap::IndexMap<::std::string::String, $crate::api::PyUuid> = val.extract(py)?;
                 Ok(extracted.into_iter().map(
                     |(k, v)| (k, $($wrapper_ty)* {
-                        __id: v.0,
+                        __id: v,
                         __gerb: self_.__gerb.clone(),
                     })).collect())
             }
         }
     };
-    ($struct:tt, wrap $attr_name:ident, $parent_type:ty, { $($wrapper_ty:tt)+ }) => {
+    ($struct:tt, wrap_list $attr_name:ident, $parent_type_name:expr, { $($wrapper_ty:tt)+ }) => {
+        #[doc(hidden)]
+        mod $attr_name {
+            use super::*;
+            use ::pyo3 as _pyo3;
+            use ::glib::StaticType;
+
+            pub(super) unsafe fn get_tramp(
+                _py: _pyo3::Python<'_>,
+                _slf: *mut _pyo3::ffi::PyObject,
+            ) -> _pyo3::PyResult<*mut _pyo3::ffi::PyObject> {
+                let _cell = _py
+                    .from_borrowed_ptr::<_pyo3::PyAny>(_slf)
+                    .downcast::<_pyo3::PyCell<$struct>>()?;
+                let _ref = _cell.try_borrow()?;
+                let _slf: &$struct = &*_ref;
+                let item = self::getter(_slf, _py)?;
+                _pyo3::callback::convert(_py, item)
+            }
+
+            fn getter(self_: &$struct, py: _pyo3::Python<'_>) -> _pyo3::PyResult<Vec<$($wrapper_ty)*>>
+            {
+                let val: _pyo3::Py<_pyo3::PyAny> = $crate::api::Gerb::get_field_value(
+                    &self_.__gerb.as_ref(py).borrow(),
+                    self_.__id,
+                    $parent_type_name,
+                    stringify!($attr_name),
+                    py,
+                )?;
+                let extracted: Vec<$crate::api::PyUuid> = val.extract(py)?;
+                Ok(extracted.into_iter().map(|id| {
+                    $($wrapper_ty)* {
+                        __id: id,
+                        __gerb: self_.__gerb.clone()
+                    }
+                }).collect())
+            }
+        }
+    };
+    ($struct:tt, wrap $attr_name:ident, $parent_type_name:expr, { $($wrapper_ty:tt)+ }) => {
         #[doc(hidden)]
         mod $attr_name {
             use super::*;
@@ -242,10 +281,10 @@ macro_rules! generate_field_tramp {
             }
 
             fn getter(self_: &$struct, py: _pyo3::Python<'_>) -> _pyo3::PyResult<$($wrapper_ty)*> {
-                let __id: $crate::prelude::Uuid = $crate::api::Gerb::get_field_id(
+                let __id: $crate::api::PyUuid = $crate::api::Gerb::get_field_id(
                     &self_.__gerb.as_ref(py).borrow(),
                     self_.__id,
-                    <$parent_type>::static_type().name(),
+                    $parent_type_name,
                     stringify!($attr_name),
                     py,
                 )?;
@@ -255,6 +294,17 @@ macro_rules! generate_field_tramp {
                 })
             }
         }
+    };
+}
+
+/// Expand wrapper parent type kinds
+#[macro_export]
+macro_rules! expand_parent_name {
+    (PARENT_TYPE, $parent_type:ty) => {
+        <$parent_type>::static_type().name()
+    };
+    (FAKE_TYPE, $parent_type:ty) => {
+        stringify!($parent_type)
     };
 }
 
@@ -338,7 +388,7 @@ macro_rules! generate_py_class {
     (
         #[docstring=$classdocstr:literal]
         struct $struct:tt {
-            type PARENT_TYPE = $parent_type:ty;
+            type $wrap_kind:ident = $parent_type:ty;
 
             $(
                 #[property_name=$property:ident]
@@ -367,8 +417,9 @@ macro_rules! generate_py_class {
             $verb:tt { $attr_name:ident: $($wrapper_ty:tt)+ },
         )*
     ) => {
+        #[derive(::pyo3::FromPyObject)]
         pub struct $struct {
-            pub __id: $crate::prelude::Uuid,
+            pub __id: $crate::api::PyUuid,
             pub __gerb: ::pyo3::Py<$crate::api::Gerb>,
         }
 
@@ -595,7 +646,7 @@ macro_rules! generate_py_class {
                             .__send_rcv(
                                 serde_json::to_string(&{
                                     $crate::api::Request::ObjectProperty {
-                                        type_name: <$parent_type>::static_type().name().to_string(),
+                                        type_name: expand_parent_name!($wrap_kind, $parent_type).to_string(),
                                         id: self_.__id,
                                         property: <$parent_type>::$property.to_string(),
                                         action: $crate::api::Action::Get,
@@ -614,7 +665,7 @@ macro_rules! generate_py_class {
                             .__send_rcv(
                                 serde_json::json!{
                                     $crate::api::Request::ObjectProperty {
-                                        type_name: <$parent_type>::static_type().name().to_string(),
+                                        type_name: expand_parent_name!($wrap_kind, $parent_type).to_string(),
                                         id: self_.__id,
                                         property: <$parent_type>::$property.to_string(),
                                         action: $crate::api::Action::Set {
@@ -631,7 +682,7 @@ macro_rules! generate_py_class {
             )*
 
             $(
-                generate_field_tramp!($struct, $verb $attr_name, $parent_type, { $($wrapper_ty)* });
+                generate_field_tramp!($struct, $verb $attr_name, expand_parent_name!($wrap_kind, $parent_type), { $($wrapper_ty)* });
             )*
 
             #[doc(hidden)]
@@ -793,5 +844,74 @@ generate_py_class!(
         filename: Option<PathBuf>,
     },
     export { modified: bool },
-    //export { unicode: Vec<String> },
+    wrap_list { contours: Contour },
 );
+
+generate_py_class!(
+    #[docstring = ""]
+    struct Contour {
+        type PARENT_TYPE = crate::glyphs::Contour;
+
+        #[property_name=OPEN]
+        #[docstring = " "]
+        open: bool,
+    },
+    wrap_list { curves: Bezier },
+);
+
+generate_py_class!(
+    #[docstring = ""]
+    struct Bezier {
+        type PARENT_TYPE = crate::prelude::Bezier;
+
+        #[property_name=CONTINUITY_IN]
+        #[docstring = " "]
+        continuity_in: crate::api::types::PyContinuity,
+        #[property_name=CONTINUITY_OUT]
+        #[docstring = " "]
+        continuity_out: crate::api::types::PyContinuity,
+    },
+);
+
+#[derive(Clone, Debug, Default, PartialEq, Copy, serde::Serialize, serde::Deserialize)]
+#[pyclass(name = "Continuity")]
+pub struct PyContinuity(crate::prelude::Continuity);
+
+#[pymethods]
+impl PyContinuity {
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+}
+
+#[derive(Copy, Serialize, Deserialize, Clone, Debug, Default, Eq, PartialEq, Hash)]
+#[repr(transparent)]
+#[serde(transparent)]
+pub struct PyUuid(pub Uuid);
+
+impl pyo3::IntoPy<pyo3::PyObject> for PyUuid {
+    fn into_py(self, py: Python<'_>) -> pyo3::PyObject {
+        PyBytes::new(py, self.0.as_bytes()).into()
+    }
+}
+
+impl<'source> pyo3::FromPyObject<'source> for PyUuid {
+    fn extract(obj: &'source PyAny) -> PyResult<Self> {
+        Ok(PyUuid(
+            obj.extract::<Vec<u8>>()
+                .map_err(|err| err.to_string())
+                .and_then(|vec| Uuid::from_slice(&vec).map_err(|err| err.to_string()))
+                .map_err(|err| {
+                    PyException::new_err(format!(
+                        "expected a Uuid byte slice but got {obj:?}: {err}"
+                    ))
+                })?,
+        ))
+    }
+}
+
+impl std::fmt::Display for PyUuid {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(fmt)
+    }
+}

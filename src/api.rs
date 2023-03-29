@@ -39,7 +39,7 @@ use uuid::Uuid;
 
 use pyo3::exceptions::*;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyString};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyList, PyString};
 use pyo3::PyCell;
 
 use std::cell::{Cell, RefCell};
@@ -53,6 +53,7 @@ pub mod types;
 
 pub use json_objects::*;
 pub use registry::*;
+pub use types::{PyContinuity, PyUuid};
 
 // Define some type aliases to prevent ambiguating them with their API wrapper types:
 
@@ -77,7 +78,7 @@ struct Receiver(Option<mpsc::Receiver<String>>);
 /// It is exposed to python in order to allow it to communicate with the main thread and its data.
 #[pyclass]
 pub struct Gerb {
-    __id: Uuid,
+    __id: PyUuid,
     #[pyo3(get)]
     __stdout: pyo3::PyObject,
     #[pyo3(get)]
@@ -96,26 +97,27 @@ impl Gerb {
 
     pub fn get_field_id(
         self_: &PyRef<Self>,
-        id: Uuid,
+        id: PyUuid,
         type_name: &str,
         field_name: &str,
         py: Python<'_>,
-    ) -> PyResult<Uuid> {
+    ) -> PyResult<PyUuid> {
         let resp = self_.__send_rcv(
             Request::new_property(type_name.into(), id, field_name.into(), None),
             py,
         )?;
-        let __id: Uuid = resp
+        let __id: PyUuid = resp
             .extract::<Vec<u8>>(py)
             .map_err(|err| err.to_string())
             .and_then(|vec| Uuid::from_slice(&vec).map_err(|err| err.to_string()))
+            .map(PyUuid)
             .map_err(|err| PyException::new_err(Error::suggest_bug_report(&format!("expected a Uuid byte slice response ([u8; 16]) from the API but got {resp:?}: {err}"))))?;
         Ok(__id)
     }
 
     pub fn get_field_value(
         self_: &PyRef<Self>,
-        id: Uuid,
+        id: PyUuid,
         type_name: &str,
         field_name: &str,
         py: Python<'_>,
@@ -143,7 +145,7 @@ impl Gerb {
     /// Return the currently loaded project.
     #[getter(project)]
     pub fn project(self_: PyRef<Self>, py: Python<'_>) -> PyResult<types::Project> {
-        let __id: Uuid = Self::get_field_id(
+        let __id: PyUuid = Self::get_field_id(
             &self_,
             self_.__id,
             Runtime::static_type().name(),
@@ -159,7 +161,7 @@ impl Gerb {
     /// Return the global settings
     #[getter(settings)]
     pub fn settings(self_: PyRef<Self>, py: Python<'_>) -> PyResult<types::Settings> {
-        let __id: Uuid = Self::get_field_id(
+        let __id: PyUuid = Self::get_field_id(
             &self_,
             self_.__id,
             Runtime::static_type().name(),
@@ -203,32 +205,6 @@ impl Gerb {
             Some(Response::Object(ObjectValue { py_type, value })) => Ok(py_type.into_any(value, py)),
             None => Ok(py.None()),
         }
-    }
-}
-
-#[derive(Copy, Serialize, Deserialize, Clone, Debug, Default, Eq, PartialEq, Hash)]
-#[repr(transparent)]
-#[serde(transparent)]
-pub struct PyUuid(pub Uuid);
-
-impl pyo3::IntoPy<pyo3::PyObject> for PyUuid {
-    fn into_py(self, py: Python<'_>) -> pyo3::PyObject {
-        PyBytes::new(py, self.0.as_bytes()).into()
-    }
-}
-
-impl<'source> pyo3::FromPyObject<'source> for PyUuid {
-    fn extract(obj: &'source PyAny) -> PyResult<Self> {
-        Ok(PyUuid(
-            obj.extract::<Vec<u8>>()
-                .map_err(|err| err.to_string())
-                .and_then(|vec| Uuid::from_slice(&vec).map_err(|err| err.to_string()))
-                .map_err(|err| {
-                    PyException::new_err(format!(
-                        "expected a Uuid byte slice but got {obj:?}: {err}"
-                    ))
-                })?,
-        ))
     }
 }
 

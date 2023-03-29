@@ -268,8 +268,10 @@ impl Glyph {
                     let glyph: Self = g.into();
                     *glyph.metadata.filename.borrow_mut() = filename.clone();
                     *glyph.metadata.glif_source.borrow_mut() = s;
+                    let metadata = glyph.metadata.clone();
                     let has_components = !glyph.components.is_empty();
                     let glyph = Rc::new(RefCell::new(glyph));
+                    metadata.glyph_ref.set(glyph.clone()).unwrap();
                     if has_components {
                         glyphs_with_refs.push(glyph.clone());
                     }

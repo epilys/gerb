@@ -27,7 +27,7 @@ use gtk::{gio, glib};
 use once_cell::unsync::OnceCell;
 
 #[cfg(feature = "python")]
-use uuid::Uuid;
+use crate::api::PyUuid;
 
 use crate::prelude::*;
 use crate::window::Window;
@@ -61,13 +61,13 @@ impl Runtime {
     }
 
     #[cfg(feature = "python")]
-    pub fn register_obj(&self, obj: &glib::Object) -> Uuid {
+    pub fn register_obj(&self, obj: &glib::Object) -> PyUuid {
         let mut registry = self.api_registry.borrow_mut();
         registry.add(obj)
     }
 
     #[cfg(feature = "python")]
-    pub fn get_obj(&self, id: Uuid) -> Option<glib::Object> {
+    pub fn get_obj(&self, id: PyUuid) -> Option<glib::Object> {
         let registry = self.api_registry.borrow();
         registry.get(id)
     }
@@ -730,13 +730,13 @@ impl ApplicationInner {
     }
 
     #[cfg(feature = "python")]
-    pub fn register_obj(&self, obj: &glib::Object) -> Uuid {
+    pub fn register_obj(&self, obj: &glib::Object) -> PyUuid {
         let mut registry = self.runtime.api_registry.borrow_mut();
         registry.add(obj)
     }
 
     #[cfg(feature = "python")]
-    pub fn get_obj(&self, id: Uuid) -> Option<glib::Object> {
+    pub fn get_obj(&self, id: PyUuid) -> Option<glib::Object> {
         let registry = self.runtime.api_registry.borrow();
         registry.get(id)
     }

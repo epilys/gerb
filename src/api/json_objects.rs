@@ -33,7 +33,7 @@ pub enum Action {
 pub enum Request {
     ObjectProperty {
         type_name: String,
-        id: Uuid,
+        id: PyUuid,
         property: String,
         action: Action,
     },
@@ -42,7 +42,7 @@ pub enum Request {
 impl Request {
     pub fn new_property(
         type_name: String,
-        id: Uuid,
+        id: PyUuid,
         property: String,
         value: Option<String>,
     ) -> String {
@@ -113,6 +113,12 @@ impl From<glib::Value> for Response {
                 py_type: PyType::Int,
                 value: json! {value.get::<i64>().unwrap()},
             }),
+            other if other == crate::prelude::Continuity::static_type() => {
+                Self::Object(ObjectValue {
+                    py_type: PyType::Class,
+                    value: json! {value.get::<Option<crate::prelude::Continuity>>().unwrap()},
+                })
+            }
             other => unimplemented!("{other:?}"),
         }
     }
@@ -124,18 +130,18 @@ impl From<ObjectValue> for Response {
     }
 }
 
-impl From<Uuid> for Response {
-    fn from(value: Uuid) -> Self {
+impl From<PyUuid> for Response {
+    fn from(value: PyUuid) -> Self {
         use serde_json::json;
         Self::Object(ObjectValue {
             py_type: PyType::Bytes,
-            value: json!(value.as_bytes()),
+            value: json!(value.0.as_bytes()),
         })
     }
 }
 
-impl From<Either<Uuid, ObjectValue>> for Response {
-    fn from(value: Either<Uuid, ObjectValue>) -> Self {
+impl From<Either<PyUuid, ObjectValue>> for Response {
+    fn from(value: Either<PyUuid, ObjectValue>) -> Self {
         match value {
             Either::A(uuid) => uuid.into(),
             Either::B(val) => val.into(),
@@ -156,6 +162,7 @@ pub enum PyType {
     Int,
     String,
     None,
+    Class,
 }
 
 impl PyType {
@@ -171,19 +178,27 @@ impl PyType {
             .into(),
             Dict => {
                 let ret = PyDict::new(py);
-                let map: IndexMap<std::string::String, Uuid> =
+                let map: IndexMap<std::string::String, PyUuid> =
                     serde_json::value::from_value(value).unwrap();
                 for (k, v) in map {
-                    ret.set_item(k, PyBytes::new(py, v.as_bytes())).unwrap();
+                    ret.set_item(k, PyBytes::new(py, v.0.as_bytes())).unwrap();
                 }
 
                 ret.into()
             }
-            List => unimplemented!("Python list() objects have not been implemented."),
+            List => {
+                let vec: Vec<PyUuid> = serde_json::value::from_value(value).unwrap();
+                PyList::new(
+                    py,
+                    vec.into_iter().map(|v| PyBytes::new(py, v.0.as_bytes())),
+                )
+                .into()
+            }
             Float => PyFloat::new(py, value.as_f64().unwrap()).into(),
             UInt => value.as_u64().unwrap().into_py(py),
             Int => value.as_i64().unwrap().into_py(py),
             String => PyString::new(py, value.as_str().unwrap()).into(),
+            Class => PyContinuity::into_py(serde_json::from_value(value).unwrap(), py),
             None => py.None(),
         }
     }

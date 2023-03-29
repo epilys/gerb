@@ -25,6 +25,8 @@ glib::wrapper! {
     pub struct Bezier(ObjectSubclass<BezierInner>);
 }
 
+impl_deref!(Bezier, BezierInner);
+
 pub type CurvePointsRef<'curve> = crate::utils::FieldRef<'curve, Vec<CurvePoint>>;
 
 impl Bezier {

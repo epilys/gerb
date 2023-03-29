@@ -37,10 +37,10 @@ pub struct ExposeFn(
     pub  fn(
         _type_name: &str,
         _obj: &glib::Object,
-        _identifier: Option<Uuid>,
+        _identifier: Option<PyUuid>,
         _field_name: &str,
         _runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>>,
+    ) -> Option<Either<PyUuid, ObjectValue>>,
 );
 
 inventory::collect!(ExposeFn);
@@ -51,13 +51,15 @@ inventory::submit! { ExposeFn(Runtime::expose_field) }
 inventory::submit! { ExposeFn(crate::ufo::objects::FontInfo::expose_field) }
 inventory::submit! { ExposeFn(crate::ufo::objects::Layer::expose_field) }
 inventory::submit! { ExposeFn(crate::prelude::GlyphMetadata::expose_field) }
+inventory::submit! { ExposeFn(crate::glyphs::Contour::expose_field) }
+inventory::submit! { ExposeFn(crate::prelude::Bezier::expose_field) }
 
 #[inline(always)]
 fn downcast<'a, T: glib::ObjectType + glib::IsA<glib::Object>>(
     _runtime: &Runtime,
     type_name: &str,
     obj: &'a glib::Object,
-    _id: Option<Uuid>,
+    _id: Option<PyUuid>,
 ) -> Result<&'a T, Box<dyn std::error::Error>> {
     debug_assert_eq!(
         _runtime.register_obj(obj),
@@ -69,15 +71,15 @@ fn downcast<'a, T: glib::ObjectType + glib::IsA<glib::Object>>(
 
 /// Trait to convert fields of an object into serializable data for the API.
 pub trait ObjRef: glib::ObjectExt {
-    fn obj_ref(identifier: Option<Uuid>, runtime: &Runtime) -> Self;
+    fn obj_ref(identifier: Option<PyUuid>, runtime: &Runtime) -> Self;
 
     fn expose_field(
         _type_name: &str,
         _obj: &glib::Object,
-        _identifier: Option<Uuid>,
+        _identifier: Option<PyUuid>,
         _field_name: &str,
         _runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         None
     }
 }
@@ -243,7 +245,7 @@ pub trait AttributeGetSet: glib::ObjectExt {
 }
 
 impl ObjRef for crate::prelude::Runtime {
-    fn obj_ref(_id: Option<Uuid>, runtime: &Runtime) -> Self {
+    fn obj_ref(_id: Option<PyUuid>, runtime: &Runtime) -> Self {
         #[cfg(debug_assertions)]
         if let Some(id) = _id {
             assert_eq!(id, runtime.register_obj(runtime.upcast_ref()));
@@ -255,10 +257,10 @@ impl ObjRef for crate::prelude::Runtime {
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        id: Option<Uuid>,
+        id: Option<PyUuid>,
         field_name: &str,
         runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
@@ -287,17 +289,17 @@ impl ObjRef for crate::prelude::Runtime {
 }
 
 impl ObjRef for ProjectParent {
-    fn obj_ref(_: Option<Uuid>, runtime: &Runtime) -> Self {
+    fn obj_ref(_: Option<PyUuid>, runtime: &Runtime) -> Self {
         runtime.project.borrow().clone()
     }
 
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        id: Option<Uuid>,
+        id: Option<PyUuid>,
         field_name: &str,
         runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
@@ -333,17 +335,17 @@ impl ObjRef for ProjectParent {
 }
 
 impl ObjRef for crate::app::Settings {
-    fn obj_ref(_: Option<Uuid>, runtime: &Runtime) -> Self {
+    fn obj_ref(_: Option<PyUuid>, runtime: &Runtime) -> Self {
         runtime.settings.clone()
     }
 
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        id: Option<Uuid>,
+        id: Option<PyUuid>,
         field_name: &str,
         runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
@@ -361,17 +363,17 @@ impl ObjRef for crate::app::Settings {
 }
 
 impl ObjRef for crate::ufo::objects::FontInfo {
-    fn obj_ref(_: Option<Uuid>, runtime: &Runtime) -> Self {
+    fn obj_ref(_: Option<PyUuid>, runtime: &Runtime) -> Self {
         runtime.project.borrow().fontinfo.borrow().clone()
     }
 
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        id: Option<Uuid>,
+        id: Option<PyUuid>,
         field_name: &str,
         runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
@@ -395,7 +397,7 @@ impl ObjRef for crate::ufo::objects::FontInfo {
 }
 
 impl ObjRef for crate::ufo::objects::Layer {
-    fn obj_ref(id: Option<Uuid>, runtime: &Runtime) -> Self {
+    fn obj_ref(id: Option<PyUuid>, runtime: &Runtime) -> Self {
         // [ref:TODO] return Option
         runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
     }
@@ -403,10 +405,10 @@ impl ObjRef for crate::ufo::objects::Layer {
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        id: Option<Uuid>,
+        id: Option<PyUuid>,
         field_name: &str,
         runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
@@ -433,7 +435,7 @@ impl ObjRef for crate::ufo::objects::Layer {
                     .map(|(k, v)| {
                         (
                             k.clone(),
-                            PyUuid(runtime.register_obj(v.borrow().metadata.upcast_ref())),
+                            runtime.register_obj(v.borrow().metadata.upcast_ref()),
                         )
                     })
                     .collect::<IndexMap<String, PyUuid>>()),
@@ -444,7 +446,7 @@ impl ObjRef for crate::ufo::objects::Layer {
 }
 
 impl ObjRef for crate::prelude::GlyphMetadata {
-    fn obj_ref(id: Option<Uuid>, runtime: &Runtime) -> Self {
+    fn obj_ref(id: Option<PyUuid>, runtime: &Runtime) -> Self {
         // [ref:TODO] return Option
         runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
     }
@@ -452,10 +454,10 @@ impl ObjRef for crate::prelude::GlyphMetadata {
     fn expose_field(
         type_name: &str,
         obj: &glib::Object,
-        id: Option<Uuid>,
+        id: Option<PyUuid>,
         field_name: &str,
         runtime: &Runtime,
-    ) -> Option<Either<Uuid, ObjectValue>> {
+    ) -> Option<Either<PyUuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
         }
@@ -465,6 +467,19 @@ impl ObjRef for crate::prelude::GlyphMetadata {
                 value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
                     .unwrap()
                     .modified()),
+            })),
+            "contours" => Some(Either::B(ObjectValue {
+                py_type: PyType::List,
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
+                    .unwrap()
+                    .glyph_ref
+                    .get()
+                    .unwrap()
+                    .borrow()
+                    .contours
+                    .iter()
+                    .map(|v| { runtime.register_obj(v.upcast_ref()) })
+                    .collect::<Vec<PyUuid>>()),
             })),
             /*"unicode" => Some(Either::B(ObjectValue {
                 py_type: PyType::List,
@@ -480,34 +495,101 @@ impl ObjRef for crate::prelude::GlyphMetadata {
     }
 }
 
+impl ObjRef for crate::glyphs::Contour {
+    fn obj_ref(id: Option<PyUuid>, runtime: &Runtime) -> Self {
+        // [ref:TODO] return Option
+        runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
+    }
+
+    fn expose_field(
+        type_name: &str,
+        obj: &glib::Object,
+        id: Option<PyUuid>,
+        field_name: &str,
+        runtime: &Runtime,
+    ) -> Option<Either<PyUuid, ObjectValue>> {
+        if type_name != Self::static_type().name() {
+            return None;
+        }
+        match field_name {
+            "curves" => Some(Either::B(ObjectValue {
+                py_type: PyType::List,
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
+                    .unwrap()
+                    .curves()
+                    .iter()
+                    .map(|v| { runtime.register_obj(v.upcast_ref()) })
+                    .collect::<Vec<PyUuid>>()),
+            })),
+            _ => None,
+        }
+    }
+}
+
+impl ObjRef for crate::prelude::Bezier {
+    fn obj_ref(id: Option<PyUuid>, runtime: &Runtime) -> Self {
+        // [ref:TODO] return Option
+        runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
+    }
+
+    fn expose_field(
+        type_name: &str,
+        obj: &glib::Object,
+        id: Option<PyUuid>,
+        field_name: &str,
+        runtime: &Runtime,
+    ) -> Option<Either<PyUuid, ObjectValue>> {
+        if type_name != Self::static_type().name() {
+            return None;
+        }
+        match field_name {
+            "continuity_in" => Some(Either::B(ObjectValue {
+                py_type: PyType::Class,
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
+                    .unwrap()
+                    .continuity_in
+                    .get()),
+            })),
+            "continuity_out" => Some(Either::B(ObjectValue {
+                py_type: PyType::Class,
+                value: serde_json::json!(downcast::<Self>(runtime, type_name, obj, id)
+                    .unwrap()
+                    .continuity_out
+                    .get()),
+            })),
+            _ => None,
+        }
+    }
+}
+
 impl AttributeGetSet for glib::Object {}
 
 /// Collection of live objects, each given a UUID. Holds weak references so that deallocating an
 /// object doesn't cause any problem.
 #[derive(Debug, Default)]
 pub struct ObjectRegistry {
-    index: IndexMap<Uuid, glib::object::WeakRef<glib::Object>>,
+    index: IndexMap<PyUuid, glib::object::WeakRef<glib::Object>>,
 }
 
 impl ObjectRegistry {
     const QUARK_KEY: &str = "api-uuid";
 
-    pub fn add(&mut self, obj: &glib::Object) -> Uuid {
+    pub fn add(&mut self, obj: &glib::Object) -> PyUuid {
         Self::opt_id(obj).unwrap_or_else(|| {
-            let id = Uuid::new_v4();
+            let id = PyUuid(Uuid::new_v4());
             self.index.insert(id, obj.downgrade());
-            unsafe { obj.set_qdata(glib::Quark::from_str(Self::QUARK_KEY), id.as_u128()) };
+            unsafe { obj.set_qdata(glib::Quark::from_str(Self::QUARK_KEY), id.0.as_u128()) };
             id
         })
     }
 
-    pub fn get(&self, id: Uuid) -> Option<glib::Object> {
+    pub fn get(&self, id: PyUuid) -> Option<glib::Object> {
         self.index.get(&id).and_then(glib::object::WeakRef::upgrade)
     }
 
     /// Check if `obj` has a set UUID
-    pub fn opt_id(obj: &glib::Object) -> Option<Uuid> {
+    pub fn opt_id(obj: &glib::Object) -> Option<PyUuid> {
         let id = unsafe { obj.qdata(glib::Quark::from_str(Self::QUARK_KEY)) }?;
-        Some(Uuid::from_u128(unsafe { *id.as_ptr() }))
+        Some(PyUuid(Uuid::from_u128(unsafe { *id.as_ptr() })))
     }
 }

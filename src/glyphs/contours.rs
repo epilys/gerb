@@ -758,6 +758,7 @@ impl ObjectImpl for ContourInner {
 /// Given two cubic Bézier curves with control points [P0, P1, P2, P3] and [P3, P4, P5, P6]
 /// respectively, the constraints for ensuring continuity at P3 can be defined as follows:
 #[derive(Clone, Debug, Default, PartialEq, Copy, glib::Boxed)]
+#[cfg_attr(feature = "python", derive(serde::Serialize, serde::Deserialize))]
 #[boxed_type(name = "Continuity", nullable)]
 pub enum Continuity {
     /// C0 / G0 (positional continuity) requires that they meet at the same point, which all

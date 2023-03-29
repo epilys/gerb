@@ -20,7 +20,7 @@ path = "src/main.rs"
 
 [[example]]
 name = "repl"
-path = "src/repl.rs"
+path = "examples/repl.rs"
 required-features = ["python"]
 
 [dependencies]
