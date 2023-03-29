@@ -236,14 +236,6 @@ pub fn process_api_request(
     runtime: &Runtime,
     msg: String,
 ) -> Result<serde_json::Value, serde_json::Value> {
-    let valid_types = [
-        ProjectParent::static_type().name(),
-        SettingsParent::static_type().name(),
-        FontInfoParent::static_type().name(),
-        LayerParent::static_type().name(),
-        Runtime::static_type().name(),
-        crate::prelude::GlyphMetadata::static_type().name(),
-    ];
     let request: Request = serde_json::from_str(&msg).map_err(|err| {
         serde_json::json!(Response::Error {
             message: err.to_string(),
@@ -256,60 +248,14 @@ pub fn process_api_request(
             property,
             action: Action::Get,
         } => {
-            if !valid_types.contains(&type_name.as_str()) {
+            let Some(obj) = runtime.get_obj(id) else {
                 return Err(serde_json::json!(Response::Error {
-                    message: format!("Invalid object type: {type_name}."),
+                    message: format!("Invalid object type or id: {type_name}  {id}."),
                 }));
-            }
-            let obj = runtime.get_obj(id).unwrap();
-            if let Some(field) =
-                ProjectParent::expose_field(type_name.as_str(), &obj, Some(id), &property, runtime)
-                    .or_else(|| {
-                        SettingsParent::expose_field(
-                            type_name.as_str(),
-                            &obj,
-                            Some(id),
-                            &property,
-                            runtime,
-                        )
-                    })
-                    .or_else(|| {
-                        Runtime::expose_field(
-                            type_name.as_str(),
-                            &obj,
-                            Some(id),
-                            &property,
-                            runtime,
-                        )
-                    })
-                    .or_else(|| {
-                        crate::ufo::objects::FontInfo::expose_field(
-                            type_name.as_str(),
-                            &obj,
-                            Some(id),
-                            &property,
-                            runtime,
-                        )
-                    })
-                    .or_else(|| {
-                        crate::ufo::objects::Layer::expose_field(
-                            type_name.as_str(),
-                            &obj,
-                            Some(id),
-                            &property,
-                            runtime,
-                        )
-                    })
-                    .or_else(|| {
-                        crate::prelude::GlyphMetadata::expose_field(
-                            type_name.as_str(),
-                            &obj,
-                            Some(id),
-                            &property,
-                            runtime,
-                        )
-                    })
-            {
+            };
+            if let Some(field) = inventory::iter::<ExposeFn>().find_map(|ExposeFn(func)| {
+                func(type_name.as_str(), &obj, Some(id), &property, runtime)
+            }) {
                 return Ok(serde_json::json!(Response::from(field)));
             }
 
@@ -326,12 +272,11 @@ pub fn process_api_request(
             property,
             action: Action::Set { value },
         } => {
-            if !valid_types.contains(&type_name.as_str()) {
+            let Some(obj) = runtime.get_obj(id) else {
                 return Err(serde_json::json!(Response::Error {
-                    message: format!("Invalid object type: {type_name}."),
+                    message: format!("Invalid object type or id: {type_name}  {id}."),
                 }));
-            }
-            let obj = runtime.get_obj(id).unwrap();
+            };
             Ok(
                 match serde_json::from_str(&value)
                     .map_err(|err| err.to_string())

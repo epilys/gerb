@@ -30,6 +30,7 @@ gio = { version = "^0.15", features = [ "v2_56", ] }
 glib = { version = "^0.15" }
 gtk = { version = "^0.15", features = [ "v3_20", "v3_24" ] }
 indexmap = { version = "1.9", features = [ "serde", ] }
+inventory = "0.3.5"
 once_cell = "1.2.0"
 plist = { version = "1" }
 quick-xml = { version = "^0.28", features = [ "serialize" ] }

@@ -21,6 +21,37 @@
 
 use super::*;
 
+/// Wraps a an `expose_field` function pointer of the [`ObjRef`] trait.
+///
+/// It's necessary in order to declare an inventory of all available exposed types. This is done
+/// using the [`inventory`](https://crates.io/crates/inventory/0.3.5) crate.
+///
+/// Example:
+///
+/// ```text
+/// inventory::submit! { ExposeFn(Runtime::expose_field) }
+/// ```
+#[allow(clippy::type_complexity)]
+#[derive(Copy, Clone)]
+pub struct ExposeFn(
+    pub  fn(
+        _type_name: &str,
+        _obj: &glib::Object,
+        _identifier: Option<Uuid>,
+        _field_name: &str,
+        _runtime: &Runtime,
+    ) -> Option<Either<Uuid, ObjectValue>>,
+);
+
+inventory::collect!(ExposeFn);
+
+inventory::submit! { ExposeFn(ProjectParent::expose_field) }
+inventory::submit! { ExposeFn(SettingsParent::expose_field) }
+inventory::submit! { ExposeFn(Runtime::expose_field) }
+inventory::submit! { ExposeFn(crate::ufo::objects::FontInfo::expose_field) }
+inventory::submit! { ExposeFn(crate::ufo::objects::Layer::expose_field) }
+inventory::submit! { ExposeFn(crate::prelude::GlyphMetadata::expose_field) }
+
 #[inline(always)]
 fn downcast<'a, T: glib::ObjectType + glib::IsA<glib::Object>>(
     _runtime: &Runtime,
@@ -36,21 +67,23 @@ fn downcast<'a, T: glib::ObjectType + glib::IsA<glib::Object>>(
     obj.downcast_ref::<T>().ok_or_else(|| format!("Fatal API error: requested object of type {type_name:?} from Runtime registry but got something else instead: {}", obj.type_().name()).into())
 }
 
-pub trait ObjRef<'runtime>: glib::ObjectExt {
-    fn obj_ref(identifier: Option<Uuid>, runtime: &'runtime Runtime) -> Self;
+/// Trait to convert fields of an object into serializable data for the API.
+pub trait ObjRef: glib::ObjectExt {
+    fn obj_ref(identifier: Option<Uuid>, runtime: &Runtime) -> Self;
 
     fn expose_field(
         _type_name: &str,
         _obj: &glib::Object,
         _identifier: Option<Uuid>,
         _field_name: &str,
-        _runtime: &'runtime Runtime,
+        _runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         None
     }
 }
 
-pub trait AttributeGetSet<'runtime>: glib::ObjectExt {
+/// Trait to get/set properties using [`serde_json::Value`]
+pub trait AttributeGetSet: glib::ObjectExt {
     fn get(&self, name: &str) -> serde_json::Value {
         self.property::<String>(name).into()
     }
@@ -209,8 +242,8 @@ pub trait AttributeGetSet<'runtime>: glib::ObjectExt {
     }
 }
 
-impl<'runtime> ObjRef<'runtime> for crate::prelude::Runtime {
-    fn obj_ref(_id: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+impl ObjRef for crate::prelude::Runtime {
+    fn obj_ref(_id: Option<Uuid>, runtime: &Runtime) -> Self {
         #[cfg(debug_assertions)]
         if let Some(id) = _id {
             assert_eq!(id, runtime.register_obj(runtime.upcast_ref()));
@@ -224,7 +257,7 @@ impl<'runtime> ObjRef<'runtime> for crate::prelude::Runtime {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        runtime: &'runtime Runtime,
+        runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -253,8 +286,8 @@ impl<'runtime> ObjRef<'runtime> for crate::prelude::Runtime {
     }
 }
 
-impl<'runtime> ObjRef<'runtime> for ProjectParent {
-    fn obj_ref(_: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+impl ObjRef for ProjectParent {
+    fn obj_ref(_: Option<Uuid>, runtime: &Runtime) -> Self {
         runtime.project.borrow().clone()
     }
 
@@ -263,7 +296,7 @@ impl<'runtime> ObjRef<'runtime> for ProjectParent {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        runtime: &'runtime Runtime,
+        runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -299,8 +332,8 @@ impl<'runtime> ObjRef<'runtime> for ProjectParent {
     }
 }
 
-impl<'runtime> ObjRef<'runtime> for crate::app::Settings {
-    fn obj_ref(_: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+impl ObjRef for crate::app::Settings {
+    fn obj_ref(_: Option<Uuid>, runtime: &Runtime) -> Self {
         runtime.settings.clone()
     }
 
@@ -309,7 +342,7 @@ impl<'runtime> ObjRef<'runtime> for crate::app::Settings {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        runtime: &'runtime Runtime,
+        runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -327,8 +360,8 @@ impl<'runtime> ObjRef<'runtime> for crate::app::Settings {
     }
 }
 
-impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::FontInfo {
-    fn obj_ref(_: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+impl ObjRef for crate::ufo::objects::FontInfo {
+    fn obj_ref(_: Option<Uuid>, runtime: &Runtime) -> Self {
         runtime.project.borrow().fontinfo.borrow().clone()
     }
 
@@ -337,7 +370,7 @@ impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::FontInfo {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        runtime: &'runtime Runtime,
+        runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -361,8 +394,8 @@ impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::FontInfo {
     }
 }
 
-impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::Layer {
-    fn obj_ref(id: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+impl ObjRef for crate::ufo::objects::Layer {
+    fn obj_ref(id: Option<Uuid>, runtime: &Runtime) -> Self {
         // [ref:TODO] return Option
         runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
     }
@@ -372,7 +405,7 @@ impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::Layer {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        runtime: &'runtime Runtime,
+        runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -410,8 +443,8 @@ impl<'runtime> ObjRef<'runtime> for crate::ufo::objects::Layer {
     }
 }
 
-impl<'runtime> ObjRef<'runtime> for crate::prelude::GlyphMetadata {
-    fn obj_ref(id: Option<Uuid>, runtime: &'runtime Runtime) -> Self {
+impl ObjRef for crate::prelude::GlyphMetadata {
+    fn obj_ref(id: Option<Uuid>, runtime: &Runtime) -> Self {
         // [ref:TODO] return Option
         runtime.get_obj(id.unwrap()).unwrap().downcast().unwrap()
     }
@@ -421,7 +454,7 @@ impl<'runtime> ObjRef<'runtime> for crate::prelude::GlyphMetadata {
         obj: &glib::Object,
         id: Option<Uuid>,
         field_name: &str,
-        runtime: &'runtime Runtime,
+        runtime: &Runtime,
     ) -> Option<Either<Uuid, ObjectValue>> {
         if type_name != Self::static_type().name() {
             return None;
@@ -447,8 +480,10 @@ impl<'runtime> ObjRef<'runtime> for crate::prelude::GlyphMetadata {
     }
 }
 
-impl<'runtime> AttributeGetSet<'runtime> for glib::Object {}
+impl AttributeGetSet for glib::Object {}
 
+/// Collection of live objects, each given a UUID. Holds weak references so that deallocating an
+/// object doesn't cause any problem.
 #[derive(Debug, Default)]
 pub struct ObjectRegistry {
     index: IndexMap<Uuid, glib::object::WeakRef<glib::Object>>,
@@ -470,6 +505,7 @@ impl ObjectRegistry {
         self.index.get(&id).and_then(glib::object::WeakRef::upgrade)
     }
 
+    /// Check if `obj` has a set UUID
     pub fn opt_id(obj: &glib::Object) -> Option<Uuid> {
         let id = unsafe { obj.qdata(glib::Quark::from_str(Self::QUARK_KEY)) }?;
         Some(Uuid::from_u128(unsafe { *id.as_ptr() }))
