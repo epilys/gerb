@@ -28,6 +28,42 @@ use crate::prelude::*;
 use crate::utils::{curves::Bezier, distance_between_two_points};
 use crate::views::canvas::{Layer, LayerBuilder};
 
+macro_rules! action {
+    ($contour_index:expr, $redo:expr, $undo:expr$(,)?) => {{
+        Action {
+            stamp: EventStamp {
+                t: std::any::TypeId::of::<Editor>(),
+                property: Contour::static_type().name(),
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[$contour_index]).into() },
+            },
+            compress: false,
+            redo: Box::new($redo),
+            undo: Box::new($undo),
+        }
+    }};
+    (change state to $new_state:expr, $tool:expr, $viewport:expr$(,)?) => {{
+        let tool = $tool;
+        let old_state = tool.imp().inner.get();
+        let viewport = $viewport;
+        Action {
+            stamp: EventStamp {
+                t: std::any::TypeId::of::<Editor>(),
+                property: BezierTool::static_type().name(),
+                id: unsafe { std::mem::transmute::<&[usize], &[u8]>(&[]).into() },
+            },
+            compress: false,
+            redo: Box::new(clone!(@weak tool, @weak viewport  => move || {
+                tool.imp().inner.set($new_state);
+                viewport.queue_draw();
+            })),
+            undo: Box::new(clone!(@weak tool, @weak viewport  => move || {
+                tool.imp().inner.set(old_state);
+                viewport.queue_draw();
+            })),
+        }
+    }};
+}
+
 // [ref:needs_user_doc]
 ///```text
 ///   States                             Beginning                        Before transition
@@ -181,7 +217,7 @@ impl ToolImplImpl for BezierToolInner {
         event: &gtk::gdk::EventButton,
     ) -> Inhibit {
         if event.button() == gtk::gdk::BUTTON_PRIMARY {
-            let mut c = self.contour.borrow_mut();
+            let c = self.contour.borrow_mut();
             let UnitPoint(point) = viewport.view_to_unit_point(ViewPoint(event.position().into()));
             if c.is_none() {
                 let state = view.state().borrow();
@@ -205,15 +241,22 @@ impl ToolImplImpl for BezierToolInner {
                     contour_index,
                 };
                 let subaction = state.add_contour(&new_state.contour, contour_index);
-                let mut action =
-                    new_contour_action(state.glyph.clone(), new_state.contour.clone(), subaction);
-                (action.redo)();
-                state.add_undo_action(action);
-                *c = Some(new_state);
-                self.inner.set(InnerState::FirstHandle {
+                view.app().append_action(new_contour_action(
+                    state.glyph.clone(),
+                    new_state.contour.clone(),
+                    subaction,
+                ));
+                drop(c);
+                drop(state);
+                let new_state = InnerState::ClosingHandle {
                     handle: point,
                     unlinked: false,
                     snap_to_angle: false,
+                };
+                view.app().append_action(action! {
+                    change state to new_state,
+                    self.instance(),
+                    &view.viewport
                 });
                 return Inhibit(true);
             }
@@ -437,10 +480,16 @@ impl ToolImplImpl for BezierToolInner {
                     m.translate(diff_vector.x, diff_vector.y);
                     self.transform_point(m, &view, state, state.curve_index, linked_curve_point);
                 }
-                self.inner.set(InnerState::SecondHandle {
-                    handle,
-                    unlinked,
-                    snap_to_angle,
+                drop(state);
+                view.app().append_action(action! {
+                    change state to InnerState::SecondHandle {
+                        handle,
+                        unlinked,
+                        snap_to_angle,
+                    },
+                    // tool:
+                    self.instance(),
+                    &view.viewport
                 });
                 return Inhibit(true);
             }
@@ -480,10 +529,16 @@ impl ToolImplImpl for BezierToolInner {
                     m.translate(diff_vector.x, diff_vector.y);
                     self.transform_point(m, &view, state, 0, linked_curve_point);
                 }
-                self.inner.set(InnerState::ClosingHandle {
-                    handle,
-                    unlinked,
-                    snap_to_angle,
+                drop(state);
+                view.app().append_action(action! {
+                    change state to InnerState::ClosingHandle {
+                        handle,
+                        unlinked,
+                        snap_to_angle,
+                    },
+                    // tool:
+                    self.instance(),
+                    &view.viewport
                 });
                 return Inhibit(true);
             }
@@ -897,15 +952,37 @@ impl BezierToolInner {
             curve_index,
             uuid,
         }];
-        let mut kd_tree = editor_state.kd_tree.borrow_mut();
-        for (idx, new_pos) in state.contour.transform_points(contour_index, &idxs, m) {
-            if idx.uuid == uuid && curve_point_to_move.uuid == state.last_point.uuid {
-                state.last_point.position = new_pos;
-            }
-            /* update kd_tree */
-            kd_tree.add(idx, new_pos);
-            editor_state.viewport.queue_draw();
-        }
+        let tool = self.instance();
+        let mut action = action! {
+            contour_index,
+            clone!(@weak editor_state.kd_tree as kd_tree, @weak state.contour as contour, @weak tool, @weak view => move || {
+                let mut kd_tree = kd_tree.borrow_mut();
+                let mut contour_state = tool.imp().contour.borrow_mut();
+                let mut state = contour_state.as_mut().unwrap();
+                for (idx, new_pos) in contour.transform_points(contour_index, &idxs, m) {
+                    if idx.uuid == uuid && uuid == state.last_point.uuid {
+                        state.last_point.position = new_pos;
+                    }
+                    /* update kd_tree */
+                    kd_tree.add(idx, new_pos);
+                    view.state().borrow().viewport.queue_draw();
+                }
+            }),
+            clone!(@weak editor_state.kd_tree as kd_tree, @weak state.contour as contour, @weak view  => move || {
+                let m = if let Ok(m) = m.try_invert() {m} else {return;};
+                let mut kd_tree = kd_tree.borrow_mut();
+                for (idx, new_pos) in contour.transform_points(contour_index, &idxs, m) {
+                    /* update kd_tree */
+                    kd_tree.add(idx, new_pos);
+                }
+                view.state().borrow().viewport.queue_draw();
+            })
+        };
+        let app: &Application = view.app();
+        let undo_db = app.undo_db.borrow();
+        drop(state);
+        (action.redo)();
+        undo_db.event(action);
     }
 }
 

@@ -774,6 +774,12 @@ impl ApplicationInner {
     pub fn colors(&self) -> NamedColors {
         self.colors.get()
     }
+
+    pub fn append_action(&self, mut action: Action) {
+        let undo_db = self.undo_db.borrow();
+        (action.redo)();
+        undo_db.event(action);
+    }
 }
 
 impl_property_window!(Application);
