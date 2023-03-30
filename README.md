@@ -1,11 +1,16 @@
-# gerb &emsp; [![Build Status]][actions]&nbsp;[![Latest Version]][crates.io]&nbsp;![Top Language]&nbsp;![License]
+# gerb [![License]][gpl3]&nbsp;[![Build Status]][actions]&nbsp;[![Latest Version]][crates.io] [![netbsd]][pkgsrc.se]&nbsp;[![aur]][aur-url]
 
+[gpl3]: https://github.com/epilys/gerb/blob/main/LICENSE
 [Build Status]: https://img.shields.io/github/actions/workflow/status/epilys/gerb/builds.yaml?branch=main
 [actions]: https://github.com/epilys/gerb/actions?query=branch%3Amain
 [Latest Version]: https://img.shields.io/crates/v/gerb.svg?color=white
 [crates.io]: https://crates.io/crates/gerb
 [Top Language]: https://img.shields.io/github/languages/top/epilys/gerb?color=white&logo=rust&logoColor=black
 [License]: https://img.shields.io/github/license/epilys/gerb?color=white
+[pkgsrc.se]: https://pkgsrc.se/fonts/gerb
+[netbsd]: https://img.shields.io/badge/netbsd-pkgsrc%2Ffonts%2Fgerb-%23777777?labelColor=%23ea6410
+[aur-url]: https://aur.archlinux.org/packages/gerb-git
+[aur]: https://img.shields.io/badge/aur-gerb--git-%23555555?labelColor=%23ecf2f5
 
 1. _*gerb ʰ-_: [reconstructed Proto-Indo-European root](https://en.wiktionary.org/wiki/Reconstruction:Proto-Indo-European/gerb%CA%B0-), meaning _to carve_
 2. `gerb`: a font editor in gtk3 and Rust
@@ -63,8 +68,8 @@ and export:[^1]
 
 ## Alternative software
 
-The indisputable FOSS font editor is [FontForge](https://fontforge.org).
-Realistically this is the only choice one has for making a professional quality typeface with free software.
+- [FontForge](https://fontforge.org) is the indisputable FOSS font editor.
+  Realistically this is the only choice one has for making a professional quality typeface with free software.
 
 Some other projects in development are:
 
@@ -76,17 +81,21 @@ Some other projects in development are:
 
 ## Install
 
-### [crates.io](https://crates.io):
+### Packages
 
-```shell
-cargo install gerb
-```
+Packages are available:
+
+- NetBSD <https://pkgsrc.se/fonts/gerb>
+- Debian / Ubuntu as `.deb` files included with each [release](https://github.com/epilys/gerb/releases)
+- Arch Linux <https://aur.archlinux.org/packages/gerb-git>
+
+It is also installable from [crates.io](https://crates.io/crates/gerb): ```cargo install gerb```
 
 ### Prebuilt GNU/Linux & macos amd64 binaries
 
 See ['Releases'](https://github.com/epilys/gerb/releases) for binaries of tagged releases built in the CI.
 
-## Build & Run
+## Build
 
 To build, you will need Rust's `cargo` tool.
 You can get it from your distribution's packages, or directly with the official [`rustup`](https://rustup.rs) tool.
@@ -99,20 +108,6 @@ git clone https://github.com/epilys/gerb.git
 cd gerb
 cargo build --release
 ```
-
-You can open a UFOv3 project from the GUI (&thinsp;*File->Open* or <kbd>Ctrl+O</kbd>&thinsp;) or directly in the command line with the `-u` flag.
-Assuming the project directory is "/path/to/font.ufo":
-
-```shell
-# Directly calling the binary:
-gerb -u /path/to/font.ufo
-# Running through cargo
-cargo run --release -- -u /path/to/font.ufo
-```
-
-Configuration of various settings is stored at the `$XDG_CONFIG_HOME/gerb` directory in a TOML file.
-The usual location would be `$HOME/.config/gerb/config.toml`.
-[**dconf**](https://en.wikipedia.org/wiki/Dconf) is not used but PRs that add dconf support are welcome.
 
 ### Dependencies
 
@@ -130,3 +125,19 @@ On `macOS` you can install dependencies with `Homebrew`:
 ```shell
 brew install librsvg gtk+3 gnome-icon-theme
 ```
+
+## Run & Configuration
+
+You can open a UFOv3 project from the GUI (&thinsp;*File->Open* or <kbd>Ctrl+O</kbd>&thinsp;) or directly in the command line with the `-u` flag.
+Assuming the project directory is "/path/to/font.ufo":
+
+```shell
+# Directly calling the binary:
+gerb -u /path/to/font.ufo
+# Running through cargo
+cargo run --release -- -u /path/to/font.ufo
+```
+
+Configuration of various settings is stored at the `$XDG_CONFIG_HOME/gerb` directory in a TOML file.
+The usual location would be `$HOME/.config/gerb/config.toml`.
+[**dconf**](https://en.wikipedia.org/wiki/Dconf) is not used but PRs that add dconf support are welcome.
