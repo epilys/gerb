@@ -273,7 +273,7 @@ dependencies = [
 
 [[package]]
 name = "gerb"
-version = "0.0.1-alpha+2023-03-28"
+version = "0.0.1-alpha+2023-04-27"
 dependencies = [
  "cairo-rs",
  "generational-arena",
