@@ -87,6 +87,7 @@ pub fn get_git_sha() -> std::borrow::Cow<'static, str> {
     if let Some(r) = _PACKAGE_COMMIT_SHA {
         return r.into();
     }
+    /*
     build_info::build_info!(fn build_info);
     let info = build_info();
     if let Some(v) = info
@@ -99,15 +100,22 @@ pub fn get_git_sha() -> std::borrow::Cow<'static, str> {
     } else {
         "<unknown>".into()
     }
+    */
+    "<unknown>".into()
 }
 
 pub const APPLICATION_NAME: &str = "gerb";
 pub const APPLICATION_ID: &str = "io.github.epilys.gerb";
 pub const ISSUE_TRACKER: &str = "https://github.com/epilys/gerb/issues";
+/*
 pub const VERSION_INFO: &str = build_info::format!("{}", $.crate_info.version);
 pub const BUILD_INFO: &str = build_info::format!("{}\t{}\t{}\t{}", $.crate_info.version, $.compiler, $.timestamp, $.crate_info.enabled_features);
 pub const CLI_INFO: &str = build_info::format!("\n                 ,adPPYb,d8  \n                a8\"    `Y88  \n                8b       88  \n                \"8a,   ,d88  \n                 `\"YbbdP\"Y8  \n                 aa,    ,88  \n                  \"Y8bbdP\"   \n\n{} Copyright (C) 2022 Emmanouil Pitsidianakis\nThis program comes with ABSOLUTELY NO WARRANTY.\nThis is free software, and you are welcome to\nredistribute it under certain conditions; See\nLICENSE.md for more details.\n\nVersion: {}\nAuthors: {}\nLicense: GPL version 3 or later\nCompiler: {}\nBuild-Date: {}\nEnabled-features: {}", $.crate_info.name, $.crate_info.version, $.crate_info.authors, $.compiler, $.timestamp, $.crate_info.enabled_features);
+*/
 
+pub const VERSION_INFO: &str = "<unknown>";
+pub const BUILD_INFO: &str = "<unknown>";
+pub const CLI_INFO: &str = "<unknown>";
 /* Annotations:
  *
  * Global tags (in tagref format <https://github.com/stepchowfun/tagref>) for source code

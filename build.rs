@@ -51,6 +51,6 @@ fn main() -> std::io::Result<()> {
             }
         }
     }
-    build_info_build::build_script();
+    //build_info_build::build_script();
     Ok(())
 }

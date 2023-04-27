@@ -24,7 +24,7 @@ path = "src/repl.rs"
 required-features = ["python"]
 
 [dependencies]
-build-info = { version = "0.0.29" }
+#build-info = { version = "0.0.30" }
 generational-arena = "0.2"
 gio = { version = "^0.15", features = [ "v2_56", ] }
 glib = { version = "^0.15" }
@@ -46,7 +46,7 @@ version = "^0.15"
 features = ["svg", "png"]
 
 [dependencies.git2]
-version = "0.16"
+version = "0.17"
 optional = true
 default-features = false
 
@@ -63,9 +63,8 @@ features = [
     "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
     "serde",
 ]
-
-[build-dependencies]
-build-info-build = { version = "0.0.29" }
+#[build-dependencies]
+#build-info-build = { version = "0.0.30" }
 
 [features]
 default = ["python", "git"]
