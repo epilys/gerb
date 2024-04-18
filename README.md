@@ -1,4 +1,4 @@
-# gerb [![License]][gpl3]&nbsp;[![Build Status]][actions]&nbsp;[![Latest Version]][crates.io] [![netbsd]][pkgsrc.se]&nbsp;[![aur]][aur-url]
+# gerb [![License]][gpl3]&nbsp;[![No Maintenance Intended]][no-maintenance]&nbsp;[![Build Status]][actions]&nbsp;[![Latest Version]][crates.io] [![netbsd]][pkgsrc.se]&nbsp;[![aur]][aur-url]
 
 [gpl3]: https://github.com/epilys/gerb/blob/main/LICENSE
 [Build Status]: https://img.shields.io/github/actions/workflow/status/epilys/gerb/builds.yaml?branch=main
@@ -11,6 +11,11 @@
 [netbsd]: https://img.shields.io/badge/netbsd-pkgsrc%2Ffonts%2Fgerb-%23777777?labelColor=%23ea6410
 [aur-url]: https://aur.archlinux.org/packages/gerb-git
 [aur]: https://img.shields.io/badge/aur-gerb--git-%23555555?labelColor=%23ecf2f5
+[No Maintenance Intended]: https://img.shields.io/badge/No%20Maintenance%20Intended-%F0%9F%97%99-red
+[no-maintenance]: https://unmaintained.tech/
+
+| &#x261B; Development has stopped as of 2023-05-03. [Discussion](https://github.com/epilys/gerb/discussions/44) |
+| ---
 
 1. _*gerb ʰ-_: [reconstructed Proto-Indo-European root](https://en.wiktionary.org/wiki/Reconstruction:Proto-Indo-European/gerb%CA%B0-), meaning _to carve_
 2. `gerb`: a font editor in gtk3 and Rust
