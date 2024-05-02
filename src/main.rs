@@ -23,6 +23,7 @@
 
 use gerb::prelude::*;
 use gtk::glib::{OptionArg, OptionFlags};
+use std::ffi::c_char;
 
 fn main() {
     gtk::init().expect("Failed to initialize gtk");
@@ -30,7 +31,7 @@ fn main() {
     let app = Application::new();
     app.add_main_option(
         "ufo",
-        glib::Char('u' as i8),
+        glib::Char('u' as c_char),
         OptionFlags::IN_MAIN,
         OptionArg::Filename,
         "UFO project path to load on launch",
@@ -38,7 +39,7 @@ fn main() {
     );
     app.add_main_option(
         "version",
-        glib::Char('v' as i8),
+        glib::Char('v' as c_char),
         OptionFlags::IN_MAIN,
         OptionArg::None,
         "show version",
