@@ -151,8 +151,12 @@ pub mod ufo_compile {
 
         return_if_not_ok_or_accept!(filechooser.run());
 
-        let Some(f) = filechooser.filename() else { return; };
-        let Some(output_dir) = f.to_str() else { return; };
+        let Some(f) = filechooser.filename() else {
+            return;
+        };
+        let Some(output_dir) = f.to_str() else {
+            return;
+        };
         let (output_path, format) = if let Some(path) = filechooser.filename() {
             let filter = |p: &PathBuf| !p.is_dir();
             match filechooser.filter().as_ref() {

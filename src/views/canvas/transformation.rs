@@ -90,8 +90,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::CAMERA_X,
                         Transformation::CAMERA_X,
                         Transformation::CAMERA_X,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         TransformationInner::INIT_CAMERA_X_VAL,
                         ParamFlags::READWRITE,
                     ),
@@ -99,8 +99,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::CAMERA_Y,
                         Transformation::CAMERA_Y,
                         Transformation::CAMERA_Y,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         TransformationInner::INIT_CAMERA_Y_VAL,
                         ParamFlags::READWRITE,
                     ),
@@ -108,8 +108,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::PIXELS_PER_UNIT,
                         Transformation::PIXELS_PER_UNIT,
                         Transformation::PIXELS_PER_UNIT,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         TransformationInner::INIT_PIXELS_PER_UNIT_VAL,
                         ParamFlags::READABLE,
                     ),
@@ -117,8 +117,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::UNITS_PER_EM,
                         Transformation::UNITS_PER_EM,
                         Transformation::UNITS_PER_EM,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         TransformationInner::INIT_UNITS_PER_EM_VAL,
                         ParamFlags::READWRITE,
                     ),
@@ -126,8 +126,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::VIEW_HEIGHT,
                         Transformation::VIEW_HEIGHT,
                         Transformation::VIEW_HEIGHT,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         TransformationInner::INIT_VIEW_HEIGHT_VAL,
                         ParamFlags::READWRITE,
                     ),
@@ -135,8 +135,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::VIEW_WIDTH,
                         Transformation::VIEW_WIDTH,
                         Transformation::VIEW_WIDTH,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         TransformationInner::INIT_VIEW_WIDTH_VAL,
                         ParamFlags::READWRITE,
                     ),
@@ -158,8 +158,8 @@ impl ObjectImpl for TransformationInner {
                         Transformation::CONTENT_WIDTH,
                         Transformation::CONTENT_WIDTH,
                         Transformation::CONTENT_WIDTH,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         0.0,
                         ParamFlags::READWRITE,
                     ),
@@ -270,16 +270,16 @@ impl std::ops::Deref for Transformation {
 }
 
 impl Transformation {
-    pub const CENTERED: &str = "centered";
-    pub const FIT_VIEW: &str = "fit-view";
-    pub const VIEW_HEIGHT: &str = super::Canvas::VIEW_HEIGHT;
-    pub const VIEW_WIDTH: &str = super::Canvas::VIEW_WIDTH;
-    pub const CONTENT_WIDTH: &str = super::Canvas::CONTENT_WIDTH;
-    pub const SCALE: &str = "scale";
-    pub const CAMERA_X: &str = "camera-x";
-    pub const CAMERA_Y: &str = "camera-y";
-    pub const PIXELS_PER_UNIT: &str = "pixels-per-unit";
-    pub const UNITS_PER_EM: &str = FontInfo::UNITS_PER_EM;
+    pub const CENTERED: &'static str = "centered";
+    pub const FIT_VIEW: &'static str = "fit-view";
+    pub const VIEW_HEIGHT: &'static str = super::Canvas::VIEW_HEIGHT;
+    pub const VIEW_WIDTH: &'static str = super::Canvas::VIEW_WIDTH;
+    pub const CONTENT_WIDTH: &'static str = super::Canvas::CONTENT_WIDTH;
+    pub const SCALE: &'static str = "scale";
+    pub const CAMERA_X: &'static str = "camera-x";
+    pub const CAMERA_Y: &'static str = "camera-y";
+    pub const PIXELS_PER_UNIT: &'static str = "pixels-per-unit";
+    pub const UNITS_PER_EM: &'static str = FontInfo::UNITS_PER_EM;
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Transformation");

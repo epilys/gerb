@@ -177,8 +177,12 @@ pub mod glyphsapp {
         return_if_not_ok_or_accept!(dialog.run());
         dialog.hide();
 
-        let Some(f) = dialog.filename() else { return; };
-        let Some(path) = f.to_str() else { return; };
+        let Some(f) = dialog.filename() else {
+            return;
+        };
+        let Some(path) = f.to_str() else {
+            return;
+        };
         match import(Glyphs2UFOOptions::new(path.into()).output_dir(None)) {
             Ok(instances) => {
                 if instances.len() == 1 {
@@ -336,8 +340,12 @@ pub mod ufo2 {
         );
         return_if_not_ok_or_accept!(dialog.run());
         dialog.hide();
-        let Some(f) = dialog.filename() else { return; };
-        let Some(input_dir) = f.to_str() else { return; };
+        let Some(f) = dialog.filename() else {
+            return;
+        };
+        let Some(input_dir) = f.to_str() else {
+            return;
+        };
         drop(dialog);
         let dialog2 = gtk::FileChooserNative::new(
             Some("Select UFOv3 output path"),
@@ -350,8 +358,12 @@ pub mod ufo2 {
         return_if_not_ok_or_accept!(dialog2.run());
         dialog2.hide();
 
-        let Some(f) = dialog2.filename() else { return; };
-        let Some(output_dir) = f.to_str() else { return; };
+        let Some(f) = dialog2.filename() else {
+            return;
+        };
+        let Some(output_dir) = f.to_str() else {
+            return;
+        };
         drop(dialog2);
         match import(UFO2ToUFO3Options::new(input_dir.into(), output_dir.into())) {
             Ok(instance) => {

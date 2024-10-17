@@ -35,7 +35,7 @@
     clippy::assertions_on_result_states,
     /* pedantic */
     clippy::cast_lossless,
-    clippy::cast_possible_wrap,
+    // clippy::cast_possible_wrap, [ref:TODO] re-enable
     clippy::ptr_as_ptr,
     clippy::bool_to_int_with_if,
     clippy::borrow_as_ptr,
@@ -54,6 +54,9 @@
     clippy::fallible_impl_from, // [ref:TODO]
     clippy::option_if_let_else, // [ref:TODO]
     clippy::cognitive_complexity, // [ref:TODO]
+    clippy::while_float, // [ref:TODO]
+    clippy::redundant_guards, // [ref:TODO]
+    clippy::bad_bit_mask, // [ref:TODO]
 )]
 
 #[macro_use]
@@ -163,7 +166,6 @@ pub mod prelude {
     };
     pub use window::Workspace;
 
-    pub use glib::prelude::*;
     pub use glib::subclass::Signal;
     pub use glib::{
         ParamFlags, ParamSpec, ParamSpecBoolean, ParamSpecBoxed, ParamSpecDouble, ParamSpecObject,
@@ -275,7 +277,7 @@ pub mod prelude {
                     $name,
                     $name,
                     0,
-                    std::i64::MAX,
+                    i64::MAX,
                     $default,
                     ParamFlags::READWRITE | UI_EDITABLE,
                 )
@@ -289,7 +291,7 @@ pub mod prelude {
                     $name,
                     $name,
                     0,
-                    std::u64::MAX,
+                    u64::MAX,
                     $default,
                     ParamFlags::READWRITE | UI_EDITABLE,
                 )
@@ -303,7 +305,7 @@ pub mod prelude {
                     $name,
                     $name,
                     $min,
-                    std::f64::MAX,
+                    f64::MAX,
                     $default,
                     ParamFlags::READWRITE | UI_EDITABLE,
                 )
@@ -316,7 +318,7 @@ pub mod prelude {
         macro_rules! inherit_property {
             ($t:ty, $($prop:ident),+$(,)?) => {
                 $(
-                pub const $prop: &str = <$t>::$prop;
+                pub const $prop: &'static str = <$t>::$prop;
                 )*
             }
         }
@@ -338,5 +340,4 @@ pub mod prelude {
             }};
         }
     }
-    pub use macros::*;
 }

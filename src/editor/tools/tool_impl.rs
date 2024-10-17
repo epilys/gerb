@@ -278,13 +278,7 @@ impl ToolImplInner {
         let t = self.instance().type_();
         let active_tool = view.state().borrow().active_tool;
         if active_tool != t {
-            if let Some(previous_tool) = view
-                .state()
-                .borrow()
-                .tools
-                .get(&active_tool)
-                .map(Clone::clone)
-            {
+            if let Some(previous_tool) = view.state().borrow().tools.get(&active_tool).cloned() {
                 previous_tool.on_deactivate(view);
             }
 
@@ -359,9 +353,9 @@ glib::wrapper! {
 }
 
 impl ToolImpl {
-    pub const NAME: &str = "name";
-    pub const DESCRIPTION: &str = "description";
-    pub const ICON: &str = "icon";
+    pub const NAME: &'static str = "name";
+    pub const DESCRIPTION: &'static str = "description";
+    pub const ICON: &'static str = "icon";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()

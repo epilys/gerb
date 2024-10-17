@@ -92,7 +92,7 @@ impl ObjectImpl for GlyphMetadataInner {
                         None,
                         glib::ParamFlags::READWRITE | UI_EDITABLE,
                     ),
-                    def_param!(f64 GlyphMetadata::WIDTH, std::f64::MIN, 0.0),
+                    def_param!(f64 GlyphMetadata::WIDTH, f64::MIN, 0.0),
                     glib::ParamSpecObject::new(
                         GlyphMetadata::LAYER,
                         GlyphMetadata::LAYER,
@@ -187,13 +187,13 @@ impl std::ops::Deref for GlyphMetadata {
 }
 
 impl GlyphMetadata {
-    pub const MODIFIED: &str = "modified";
-    pub const MARK_COLOR: &str = "mark-color";
-    pub const RELATIVE_PATH: &str = "relative-path";
-    pub const FILENAME: &str = "filename";
-    pub const NAME: &str = "name";
-    pub const LAYER: &str = "layer";
-    pub const WIDTH: &str = "width";
+    pub const MODIFIED: &'static str = "modified";
+    pub const MARK_COLOR: &'static str = "mark-color";
+    pub const RELATIVE_PATH: &'static str = "relative-path";
+    pub const FILENAME: &'static str = "filename";
+    pub const NAME: &'static str = "name";
+    pub const LAYER: &'static str = "layer";
+    pub const WIDTH: &'static str = "width";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -254,7 +254,7 @@ impl CreatePropertyWindow for GlyphMetadata {
         if create {
             self.set_property(Self::FILENAME, "glyph_name.glif");
         }
-        let mut w = PropertyWindow::builder(self.clone().upcast(), app)
+        let w = PropertyWindow::builder(self.clone().upcast(), app)
             .title(if create {
                 "Add glyph".into()
             } else {
@@ -276,7 +276,8 @@ impl CreatePropertyWindow for GlyphMetadata {
                 filename.style_monospace();
                 name.bind_property("text", self, Self::FILENAME)
                     .transform_to(|_, val| {
-                        let Some(n) = val.get::<Option<String>>().ok()?.filter(|n| !n.is_empty()) else {
+                        let Some(n) = val.get::<Option<String>>().ok()?.filter(|n| !n.is_empty())
+                        else {
                             return Some("glyph_name.glif".to_value());
                         };
                         Some(format!("{n}.glif").to_value())

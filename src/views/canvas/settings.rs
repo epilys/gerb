@@ -465,34 +465,34 @@ impl Default for CanvasSettings {
 }
 
 impl CanvasSettings {
-    pub const HANDLE_SIZE: &str = "handle-size";
-    pub const LINE_WIDTH: &str = "line-width";
-    pub const INNER_FILL: &str = "inner-fill";
-    pub const VIEW_HEIGHT: &str = "view-height";
-    pub const VIEW_WIDTH: &str = "view-width";
-    pub const SHOW_GRID: &str = "show-grid";
-    pub const SHOW_GUIDELINES: &str = "show-guidelines";
-    pub const SHOW_HANDLES: &str = "show-handles";
-    pub const SHOW_DIRECTION: &str = "show-direction";
-    pub const HANDLE_OPTIONS: &str = "handle-options";
-    pub const SMOOTH_CORNER_OPTIONS: &str = "smooth-corner-options";
-    pub const CORNER_OPTIONS: &str = "corner-options";
-    pub const DIRECTION_OPTIONS: &str = "direction-options";
-    pub const HANDLE_CONNECTION_OPTIONS: &str = "handle-connection-options";
-    pub const OUTLINE_OPTIONS: &str = "outline-options";
-    pub const SHOW_TOTAL_AREA: &str = "show-total-area";
-    pub const SHOW_RULERS: &str = "show-rules";
-    pub const TRANSFORMATION: &str = "transformation";
-    pub const WARP_CURSOR: &str = "warp-cursor";
-    pub const MOUSE: &str = "mouse";
-    pub const BG_COLOR: &str = "bg-color";
-    pub const GLYPH_INNER_FILL_COLOR: &str = "glyph-inner-fill-color";
-    pub const GLYPH_BBOX_BG_COLOR: &str = "glyph-bbox-bg-color";
-    pub const RULER_BREADTH_PIXELS: &str = "ruler-breadth-pixels";
-    pub const RULER_FG_COLOR: &str = "ruler-fg-color";
-    pub const RULER_BG_COLOR: &str = "ruler-bg-color";
-    pub const RULER_INDICATOR_COLOR: &str = "ruler-indicator-color";
-    pub const CONTENT_WIDTH: &str = "content-width";
+    pub const HANDLE_SIZE: &'static str = "handle-size";
+    pub const LINE_WIDTH: &'static str = "line-width";
+    pub const INNER_FILL: &'static str = "inner-fill";
+    pub const VIEW_HEIGHT: &'static str = "view-height";
+    pub const VIEW_WIDTH: &'static str = "view-width";
+    pub const SHOW_GRID: &'static str = "show-grid";
+    pub const SHOW_GUIDELINES: &'static str = "show-guidelines";
+    pub const SHOW_HANDLES: &'static str = "show-handles";
+    pub const SHOW_DIRECTION: &'static str = "show-direction";
+    pub const HANDLE_OPTIONS: &'static str = "handle-options";
+    pub const SMOOTH_CORNER_OPTIONS: &'static str = "smooth-corner-options";
+    pub const CORNER_OPTIONS: &'static str = "corner-options";
+    pub const DIRECTION_OPTIONS: &'static str = "direction-options";
+    pub const HANDLE_CONNECTION_OPTIONS: &'static str = "handle-connection-options";
+    pub const OUTLINE_OPTIONS: &'static str = "outline-options";
+    pub const SHOW_TOTAL_AREA: &'static str = "show-total-area";
+    pub const SHOW_RULERS: &'static str = "show-rules";
+    pub const TRANSFORMATION: &'static str = "transformation";
+    pub const WARP_CURSOR: &'static str = "warp-cursor";
+    pub const MOUSE: &'static str = "mouse";
+    pub const BG_COLOR: &'static str = "bg-color";
+    pub const GLYPH_INNER_FILL_COLOR: &'static str = "glyph-inner-fill-color";
+    pub const GLYPH_BBOX_BG_COLOR: &'static str = "glyph-bbox-bg-color";
+    pub const RULER_BREADTH_PIXELS: &'static str = "ruler-breadth-pixels";
+    pub const RULER_FG_COLOR: &'static str = "ruler-fg-color";
+    pub const RULER_BG_COLOR: &'static str = "ruler-bg-color";
+    pub const RULER_INDICATOR_COLOR: &'static str = "ruler-indicator-color";
+    pub const CONTENT_WIDTH: &'static str = "content-width";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()

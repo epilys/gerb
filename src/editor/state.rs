@@ -248,7 +248,7 @@ impl State {
                 clone!(@strong idxs, @weak self.kd_tree as kd_tree, @weak self.glyph as glyph, @weak viewport => move || {
                     let mut kd_tree = kd_tree.borrow_mut();
                     let glyph = glyph.borrow();
-                    for contour_index in idxs.iter().map(|i| i.contour_index).collect::<HashSet<usize>>() {
+                    for contour_index in idxs.iter().map(|i| i.contour_index) {
                         let contour = &glyph.contours[contour_index];
                         for (idx, new_pos) in contour.transform_points(contour_index, &idxs, m) {
                             kd_tree.add(idx, new_pos);
@@ -262,7 +262,7 @@ impl State {
                     let m = if let Ok(m) = m.try_invert() {m} else {return;};
                     let mut kd_tree = kd_tree.borrow_mut();
                     let glyph = glyph.borrow();
-                    for contour_index in idxs.iter().map(|i| i.contour_index).collect::<HashSet<usize>>() {
+                    for contour_index in idxs.iter().map(|i| i.contour_index) {
                         let contour = &glyph.contours[contour_index];
                         for (idx, new_pos) in contour.transform_points(contour_index, &idxs, m) {
                             /* update kd_tree */

@@ -24,31 +24,31 @@ use super::*;
 use gtk::gdk::keys::constants as keys;
 
 impl Editor {
-    pub const LOCK: &str = "lock";
-    pub const SNAP: &str = "snap";
-    pub const PRECISION: &str = "precision";
-    pub const PREVIEW_ACTION: &str = Self::PREVIEW;
-    pub const ZOOM_IN_ACTION: &str = "zoom.in";
-    pub const ZOOM_OUT_ACTION: &str = "zoom.out";
-    pub const LOCK_ACTION: &str = Self::LOCK;
-    pub const LOCK_X_ACTION: &str = "lock.x";
-    pub const LOCK_Y_ACTION: &str = "lock.y";
-    pub const LOCK_LOCAL_ACTION: &str = "lock.local";
-    pub const LOCK_CONTROLS_ACTION: &str = "lock.controls";
-    pub const PRECISION_ACTION: &str = Self::PRECISION;
-    pub const SNAP_ACTION: &str = Self::SNAP;
-    pub const SNAP_CLEAR_ACTION: &str = "snap.clear";
-    pub const SNAP_ANGLE_ACTION: &str = "snap.angle";
-    pub const SNAP_GRID_ACTION: &str = "snap.grid";
-    pub const SNAP_GUIDELINES_ACTION: &str = "snap.guidelines";
-    pub const SNAP_METRICS_ACTION: &str = "snap.metrics";
-    pub const MOVE_UP_ACTION: &str = "move.up";
-    pub const MOVE_DOWN_ACTION: &str = "move.down";
-    pub const MOVE_RIGHT_ACTION: &str = "move.right";
-    pub const MOVE_LEFT_ACTION: &str = "move.left";
-    pub const SELECT_ALL_ACTION: &str = "select.all";
-    pub const SELECT_NONE_ACTION: &str = "select.none";
-    pub const SELECT_INVERT_ACTION: &str = "select.invert";
+    pub const LOCK: &'static str = "lock";
+    pub const SNAP: &'static str = "snap";
+    pub const PRECISION: &'static str = "precision";
+    pub const PREVIEW_ACTION: &'static str = Self::PREVIEW;
+    pub const ZOOM_IN_ACTION: &'static str = "zoom.in";
+    pub const ZOOM_OUT_ACTION: &'static str = "zoom.out";
+    pub const LOCK_ACTION: &'static str = Self::LOCK;
+    pub const LOCK_X_ACTION: &'static str = "lock.x";
+    pub const LOCK_Y_ACTION: &'static str = "lock.y";
+    pub const LOCK_LOCAL_ACTION: &'static str = "lock.local";
+    pub const LOCK_CONTROLS_ACTION: &'static str = "lock.controls";
+    pub const PRECISION_ACTION: &'static str = Self::PRECISION;
+    pub const SNAP_ACTION: &'static str = Self::SNAP;
+    pub const SNAP_CLEAR_ACTION: &'static str = "snap.clear";
+    pub const SNAP_ANGLE_ACTION: &'static str = "snap.angle";
+    pub const SNAP_GRID_ACTION: &'static str = "snap.grid";
+    pub const SNAP_GUIDELINES_ACTION: &'static str = "snap.guidelines";
+    pub const SNAP_METRICS_ACTION: &'static str = "snap.metrics";
+    pub const MOVE_UP_ACTION: &'static str = "move.up";
+    pub const MOVE_DOWN_ACTION: &'static str = "move.down";
+    pub const MOVE_RIGHT_ACTION: &'static str = "move.right";
+    pub const MOVE_LEFT_ACTION: &'static str = "move.left";
+    pub const SELECT_ALL_ACTION: &'static str = "select.all";
+    pub const SELECT_NONE_ACTION: &'static str = "select.none";
+    pub const SELECT_INVERT_ACTION: &'static str = "select.invert";
 }
 
 impl EditorInner {

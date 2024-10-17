@@ -514,7 +514,7 @@ macro_rules! generate_py_class {
                                 }
                                 _pyo3::ffi::PyType_Slot {
                                     slot: _pyo3::ffi::Py_tp_repr,
-                                    pfunc: trampoline as _pyo3::ffi::reprfunc as _,
+                                    pfunc: trampoline as _pyo3::ffi::reprfunc as *mut std::ffi::c_void,
                                 }
                             }],
                         };

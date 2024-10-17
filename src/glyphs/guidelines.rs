@@ -77,8 +77,8 @@ impl ObjectImpl for GuidelineInner {
                         Guideline::ANGLE,
                         Guideline::ANGLE,
                         Guideline::ANGLE,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         0.,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
@@ -86,8 +86,8 @@ impl ObjectImpl for GuidelineInner {
                         Guideline::X,
                         Guideline::X,
                         Guideline::X,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         0.0,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
@@ -95,8 +95,8 @@ impl ObjectImpl for GuidelineInner {
                         Guideline::Y,
                         Guideline::Y,
                         Guideline::Y,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         0.0,
                         ParamFlags::READWRITE | UI_EDITABLE,
                     ),
@@ -363,13 +363,13 @@ impl From<&Guideline> for ufo::GuidelineInfo {
 }
 
 impl Guideline {
-    pub const NAME: &str = "name";
-    pub const COLOR: &str = "color";
-    pub const IDENTIFIER: &str = "identifier";
-    pub const ANGLE: &str = "angle";
-    pub const X: &str = "x";
-    pub const Y: &str = "y";
-    pub const MODIFIED: &str = "modified";
+    pub const NAME: &'static str = "name";
+    pub const COLOR: &'static str = "color";
+    pub const IDENTIFIER: &'static str = "identifier";
+    pub const ANGLE: &'static str = "angle";
+    pub const X: &'static str = "x";
+    pub const Y: &'static str = "y";
+    pub const MODIFIED: &'static str = "modified";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

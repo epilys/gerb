@@ -41,8 +41,8 @@ impl std::ops::Deref for Contour {
 }
 
 impl Contour {
-    pub const OPEN: &str = "open";
-    pub const BIGGEST_CURVE: &str = "biggest-curve";
+    pub const OPEN: &'static str = "open";
+    pub const BIGGEST_CURVE: &'static str = "biggest-curve";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

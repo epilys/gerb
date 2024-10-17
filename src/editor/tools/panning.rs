@@ -1165,11 +1165,11 @@ impl Default for PanningTool {
 }
 
 impl PanningTool {
-    pub const ACTIVE: &str = "active";
-    pub const MOVE_ACTION: &str = "move.selection";
-    pub const SCALE_ACTION: &str = "scale.selection";
-    pub const ROTATE_ACTION: &str = "rotate.selection";
-    pub const PAN_ACTION: &str = "pan";
+    pub const ACTIVE: &'static str = "active";
+    pub const MOVE_ACTION: &'static str = "move.selection";
+    pub const SCALE_ACTION: &'static str = "scale.selection";
+    pub const ROTATE_ACTION: &'static str = "rotate.selection";
+    pub const PAN_ACTION: &'static str = "pan";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
@@ -1520,7 +1520,7 @@ fn snap_to_closest_anchor(
         //todo
     }
     candidates.sort_by(|(_, a), (_, b)| a.total_cmp(b));
-    candidates.get(0).map(|(p, _)| *p)
+    candidates.first().map(|(p, _)| *p)
 }
 
 fn change_continuity(

@@ -221,9 +221,9 @@ impl Default for Bezier {
 }
 
 impl Bezier {
-    pub const SMOOTH: &str = "smooth";
-    pub const CONTINUITY_IN: &str = "continuity-in";
-    pub const CONTINUITY_OUT: &str = "continuity-out";
+    pub const SMOOTH: &'static str = "smooth";
+    pub const CONTINUITY_IN: &'static str = "continuity-in";
+    pub const CONTINUITY_OUT: &'static str = "continuity-out";
 
     pub fn new(points: Vec<Point>) -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

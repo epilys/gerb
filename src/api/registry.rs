@@ -455,7 +455,7 @@ pub struct ObjectRegistry {
 }
 
 impl ObjectRegistry {
-    const QUARK_KEY: &str = "api-uuid";
+    const QUARK_KEY: &'static str = "api-uuid";
 
     pub fn add(&mut self, obj: &glib::Object) -> Uuid {
         Self::opt_id(obj).unwrap_or_else(|| {

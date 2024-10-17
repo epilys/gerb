@@ -122,9 +122,9 @@ impl std::ops::Deref for Layer {
 }
 
 impl Layer {
-    pub const ACTIVE: &str = "active";
-    pub const HIDDEN: &str = "hidden";
-    pub const NAME: &str = "name";
+    pub const ACTIVE: &'static str = "active";
+    pub const HIDDEN: &'static str = "hidden";
+    pub const NAME: &'static str = "name";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Layer");

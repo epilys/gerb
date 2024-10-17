@@ -146,7 +146,7 @@ mod builder {
                 .min_content_height(600)
                 .min_content_width(500)
                 .build();
-            let mut ret: PropertyWindow = glib::Object::new(&[]).unwrap();
+            let ret: PropertyWindow = glib::Object::new(&[]).unwrap();
             ret.imp().app.set(self.app.clone()).unwrap();
             ret.object_to_property_grid(
                 self.obj.clone(),
@@ -837,7 +837,7 @@ mod widgets {
             } else {
                 entry.connect_changed(clone!(@weak obj, @strong project, @strong property => move |entry| {
                         let active_id = entry.active_id();
-                        obj.set_property(property.name(), active_id.and_then(|n| project.all_layers.borrow().iter().find(|l| l.name.borrow().as_str() == n).map(Layer::clone)));
+                        obj.set_property(property.name(), active_id.and_then(|n| project.all_layers.borrow().iter().find(|l| l.name.borrow().as_str() == n).cloned()));
                     }));
             }
             let mut active_id: Cow<'static, str> = if let Some(l) = val {
@@ -876,8 +876,8 @@ mod widgets {
             obj.bind_property(property.name(), &l, "label")
                 .transform_to(|_, val| {
                     let Some(l): Option<Layer> = val.get::<Option<Layer>>().ok()? else {
-                            return Some(String::new().to_value());
-                        };
+                        return Some(String::new().to_value());
+                    };
                     Some(format!("Directory: <tt>{}/</tt>", l.dir_name.borrow()).to_value())
                 })
                 .flags(glib::BindingFlags::SYNC_CREATE)

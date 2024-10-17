@@ -518,7 +518,7 @@ impl ObjectImpl for CollectionInner {
                         Collection::ZOOM_FACTOR,
                         Collection::ZOOM_FACTOR,
                         0.0,
-                        std::f64::MAX,
+                        f64::MAX,
                         1.0,
                         ParamFlags::READWRITE,
                     ),
@@ -588,10 +588,10 @@ glib::wrapper! {
 }
 
 impl Collection {
-    pub const TITLE: &str = Workspace::TITLE;
-    pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
-    pub const ZOOM_FACTOR: &str = "zoom-factor";
-    pub const NEW_GLYPH: &str = "new-glyph";
+    pub const TITLE: &'static str = Workspace::TITLE;
+    pub const CLOSEABLE: &'static str = Workspace::CLOSEABLE;
+    pub const ZOOM_FACTOR: &'static str = "zoom-factor";
+    pub const NEW_GLYPH: &'static str = "new-glyph";
 
     pub fn new(app: Application, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Main Window");
@@ -1015,7 +1015,7 @@ impl ObjectImpl for GlyphBoxInner {
                         GlyphBox::ZOOM_FACTOR,
                         GlyphBox::ZOOM_FACTOR,
                         0.0,
-                        std::f64::MAX,
+                        f64::MAX,
                         1.0,
                         ParamFlags::READWRITE,
                     ),
@@ -1078,11 +1078,11 @@ impl BinImpl for GlyphBoxInner {}
 impl EventBoxImpl for GlyphBoxInner {}
 
 impl GlyphBox {
-    pub const SHOW_DETAILS: &str = "show-details";
-    pub const ZOOM_FACTOR: &str = Collection::ZOOM_FACTOR;
-    pub const FOCUSED: &str = "focused";
-    pub const MODIFIED: &str = GlyphMetadata::MODIFIED;
-    pub const MARK_COLOR: &str = GlyphMetadata::MARK_COLOR;
+    pub const SHOW_DETAILS: &'static str = "show-details";
+    pub const ZOOM_FACTOR: &'static str = Collection::ZOOM_FACTOR;
+    pub const FOCUSED: &'static str = "focused";
+    pub const MODIFIED: &'static str = GlyphMetadata::MODIFIED;
+    pub const MARK_COLOR: &'static str = GlyphMetadata::MARK_COLOR;
 
     fn emit_open_glyph_edit(&self) {
         self.imp()

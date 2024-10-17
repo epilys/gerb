@@ -96,7 +96,7 @@ impl EnumValue<'_> for Theme {
 }
 
 impl Theme {
-    pub const PAPERWHITE_CSS: &[u8] = include_bytes!("../../themes/paperwhite/gtk.css");
+    pub const PAPERWHITE_CSS: &'static [u8] = include_bytes!("../../themes/paperwhite/gtk.css");
 }
 
 #[test]

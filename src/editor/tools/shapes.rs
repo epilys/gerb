@@ -293,7 +293,7 @@ impl Default for QuadrilateralTool {
 }
 
 impl QuadrilateralTool {
-    pub const ACTIVE: &str = "active";
+    pub const ACTIVE: &'static str = "active";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()
@@ -614,7 +614,7 @@ impl Default for EllipseTool {
 }
 
 impl EllipseTool {
-    pub const ACTIVE: &str = "active";
+    pub const ACTIVE: &'static str = "active";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()

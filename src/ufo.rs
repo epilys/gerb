@@ -680,11 +680,11 @@ where
 }
 
 impl LayerContents {
-    const ERROR_NO_LAYERS: &str = "UFOv3 spec requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.";
-    const ERROR_DEFAULT_DIR_NOT_GLYPHS: &str = "UFOv3 spec requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`.";
-    const ERROR_HAS_DUPLICATE_LAYER_NAMES: &str =
+    const ERROR_NO_LAYERS: &'static str = "UFOv3 spec requires the presence of at least one layer, the default layer with name `public.default` and directory name `glyphs`.";
+    const ERROR_DEFAULT_DIR_NOT_GLYPHS: &'static str = "UFOv3 spec requires the default layer (i.e. the first one) to have its directory name equal to `glyphs`.";
+    const ERROR_HAS_DUPLICATE_LAYER_NAMES: &'static str =
         "UFOv3 spec requires that layer names are unique.";
-    const ERROR_HAS_DUPLICATE_LAYER_DIR_NAMES: &str =
+    const ERROR_HAS_DUPLICATE_LAYER_DIR_NAMES: &'static str =
         "Input contains duplicate layer directory values.";
 
     #[inline(always)]
@@ -797,7 +797,7 @@ impl LayerContents {
                 path.push(dir_name);
                 if !path.exists() {
                     if create {
-                        std::fs::create_dir(&path)?;
+                        std::fs::create_dir(path.as_path())?;
                     } else {
                         return Err(
                             Self::new_dir_doesnt_exist_err(layer_name, dir_name, path).into()

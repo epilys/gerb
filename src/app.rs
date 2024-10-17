@@ -106,8 +106,8 @@ impl std::ops::Deref for Application {
 }
 
 impl Application {
-    pub const UI_FONT: &str = "ui-font";
-    pub const THEME: &str = "theme";
+    pub const UI_FONT: &'static str = "ui-font";
+    pub const THEME: &'static str = "theme";
 
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {

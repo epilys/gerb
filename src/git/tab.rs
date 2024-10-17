@@ -133,10 +133,10 @@ impl std::ops::Deref for GitSpace {
 }
 
 impl GitSpace {
-    pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
-    pub const TITLE: &str = Workspace::TITLE;
-    pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
-    pub const MENUBAR: &str = Workspace::MENUBAR;
+    pub const CLOSEABLE: &'static str = Workspace::CLOSEABLE;
+    pub const TITLE: &'static str = Workspace::TITLE;
+    pub const IS_MENU_VISIBLE: &'static str = Workspace::IS_MENU_VISIBLE;
+    pub const MENUBAR: &'static str = Workspace::MENUBAR;
 
     pub fn new(app: Application, project: Project, repository: Repository) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();

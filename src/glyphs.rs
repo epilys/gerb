@@ -362,7 +362,7 @@ impl Glyph {
         cr1.set_line_width(outline.size);
         cr1.set_source_color_alpha(outline.color);
         let mut pen_position: Option<Point> = None;
-        for (_ic, contour) in self.contours.iter().enumerate() {
+        for contour in self.contours.iter() {
             let curves = contour.curves();
             if !contour.property::<bool>(Contour::OPEN) {
                 if let Some(point) = curves.last().and_then(|b| b.points().last().cloned()) {
@@ -373,7 +373,7 @@ impl Glyph {
                 cr1.move_to(point.x, point.y);
             }
 
-            for (_jc, curv) in curves.iter().enumerate() {
+            for curv in curves.iter() {
                 let degree = curv.degree();
                 let degree = if let Some(v) = degree {
                     v
@@ -442,7 +442,7 @@ impl Glyph {
         if let Some((degree, curv)) = highlight.and_then(|(contour_idx, curve_idx)| {
             self.contours
                 .get(contour_idx)
-                .and_then(|contour| contour.curves().get(curve_idx).map(Clone::clone))
+                .and_then(|contour| contour.curves().get(curve_idx).cloned())
                 .and_then(|curv| Some((curv.degree()?, curv)))
         }) {
             let curv_points = curv.points();

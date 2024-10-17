@@ -199,6 +199,7 @@ impl SettingsInner {
                 .read(true)
                 .write(true)
                 .create(false)
+                .truncate(false)
                 .open(path)
                 .is_ok()
             {
@@ -208,6 +209,7 @@ impl SettingsInner {
                 .read(true)
                 .write(true)
                 .create(true)
+                .truncate(false)
                 .open(path)?;
             Ok(())
         }
@@ -247,6 +249,7 @@ impl SettingsInner {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(&path)?;
         let mut toml = String::new();
 
@@ -357,7 +360,9 @@ impl SettingsInner {
             .flatten()
             .filter(|wref| wref.upgrade().as_ref() != Some(obj))
         {
-            let Some(obj) = e.upgrade() else { continue; };
+            let Some(obj) = e.upgrade() else {
+                continue;
+            };
             let document = self.document.borrow();
             macro_rules! set_if_neq {
                 ($ty:ty, $val:expr) => {{
@@ -604,12 +609,12 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub const HANDLE_SIZE: &str = "handle-size";
-    pub const LINE_WIDTH: &str = "line-width";
-    pub const GUIDELINE_WIDTH: &str = "guideline-width";
-    pub const WARP_CURSOR: &str = "warp-cursor";
-    pub const MARK_COLOR: &str = "mark-color";
-    pub const SHOW_PRERELEASE_WARNING: &str = "show-prerelease-warning";
+    pub const HANDLE_SIZE: &'static str = "handle-size";
+    pub const LINE_WIDTH: &'static str = "line-width";
+    pub const GUIDELINE_WIDTH: &'static str = "guideline-width";
+    pub const WARP_CURSOR: &'static str = "warp-cursor";
+    pub const MARK_COLOR: &'static str = "mark-color";
+    pub const SHOW_PRERELEASE_WARNING: &'static str = "show-prerelease-warning";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()

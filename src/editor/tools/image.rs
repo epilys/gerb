@@ -72,8 +72,8 @@ impl ObjectImpl for ImageToolInner {
                         ImageTool::ASCENDER,
                         ImageTool::ASCENDER,
                         ImageTool::ASCENDER,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         ufo::constants::ASCENDER,
                         glib::ParamFlags::READWRITE,
                     ),
@@ -81,8 +81,8 @@ impl ObjectImpl for ImageToolInner {
                         ImageTool::DESCENDER,
                         ImageTool::DESCENDER,
                         ImageTool::DESCENDER,
-                        std::f64::MIN,
-                        std::f64::MAX,
+                        f64::MIN,
+                        f64::MAX,
                         ufo::constants::DESCENDER,
                         glib::ParamFlags::READWRITE,
                     ),
@@ -193,9 +193,9 @@ glib::wrapper! {
 }
 
 impl ImageTool {
-    pub const ACTIVE: &str = "active";
-    pub const ASCENDER: &str = FontInfo::ASCENDER;
-    pub const DESCENDER: &str = FontInfo::DESCENDER;
+    pub const ACTIVE: &'static str = "active";
+    pub const ASCENDER: &'static str = FontInfo::ASCENDER;
+    pub const DESCENDER: &'static str = FontInfo::DESCENDER;
 
     pub fn new(glyph: Rc<RefCell<Glyph>>, project: Project) -> Self {
         let ret: Self = glib::Object::new(&[]).unwrap();

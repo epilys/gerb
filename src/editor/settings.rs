@@ -149,11 +149,11 @@ impl Default for EditorSettings {
 }
 
 impl EditorSettings {
-    pub const SHOW_MINIMAP: &str = "show-minimap";
-    pub const LOCK_GUIDELINES: &str = "lock-guidelines";
-    pub const SHOW_GLYPH_GUIDELINES: &str = "show-glyph-guidelines";
-    pub const SHOW_PROJECT_GUIDELINES: &str = "show-project-guidelines";
-    pub const SHOW_METRICS_GUIDELINES: &str = "show-metrics-guidelines";
+    pub const SHOW_MINIMAP: &'static str = "show-minimap";
+    pub const LOCK_GUIDELINES: &'static str = "lock-guidelines";
+    pub const SHOW_GLYPH_GUIDELINES: &'static str = "show-glyph-guidelines";
+    pub const SHOW_PROJECT_GUIDELINES: &'static str = "show-project-guidelines";
+    pub const SHOW_METRICS_GUIDELINES: &'static str = "show-metrics-guidelines";
 
     pub fn new() -> Self {
         glib::Object::new::<Self>(&[]).unwrap()

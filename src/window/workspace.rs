@@ -195,13 +195,13 @@ glib::wrapper! {
 }
 
 impl Workspace {
-    pub const REORDERABLE: &str = "reorderable";
-    pub const CLOSEABLE: &str = "closeable";
-    pub const TITLE: &str = "title";
-    pub const IS_MENU_VISIBLE: &str = "is-menu-visible";
-    pub const MENUBAR: &str = "menubar";
-    pub const CHILD: &str = "child";
-    pub const MENUMODEL: &str = "menu-model";
+    pub const REORDERABLE: &'static str = "reorderable";
+    pub const CLOSEABLE: &'static str = "closeable";
+    pub const TITLE: &'static str = "title";
+    pub const IS_MENU_VISIBLE: &'static str = "is-menu-visible";
+    pub const MENUBAR: &'static str = "menubar";
+    pub const CHILD: &'static str = "child";
+    pub const MENUMODEL: &'static str = "menu-model";
 
     pub fn new(child: &gtk::Widget) -> Self {
         let ret: Self = glib::Object::new(&[]).expect("Failed to create Workspace");

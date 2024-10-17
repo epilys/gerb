@@ -467,12 +467,8 @@ impl ToolImplImpl for BezierToolInner {
                     self.transform_point(m, &view, state, state.curve_index, handle_point);
                 }
                 if !unlinked {
-                    let linked_curve_point = state.contour.curves()[0]
-                        .points()
-                        .iter()
-                        .nth(1)
-                        .unwrap()
-                        .clone();
+                    let linked_curve_point =
+                        state.contour.curves()[0].points().get(1).unwrap().clone();
                     let new_mirrored_position = handle.mirror(state.first_point);
                     let diff_vector = new_mirrored_position - linked_curve_point.position;
                     let mut m = Matrix::identity();
@@ -567,7 +563,7 @@ impl BezierToolInner {
         mut state_opt: RefMut<'_, Option<ContourState>>,
         point: Point,
     ) {
-        if let Some(mut state) = state_opt.as_mut() {
+        if let Some(state) = state_opt.as_mut() {
             let add_to_kdtree =
                 |state: &mut ContourState, curve_index: usize, curve_point: CurvePoint| {
                     let editor_state = view.state().borrow();
@@ -738,7 +734,7 @@ impl Default for BezierTool {
 }
 
 impl BezierTool {
-    pub const ACTIVE: &str = "active";
+    pub const ACTIVE: &'static str = "active";
 
     pub fn new() -> Self {
         glib::Object::new(&[]).unwrap()

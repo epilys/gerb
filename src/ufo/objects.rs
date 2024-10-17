@@ -122,10 +122,10 @@ impl ObjectImpl for FontInfoInner {
                     def_param!(u64 FontInfo::VERSION_MINOR, constants::VERSION_MINOR),
                     def_param!(f64 FontInfo::UNITS_PER_EM, 1.0, constants::UNITS_PER_EM),
                     def_param!(f64 FontInfo::X_HEIGHT, 1.0, constants::X_HEIGHT),
-                    def_param!(f64 FontInfo::ASCENDER, std::f64::MIN, constants::ASCENDER),
-                    def_param!(f64 FontInfo::DESCENDER, std::f64::MIN, constants::DESCENDER),
-                    def_param!(f64 FontInfo::CAP_HEIGHT, std::f64::MIN, constants::CAP_HEIGHT),
-                    def_param!(f64 FontInfo::ITALIC_ANGLE, std::f64::MIN, constants::ITALIC_ANGLE),
+                    def_param!(f64 FontInfo::ASCENDER, f64::MIN, constants::ASCENDER),
+                    def_param!(f64 FontInfo::DESCENDER, f64::MIN, constants::DESCENDER),
+                    def_param!(f64 FontInfo::CAP_HEIGHT, f64::MIN, constants::CAP_HEIGHT),
+                    def_param!(f64 FontInfo::ITALIC_ANGLE, f64::MIN, constants::ITALIC_ANGLE),
                 ]
             });
         PROPERTIES.as_ref()
@@ -251,23 +251,23 @@ impl_deref!(FontInfo, FontInfoInner);
 impl_property_window!(FontInfo, { "Font Metadata" });
 
 impl FontInfo {
-    pub const MODIFIED: &str = "modified";
-    pub const FAMILY_NAME: &str = "family-name";
-    pub const STYLE_NAME: &str = "style-name";
-    pub const STYLE_MAP_FAMILY_NAME: &str = "style-map-family-name";
-    pub const STYLE_MAP_STYLE_NAME: &str = "style-map-style-name";
-    pub const YEAR: &str = "year";
-    pub const COPYRIGHT: &str = "copyright";
-    pub const TRADEMARK: &str = "trademark";
-    pub const UNITS_PER_EM: &str = "units-per-em";
-    pub const DESCENDER: &str = "descender";
-    pub const X_HEIGHT: &str = "x-height";
-    pub const CAP_HEIGHT: &str = "cap-height";
-    pub const ASCENDER: &str = "ascender";
-    pub const ITALIC_ANGLE: &str = "italic-angle";
-    pub const NOTE: &str = "note";
-    pub const VERSION_MAJOR: &str = "version-major";
-    pub const VERSION_MINOR: &str = "version-minor";
+    pub const MODIFIED: &'static str = "modified";
+    pub const FAMILY_NAME: &'static str = "family-name";
+    pub const STYLE_NAME: &'static str = "style-name";
+    pub const STYLE_MAP_FAMILY_NAME: &'static str = "style-map-family-name";
+    pub const STYLE_MAP_STYLE_NAME: &'static str = "style-map-style-name";
+    pub const YEAR: &'static str = "year";
+    pub const COPYRIGHT: &'static str = "copyright";
+    pub const TRADEMARK: &'static str = "trademark";
+    pub const UNITS_PER_EM: &'static str = "units-per-em";
+    pub const DESCENDER: &'static str = "descender";
+    pub const X_HEIGHT: &'static str = "x-height";
+    pub const CAP_HEIGHT: &'static str = "cap-height";
+    pub const ASCENDER: &'static str = "ascender";
+    pub const ITALIC_ANGLE: &'static str = "italic-angle";
+    pub const NOTE: &'static str = "note";
+    pub const VERSION_MAJOR: &'static str = "version-major";
+    pub const VERSION_MINOR: &'static str = "version-minor";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();
@@ -475,9 +475,9 @@ mod layer {
     }
 
     impl Layer {
-        pub const MODIFIED: &str = "modified";
-        pub const NAME: &str = "name";
-        pub const DIR_NAME: &str = "dir-name";
+        pub const MODIFIED: &'static str = "modified";
+        pub const NAME: &'static str = "name";
+        pub const DIR_NAME: &'static str = "dir-name";
 
         pub fn new() -> Self {
             let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

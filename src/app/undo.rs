@@ -136,8 +136,8 @@ impl Default for UndoDatabase {
 }
 
 impl UndoDatabase {
-    pub const CAN_UNDO: &str = "can-undo";
-    pub const CAN_REDO: &str = "can-redo";
+    pub const CAN_UNDO: &'static str = "can-undo";
+    pub const CAN_REDO: &'static str = "can-redo";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

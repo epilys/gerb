@@ -172,13 +172,13 @@ glib::wrapper! {
 }
 
 impl PropertyWindow {
-    const IS_DIRTY: &str = "is-dirty";
+    const IS_DIRTY: &'static str = "is-dirty";
 
     pub fn builder(obj: glib::Object, app: &crate::prelude::Application) -> PropertyWindowBuilder {
         PropertyWindowBuilder::new(obj, app)
     }
 
-    pub fn widgets(&mut self) -> FieldRef<'_, IndexMap<String, gtk::Widget>> {
+    pub fn widgets(&self) -> FieldRef<'_, IndexMap<String, gtk::Widget>> {
         self.imp().widgets.borrow().into()
     }
 
@@ -191,7 +191,7 @@ impl PropertyWindow {
     }
 
     fn object_to_property_grid(
-        &mut self,
+        &self,
         obj: glib::Object,
         friendly_name: Option<Cow<'static, str>>,
         create: bool,

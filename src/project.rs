@@ -163,9 +163,9 @@ impl std::ops::Deref for Project {
 }
 
 impl Project {
-    pub const MODIFIED: &str = "modified";
-    pub const NAME: &str = "name";
-    pub const FILENAME_STEM: &str = "filename-stem";
+    pub const MODIFIED: &'static str = "modified";
+    pub const NAME: &'static str = "name";
+    pub const FILENAME_STEM: &'static str = "filename-stem";
 
     pub fn new() -> Self {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

@@ -30,7 +30,6 @@ mod tool_impl;
 mod zoom;
 pub use self::image::*;
 pub use bezier::*;
-pub use bspline::*;
 pub use panning::*;
 pub use shapes::*;
 pub use tool_impl::*;
@@ -48,15 +47,9 @@ impl Tool {
         let active_tools = state
             .tools
             .get(&state.active_tool)
-            .map(Clone::clone)
+            .cloned()
             .into_iter()
-            .chain(
-                state
-                    .tools
-                    .get(&state.panning_tool)
-                    .map(Clone::clone)
-                    .into_iter(),
-            );
+            .chain(state.tools.get(&state.panning_tool).cloned());
         drop(state);
         for t in active_tools {
             if t.on_button_press_event(obj.clone(), viewport, event) == Inhibit(true) {
@@ -75,15 +68,9 @@ impl Tool {
         let active_tools = state
             .tools
             .get(&state.active_tool)
-            .map(Clone::clone)
+            .cloned()
             .into_iter()
-            .chain(
-                state
-                    .tools
-                    .get(&state.panning_tool)
-                    .map(Clone::clone)
-                    .into_iter(),
-            );
+            .chain(state.tools.get(&state.panning_tool).cloned());
         drop(state);
         for t in active_tools {
             if t.on_button_release_event(obj.clone(), viewport, event) == Inhibit(true) {
@@ -99,13 +86,14 @@ impl Tool {
         event: &gtk::gdk::EventScroll,
     ) -> Inhibit {
         let state = obj.state().borrow();
-        let (panning_tool, active_tool) = (state.panning_tool, state.active_tool);
+        let panning_tool = state.panning_tool;
+        let active_tool = state.active_tool;
         let active_tools = state
             .tools
             .get(&active_tool)
-            .map(Clone::clone)
+            .cloned()
             .into_iter()
-            .chain(state.tools.get(&panning_tool).map(Clone::clone).into_iter())
+            .chain(state.tools.get(&panning_tool).cloned())
             .chain(state.tools.clone().into_iter().filter_map(|(k, v)| {
                 if [panning_tool, active_tool].contains(&k) {
                     None
@@ -131,15 +119,9 @@ impl Tool {
         let active_tools = state
             .tools
             .get(&state.active_tool)
-            .map(Clone::clone)
+            .cloned()
             .into_iter()
-            .chain(
-                state
-                    .tools
-                    .get(&state.panning_tool)
-                    .map(Clone::clone)
-                    .into_iter(),
-            );
+            .chain(state.tools.get(&state.panning_tool).cloned());
         drop(state);
         for t in active_tools {
             if t.on_motion_notify_event(obj.clone(), viewport, event) == Inhibit(true) {
@@ -401,7 +383,7 @@ pub mod constraints {
     }
 
     impl Lock {
-        const ACTION_NAME: &str = Editor::LOCK_ACTION;
+        const ACTION_NAME: &'static str = Editor::LOCK_ACTION;
 
         pub fn as_str(&self) -> &'static str {
             match *self {
@@ -438,7 +420,7 @@ pub mod constraints {
     }
 
     impl Precision {
-        const ACTION_NAME: &str = Editor::PRECISION_ACTION;
+        const ACTION_NAME: &'static str = Editor::PRECISION_ACTION;
 
         pub fn as_str(&self) -> &'static str {
             match *self {
@@ -468,7 +450,7 @@ pub mod constraints {
     }
 
     impl Snap {
-        const ACTION_NAME: &str = Editor::SNAP_ACTION;
+        const ACTION_NAME: &'static str = Editor::SNAP_ACTION;
 
         pub fn as_str(&self) -> &'static str {
             match *self {

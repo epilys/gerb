@@ -104,7 +104,7 @@ impl std::ops::Deref for Repository {
 }
 
 impl Repository {
-    pub const STATE: &str = "state";
+    pub const STATE: &'static str = "state";
 
     pub fn new(abs_path: &Path) -> Result<Option<Self>, Box<dyn std::error::Error>> {
         let ret: Self = glib::Object::new::<Self>(&[]).unwrap();

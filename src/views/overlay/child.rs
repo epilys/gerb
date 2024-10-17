@@ -146,10 +146,10 @@ glib::wrapper! {
 }
 
 impl Child {
-    pub const WIDGET: &str = "widget";
-    pub const MOVABLE: &str = "movable";
-    pub const EXPANDABLE: &str = "expandable";
-    pub const EXPANDED: &str = "expanded";
+    pub const WIDGET: &'static str = "widget";
+    pub const MOVABLE: &'static str = "movable";
+    pub const EXPANDABLE: &'static str = "expandable";
+    pub const EXPANDED: &'static str = "expanded";
 
     pub fn new<P: IsA<gtk::Widget>>(child: P) -> Self {
         Self::new_inner(child.upcast())

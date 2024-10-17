@@ -229,9 +229,9 @@ impl ObjectImpl for EditorInner {
                     ),
                     def_param!(f64 Editor::UNITS_PER_EM, 1.0, ufo::constants::UNITS_PER_EM),
                     def_param!(f64 Editor::X_HEIGHT, 1.0, ufo::constants::X_HEIGHT),
-                    def_param!(f64 Editor::ASCENDER, std::f64::MIN, ufo::constants::ASCENDER),
-                    def_param!(f64 Editor::DESCENDER, std::f64::MIN, ufo::constants::DESCENDER),
-                    def_param!(f64 Editor::CAP_HEIGHT, std::f64::MIN, ufo::constants::CAP_HEIGHT),
+                    def_param!(f64 Editor::ASCENDER, f64::MIN, ufo::constants::ASCENDER),
+                    def_param!(f64 Editor::DESCENDER, f64::MIN, ufo::constants::DESCENDER),
+                    def_param!(f64 Editor::CAP_HEIGHT, f64::MIN, ufo::constants::CAP_HEIGHT),
                     glib::ParamSpecBoolean::new(
                         Editor::LOCK_GUIDELINES,
                         Editor::LOCK_GUIDELINES,
@@ -358,12 +358,12 @@ impl ObjectImpl for EditorInner {
             Editor::ACTIVE_TOOL => {
                 let state = self.state.get().unwrap().borrow();
                 let active_tool = state.active_tool;
-                state.tools.get(&active_tool).map(Clone::clone).to_value()
+                state.tools.get(&active_tool).cloned().to_value()
             }
             Editor::PANNING_TOOL => {
                 let state = self.state.get().unwrap().borrow();
                 let panning_tool = state.panning_tool;
-                state.tools.get(&panning_tool).map(Clone::clone).to_value()
+                state.tools.get(&panning_tool).cloned().to_value()
             }
             Editor::MENUBAR => Some(self.menubar.clone()).to_value(),
             Editor::LOCK => self.lock.get().1.bits().to_value(),
@@ -548,11 +548,11 @@ impl_deref!(Editor, EditorInner);
 impl_friendly_name!(Editor);
 
 impl Editor {
-    pub const CLOSEABLE: &str = Workspace::CLOSEABLE;
-    pub const TITLE: &str = Workspace::TITLE;
-    pub const IS_MENU_VISIBLE: &str = Workspace::IS_MENU_VISIBLE;
-    pub const MENUBAR: &str = Workspace::MENUBAR;
-    pub const PREVIEW: &str = "preview";
+    pub const CLOSEABLE: &'static str = Workspace::CLOSEABLE;
+    pub const TITLE: &'static str = Workspace::TITLE;
+    pub const IS_MENU_VISIBLE: &'static str = Workspace::IS_MENU_VISIBLE;
+    pub const MENUBAR: &'static str = Workspace::MENUBAR;
+    pub const PREVIEW: &'static str = "preview";
     inherit_property!(
         FontInfo,
         ASCENDER,
@@ -561,9 +561,9 @@ impl Editor {
         UNITS_PER_EM,
         X_HEIGHT
     );
-    pub const MODIFYING_IN_PROCESS: &str = "modifying-in-process";
-    pub const ACTIVE_TOOL: &str = "active-tool";
-    pub const PANNING_TOOL: &str = "panning-tool";
+    pub const MODIFYING_IN_PROCESS: &'static str = "modifying-in-process";
+    pub const ACTIVE_TOOL: &'static str = "active-tool";
+    pub const PANNING_TOOL: &'static str = "panning-tool";
     inherit_property!(
         EditorSettings,
         SHOW_MINIMAP,

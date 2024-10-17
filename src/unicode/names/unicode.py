@@ -178,7 +178,7 @@ def create_intervals(list):
     in_group = False
     group_start = 0
     result = []
-    for (idx, val) in enumerate(list):
+    for idx, val in enumerate(list):
         if not in_group:
             group_start = val
             in_group = True
@@ -265,7 +265,7 @@ def write_enumeration_char_names(rf, encoded_groups):
 pub const ENUMERATION_CHAR_NAMES: &'static [(u32, u32, &'static [u16], &'static [u32])] = &[
 """
     )
-    for (first, last, group_buffer, pos_buffer) in encoded_groups:
+    for first, last, group_buffer, pos_buffer in encoded_groups:
         rf.write("\t(%d, %d, &%s, &%s),\n" % (first, last, group_buffer, pos_buffer))
     rf.write(
         """];
@@ -281,7 +281,7 @@ def write_special_groups(rf, special_groups):
 pub enum SpecialGroup {
 """
     )
-    for (_, _, groupname) in special_groups:
+    for _, _, groupname in special_groups:
         group_variant = groupname.replace(" ", "")
         rf.write("\t%s,\n" % group_variant)
     rf.write(
@@ -293,7 +293,7 @@ pub enum SpecialGroup {
 pub const SPECIAL_GROUPS: &'static [(u32, u32, SpecialGroup)] = &[
 """
     )
-    for (idx, (first, last, groupname)) in enumerate(special_groups):
+    for idx, (first, last, groupname) in enumerate(special_groups):
         if idx % 2 == 0:
             rf.write("\t")
         group_variant = groupname.replace(" ", "")
@@ -331,7 +331,7 @@ def write_word_table(rf, word_table):
 pub const ENUMERATION_WORD_TABLE: &'static [&'static str] = &[
 """
     )
-    for (idx, word) in enumerate(word_table):
+    for idx, word in enumerate(word_table):
         if idx % 8 == 0:
             rf.write("\t")
         rf.write('"%s", ' % word)
@@ -384,7 +384,7 @@ pub fn is_special_word_index(v: u16) -> bool {
     match v {
 """
     )
-    for (first, last) in special_intervals:
+    for first, last in special_intervals:
         rf.write("\t\t%d..=%d => true,\n" % (first, last))
     rf.write(
         """\t\t_ => false,
